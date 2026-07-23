@@ -22,7 +22,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - ADR-0009–ADR-0014, expanded traceability through REQ-F-065/DATA-042/TEST-099, staged roadmap, and governed human-adoption/versioning boundaries.
 - Rust 1.94.1 workspace with domain, estimation-engine, and test-support crates.
 - Typed units, fixed-precision money/currency, provenance/version wrappers, explicit value states, typed DAG validation, and canonical calculation snapshots.
-- Executable TASK-001 tests, three-OS CI definition, dependency record, and validation evidence.
+- Executable TASK-001 tests, passing three-OS CI evidence, dependency record, and validation evidence.
 
 ### Security
 

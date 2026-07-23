@@ -26,4 +26,4 @@ Every golden fixture stores raw inputs, expected intermediate nodes, unrounded a
 
 ## Current evidence
 
-[TASK-001 validation](task-001-validation.md) provides executable local evidence for CALC-001, CALC-003, CALC-005, CALC-016, CALC-017, typed graph rejection, and canonical serialization. It does not approve shop rates, presentation rounding, full worked examples, or three-OS reproducibility.
+[TASK-001 validation](task-001-validation.md) provides executable local and three-OS evidence for CALC-001, CALC-003, CALC-005, CALC-016, CALC-017, typed graph rejection, and canonical serialization. It does not approve shop rates, presentation rounding, full worked examples, or production rule replay.
