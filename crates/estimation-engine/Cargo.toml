@@ -1,0 +1,15 @@
+[package]
+name = "partprobe-estimation-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+partprobe-domain.workspace = true
+rust_decimal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

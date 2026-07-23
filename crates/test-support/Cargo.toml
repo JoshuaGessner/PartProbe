@@ -1,0 +1,14 @@
+[package]
+name = "partprobe-test-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+partprobe-domain.workspace = true
+partprobe-estimation-engine.workspace = true
+rust_decimal.workspace = true
+
+[lints]
+workspace = true

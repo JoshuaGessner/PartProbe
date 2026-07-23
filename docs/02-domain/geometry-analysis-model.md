@@ -1,0 +1,68 @@
+# Geometry-analysis domain model
+
+## Metadata
+
+- **Status:** In Review
+- **Last updated:** 2026-07-22
+- **Related requirement IDs:** REQ-F-021–REQ-F-024, GEO-001–GEO-014, DATA-011–DATA-018, SEC-004
+- **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
+- **Open questions:** Canonical tolerance policy? Required retention period for derivatives? First-slice maximum input size?
+- **Dependencies:** `cad-file-formats.md`, `geometry-engine.md`, persistence model, security model
+- **Supersedes / superseded by:** None / none
+
+## Purpose and invariants
+
+`GeometryAnalysisSnapshot` is an immutable, versioned interpretation of one source-model revision. It is evidence for estimating; it is not the CAD model, a drawing requirement, a released process plan, or a production CAM simulation. An analysis may be rerun, but an approved quote continues to point at the snapshot it used.
+
+Invariants: source bytes are retained or externally content-addressed by SHA-256; all computed linear values state units and are stored canonically in millimeters; mass needs a selected material-density source; exact and mesh provenance never merge; repaired derivatives never replace the source; all results identify algorithm and dependency versions.
+
+## Aggregate model
+
+```text
+PartRevision
+ ├─ ModelAsset (source hash, format, controlled location, received metadata)
+ └─ GeometryAnalysisSnapshot [0..n]
+     ├─ ImportRecord / UnitResolution / HealingRecord
+     ├─ GeometryRepresentation [one or more bodies]
+     ├─ ValidationReport
+     ├─ BasicProperties
+     ├─ OrientationCandidate [0..n]
+     ├─ StockEnvelopeCandidate [0..n]
+     ├─ FeatureAnalysisSnapshot [0..1]
+     ├─ Warning [0..n] and Diagnostic [0..n]
+     └─ AnalysisProvenance / ReviewState
+```
+
+| Entity | Required fields | Notes |
+|---|---|---|
+| `ModelAsset` | `id`, `part_revision_id`, format detected/declared, SHA-256, byte size, source filename (display only), received timestamp, retention classification | Store controlled-path/object-store locator separately from user-visible name. |
+| `UnitResolution` | imported unit, candidate units/scales, resolved unit, conversion factor to mm, method (`declared`, `confirmed`, `inferred`), confirmer, reason | Unit ambiguity blocks approval-dependent measurements. |
+| `GeometryRepresentation` | body-scoped representation (`exact_brep`, `mesh`, `unknown`), body/shell counts, kernel/importer IDs, geometry reference namespace; snapshot may summarize `mixed` | Never label a mesh exact because it originated from CAD. `mixed` is aggregate metadata, never a measurement basis. |
+| `ValidationReport` | state, solid validity, watertightness, manifold state, degenerate/self-intersection counts where available, transfer status | Each field has `not_applicable` / `unknown` distinct from pass. |
+| `BasicProperties` | AABB, OBB candidates, volume, surface area, centroid, principal axes when available, min local thickness status, complexity indicators | Every value is `Measurement`, below. |
+| `Measurement` | value, unit, derivation rule ID, representation basis, tolerance/approximation, status, confidence/reasons | `unknown` must not serialize as zero. |
+| `HealingRecord` | action, parameters, before/after hashes or derivative IDs, affected refs, outcome, operator/algorithm | Healing is never silent. |
+| `Warning` | stable code, severity, stage, affected refs, user-facing message, remediation, blocking flag, status | Diagnostics must exclude CAD coordinates/body names unless permitted. |
+| `AnalysisProvenance` | analysis ID, started/ended, algorithm versions, kernel/library builds, OS/arch, worker profile, input and derivative hashes | Enables reproducibility and incident triage. |
+| `ReviewState` | `proposed`, `needs_input`, `reviewed`, `approved_for_quote`, `superseded`, reviewer/time, decisions | Approval scopes the snapshot, not later reruns. |
+
+## Geometry results and derivations
+
+- **AABB:** min/max of representation coordinates after confirmed unit transform; stable and inexpensive.
+- **OBB:** named algorithm and candidate orientation, never a claim of globally minimum stock unless that exact algorithm is used and recorded.
+- **Exact volume/area/centroid:** only an accepted valid solid/closed exact topology. Surface area is not a machining-area estimate.
+- **Mesh volume:** only a closed, consistently oriented, non-self-intersecting mesh under an explicitly named signed-volume method; label `approximate_mesh`.
+- **Mass:** `volume × selected density`; density, material condition and source must be explicit. Missing density produces no mass.
+- **Removed volume:** `stock volume − part volume` only if the approved stock envelope encloses the part in the recorded coordinate frame. A negative result is a validation error, not a signed manufacturing fact.
+
+## Stage outcome contract
+
+Every geometry stage returns `StageOutcome { status, outputs, warnings, confidence, timing, algorithm_version, diagnostics }`. `status` is `succeeded`, `succeeded_with_warnings`, `needs_user_input`, `failed_recoverable`, or `failed_terminal`. Stages may preserve useful earlier outputs after a downstream failure; no failed/partial output can masquerade as authoritative.
+
+## Confidence and review
+
+Confidence has a level and reasons, not one arithmetic score. Each body, measurement, and derived feature starts at its own representation ceiling, then has explicit reductions for unknown units, invalidity, transfer loss, healing, ambiguity, unsupported entities, and no drawing. A mixed-snapshot aggregate is constrained by the weakest representation relevant to that aggregate; exact bodies do not upgrade mesh-derived evidence. A user can accept a low-confidence input but must supply a reason; the warning and original confidence remain. Quote approval must show all unresolved blocking warnings.
+
+## Boundary with drawings and requirements
+
+Geometry does not author material, tolerance, GD&T, finish, thread, inspection, certification, export-control, or customer requirements. `RequirementReviewLink` may associate a geometry reference with a human-entered drawing requirement but does not infer it. This prevents a visually plausible model from suppressing drawing-driven estimating work.

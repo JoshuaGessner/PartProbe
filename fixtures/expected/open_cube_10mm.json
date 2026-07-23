@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-002",
+  "representation": "triangle_mesh",
+  "imported_units": null,
+  "confirmed_units": "mm",
+  "body_count": 1,
+  "triangle_count": 10,
+  "watertight": false,
+  "edge_manifold_with_boundary": true,
+  "aabb_mm": { "x": 10.0, "y": 10.0, "z": 10.0 },
+  "surface_area_mm2": 500.0,
+  "enclosed_volume_mm3": null,
+  "center_of_mass_mm": null,
+  "absolute_tolerance": 0.000001,
+  "required_warnings": ["units_missing_requires_confirmation", "mesh_not_exact_brep", "open_boundary", "closed_volume_unavailable"]
+}

@@ -1,0 +1,41 @@
+# ADR-0002: Geometry kernel
+
+## Metadata
+
+- **Status:** In Review
+- **Last updated:** 2026-07-22
+- **Related requirement IDs:** REQ-F-021–REQ-F-024, REQ-NF-011–REQ-NF-014, GEO-001–GEO-014, SEC-004
+- **Related architecture decision IDs:** ADR-0004, ADR-0005
+- **Open questions:** Cross-platform fixture results, LGPL compliance decision, worker API and OCCT build reproducibility
+- **Dependencies:** OCCT packaging/legal review; format and malformed-input spike
+- **Supersedes / superseded by:** None / none
+
+## Context
+
+The estimator needs validated measurements and topology from interchange CAD while remaining Rust-first, cross-platform and local-first. Rust-native options are promising but do not yet establish the required breadth of STEP/IGES translation and healing. Commercial kernels offer support but introduce contractual, cost, redistribution, and FFI constraints.
+
+## Proposed decision
+
+Adopt **OCCT as the initial exact B-rep kernel, accessed only by a sandboxed native geometry worker and neutral Rust contract**. Use Rust-native mesh processing for STL/3MF/OBJ measurement/validation. Keep a provider interface so a commercial kernel/translator can later be added without changing quote-domain types.
+
+OCCT documents STEP AP203/AP214/AP242 and IGES interfaces, with validity checking and data exchange. [OCCT overview](https://dev.opencascade.org/doc/overview/html/index.html) Its license is LGPL 2.1 with an additional exception and requires visible notices/consideration of LGPL obligations in proprietary applications. [OCCT licensing](https://dev.opencascade.org/resources/licensing)
+
+## Consequences
+
+- Positive: credible open initial STEP path, no vendor lock-in in the domain model, FFI/crash isolation, reproducible source/derivative provenance.
+- Negative: native worker packaging on three OSes, potential translation differences, legal notice/compliance work, explicit wrapper maintenance and IPC overhead.
+- Non-consequence: this does not add native proprietary CAD support or certify model correctness.
+
+## Approval evidence required
+
+1. Legal review of OCCT release license/notices and shipping method; SBOM and third-party notice plan.
+2. Windows/macOS/Linux worker build, signing/notarization feasibility, and isolated malformed-input behavior.
+3. Reviewed format fixture scorecard with exact properties, healing reports, resource limits and deterministic reruns.
+4. Rust FFI wrapper audit and worker boundary test proving worker failure cannot crash the desktop or corrupt quote data.
+
+## Alternatives considered
+
+- **Parasolid/Communicator:** capable commercial option, deferred until native/interoperability value justifies negotiated terms. [Siemens SDK](https://www.siemens.com/en-us/products/plm-components/parasolid/3d-modeling-sdk/)
+- **ACIS/InterOp:** capable commercial option, same contract and integration gate. [Spatial ACIS](https://www.spatial.com/solutions/3d-modeling/3d-acis-modeler)
+- **Rust-only kernel:** preferred long-term safety posture if coverage is demonstrated; not sufficient evidence for initial authority.
+- **In-process OCCT:** rejected for initial design because untrusted parsing and FFI failure containment matter more than eliminating IPC.

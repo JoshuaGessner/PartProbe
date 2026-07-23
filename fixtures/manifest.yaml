@@ -1,0 +1,58 @@
+schema_version: 1
+fixtures:
+  - id: FIX-MESH-001
+    title: Closed 10 mm synthetic cube
+    path: models/cube_10mm_ascii.stl
+    format: stl-ascii
+    representation: triangle_mesh
+    source: project-generated-synthetic
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_format_fixture_convention_mm
+    declared_units: null
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions: null
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling: null
+    owner: unassigned
+    recorded_date: 2026-07-22
+    reviewed_date: null
+    requirements: [GEO-003, GEO-004, GEO-010, TEST-022, TEST-025]
+    purpose:
+      - closed_mesh_validation
+      - unit_confirmation
+      - aabb_volume_area_golden
+    expected: expected/cube_10mm.json
+    sha256: c46f940641e08eb3cbcaed5e1d90191c089651dd8d42064ecdaaa7a8b3e069ab
+  - id: FIX-MESH-002
+    title: Open 10 mm synthetic cube
+    path: models/open_cube_10mm_ascii.stl
+    format: stl-ascii
+    representation: triangle_mesh
+    source: project-generated-synthetic
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_format_fixture_convention_mm
+    declared_units: null
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions: null
+    expected_worker_outcome: succeeded_with_warnings_no_closed_volume
+    resource_ceiling: null
+    owner: unassigned
+    recorded_date: 2026-07-22
+    reviewed_date: null
+    requirements: [GEO-003, GEO-004, GEO-010, TEST-022, TEST-025]
+    purpose:
+      - open_boundary_detection
+      - unavailable_volume_policy
+    expected: expected/open_cube_10mm.json
+    sha256: f78bc469609e5805ced85c710be08b985443a21e1b5b3da9c7f19ffa008ed55d
+required_next:
+  - exact_step_cube_with_known_units
+  - 3mf_cube_with_package_units
+  - malformed_and_resource_limit_corpus
+  - multi_body_step
+  - thin_wall_and_undercut_parts
+  - shop_reviewed_private_parts
