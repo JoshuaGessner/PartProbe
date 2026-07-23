@@ -14,11 +14,11 @@ PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop est
 
 - **Phase:** 0 — Discovery and Validation
 - **Milestone:** M0.2 — Evidence and decision closure, In Progress
-- **Overall status:** TASK-001 calculation foundation is implemented and locally validated; three-OS CI and ADR evidence remain open, and broad production implementation is not authorized
-- **Recently completed:** Rust workspace, domain/calculation primitives, typed DAG validation, canonical snapshots, local TEST-001 suite, CI matrix definition, and dependency record
+- **Overall status:** TASK-001 calculation foundation and three-OS CI evidence are complete; ADR evidence remains open, and broad production implementation is not authorized
+- **Recently completed:** Rust workspace, domain/calculation primitives, typed DAG validation, canonical snapshots, TEST-001 suite on Windows/Linux/macOS, and dependency record
 - **Documents awaiting review:** All documents marked Draft or In Review; especially ADR-0001–ADR-0014, advanced formulas/policies, calculation rules, requirements, security boundaries, and worked examples
-- **Blocking decisions:** No Git remote exists for the first three-OS CI run; ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
-- **Next actions:** Capture TASK-001 Windows/Linux/macOS CI evidence, then TASK-002–TASK-018 in [backlog priority](07-delivery/backlog.md), sequenced by the roadmap
+- **Blocking decisions:** ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
+- **Next actions:** Begin TASK-002, then TASK-003–TASK-018 in [backlog priority](07-delivery/backlog.md), sequenced by the roadmap
 
 Implementation readiness extends through the reversible TASK-001 foundation and evidence-producing spikes. Architecture selection, controlled-data enablement, runtime-accuracy claims, and product release remain blocked on M0.2 evidence and review.
 
@@ -57,7 +57,7 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 | Isolated geometry-worker IPC/crash/resource boundary | Not started | ADR-0005 and TASK-003 |
 | STL/3MF mesh import/validation | Not started | ADR-0004 and TASK-004 |
 | SQLite/blob migrations, crash, backup/restore, concurrency | Not started | ADR-0006 and TASK-006 |
-| Typed decimal/unit calculation DAG and replay | Local spike passes; three-OS/reviewed-golden evidence pending | ADR-0007 and TASK-001/002 |
+| Typed decimal/unit calculation DAG and replay | Local and three-OS spike passes; reviewed-golden evidence pending | ADR-0007 and TASK-002 |
 | Analysis snapshot version/diff/migration | Not started | ADR-0008 and TASK-003/006 |
 | Route feasibility/comparison and adoption | Not started | ADR-0009, TEST-040–044, TASK-011 |
 | Capacity/economic definitions and stale-source behavior | Not started | ADR-0010, TEST-045–050, TASK-012 |

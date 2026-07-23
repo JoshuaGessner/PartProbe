@@ -1,7 +1,7 @@
 # Delivery Backlog
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-07-23  
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** OQ-001–OQ-050  
@@ -10,7 +10,7 @@
 
 ## TASK-001 — Bootstrap the Rust workspace and calculation primitives
 
-**Status:** Implemented and locally validated on 2026-07-23; first Windows/Linux/macOS CI matrix run pending. See [validation evidence](../06-quality/task-001-validation.md).  
+**Status:** Complete on 2026-07-23; local and Windows/Linux/macOS CI validation pass. See [validation evidence](../06-quality/task-001-validation.md).  
 **Requirements:** REQ-NF-001, REQ-NF-003, REQ-NF-004, REQ-NF-010; CALC-001, CALC-003, CALC-005, CALC-016, CALC-017; TEST-001.  
 **ADR constraints:** ADR-0007 (In Review; implement as a reversible spike if not yet accepted).  
 **Scope:** Create the root Cargo workspace, `domain`, `estimation-engine`, and `test-support` crates; typed units; fixed-precision money/currency; provenance/version wrappers; initial acyclic-node interface; CI checks for format, lint, tests on Windows/Linux/macOS.  

@@ -16,7 +16,7 @@
 | REQ-F-040–048 | Alternative routing, capacity/economics, and probabilistic estimates | routing optimizer, capacity engine, uncertainty engine | TEST-040–055 | Plans and formulas only |
 | REQ-F-049–055 | Revision, requirement coverage, PMI, and feature-level explanation | revision comparison, coverage domain, PMI research, viewer contract | TEST-056–073 | Plans and synthetic fixture definitions only |
 | REQ-F-056–065 | Corrections, CAM reconciliation, availability, sourcing, bid priority, and version pinning | learning governance, CAM adapters, availability/sourcing/bid domain | TEST-074–099 | Plans only |
-| REQ-NF-001–022 | Nonfunctional requirements | ADRs, security, deployment, quality, replay and resource budgets | TEST-001, TEST-007, TEST-008, TEST-011–013, TEST-019–030, TEST-040–099 | TASK-001 supplies local REQ-NF-003/004/010 evidence; three-OS CI pending |
+| REQ-NF-001–022 | Nonfunctional requirements | ADRs, security, deployment, quality, replay and resource budgets | TEST-001, TEST-007, TEST-008, TEST-011–013, TEST-019–030, TEST-040–099 | TASK-001 supplies three-OS REQ-NF-001/003/004/010 evidence; broader gates remain planned |
 | UX-001–010, 021–045 | UX requirements + UX documents | desktop platform + design system + advanced-analysis workflows | TEST-012, TEST-028, TEST-040–099 + usability sessions | Plans only |
 | SEC-001–014 | Security model/requirements | security + deployment + adapter/learning boundaries | TEST-011, TEST-061–069, TEST-074–099 | Threat/test plans only |
 | CALC-001–035 | Calculation rules | estimation, routing, capacity, uncertainty, revision, sourcing, bid domains | TEST-001, TEST-002, TEST-040–055, TEST-058–060, TEST-090–099 | CALC-001/003/005/016/017 executable; reviewed worked estimates pending |
@@ -24,6 +24,6 @@
 | FEAT-001–021 | Model requirements | feature pipeline/model | TEST-031–039 | No executable detector |
 | TIME-001–008 | Runtime research/model | runtime architecture | TEST-005 | Synthetic examples |
 | DATA-001–042 | Data model | persistence + bounded domain aggregates | TEST-007, TEST-014–018, TEST-040–099 | Conceptual schema |
-| TEST-001–099 | Quality strategy and specialized plans | `docs/06-quality` | Self-audit + future executable suites | TEST-001 local suite passes; cross-platform matrix pending |
+| TEST-001–099 | Quality strategy and specialized plans | `docs/06-quality` | Self-audit + future executable suites | TEST-001 passes locally and on Windows/Linux/macOS; TEST-002–099 remain planned |
 
-Coverage means planned traceability, not completion. [TASK-001 evidence](../06-quality/task-001-validation.md) is linked, but affected requirements remain incomplete until their full cross-platform and downstream acceptance gates pass.
+Coverage means planned traceability, not completion. [TASK-001 evidence](../06-quality/task-001-validation.md) is linked, but affected requirements remain incomplete until their downstream acceptance gates pass.

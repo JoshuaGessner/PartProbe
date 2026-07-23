@@ -1,10 +1,10 @@
 # TASK-001 Validation Evidence
 
-> **Status:** In Review  
+> **Status:** Complete  
 > **Last updated:** 2026-07-23  
 > **Related requirements:** REQ-NF-001, REQ-NF-003, REQ-NF-004, REQ-NF-010; CALC-001, CALC-003, CALC-005, CALC-016, CALC-017; TEST-001  
 > **Related ADRs:** ADR-0007  
-> **Open questions:** First Windows and Linux CI run; approved decimal scale/rounding policy  
+> **Open questions:** Approved decimal scale/rounding policy for TASK-002  
 > **Dependencies:** Rust 1.94.1, Cargo.lock, GitHub Actions runner access  
 > **Supersedes:** None
 
@@ -30,14 +30,17 @@ Environment: Apple Silicon macOS; `rustc 1.94.1 (e408947bf 2026-03-25)`; Cargo 1
 | `cargo clippy --workspace --all-targets -- -D warnings` | Pass |
 | `cargo test --workspace --all-targets --locked` | Pass: 23 runtime tests |
 | `cargo test --workspace --doc --locked` | Pass: one compile-fail unit-safety doctest |
-| `python3 scripts/check_planning.py` | Must pass at session close |
-| `python3 scripts/hash_fixtures.py` | Must reproduce both fixture hashes at session close |
+| `python3 scripts/check_planning.py` | Pass: 134 documentation files |
+| `python3 scripts/hash_fixtures.py` | Pass: both fixture hashes reproduced |
 
 TEST-001 evidence includes exact money addition and pricing, currency mismatch, normalized decimal serialization, deserialization-invariant rejection, negative physical-value rejection, mass, removed-volume and make-quantity properties, physical and monetary implicit-precision-loss rejection, quantity overflow, invalid pricing boundaries, missing dependency/type/cycle rejection, deterministic graph order, and an exact canonical JSON golden with an intermediate trace.
 
+## Cross-platform acceptance run
+
+[GitHub Actions run 30005930156](https://github.com/JoshuaGessner/PartProbe/actions/runs/30005930156) passed on `macos-latest`, `ubuntu-latest`, and `windows-latest` for commit `ec169b8`. Every matrix job passed locked dependency fetch, formatting, strict Clippy, all-target tests, and doctests. The initial run exposed Windows checkout newline conversion; `.gitattributes` now enforces the repository's LF formatting contract.
+
 ## Remaining evidence and limits
 
-- The GitHub Actions matrix is defined but has not run because this local repository has no configured remote. Windows and Linux results therefore remain pending; REQ-NF-001 and ADR-0007 are not Complete/Accepted.
 - TASK-002 must reconcile reviewed worked estimates and settle decimal internal scale, presentation rounding, overflow, and historical replay policy before this spike API becomes a production contract.
 - Canonical JSON is currently an internal, versioned spike representation—not an adopted external interchange standard.
 - No UI, persistence, geometry, runtime estimator, production routing, or advanced-analysis engine was implemented.

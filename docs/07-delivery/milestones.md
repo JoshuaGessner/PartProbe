@@ -1,7 +1,7 @@
 # Milestones
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-07-23  
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** OQ-001–OQ-050  
@@ -20,7 +20,7 @@ Exit: interviews complete; private fixture/data governance agreed; UI, geometry,
 
 Exit: Cargo workspace; domain/units/money/provenance; migrations/repositories; worker protocol; initial import/measurement corpus; application shell/design system; cross-platform CI; future-safe identifiers/snapshots for route sets, requirements, revisions, availability, and correction events without implementing advanced engines.
 
-Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and local evidence; cross-platform CI execution and the remaining foundation components are pending.
+Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence; the remaining foundation components are pending.
 
 ## M2 Vertical slice
 

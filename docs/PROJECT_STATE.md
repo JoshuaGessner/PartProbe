@@ -9,15 +9,15 @@
 > **Supersedes:** None
 
 - **Current phase:** Phase 0 — Discovery and Validation
-- **Current milestone:** M0.2 evidence and decision closure; calculation foundation spike implemented locally
+- **Current milestone:** M0.2 evidence and decision closure; calculation foundation spike validated on three OSes
 - **Current branch:** `main`
-- **Last completed task:** TASK-001 implementation and local macOS validation: workspace, primitives, typed DAG, canonical snapshots, tests, CI definition, and dependency evidence
-- **Work in progress:** First Windows/Linux/macOS GitHub Actions run; no remote is configured in this repository
-- **Next task:** Configure the intended Git remote and capture the TASK-001 three-OS CI result; then [TASK-002 — executable reviewed golden estimates](07-delivery/backlog.md)
-- **Build status:** Rust 1.94.1 workspace builds locally on Apple Silicon macOS; Windows and Linux CI runs are pending
+- **Last completed task:** TASK-001 implementation and Windows/Linux/macOS validation: workspace, primitives, typed DAG, canonical snapshots, tests, CI, and dependency evidence
+- **Work in progress:** TASK-002 input and shop-review preparation
+- **Next task:** [TASK-002 — executable reviewed golden estimates](07-delivery/backlog.md)
+- **Build status:** Rust 1.94.1 workspace passes on Apple Silicon macOS locally and on Windows/Linux/macOS in GitHub Actions run 30005930156
 - **Test status:** Format and strict Clippy pass; 23 runtime tests and one compile-fail doctest pass; planning validator and fixture hashes pass at closeout; TEST-002–TEST-099 remain planned
-- **Active technical debt:** Decimal scale/rounding and rule-upgrade replay await TASK-002; canonical JSON remains an internal spike contract; cross-platform CI has not run; advanced fixtures are definitions only; STEP/3MF and representative machining fixtures remain pending
-- **Active blockers:** A Git remote/CI run is required for TASK-001 cross-platform evidence; ADR acceptance and broader production work still require shop/security/legal inputs and representative fixtures
+- **Active technical debt:** Decimal scale/rounding and rule-upgrade replay await TASK-002; canonical JSON remains an internal spike contract; advanced fixtures are definitions only; STEP/3MF and representative machining fixtures remain pending
+- **Active blockers:** TASK-002 requires shop-reviewed worked-estimate inputs and rounding policy; ADR acceptance and broader production work still require shop/security/legal inputs and representative fixtures
 - **Open architecture decisions:** ADR-0001 through ADR-0014 are In Review
 - **Supported model formats:** None implemented. First-class plan: STEP, STL, 3MF. Experimental plan: IGES, OBJ
 - **Geometry capabilities:** None implemented. Documented pipeline and golden expectations only

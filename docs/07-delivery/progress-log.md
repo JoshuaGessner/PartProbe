@@ -16,7 +16,7 @@
 - Added deterministic snapshot JSON with ordered maps, decimal strings, schema/rule versions, provenance, warnings, and explicit result states.
 - Added exact/property/boundary tests: 23 runtime tests and one compile-fail unit-safety doctest pass locally. Formatting and strict Clippy also pass.
 - Independent review found and drove fixes for deserialization invariant bypass, omitted intermediate traces, scale/negative-zero canonicalization, and implicit precision loss in physical and monetary arithmetic.
-- Added a Windows/Linux/macOS GitHub Actions matrix and pinned checkout action/toolchain. The matrix has not run because the repository has no Git remote.
+- Added a Windows/Linux/macOS GitHub Actions matrix and pinned checkout action/toolchain. Run 30005930156 passes on all three platforms after adding an LF checkout contract for Windows.
 - Added exact dependency and active-transitive evidence for `rust_decimal`, Serde, and Serde JSON. ADR-0007 remains In Review; canonical JSON remains an internal spike contract.
 - No UI, geometry, persistence, runtime estimator, external integration, routing optimizer, or advanced-analysis engine was added.
 
