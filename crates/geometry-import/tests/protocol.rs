@@ -7,8 +7,8 @@ use partprobe_geometry_core::{
 };
 use partprobe_geometry_import::{
     AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerRequest, GeometryWorkerSupervisor,
-    ResourceQuotas, SupervisorPolicy, WorkerTermination, open_local_source_read_only,
-    recoverable_termination_response,
+    LocalAssetRoot, ResourceQuotas, SupervisorPolicy, WorkerTermination,
+    open_local_source_read_only, recoverable_termination_response,
 };
 
 fn request() -> GeometryWorkerRequest {
@@ -150,6 +150,64 @@ fn local_source_opener_accepts_a_regular_file_and_rejects_a_final_link() {
     std::fs::remove_dir(directory).expect("test directory must be removable");
 }
 
+#[test]
+fn local_asset_root_contains_parent_resolution_and_rejects_final_links() {
+    let test_directory = std::env::temp_dir().join(format!(
+        "partprobe-contained-root-test-{}",
+        std::process::id()
+    ));
+    let root = test_directory.join("root");
+    let nested = root.join("nested");
+    let outside = test_directory.join("outside.asset");
+    let outside_link = root.join("outside-link");
+    let final_link = nested.join("source-link.asset");
+    std::fs::create_dir_all(&nested).expect("nested test directory must be created");
+    std::fs::write(nested.join("source.asset"), b"contained-source")
+        .expect("contained source must be written");
+    std::fs::write(&outside, b"outside-source").expect("outside source must be written");
+    create_directory_symlink(&test_directory, &outside_link);
+    create_file_symlink(&outside, &final_link);
+    let root_capability = LocalAssetRoot::open(&root).expect("asset root must open");
+    let capability = || AssetCapability::new("contained-capability").expect("valid capability");
+
+    let grant = root_capability
+        .grant_read(capability(), std::path::Path::new("nested/source.asset"))
+        .expect("contained regular source must open");
+    assert_eq!(grant.authorized_byte_length(), 16);
+    assert!(
+        root_capability
+            .grant_read(capability(), std::path::Path::new("../outside.asset"))
+            .is_err()
+    );
+    assert!(root_capability.grant_read(capability(), &outside).is_err());
+    assert!(
+        root_capability
+            .grant_read(
+                capability(),
+                std::path::Path::new("outside-link/outside.asset")
+            )
+            .is_err()
+    );
+    assert!(
+        root_capability
+            .grant_read(
+                capability(),
+                std::path::Path::new("nested/source-link.asset")
+            )
+            .is_err()
+    );
+    drop(grant);
+    drop(root_capability);
+
+    std::fs::remove_file(final_link).expect("final link must be removable");
+    std::fs::remove_file(outside_link).expect("outside link must be removable");
+    std::fs::remove_file(nested.join("source.asset")).expect("source must be removable");
+    std::fs::remove_dir(nested).expect("nested directory must be removable");
+    std::fs::remove_dir(root).expect("root directory must be removable");
+    std::fs::remove_file(outside).expect("outside source must be removable");
+    std::fs::remove_dir(test_directory).expect("test directory must be removable");
+}
+
 #[cfg(unix)]
 fn create_file_symlink(source: &std::path::Path, link: &std::path::Path) {
     std::os::unix::fs::symlink(source, link).expect("file symlink must be created");
@@ -158,4 +216,14 @@ fn create_file_symlink(source: &std::path::Path, link: &std::path::Path) {
 #[cfg(windows)]
 fn create_file_symlink(source: &std::path::Path, link: &std::path::Path) {
     std::os::windows::fs::symlink_file(source, link).expect("file symlink must be created");
+}
+
+#[cfg(unix)]
+fn create_directory_symlink(source: &std::path::Path, link: &std::path::Path) {
+    std::os::unix::fs::symlink(source, link).expect("directory symlink must be created");
+}
+
+#[cfg(windows)]
+fn create_directory_symlink(source: &std::path::Path, link: &std::path::Path) {
+    std::os::windows::fs::symlink_dir(source, link).expect("directory symlink must be created");
 }

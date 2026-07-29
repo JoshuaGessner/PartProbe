@@ -65,6 +65,10 @@
 - Initial GitHub Actions run 30480677005 exposed one Windows-only strict-lint issue because only Unix mutates the directory builder to set mode `0700`; target-specific binding commit `e80ccf6` corrected it without weakening either platform.
 - GitHub Actions run 30480866473 passes formatting, strict Clippy, all 65 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `e80ccf6`, including private workspace cleanup and immutable output claim/hash/unlink evidence.
 - Application-service path authorization and parent-component containment, direct worker descriptor/handle transport or a documented copy fallback, and OS sandbox/resource enforcement remain open.
+- Added `LocalAssetRoot` as a capability-scoped containment boundary. It opens an application-selected directory once, accepts only normalized relative paths, rejects traversal and absolute paths, prevents parent-symlink escape, and rejects a linked final component in the same capability-based open operation.
+- Added one containment regression covering a normal nested file, `..` escape, absolute-path access, an escaping parent symlink, and a final file symlink. The local default workspace now has 66 runtime tests; three-OS evidence for this new boundary is pending the next CI run.
+- Added exact `cap-std 4.0.2` and `cap-fs-ext 4.0.2` dependencies after rejecting race-prone canonicalization/metadata prechecks and project-owned unsafe cross-platform handle traversal. Their target-specific dependency and license surface is recorded; automated advisory/SBOM review remains a release gate.
+- The resolver enforces filesystem containment only. Application policy must still deny by default across actor, project membership, classification, record state, approved root, and asset capability and must record sanitized allow/deny audit evidence.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 

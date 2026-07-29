@@ -10,6 +10,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::ambient_authority;
 use partprobe_domain::{DomainError, SchemaVersion};
 use partprobe_geometry_core::{
     AnalysisProfile, GeometryStage, GeometryStageReport, Sha256Digest, StageStatus,
@@ -720,6 +722,68 @@ impl GeometryWorkerExecution {
     pub fn into_parts(self) -> (GeometryWorkerResponse, Option<ControlledWorkerOutput>) {
         (self.response, self.output)
     }
+}
+
+/// Capability-scoped local directory used to resolve asset paths without escaping its root.
+///
+/// Opening this root opts into ambient filesystem authority exactly once. The application
+/// service must authorize the root, actor, project, classification, and asset capability before
+/// constructing or using it. This type enforces filesystem containment; it does not make an
+/// authorization decision.
+#[derive(Debug)]
+pub struct LocalAssetRoot {
+    directory: cap_std::fs::Dir,
+}
+
+impl LocalAssetRoot {
+    /// Opens an application-authorized directory as the root of subsequent relative lookups.
+    pub fn open(root_path: &Path) -> Result<Self, DomainError> {
+        let directory = cap_std::fs::Dir::open_ambient_dir(root_path, ambient_authority())
+            .map_err(|_| DomainError::InvalidValue {
+                field: "geometry local asset root",
+                reason: "authorized root must identify an accessible directory",
+            })?;
+        Ok(Self { directory })
+    }
+
+    /// Resolves a relative path beneath this root and returns a one-use read grant.
+    ///
+    /// Parent traversal, absolute paths, root escape through parent symlinks, and a linked final
+    /// component are rejected. Parent symlinks that remain contained beneath the root are allowed.
+    pub fn grant_read(
+        &self,
+        asset_capability: AssetCapability,
+        relative_path: &Path,
+    ) -> Result<AssetReadGrant, DomainError> {
+        validate_asset_relative_path(relative_path)?;
+        let mut options = cap_std::fs::OpenOptions::new();
+        options.read(true);
+        options.follow(FollowSymlinks::No);
+        let source = self
+            .directory
+            .open_with(relative_path, &options)
+            .map_err(|_| DomainError::InvalidValue {
+                field: "geometry local asset path",
+                reason: "must resolve to an accessible contained file whose final component is not a link",
+            })?
+            .into_std();
+        AssetReadGrant::new(asset_capability, source)
+    }
+}
+
+fn validate_asset_relative_path(relative_path: &Path) -> Result<(), DomainError> {
+    let mut components = relative_path.components();
+    if components.next().is_none()
+        || !relative_path
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(DomainError::InvalidValue {
+            field: "geometry local asset path",
+            reason: "must be a nonempty normalized relative path without parent traversal",
+        });
+    }
+    Ok(())
 }
 
 /// Opens one local source read-only without following a final-component link, then grants it.

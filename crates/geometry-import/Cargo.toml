@@ -6,6 +6,8 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+cap-fs-ext.workspace = true
+cap-std.workspace = true
 partprobe-domain.workspace = true
 partprobe-geometry-core.workspace = true
 serde.workspace = true
