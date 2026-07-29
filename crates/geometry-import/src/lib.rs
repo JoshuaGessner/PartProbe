@@ -640,6 +640,62 @@ impl AssetReadGrant {
     }
 }
 
+/// Opens one local source read-only without following a final-component link, then grants it.
+///
+/// The caller remains responsible for authorizing the path and safely resolving parent
+/// components. This function protects the final component and returns no path in the grant.
+pub fn open_local_source_read_only(
+    asset_capability: AssetCapability,
+    source_path: &Path,
+) -> Result<AssetReadGrant, DomainError> {
+    let source =
+        open_final_component_read_only(source_path).map_err(|_| DomainError::InvalidValue {
+            field: "geometry local source",
+            reason: "must be an accessible regular file whose final component is not a link",
+        })?;
+    AssetReadGrant::new(asset_capability, source)
+}
+
+#[cfg(unix)]
+fn open_final_component_read_only(source_path: &Path) -> std::io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(source_path)
+}
+
+#[cfg(windows)]
+fn open_final_component_read_only(source_path: &Path) -> std::io::Result<File> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    const SECURITY_IDENTIFICATION: u32 = 0x0001_0000;
+
+    let source = OpenOptions::new()
+        .read(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .security_qos_flags(SECURITY_IDENTIFICATION)
+        .open(source_path)?;
+    if source.metadata()?.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "final source component is a reparse point",
+        ));
+    }
+    Ok(source)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_final_component_read_only(_source_path: &Path) -> std::io::Result<File> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "no final-component no-follow opener is available for this target",
+    ))
+}
+
 /// Local process supervisor for the isolated geometry worker.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GeometryWorkerSupervisor {

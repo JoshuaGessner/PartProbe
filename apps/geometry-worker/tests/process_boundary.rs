@@ -1,4 +1,4 @@
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -12,6 +12,7 @@ use partprobe_geometry_import::WORKER_OUTPUT_FILENAME;
 use partprobe_geometry_import::{
     AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
     GeometryWorkerSupervisor, ResourceQuotas, SupervisorPolicy, WORKER_INPUT_FILENAME,
+    open_local_source_read_only,
 };
 #[cfg(feature = "native-occt")]
 use partprobe_test_support::geometry_fixtures::GeometryImportFailureExpectation;
@@ -39,11 +40,8 @@ fn request() -> GeometryWorkerRequest {
 }
 
 fn asset_grant(request: &GeometryWorkerRequest, source: &Path) -> AssetReadGrant {
-    AssetReadGrant::new(
-        request.asset_capability().clone(),
-        File::open(source).expect("authorized source must open"),
-    )
-    .expect("authorized source must create a read grant")
+    open_local_source_read_only(request.asset_capability().clone(), source)
+        .expect("authorized source must create a read-only grant")
 }
 
 #[cfg(feature = "native-occt")]
@@ -182,9 +180,9 @@ fn supervisor_rejects_a_grant_bound_to_another_capability() {
     .expect("supervisor must be valid");
     let source =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
-    let grant = AssetReadGrant::new(
+    let grant = open_local_source_read_only(
         AssetCapability::new("different-asset-capability").expect("capability must be valid"),
-        File::open(source).expect("authorized source must open"),
+        &source,
     )
     .expect("authorized source must create a read grant");
 

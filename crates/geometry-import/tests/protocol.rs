@@ -7,7 +7,8 @@ use partprobe_geometry_core::{
 };
 use partprobe_geometry_import::{
     AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerRequest, GeometryWorkerSupervisor,
-    ResourceQuotas, SupervisorPolicy, WorkerTermination, recoverable_termination_response,
+    ResourceQuotas, SupervisorPolicy, WorkerTermination, open_local_source_read_only,
+    recoverable_termination_response,
 };
 
 fn request() -> GeometryWorkerRequest {
@@ -120,4 +121,41 @@ fn supervisor_maps_launch_failure_and_precancel_without_path_leakage() {
         "WORKER_LAUNCH_FAILED"
     );
     assert_eq!(cancelled.diagnostic_codes()[0].as_str(), "WORKER_CANCELLED");
+}
+
+#[test]
+fn local_source_opener_accepts_a_regular_file_and_rejects_a_final_link() {
+    let directory = std::env::temp_dir().join(format!(
+        "partprobe-source-opener-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&directory).expect("test directory must be created");
+    let source = directory.join("source.asset");
+    let link = directory.join("source-link.asset");
+    std::fs::write(&source, b"authorized-source").expect("source must be written");
+    create_file_symlink(&source, &link);
+    let capability = || AssetCapability::new("source-opener-capability").expect("valid capability");
+
+    let grant = open_local_source_read_only(capability(), &source)
+        .expect("regular source must open read-only");
+    assert_eq!(
+        grant.asset_capability().as_str(),
+        "source-opener-capability"
+    );
+    assert_eq!(grant.authorized_byte_length(), 17);
+    assert!(open_local_source_read_only(capability(), &link).is_err());
+
+    std::fs::remove_file(link).expect("link must be removable");
+    std::fs::remove_file(source).expect("source must be removable");
+    std::fs::remove_dir(directory).expect("test directory must be removable");
+}
+
+#[cfg(unix)]
+fn create_file_symlink(source: &std::path::Path, link: &std::path::Path) {
+    std::os::unix::fs::symlink(source, link).expect("file symlink must be created");
+}
+
+#[cfg(windows)]
+fn create_file_symlink(source: &std::path::Path, link: &std::path::Path) {
+    std::os::windows::fs::symlink_file(source, link).expect("file symlink must be created");
 }

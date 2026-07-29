@@ -317,6 +317,7 @@ dependencies = [
 name = "partprobe-geometry-import"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "partprobe-domain",
  "partprobe-geometry-core",
  "serde",

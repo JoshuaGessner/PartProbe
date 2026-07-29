@@ -19,6 +19,7 @@
 - Added an optional `geometry-occt-adapter` C ABI boundary. Default builds do not link OCCT; the explicit native feature requires `PARTPROBE_OCCT_ROOT`, dynamically links shared libraries, catches all C++ exceptions, checks ABI/result bounds, and exposes stable diagnostics without native exception text or paths.
 - Added one-job asset staging: open-handle regular-file validation, create-new fixed destination, streaming input quota, SHA-256 verification, read-only worker-local bytes, sanitized mismatch/staging/cleanup failures, and post-worker input removal.
 - Replaced the supervisor's source-path API with a consumed `AssetReadGrant` bound to the request capability and an already-open regular file. Staging rewinds the same handle, verifies authorized length plus hash/quota, drops it before launch, and rejects capability mismatch or post-grant length drift.
+- Added a cross-platform read-only local-source opener that rejects a linked final component with Unix `O_NOFOLLOW` or a Windows open-reparse-point plus attribute check and identification-only security quality of service. It returns only the one-use open-handle grant; application-service path authorization and parent containment remain separate.
 - Added deterministic synthetic `FIX-STEP-001` generation, manifest hash, schema-v2 expected evidence, and analytic area/volume/centroid checks. Its same-kernel generation/read limitation is documented.
 - Added project-authored adversarial `FIX-STEP-002` and a separate schema-v1 failure expectation. The optional adapter and supervised worker return sanitized recoverable `STEP_TRANSFER_FAILED`, create no snapshot/output, and remove the staged input.
 - Connected the optional worker to OCCT for the exact six-stage spike profile. The subprocess writes a bounded schema-v1 `provisional_spike` snapshot and returns only an opaque reference; measurements use documented six-decimal canonicalization and remain non-authoritative.
@@ -37,12 +38,12 @@ Environment: Apple Silicon macOS; Rust 1.94.1 workspace.
 |---|---|
 | `cargo fmt --all -- --check` | Pass |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Pass |
-| `cargo test --workspace --all-targets --locked` | Pass: 63 runtime tests |
+| `cargo test --workspace --all-targets --locked` | Pass: 64 runtime tests |
 | `cargo test --workspace --doc --locked` | Pass: one compile-fail unit-safety doctest |
 | `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-occt-adapter --features fixture-tools` | Pass: six native-link/ABI/failure/measurement/generator-reproduction tests |
 | `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-worker --features native-occt --test process_boundary` | Pass: six grant/staging/hash/measurement/invalid-entity process tests |
 
-TASK-003 currently adds twenty-two default runtime tests: five geometry-core invariants, six protocol/supervisor cases, six subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Twelve focused tests pass across the explicit local native adapter/worker commands.
+TASK-003 currently adds twenty-three default runtime tests: five geometry-core invariants, seven protocol/supervisor cases, six subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Twelve focused tests pass across the explicit local native adapter/worker commands.
 
 ## Cross-platform evidence
 
@@ -51,7 +52,7 @@ GitHub Actions run 30477805222 passes formatting, strict Clippy, all 63 default 
 ## Remaining acceptance evidence
 
 - Replace the current polling hard-kill behavior with a documented cooperative cancellation grace protocol where native work can acknowledge cancellation.
-- Implement the application-service resolver that opens sources read-only with target-appropriate no-follow/reparse-point policy and constructs the one-use grant; define controlled output ownership.
+- Implement application-service authorization and parent-component containment around the final-component-safe opener; define controlled output ownership.
 - Add OS-specific network denial, filesystem sandboxing, CPU/memory limits, descendant-process containment, and cleanup/retention evidence. Clearing the environment and controlling the working directory are defense-in-depth, not a sandbox.
 - Complete legal review of OCCT 8.0.0 notices, source offer/relinking approach, shared-library packaging, and third-party/transitive native inventory before distribution.
 - Add reproducible OCCT 8.0.0 build automation and artifact fingerprints for Windows, Linux, and macOS; the current native source-build evidence is Apple Silicon only.
