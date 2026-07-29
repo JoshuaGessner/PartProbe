@@ -29,7 +29,7 @@
 
 ## Prioritized discovery/spike tasks
 
-TASK-003 is **In Progress** on 2026-07-29. Its first stacked slice adds dependency-free kernel-neutral geometry contracts, a path-free versioned worker protocol, hard quota validation, and recoverable supervisor failure mapping with ten local tests. Actual IPC, process isolation, OCCT, analytic STEP fixtures, native packaging, license evidence, and three-OS benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
+TASK-003 is **In Progress** on 2026-07-29. Its stacked slices add kernel-neutral geometry contracts, a path-free versioned protocol, bounded local subprocess supervision, a deliberately non-authoritative worker executable, and fixture expectation schema version 2 with fourteen TASK-003 tests. Asset-capability resolution, cooperative cancellation grace, OS sandbox/resource enforcement, OCCT, analytic STEP fixtures, native packaging, license evidence, and three-OS native benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
 
 | ID | Task | Links | Exit |
 |---|---|---|---|

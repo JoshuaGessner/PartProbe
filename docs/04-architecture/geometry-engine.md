@@ -3,10 +3,10 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-07-29
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, REQ-NF-011–REQ-NF-014, GEO-001–GEO-014, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
-- **Open questions:** Worker IPC encoding and quotas? Canonical tolerance defaults? Which exact fixtures establish release tolerances?
+- **Open questions:** Target-specific sandbox/resource enforcement? Canonical tolerance defaults? Which exact fixtures establish release tolerances?
 - **Dependencies:** OCCT worker spike, mesh parser, persistence, feature-recognition pipeline, desktop model viewer
 - **Supersedes / superseded by:** None / none
 
@@ -42,9 +42,9 @@ desktop UI ── application service ── job store / snapshot repository
 
 ## Process and API boundary
 
-The worker API uses a stable, schema-versioned request/response over local IPC. Requests contain only: asset capability, job ID, requested stages, analysis/tessellation options, quotas, and correlation ID. Responses contain status, references to controlled outputs, structured measurements/warnings, stage timing, versions, and safe diagnostic codes. They do not include unrestricted file paths, raw CAD contents, database credentials, or renderer handles.
+The first transport implementation uses one bounded JSON request on worker stdin and one bounded JSON response on stdout. The supervisor launches the executable in a controlled working directory with a cleared inherited environment, polls cancellation and wall time, kills and reaps failed workers, and verifies schema, job, and correlation identity before accepting a response. Requests contain only: asset capability, job ID, requested stages, analysis/tessellation options, quotas, and correlation ID. Responses contain status, references to controlled outputs, structured measurements/warnings, stage timing, versions, and safe diagnostic codes. They do not include unrestricted file paths, raw CAD contents, database credentials, or renderer handles.
 
-Cancellation is cooperative then hard-kill after a grace interval. The supervisor treats worker exit, timeout, quota breach, malformed response, or nonzero signal as `failed_recoverable`; it preserves the source, stores an incident-safe diagnostic, and lets the user retry or choose another file. The worker runs no network, receives only least-privilege filesystem access, uses isolated temporary storage, and cleans derivatives under retention policy.
+The current reversible spike supports pre-launch/polled cancellation and hard-kill; cooperative worker acknowledgement and a measured grace interval remain required before native work. The supervisor treats launch, protocol I/O, worker exit, timeout, quota breach, malformed response, or cancellation as sanitized failure. The target design requires no worker network, least-privilege source/output handles, isolated temporary storage, CPU/memory/descendant limits, and derivative cleanup under retention policy. Clearing the environment and controlling the working directory do not satisfy those OS-sandbox requirements.
 
 ## Kernel adapter boundary
 

@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-07-29
 - **Related requirement IDs:** GEO-001–GEO-014, FEAT-001–FEAT-021, TEST-021–TEST-039, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** What anonymized customer models can be contributed? Licensing policy for external samples? Artifact-store size budget?
@@ -25,6 +25,10 @@ fixtures/
 ```
 
 The root manifest is the canonical registry and links each source to its expected file. It includes fixture ID/title, source SHA-256, origin/license/redistribution approval, sensitivity classification, format/schema/version, declared units, canonical units, intended representation, purpose/tags, expected worker outcome, resource ceiling, owner, reviewed date, and links to issue/requirements as those fields become applicable. Expected files identify analysis/feature profile and algorithm versions. A fixture update is a code-reviewable change, never a silent replacement.
+
+Expectation schema version 2 encodes exact numeric values as decimal strings and every potentially missing measurement as an explicit `available`, `unavailable`, or `not_applicable` evidence state. Diagnostic codes explain unavailable evidence; absence never means zero. The schema rejects mesh records without triangle counts, confirmed unknown units, duplicate warnings, negative area/volume, and authoritative enclosed volume for a known open mesh.
+
+Version 2 is a preproduction fixture-contract migration with no customer or persisted production records. Version 1 files are rejected and require deliberate, reviewed conversion; the loader does not silently infer evidence states or reinterpret old numeric values.
 
 ## Initial suite
 

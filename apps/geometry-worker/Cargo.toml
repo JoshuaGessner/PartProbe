@@ -1,19 +1,17 @@
 [package]
-name = "partprobe-test-support"
+name = "partprobe-geometry-worker"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
 
 [dependencies]
-partprobe-domain.workspace = true
-partprobe-estimation-engine.workspace = true
 partprobe-geometry-core.workspace = true
-rust_decimal.workspace = true
-serde.workspace = true
+partprobe-geometry-import.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+partprobe-domain.workspace = true
 
 [lints]
 workspace = true

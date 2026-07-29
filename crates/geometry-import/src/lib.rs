@@ -1,6 +1,12 @@
 //! Versioned, path-free protocol for the isolated geometry worker.
 
 use std::collections::BTreeSet;
+use std::io::{Read, Write};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use partprobe_domain::{DomainError, SchemaVersion};
 use partprobe_geometry_core::{
@@ -493,6 +499,8 @@ impl GeometryWorkerResponse {
 /// Supervisor-observed termination that never propagates as a desktop crash.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkerTermination {
+    /// Worker executable could not be launched.
+    LaunchFailed,
     /// Worker exited unsuccessfully.
     NonzeroExit,
     /// Wall-clock deadline elapsed.
@@ -503,6 +511,8 @@ pub enum WorkerTermination {
     MalformedResponse,
     /// User or supervisor cancelled the job.
     Cancelled,
+    /// Protocol input/output failed.
+    ProtocolIo,
 }
 
 /// Converts a worker termination into a safe recoverable response.
@@ -513,11 +523,13 @@ pub fn recoverable_termination_response(
     termination: WorkerTermination,
 ) -> GeometryWorkerResponse {
     let code = match termination {
+        WorkerTermination::LaunchFailed => "WORKER_LAUNCH_FAILED",
         WorkerTermination::NonzeroExit => "WORKER_EXIT",
         WorkerTermination::Timeout => "WORKER_TIMEOUT",
         WorkerTermination::QuotaExceeded => "WORKER_QUOTA_EXCEEDED",
         WorkerTermination::MalformedResponse => "WORKER_MALFORMED_RESPONSE",
         WorkerTermination::Cancelled => "WORKER_CANCELLED",
+        WorkerTermination::ProtocolIo => "WORKER_PROTOCOL_IO",
     };
     GeometryWorkerResponse::new(
         schema_version,
@@ -529,4 +541,209 @@ pub fn recoverable_termination_response(
         vec![DiagnosticCode::new(code).expect("static diagnostic code must be valid")],
     )
     .expect("supervisor-generated response must satisfy protocol invariants")
+}
+
+/// Host-side limits for protocol messages and process polling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SupervisorPolicy {
+    max_protocol_bytes: usize,
+    poll_interval_millis: u64,
+}
+
+impl SupervisorPolicy {
+    /// Validates protocol and polling limits.
+    pub fn new(max_protocol_bytes: usize, poll_interval_millis: u64) -> Result<Self, DomainError> {
+        if max_protocol_bytes == 0 || poll_interval_millis == 0 {
+            return Err(DomainError::InvalidValue {
+                field: "geometry supervisor policy",
+                reason: "protocol and polling limits must be greater than zero",
+            });
+        }
+        Ok(Self {
+            max_protocol_bytes,
+            poll_interval_millis,
+        })
+    }
+
+    /// Returns the maximum request or response message size.
+    #[must_use]
+    pub const fn max_protocol_bytes(self) -> usize {
+        self.max_protocol_bytes
+    }
+
+    /// Returns the process polling interval.
+    #[must_use]
+    pub const fn poll_interval_millis(self) -> u64 {
+        self.poll_interval_millis
+    }
+}
+
+/// Local process supervisor for the isolated geometry worker.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GeometryWorkerSupervisor {
+    executable: PathBuf,
+    working_directory: PathBuf,
+    policy: SupervisorPolicy,
+}
+
+impl GeometryWorkerSupervisor {
+    /// Creates a supervisor for one configured worker executable.
+    pub fn new(
+        executable: PathBuf,
+        working_directory: PathBuf,
+        policy: SupervisorPolicy,
+    ) -> Result<Self, DomainError> {
+        if executable.as_os_str().is_empty() || working_directory.as_os_str().is_empty() {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker process configuration",
+                reason: "executable and controlled working directory must not be empty",
+            });
+        }
+        if !working_directory.is_dir() {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker working directory",
+                reason: "must identify an existing controlled directory",
+            });
+        }
+        Ok(Self {
+            executable,
+            working_directory,
+            policy,
+        })
+    }
+
+    /// Executes one request with bounded messages, timeout, cancellation, and sanitized failures.
+    #[must_use]
+    pub fn execute(
+        &self,
+        request: &GeometryWorkerRequest,
+        cancellation: &AtomicBool,
+    ) -> GeometryWorkerResponse {
+        if cancellation.load(Ordering::Acquire) {
+            return response_for(request, WorkerTermination::Cancelled);
+        }
+
+        let request_bytes = match serde_json::to_vec(request) {
+            Ok(bytes) if bytes.len() <= self.policy.max_protocol_bytes => bytes,
+            _ => return response_for(request, WorkerTermination::QuotaExceeded),
+        };
+
+        let mut child = match Command::new(&self.executable)
+            .env_clear()
+            .current_dir(&self.working_directory)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(_) => return response_for(request, WorkerTermination::LaunchFailed),
+        };
+
+        let Some(mut stdin) = child.stdin.take() else {
+            terminate_and_reap(&mut child);
+            return response_for(request, WorkerTermination::ProtocolIo);
+        };
+        let writer = thread::spawn(move || stdin.write_all(&request_bytes));
+
+        let Some(stdout) = child.stdout.take() else {
+            terminate_and_reap(&mut child);
+            let _ = writer.join();
+            return response_for(request, WorkerTermination::ProtocolIo);
+        };
+        let response_limit = self.policy.max_protocol_bytes;
+        let reader = thread::spawn(move || read_bounded(stdout, response_limit));
+
+        let timeout = Duration::from_millis(request.quotas().wall_time_millis());
+        let poll_interval = Duration::from_millis(self.policy.poll_interval_millis);
+        let started = Instant::now();
+        let status = loop {
+            if cancellation.load(Ordering::Acquire) {
+                terminate_and_reap(&mut child);
+                let _ = writer.join();
+                let _ = reader.join();
+                return response_for(request, WorkerTermination::Cancelled);
+            }
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) if started.elapsed() < timeout => thread::sleep(poll_interval),
+                Ok(None) => {
+                    terminate_and_reap(&mut child);
+                    let _ = writer.join();
+                    let _ = reader.join();
+                    return response_for(request, WorkerTermination::Timeout);
+                }
+                Err(_) => {
+                    terminate_and_reap(&mut child);
+                    let _ = writer.join();
+                    let _ = reader.join();
+                    return response_for(request, WorkerTermination::ProtocolIo);
+                }
+            }
+        };
+
+        if !matches!(writer.join(), Ok(Ok(()))) {
+            let _ = reader.join();
+            return response_for(request, WorkerTermination::ProtocolIo);
+        }
+        let response_bytes = match reader.join() {
+            Ok(Ok(bytes)) => bytes,
+            Ok(Err(ReadFailure::LimitExceeded)) => {
+                return response_for(request, WorkerTermination::QuotaExceeded);
+            }
+            _ => return response_for(request, WorkerTermination::ProtocolIo),
+        };
+        if !status.success() {
+            return response_for(request, WorkerTermination::NonzeroExit);
+        }
+        let response = match serde_json::from_slice::<GeometryWorkerResponse>(&response_bytes) {
+            Ok(response) => response,
+            Err(_) => return response_for(request, WorkerTermination::MalformedResponse),
+        };
+        if response.schema_version() != request.schema_version()
+            || response.job_id() != request.job_id()
+            || response.correlation_id() != request.correlation_id()
+        {
+            return response_for(request, WorkerTermination::MalformedResponse);
+        }
+        response
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReadFailure {
+    Io,
+    LimitExceeded,
+}
+
+fn read_bounded(stdout: impl Read, max_protocol_bytes: usize) -> Result<Vec<u8>, ReadFailure> {
+    let limit = u64::try_from(max_protocol_bytes)
+        .map_err(|_| ReadFailure::LimitExceeded)?
+        .saturating_add(1);
+    let mut bytes = Vec::new();
+    stdout
+        .take(limit)
+        .read_to_end(&mut bytes)
+        .map_err(|_| ReadFailure::Io)?;
+    if bytes.len() > max_protocol_bytes {
+        return Err(ReadFailure::LimitExceeded);
+    }
+    Ok(bytes)
+}
+
+fn terminate_and_reap(child: &mut std::process::Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn response_for(
+    request: &GeometryWorkerRequest,
+    termination: WorkerTermination,
+) -> GeometryWorkerResponse {
+    recoverable_termination_response(
+        request.schema_version(),
+        request.job_id().clone(),
+        request.correlation_id().clone(),
+        termination,
+    )
 }

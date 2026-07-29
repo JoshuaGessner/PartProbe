@@ -9,8 +9,6 @@ publish = false
 partprobe-domain.workspace = true
 partprobe-geometry-core.workspace = true
 serde.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true
 
 [lints]

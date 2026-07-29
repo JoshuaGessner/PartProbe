@@ -1,10 +1,13 @@
+use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+
 use partprobe_domain::{RuleVersion, SchemaVersion};
 use partprobe_geometry_core::{
     AnalysisProfile, AnalysisProfileId, GeometryStage, Sha256Digest, StageStatus,
 };
 use partprobe_geometry_import::{
-    AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerRequest, ResourceQuotas,
-    WorkerTermination, recoverable_termination_response,
+    AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerRequest, GeometryWorkerSupervisor,
+    ResourceQuotas, SupervisorPolicy, WorkerTermination, recoverable_termination_response,
 };
 
 fn request() -> GeometryWorkerRequest {
@@ -98,4 +101,23 @@ fn supervisor_failures_become_sanitized_recoverable_results() {
         assert!(response.snapshot_reference().is_none());
         assert_eq!(response.diagnostic_codes()[0].as_str(), expected_code);
     }
+}
+
+#[test]
+fn supervisor_maps_launch_failure_and_precancel_without_path_leakage() {
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from("__partprobe_worker_does_not_exist__"),
+        std::env::temp_dir(),
+        SupervisorPolicy::new(4_096, 1).expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+
+    let launch = supervisor.execute(&request(), &AtomicBool::new(false));
+    let cancelled = supervisor.execute(&request(), &AtomicBool::new(true));
+
+    assert_eq!(
+        launch.diagnostic_codes()[0].as_str(),
+        "WORKER_LAUNCH_FAILED"
+    );
+    assert_eq!(cancelled.diagnostic_codes()[0].as_str(), "WORKER_CANCELLED");
 }

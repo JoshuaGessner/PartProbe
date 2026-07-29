@@ -1,5 +1,7 @@
 //! Shared builders for deterministic PartProbe tests.
 
+pub mod geometry_fixtures;
+
 use std::str::FromStr;
 
 use partprobe_domain::{CurrencyCode, Money, RuleId, RuleRef, RuleVersion, SourceKind, SourceRef};

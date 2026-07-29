@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "apps/geometry-worker",
     "crates/domain",
     "crates/estimation-engine",
     "crates/geometry-core",
@@ -14,6 +15,7 @@ edition = "2024"
 rust-version = "1.94"
 
 [workspace.dependencies]
+partprobe-geometry-worker = { path = "apps/geometry-worker" }
 partprobe-domain = { path = "crates/domain" }
 partprobe-estimation-engine = { path = "crates/estimation-engine" }
 partprobe-geometry-core = { path = "crates/geometry-core" }

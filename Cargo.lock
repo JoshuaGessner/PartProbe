@@ -262,12 +262,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "partprobe-geometry-worker"
+version = "0.1.0"
+dependencies = [
+ "partprobe-domain",
+ "partprobe-geometry-core",
+ "partprobe-geometry-import",
+ "serde_json",
+]
+
+[[package]]
 name = "partprobe-test-support"
 version = "0.1.0"
 dependencies = [
  "partprobe-domain",
  "partprobe-estimation-engine",
+ "partprobe-geometry-core",
  "rust_decimal",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -17,6 +17,16 @@
 - Ten new tests pass with the full local workspace gate, for 51 runtime tests total plus one compile-fail doctest; GitHub Actions run 30463022276 also passes Windows, Linux, and macOS.
 - OCCT is not installed or added. Native adapter, IPC transport, process sandbox, analytic STEP fixtures, dependency/license review, packaging, and Windows/Linux/macOS benchmarks remain TASK-003 work.
 
+## 2026-07-29 — TASK-003 bounded worker and fixture contract
+
+- Added a real local subprocess supervisor with a controlled working directory, cleared inherited environment, bounded request/response JSON, cancellation and timeout polling, hard-kill/reap behavior, response identity verification, and sanitized launch/I/O/exit/protocol failures.
+- Added a minimal `geometry-worker` executable and process-boundary integration test. The worker explicitly returns `NATIVE_ADAPTER_UNAVAILABLE`; it does not parse CAD or present the process boundary as native-kernel evidence.
+- Upgraded the two bootstrap fixture expectations to schema version 2 with exact decimal strings and explicit available/unavailable/not-applicable states. The open cube cannot expose enclosed volume as authoritative.
+- Recorded the fixture-only migration policy: version 1 is rejected and requires reviewed explicit conversion; missing evidence is never guessed as zero.
+- Four additional tests bring the local workspace to 55 runtime tests plus one compile-fail doctest; formatting and strict Clippy pass.
+- No new third-party package was added. Serde JSON's existing reviewed role now includes the bounded internal worker protocol.
+- Remaining containment work is explicit: capability-to-handle resolution, cooperative cancellation grace, OS sandbox/network denial, CPU/memory/descendant limits, cleanup evidence, OCCT selection, analytic STEP fixtures, and three-OS native packaging/benchmarks.
+
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
 - Adopted the approved product boundary: PartProbe supplies no numeric production rates; organizations configure their own effective-dated rate and pricing libraries, while synthetic values remain isolated test/demo evidence.
