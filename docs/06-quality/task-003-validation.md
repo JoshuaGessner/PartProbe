@@ -29,6 +29,10 @@ Environment: Apple Silicon macOS; Rust 1.94.1 workspace.
 
 TASK-003 currently adds ten runtime contract tests: five geometry-core invariants and five worker-protocol/supervisor cases.
 
+## Cross-platform evidence
+
+GitHub Actions run 30463022276 passes formatting, strict Clippy, all 51 runtime tests, and documentation tests on Windows, Linux, and macOS for commit `e05c3eb`. This proves the kernel-neutral contracts are cross-platform; it does not prove native worker, sandbox, OCCT, or packaging behavior.
+
 ## Remaining acceptance evidence
 
 - Implement the actual local IPC transport, supervisor process lifecycle, cancellation grace period, and OS-specific sandbox/resource controls.

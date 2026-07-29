@@ -14,7 +14,7 @@
 - Added validated lowercase SHA-256 evidence, source byte/format descriptors, model-unit and representation labels, versioned analysis profiles, ordered pipeline stages, explicit stage states, and sanitized warning contracts.
 - Added a schema-versioned, path-free worker request using opaque asset capabilities, expected source hashes, canonical stage ordering, and explicit input/output/entity/wall-time quotas.
 - Added recoverable mappings for worker exit, timeout, quota breach, malformed response, and cancellation; no raw CAD contents, unrestricted paths, geometry coordinates, or model names enter the protocol.
-- Ten new tests pass with the full local workspace gate, for 51 runtime tests total plus one compile-fail doctest.
+- Ten new tests pass with the full local workspace gate, for 51 runtime tests total plus one compile-fail doctest; GitHub Actions run 30463022276 also passes Windows, Linux, and macOS.
 - OCCT is not installed or added. Native adapter, IPC transport, process sandbox, analytic STEP fixtures, dependency/license review, packaging, and Windows/Linux/macOS benchmarks remain TASK-003 work.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
