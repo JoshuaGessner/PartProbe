@@ -49,7 +49,7 @@ TASK-003 currently adds twenty-four default runtime tests: five geometry-core in
 
 ## Cross-platform evidence
 
-GitHub Actions run 30479210538 passes formatting, strict Clippy, all 64 default runtime tests, and documentation tests on Windows, Linux, and macOS for commit `a9b57f2`. This proves the kernel-neutral contracts, bounded subprocess transport, one-use open source grants, capability/length/hash checks, deleted-path operation, fixed-name staging, fixture schemas, locked Rust dependencies, feature-off behavior, and target-specific final-component link/reparse-point rejection are cross-platform. It does not prove application-service path authorization or parent containment, direct worker handle transport, native OCCT linking, sandbox, or packaging behavior; the focused native-feature evidence is Apple Silicon only.
+GitHub Actions run 30480866473 passes formatting, strict Clippy, all 65 default runtime tests, and documentation tests on Windows, Linux, and macOS for commit `e80ccf6`. This proves the kernel-neutral contracts, bounded subprocess transport, one-use open source grants, capability/length/hash checks, deleted-path operation, fixed-name staging, fixture schemas, locked Rust dependencies, feature-off behavior, target-specific final-component link/reparse-point rejection, private job-directory creation/cleanup, and immutable output claim/hash/unlink behavior are cross-platform. It does not prove application-service path authorization or parent containment, direct worker handle transport, native OCCT linking, OS sandbox, durable controlled-store persistence, or packaging behavior; the focused native-feature evidence is Apple Silicon only.
 
 ## Remaining acceptance evidence
 

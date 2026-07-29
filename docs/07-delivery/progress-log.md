@@ -62,6 +62,8 @@
 - Referenced output is reopened with final-component protection, required to be regular/nonempty/within quota, copied into immutable supervisor-owned bytes, hashed, length-checked, bound to the opaque snapshot reference, and unlinked before return. Unreferenced output is discarded; response status remains distinct from artifact presence.
 - The internal execution envelope is preproduction and nonserialized, so no persisted-record migration is required. Controlled-store persistence, classification, authorization, retention, and audit integration remain open.
 - Local strict Clippy and 65 default runtime tests pass, including output unlink/immutability and private-namespace regressions; twelve focused native tests still pass with the claimed-output success path and invalid-STEP no-output path.
+- Initial GitHub Actions run 30480677005 exposed one Windows-only strict-lint issue because only Unix mutates the directory builder to set mode `0700`; target-specific binding commit `e80ccf6` corrected it without weakening either platform.
+- GitHub Actions run 30480866473 passes formatting, strict Clippy, all 65 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `e80ccf6`, including private workspace cleanup and immutable output claim/hash/unlink evidence.
 - Application-service path authorization and parent-component containment, direct worker descriptor/handle transport or a documented copy fallback, and OS sandbox/resource enforcement remain open.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
