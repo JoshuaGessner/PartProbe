@@ -55,6 +55,7 @@
 - Replaced the supervisor's source-path API with a consumed `AssetReadGrant` that binds the request capability to one already-open regular file, captures authorized length, rewinds the same handle, and drops it before worker launch.
 - Added process regressions proving the supervisor does not reopen a deleted source path and rejects capability mismatch or post-grant length drift without launching the worker. Local validation now passes 63 default runtime tests and twelve focused native tests.
 - Application resolver no-follow/read-only policy, direct worker descriptor/handle transport or documented copy fallback, controlled output ownership, and OS sandbox/resource enforcement remain open.
+- GitHub Actions run 30477805222 passes formatting, strict Clippy, all 63 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `96f3bf8`, including the deleted-path open-grant regression.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
