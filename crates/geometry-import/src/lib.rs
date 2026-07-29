@@ -997,12 +997,15 @@ fn create_job_directory(root: &Path) -> std::io::Result<PathBuf> {
     for _ in 0..MAX_ATTEMPTS {
         let sequence = JOB_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let path = root.join(format!(".partprobe-job-{}-{sequence}", std::process::id()));
-        let mut builder = std::fs::DirBuilder::new();
+        let builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
-        {
+        let builder = {
             use std::os::unix::fs::DirBuilderExt;
+
+            let mut builder = builder;
             builder.mode(0o700);
-        }
+            builder
+        };
         match builder.create(&path) {
             Ok(()) => return Ok(path),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
