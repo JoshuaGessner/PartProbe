@@ -1,14 +1,14 @@
 # Worked Estimate Examples
 
-> **Status:** Draft  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** REQ-F-002–REQ-F-010; CALC-001–CALC-020; TEST-002, TEST-005  
-> **Related ADRs:** ADR-0002–ADR-0008  
-> **Open questions:** OQ-009–OQ-20, OQ-027  
-> **Dependencies:** Shop review and executable calculation fixtures  
+> **Status:** Draft
+> **Last updated:** 2026-07-29
+> **Related requirements:** REQ-F-002–REQ-F-010; CALC-001–CALC-020; TEST-002, TEST-005
+> **Related ADRs:** ADR-0002–ADR-0008
+> **Open questions:** OQ-009–OQ-20, OQ-027
+> **Dependencies:** Shop review and executable calculation fixtures
 > **Supersedes:** None
 
-These synthetic examples force domain coverage; they are **not approved shop standards**. Currency is USD, times are lot hours unless `/part` is shown, and feeds/speeds are deliberately broad profiles rather than unsafe universal cutting data. Every example assumes one deliverable part unless quantity is stated. Totals illustrate the complete result shape and must be replaced by executable, reviewed golden fixtures during TASK-001/TASK-002.
+These synthetic examples force domain coverage; they are **not approved shop standards**. Currency is USD, times are lot hours unless `/part` is shown, and feeds/speeds are deliberately broad profiles rather than unsafe universal cutting data. Every example assumes one deliverable part unless quantity is stated. TASK-002 makes EX-01, EX-03, and EX-12 executable synthetic calculation fixtures using test-only rates; their geometry/runtime facts remain synthetic, and TASK-007 retains real-shop calibration.
 
 | # | Scenario and imported facts | Detected/model facts | Stock, process, setups, tools, feed/speed source |
 |---|---|---|---|
@@ -65,7 +65,7 @@ These synthetic examples force domain coverage; they are **not approved shop sta
 | EX-09 | 2,250.00 | 350.00 | 3,510.00 | High geometry; medium outside-vendor freshness |
 | EX-10 | 5,600.00 | 600.00 | 8,370.00 | High model/drawing evidence; FAI scope needs customer confirmation |
 | EX-11 | 6,900.00/lot | 300.00 | 9,720.00/lot | High historical similarity with preserved version context |
-| EX-12 | 1: 520.00; 10: 1,650.00; 50: 6,700.00; 200: 24,000.00 | 45; 100; 280; 800 | 763; 2,363; 9,423; 33,480 | High geometry; quantity-specific commercial confidence |
+| EX-12 | 1: 520.00; 10: 1,650.00; 50: 6,700.00; 200: 24,000.00 | 45; 100; 280; 800 | 762.75; 2,362.50; 9,423.00; 33,480.00 | Synthetic deterministic quantity-break evidence; no shop calibration claim |
 | EX-13 | 7,800.00 | 2,900.00 | 14,445.00 | Low process yield confidence; no historical cohort |
 | EX-14 | 690.00 | 140.00 | 1,120.50 | Mesh measurements medium; features low by policy |
 | EX-15 | Not calculated | Not calculated | Not quotable | Unit ambiguity is a blocker, not a guessed confidence score |
@@ -75,4 +75,4 @@ These synthetic examples force domain coverage; they are **not approved shop sta
 
 ## Acceptance path
 
-Each example becomes structured test data with exact inputs, a rule-version pin, itemized cost reconciliation, approved tolerances, and reviewer identity. Until then, no numeric value here may seed production defaults.
+EX-01, EX-03, and EX-12 now have structured test-only rate, input, intermediate, output, pricing, rounding, and version evidence in [TASK-002 validation](../06-quality/task-002-validation.md). Fixture review confirms deterministic engineering behavior only. Remaining examples still require executable conversion. No numeric value in this document or its fixtures may seed production defaults; TASK-007/M0.2 must validate real shop categories and policy fit.

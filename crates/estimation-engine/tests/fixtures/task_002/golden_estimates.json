@@ -1,0 +1,397 @@
+{
+  "schema_version": 2,
+  "classification": "synthetic_test_only",
+  "rate_card": {
+    "id": "synthetic-task-002",
+    "version": 1,
+    "currency": "USD",
+    "entries": [
+      {
+        "id": "setup-labor",
+        "version": 1,
+        "category": "setup_labor",
+        "composition": "component",
+        "scope": { "kind": "organization", "reference_id": null },
+        "owner": "synthetic-finance-owner",
+        "amount": { "amount": "25", "currency": "USD" },
+        "basis": "per_hour",
+        "effective_from": "2026-01-01",
+        "effective_through": null,
+        "governance": {
+          "state": "approved",
+          "entered": {
+            "actor": "synthetic-fixture-author",
+            "recorded_at": "2026-07-29T12:00:00Z",
+            "reason": "entered synthetic TASK-002 test data"
+          },
+          "decision": {
+            "actor": "synthetic-fixture-reviewer",
+            "recorded_at": "2026-07-29T13:00:00Z",
+            "reason": "reviewed deterministic software behavior only"
+          }
+        },
+        "source": {
+          "kind": "manual",
+          "source_id": "task-002-synthetic-fixture",
+          "revision": "1",
+          "recorded_at": "2026-07-29T12:00:00Z"
+        }
+      },
+      {
+        "id": "programming-labor",
+        "version": 1,
+        "category": "programming",
+        "composition": "component",
+        "scope": { "kind": "organization", "reference_id": null },
+        "owner": "synthetic-finance-owner",
+        "amount": { "amount": "25", "currency": "USD" },
+        "basis": "per_hour",
+        "effective_from": "2026-01-01",
+        "effective_through": null,
+        "governance": {
+          "state": "approved",
+          "entered": {
+            "actor": "synthetic-fixture-author",
+            "recorded_at": "2026-07-29T12:00:00Z",
+            "reason": "entered synthetic TASK-002 test data"
+          },
+          "decision": {
+            "actor": "synthetic-fixture-reviewer",
+            "recorded_at": "2026-07-29T13:00:00Z",
+            "reason": "reviewed deterministic software behavior only"
+          }
+        },
+        "source": {
+          "kind": "manual",
+          "source_id": "task-002-synthetic-fixture",
+          "revision": "1",
+          "recorded_at": "2026-07-29T12:00:00Z"
+        }
+      },
+      {
+        "id": "run-labor",
+        "version": 1,
+        "category": "run_labor",
+        "composition": "component",
+        "scope": { "kind": "organization", "reference_id": null },
+        "owner": "synthetic-finance-owner",
+        "amount": { "amount": "20", "currency": "USD" },
+        "basis": "per_hour",
+        "effective_from": "2026-01-01",
+        "effective_through": null,
+        "governance": {
+          "state": "approved",
+          "entered": {
+            "actor": "synthetic-fixture-author",
+            "recorded_at": "2026-07-29T12:00:00Z",
+            "reason": "entered synthetic TASK-002 test data"
+          },
+          "decision": {
+            "actor": "synthetic-fixture-reviewer",
+            "recorded_at": "2026-07-29T13:00:00Z",
+            "reason": "reviewed deterministic software behavior only"
+          }
+        },
+        "source": {
+          "kind": "manual",
+          "source_id": "task-002-synthetic-fixture",
+          "revision": "1",
+          "recorded_at": "2026-07-29T12:00:00Z"
+        }
+      },
+      {
+        "id": "machine",
+        "version": 1,
+        "category": "machine",
+        "composition": "component",
+        "scope": { "kind": "organization", "reference_id": null },
+        "owner": "synthetic-finance-owner",
+        "amount": { "amount": "30", "currency": "USD" },
+        "basis": "per_hour",
+        "effective_from": "2026-01-01",
+        "effective_through": null,
+        "governance": {
+          "state": "approved",
+          "entered": {
+            "actor": "synthetic-fixture-author",
+            "recorded_at": "2026-07-29T12:00:00Z",
+            "reason": "entered synthetic TASK-002 test data"
+          },
+          "decision": {
+            "actor": "synthetic-fixture-reviewer",
+            "recorded_at": "2026-07-29T13:00:00Z",
+            "reason": "reviewed deterministic software behavior only"
+          }
+        },
+        "source": {
+          "kind": "manual",
+          "source_id": "task-002-synthetic-fixture",
+          "revision": "1",
+          "recorded_at": "2026-07-29T12:00:00Z"
+        }
+      },
+      {
+        "id": "inspection-labor",
+        "version": 1,
+        "category": "quality_inspection",
+        "composition": "component",
+        "scope": { "kind": "organization", "reference_id": null },
+        "owner": "synthetic-finance-owner",
+        "amount": { "amount": "25", "currency": "USD" },
+        "basis": "per_hour",
+        "effective_from": "2026-01-01",
+        "effective_through": null,
+        "governance": {
+          "state": "approved",
+          "entered": {
+            "actor": "synthetic-fixture-author",
+            "recorded_at": "2026-07-29T12:00:00Z",
+            "reason": "entered synthetic TASK-002 test data"
+          },
+          "decision": {
+            "actor": "synthetic-fixture-reviewer",
+            "recorded_at": "2026-07-29T13:00:00Z",
+            "reason": "reviewed deterministic software behavior only"
+          }
+        },
+        "source": {
+          "kind": "manual",
+          "source_id": "task-002-synthetic-fixture",
+          "revision": "1",
+          "recorded_at": "2026-07-29T12:00:00Z"
+        }
+      }
+    ]
+  },
+  "pricing_policy": {
+    "id": "synthetic-markup",
+    "version": 1,
+    "currency": "USD",
+    "method": {
+      "method": "markup",
+      "rate": "0.35"
+    },
+    "floor": null,
+    "minimum_order": null,
+    "quote_total_rounding": {
+      "id": "synthetic-usd-quote",
+      "version": 1,
+      "currency": "USD",
+      "scale": 2,
+      "mode": "half_even",
+      "boundary": "quote_total"
+    }
+  },
+  "examples": [
+    {
+      "id": "EX-01",
+      "effective_on": "2026-07-29",
+      "deliver_quantity": 1,
+      "make_quantity": 1,
+      "setup_hours": "3",
+      "programming_hours": "2",
+      "cutting_hours": "0.42",
+      "non_cutting_hours": "0.18",
+      "load_unload_hours": "0",
+      "in_cycle_inspection_hours": "0",
+      "inspection_hours": "1",
+      "material": ["90", "5", "0", "5", "0"],
+      "operation_other": ["20", "25", "10", "20", "0", "5"],
+      "nre": "50",
+      "administration": "25",
+      "overhead": "50",
+      "risk": "35",
+      "rework": "0",
+      "expected": {
+        "setup": "75",
+        "setup_unit": "75",
+        "programming": "50",
+        "cycle_hours": "0.60",
+        "run": "30",
+        "quality": "25",
+        "material": "100",
+        "operation": "260",
+        "base": "485",
+        "risk": "35",
+        "total": "520",
+        "formula_price": "702",
+        "rounded_price": "702"
+      }
+    },
+    {
+      "id": "EX-03",
+      "effective_on": "2026-07-29",
+      "deliver_quantity": 1,
+      "make_quantity": 1,
+      "setup_hours": "3",
+      "programming_hours": "2.5",
+      "cutting_hours": "0.55",
+      "non_cutting_hours": "0.20",
+      "load_unload_hours": "0",
+      "in_cycle_inspection_hours": "0",
+      "inspection_hours": "1",
+      "material": ["140", "5", "0", "5", "0"],
+      "operation_other": ["25", "30", "10", "0", "0", "5"],
+      "nre": "80",
+      "administration": "30",
+      "overhead": "80",
+      "risk": "65",
+      "rework": "0",
+      "expected": {
+        "setup": "75",
+        "setup_unit": "75",
+        "programming": "62.5",
+        "cycle_hours": "0.75",
+        "run": "37.5",
+        "quality": "25",
+        "material": "150",
+        "operation": "270",
+        "base": "610",
+        "risk": "65",
+        "total": "675",
+        "formula_price": "911.25",
+        "rounded_price": "911.25"
+      }
+    },
+    {
+      "id": "EX-12-Q1",
+      "effective_on": "2026-07-29",
+      "deliver_quantity": 1,
+      "make_quantity": 1,
+      "setup_hours": "3",
+      "programming_hours": "2",
+      "cutting_hours": "0.40",
+      "non_cutting_hours": "0.18",
+      "load_unload_hours": "0",
+      "in_cycle_inspection_hours": "0",
+      "inspection_hours": "0.8",
+      "material": ["60", "0", "0", "0", "0"],
+      "operation_other": ["0", "20", "0", "0", "0", "0"],
+      "nre": "100",
+      "administration": "66",
+      "overhead": "100",
+      "risk": "45",
+      "rework": "0",
+      "expected": {
+        "setup": "75",
+        "setup_unit": "75",
+        "programming": "50",
+        "cycle_hours": "0.58",
+        "run": "29",
+        "quality": "20",
+        "material": "60",
+        "operation": "194",
+        "base": "520",
+        "risk": "45",
+        "total": "565",
+        "formula_price": "762.75",
+        "rounded_price": "762.75"
+      }
+    },
+    {
+      "id": "EX-12-Q10",
+      "effective_on": "2026-07-29",
+      "deliver_quantity": 10,
+      "make_quantity": 10,
+      "setup_hours": "3",
+      "programming_hours": "2",
+      "cutting_hours": "0.40",
+      "non_cutting_hours": "0.18",
+      "load_unload_hours": "0",
+      "in_cycle_inspection_hours": "0",
+      "inspection_hours": "4",
+      "material": ["600", "0", "0", "0", "0"],
+      "operation_other": ["0", "100", "0", "0", "0", "0"],
+      "nre": "100",
+      "administration": "100",
+      "overhead": "235",
+      "risk": "100",
+      "rework": "0",
+      "expected": {
+        "setup": "75",
+        "setup_unit": "7.5",
+        "programming": "50",
+        "cycle_hours": "0.58",
+        "run": "290",
+        "quality": "100",
+        "material": "600",
+        "operation": "615",
+        "base": "1650",
+        "risk": "100",
+        "total": "1750",
+        "formula_price": "2362.5",
+        "rounded_price": "2362.5"
+      }
+    },
+    {
+      "id": "EX-12-Q50",
+      "effective_on": "2026-07-29",
+      "deliver_quantity": 50,
+      "make_quantity": 50,
+      "setup_hours": "3",
+      "programming_hours": "2",
+      "cutting_hours": "0.40",
+      "non_cutting_hours": "0.18",
+      "load_unload_hours": "0",
+      "in_cycle_inspection_hours": "0",
+      "inspection_hours": "10",
+      "material": ["3000", "0", "0", "0", "0"],
+      "operation_other": ["0", "500", "0", "0", "0", "0"],
+      "nre": "100",
+      "administration": "200",
+      "overhead": "1075",
+      "risk": "280",
+      "rework": "0",
+      "expected": {
+        "setup": "75",
+        "setup_unit": "1.5",
+        "programming": "50",
+        "cycle_hours": "0.58",
+        "run": "1450",
+        "quality": "250",
+        "material": "3000",
+        "operation": "2325",
+        "base": "6700",
+        "risk": "280",
+        "total": "6980",
+        "formula_price": "9423",
+        "rounded_price": "9423"
+      }
+    },
+    {
+      "id": "EX-12-Q200",
+      "effective_on": "2026-07-29",
+      "deliver_quantity": 200,
+      "make_quantity": 200,
+      "setup_hours": "3",
+      "programming_hours": "2",
+      "cutting_hours": "0.40",
+      "non_cutting_hours": "0.18",
+      "load_unload_hours": "0",
+      "in_cycle_inspection_hours": "0",
+      "inspection_hours": "40",
+      "material": ["12000", "0", "0", "0", "0"],
+      "operation_other": ["0", "1500", "0", "500", "0", "0"],
+      "nre": "100",
+      "administration": "500",
+      "overhead": "2475",
+      "risk": "800",
+      "rework": "0",
+      "expected": {
+        "setup": "75",
+        "setup_unit": "0.375",
+        "programming": "50",
+        "cycle_hours": "0.58",
+        "run": "5800",
+        "quality": "1000",
+        "material": "12000",
+        "operation": "8925",
+        "base": "24000",
+        "risk": "800",
+        "total": "24800",
+        "formula_price": "33480",
+        "rounded_price": "33480"
+      }
+    }
+  ]
+}

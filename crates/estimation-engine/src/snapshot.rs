@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
 use partprobe_domain::{
-    DensityKilogramsPerCubicMillimeter, ItemQuantity, MassKilograms, Money, RuleRef, RuleVersion,
-    SchemaVersion, SourceRef, ValueState, VolumeCubicMillimeters,
+    DensityKilogramsPerCubicMillimeter, ItemQuantity, MassKilograms, Money, RoundedMoney, RuleRef,
+    RuleVersion, SchemaVersion, SourceRef, ValueState, VolumeCubicMillimeters,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use crate::{CalculationError, NodeId};
+use crate::{CalculationError, NodeId, ResolvedRate};
 
 /// Typed value preserved in a calculation trace.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -25,6 +25,10 @@ pub enum SnapshotValue {
     Mass(MassKilograms),
     /// Fixed-precision currency.
     Money(Money),
+    /// Pinned resolved rate and its card/entry versions.
+    ResolvedRate(Box<ResolvedRate>),
+    /// Both sides and policy metadata of a governed rounding boundary.
+    RoundedMoney(RoundedMoney),
     /// Versioned textual evidence.
     Text(String),
 }

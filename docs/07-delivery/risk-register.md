@@ -1,11 +1,11 @@
 # Risk Register
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** All  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** OQ-001–OQ-050  
-> **Dependencies:** Named owners after staffing  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** All
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** OQ-001–OQ-050
+> **Dependencies:** Named owners after staffing
 > **Supersedes:** None
 
 | ID | Risk | Probability | Impact | Mitigation | Owner | Trigger | Review date | Affected milestone | State |
@@ -15,8 +15,8 @@
 | RISK-003 | Mesh evidence is mistaken for exact topology | H | High | Separate representation types, confidence ceiling, labels | Product/geometry | Mesh-derived fact shown as exact/high confidence | 2026-07-22 | M1–M3 | Open |
 | RISK-004 | UI/WebView/GPU stack fails dense accessible cross-platform needs | M | High | Time-boxed spike with common suite and fallback | UI lead | Platform workflow/accessibility/performance gate fails | 2026-07-22 | M0.2–M2 | Open |
 | RISK-005 | Coarse runtime output creates false precision | H | High | Method/range labels, reviewed cohorts, no CAM claims | Estimation lead | User treats coarse result as simulated/guaranteed | 2026-07-22 | M1–M3 | Open |
-| RISK-006 | Shop rate/scrap/overhead policy is unavailable/inconsistent | H | High | Interviews, versioned assumptions, approval blockers | Product owner | Reconciliation cannot explain cost basis | 2026-07-22 | M0.2–M2 | Open |
-| RISK-007 | Calculation/version change alters approved quotes | M | Critical | Typed DAG, immutable snapshots, golden/migration tests | Domain lead | Replay differs without versioned migration | 2026-07-22 | M1–release | Open |
+| RISK-006 | Shop rate/scrap/overhead policy is unavailable/inconsistent or synthetic/demo values leak into production setup | H | High | Empty-on-install library, isolated synthetic fixtures, guided validation blockers, versioned assumptions, TASK-007 interviews/calibration | Product owner | Reconciliation cannot explain cost basis or a production estimate references synthetic data | 2026-07-29 | M0.2–M2 | Open |
+| RISK-007 | Calculation, rate-selector, rate-card, pricing, or rounding change alters approved quotes | M | Critical | Typed DAG, pinned immutable versions/snapshots, golden/migration/replay tests | Domain lead | Replay differs without versioned migration | 2026-07-29 | M1–release | Open |
 | RISK-008 | Sensitive/export-controlled data leaves boundary | M | Critical | Offline default, classification/RBAC/export controls, qualified determination | Security owner | Unapproved egress or external resolution | 2026-07-22 | All | Open |
 | RISK-009 | Product language implies compliance or production CAM | M | High | Content gates, non-goals, training/release review | Product/legal | Unsupported certification/safety claim | 2026-07-22 | All | Open |
 | RISK-010 | SQLite/blob backup is inconsistent/unrecoverable | M | Critical | Atomic manifests, WAL-aware backup/restore drills | Persistence lead | Hash mismatch, missing blob or failed restore | 2026-07-22 | M1–M2 | Open |
@@ -42,7 +42,7 @@
 | RISK-030 | Capacity work expands into ERP/scheduling replacement | H | High | Explicit decision-support boundary and deferred scheduler | Product owner | Backlog adds dispatching/MRP/master scheduling to core slice | 2026-07-22 | M3–M7 | Open |
 | RISK-031 | Advanced analyses overwhelm normal estimating UX | H | High | Layered views, progressive disclosure, role/usability tests | UX lead | Core-task success/time materially degrades | 2026-07-22 | M2–M7 | Open |
 | RISK-032 | Integration transmits controlled data | M | Critical | Per-adapter data-flow ADR, local/manual default, authorization and egress tests | Security owner | Technical data reaches unapproved endpoint | 2026-07-22 | M3–M8 | Open |
-| RISK-033 | Historical quote is silently recalculated by new engines | M | Critical | Immutable snapshots/versions and explicit new-revision adoption | Domain lead | Issued artifact/result changes after upgrade | 2026-07-22 | M3–M7 | Open |
+| RISK-033 | Historical quote is silently recalculated by new engines or current rate/policy versions | M | Critical | Immutable snapshots with pinned rate/selector/pricing/rounding versions and explicit new-revision adoption | Domain lead | Issued artifact/result changes after upgrade or rate update | 2026-07-29 | M1–M7 | Open |
 | RISK-034 | Optimization/simulation/comparison computation is excessive | M | High | Search/sample/resource bounds, caching, progress, cancellation | Architecture lead | Interactive workflow exceeds approved budget or starves UI | 2026-07-22 | M3–M7 | Open |
 | RISK-035 | Users treat scores/recommendations as authoritative | H | High | Explainability, alternatives, warnings, approvals and override audit | Product owner | Decision is accepted without reviewing blockers/evidence | 2026-07-22 | M3–M7 | Open |
 | RISK-036 | External benchmark encourages uncontrolled marketplace upload | M | Critical | Manual benchmark entry; no model upload without approved data-flow | Security/product | UI or adapter sends model/derived geometry automatically | 2026-07-22 | M2–M7 | Open |

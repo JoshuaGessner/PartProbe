@@ -1,11 +1,11 @@
 # Functional Requirements
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** REQ-F-001–REQ-F-065  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** OQ-001–OQ-050  
-> **Dependencies:** Shop review  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** REQ-F-001–REQ-F-065
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** OQ-001–OQ-050
+> **Dependencies:** Shop review
 > **Supersedes:** None
 
 | ID | Requirement | Initial acceptance evidence | Status |
@@ -17,17 +17,17 @@
 | REQ-F-005 | The system shall calculate material mass and propose editable stock alternatives with allowances, removed volume, evidence, cost, and confidence. | TEST-002 calculation + TEST-003 geometry | Draft |
 | REQ-F-006 | The system shall propose editable process class, setup count/orientations, routing operations, machines, and alternatives without presenting them as production truth. | TEST-005 runtime/routing fixtures | Draft |
 | REQ-F-007 | The system shall estimate cutting and non-cutting time using an identified method and versioned feeds/speeds/rate inputs. | TEST-005 runtime golden tests | Draft |
-| REQ-F-008 | The system shall estimate itemized internal costs, explicit risk, and quantity scenarios using deterministic traceable calculations. | TEST-001/002 calculation tests | Draft |
-| REQ-F-009 | The system shall apply versioned pricing policy while visibly distinguishing cost, risk, markup, margin, and selling price. | TEST-002 pricing examples | Draft |
-| REQ-F-010 | The system shall permit correction of every generated assumption and preserve original/new values, actor, time, reason, and authorization. | TEST-006 override/re-analysis tests | Draft |
+| REQ-F-008 | The system shall estimate itemized internal costs, explicit risk, and independently calculated quantity scenarios using deterministic traceable calculations; missing or ambiguous applicable rates shall yield `Unavailable` or `Blocked`, never zero. | TEST-001/002/014 calculation and rate-resolution tests | Draft |
+| REQ-F-009 | The system shall apply a pinned versioned pricing and rounding policy while visibly distinguishing cost, risk, markup, margin, thresholds, unrounded value, rounded value, and selling price. | TEST-002 pricing/rounding examples | Draft |
+| REQ-F-010 | The system shall permit correction of every generated assumption or selected rate and preserve original/new values, actor, time, reason, authorization, and source versions. | TEST-006/014 override/re-analysis tests | Draft |
 | REQ-F-011 | The system shall generate internal estimate and customer quote previews from the same approved revision without exposing configured internal-only details. | TEST-009 report golden tests | Draft |
 | REQ-F-012 | The system shall record actuals, compare category-level variance against immutable original estimates, and require approval before updating defaults. | TEST-010 calibration workflow | Draft |
 | REQ-F-013 | The system shall capture drawing, specification, contract, quality, and customer requirements separately from geometry-derived facts. | TEST-006 requirements review | Draft |
 | REQ-F-014 | The system shall support deliver, make, spare/destructive-test quantities and independently calculated quantity breaks. | TEST-002 quantity fixtures | Draft |
-| REQ-F-015 | The system shall maintain versioned material definitions and time-bounded supplier offers without hard-coded shop catalogs. | TEST-007 library persistence | Draft |
-| REQ-F-016 | The system shall maintain machine physical capability separately from effective-dated financial rates. | TEST-006/007 workcenter tests | Draft |
+| REQ-F-015 | The system shall maintain versioned material definitions and time-bounded supplier offers without hard-coded shop catalogs or numeric commercial defaults. | TEST-007/014 library persistence | Draft |
+| REQ-F-016 | The system shall maintain machine physical capability separately from user-governed, effective-dated financial rates. | TEST-006/007/014 workcenter tests | Draft |
 | REQ-F-017 | The system shall maintain versioned tool assemblies and feeds/speeds with source, approval, and effective date. | TEST-005 library fixtures | Draft |
-| REQ-F-018 | The system shall estimate inspection, documentation, FAI/CMM, outside-process, freight, fixture, tooling, and administrative effort as visible categories. | TEST-002 worked estimates | Draft |
+| REQ-F-018 | The system shall estimate inspection, documentation, FAI/CMM, outside-process, freight, fixture, tooling, and administrative effort as visible categories with explicit rate/offer source and basis where applicable. | TEST-002/014/017 worked estimates | Draft |
 | REQ-F-019 | The system shall identify unresolved assumptions and blocking decisions before approval. | TEST-006 approval tests | Draft |
 | REQ-F-020 | The system shall support bid/no-bid, technical review, commercial review, issue, revision, expiry, win/loss, and withdrawal states. | TEST-006 lifecycle tests | Draft |
 | REQ-F-021 | Intake shall identify and hash model files, preserve source/revision, and record declared versus detected format. | TEST-021–TEST-023 | Draft |
@@ -41,9 +41,9 @@
 | REQ-F-029 | The system shall support inspection frequency, destructive samples, certificates, traceability, and quality-document effort. | TEST-002/006 | Draft |
 | REQ-F-030 | The system shall record outside-vendor offer, specification, charges, freight, lead time, expiry, approval, and alternatives. | TEST-002/007 | Draft |
 | REQ-F-031 | Users shall search, batch edit, use templates, undo/redo, autosave drafts, and recover from validation/import failures. | TEST-012 | Draft |
-| REQ-F-032 | Users shall manage versioned shop libraries under authorization and approval policy. | TEST-006/007/011 | Draft |
+| REQ-F-032 | Users shall create and manage effective-dated, versioned shop rate/pricing libraries under authorization and approval policy; installation shall provide structure but no numeric production defaults. | TEST-006/007/011/012/014 | Draft |
 | REQ-F-033 | The system shall preserve attachment integrity, revision lineage, classification, and controlled access/export metadata. | TEST-007/011 | Draft |
-| REQ-F-034 | The system shall support explicit approval thresholds and recorded exceptions for price and risk. | TEST-006/011 | Draft |
+| REQ-F-034 | The system shall support explicit approval thresholds and recorded exceptions for rate overrides, price, margin, and risk. | TEST-006/011/014 | Draft |
 | REQ-F-035 | The system shall preview a model and sanitized derivatives without making rendering the geometry authority. | TEST-012/024 | Draft |
 | REQ-F-036 | The system shall expose analysis progress and recoverable stage failures without discarding prior valid results. | TEST-024/012 | Draft |
 | REQ-F-037 | The system shall compare source/model/estimate/quote revisions and show adopted versus retained decisions. | TEST-006/007 | Draft |

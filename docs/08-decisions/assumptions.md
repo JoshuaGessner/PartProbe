@@ -1,11 +1,11 @@
 # Planning Assumptions
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** All  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** OQ-001–OQ-050  
-> **Dependencies:** Shop validation  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** All
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** OQ-001–OQ-050
+> **Dependencies:** Shop validation
 > **Supersedes:** None
 
 | ID | Assumption | Consequence if false | Validation |
@@ -16,7 +16,7 @@
 | A-004 | STL/3MF are common enough to support but cannot yield B-rep-equivalent claims. | Mesh investment/UX may change. | Corpus and estimator review. |
 | A-005 | A separate native geometry worker is operationally acceptable. | Need in-process or service alternative. | ADR-0005 spike. |
 | A-006 | A custom WebView-based UI can host the required dense workflow and wgpu surface. | Revisit Slint/Iced/native composition. | TASK-005. |
-| A-007 | Shop rates and feeds/speeds can be represented as approved effective-dated libraries. | Configuration/governance model changes. | OQ-011–014. |
+| A-007 | Shop rates and feeds/speeds can be represented as approved effective-dated libraries; synthetic fixtures validate representation but not real policy fit. | Configuration/governance model changes. | TASK-002 mechanics; OQ-011–014 and TASK-007 real-category/policy calibration. |
 | A-008 | Deterministic proposals plus human review provide more trust than opaque automation. | Product positioning changes. | Usability/interview evidence. |
 | A-009 | SQLite plus local blobs meets standalone scale. | Persistence choice changes. | TASK-006 workload tests. |
 | A-010 | Representative models and actuals can be used under an approved private-data process. | Accuracy validation may be blocked. | TASK-008/legal-security review. |

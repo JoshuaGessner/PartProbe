@@ -1,11 +1,11 @@
 # UX Requirements
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** UX-001–UX-010, UX-021–UX-045; REQ-NF-006, REQ-NF-022  
-> **Related ADRs:** ADR-0001, ADR-0003, ADR-0009–ADR-0014  
-> **Open questions:** OQ-028 and platform assistive-technology matrix  
-> **Dependencies:** UX research and framework spike  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** UX-001–UX-012, UX-021–UX-045; REQ-NF-006, REQ-NF-022
+> **Related ADRs:** ADR-0001, ADR-0003, ADR-0009–ADR-0014
+> **Open questions:** OQ-028 and platform assistive-technology matrix
+> **Dependencies:** UX research and framework spike
 > **Supersedes:** None
 
 | ID | Requirement |
@@ -20,7 +20,9 @@
 | UX-008 | Import/analysis/calculation failures shall preserve valid work and present cause, scope, and recovery action. |
 | UX-009 | Asynchronous recalculation shall preserve edit context and announce material changes without noisy updates. |
 | UX-010 | Export, print, external link, and data-sharing actions shall preview scope/classification and avoid surprise transmission. |
-| _Reserved_ | UX-011–UX-020 are intentionally reserved for future general workspace/document interaction requirements; allocate them only through this canonical file. |
+| UX-011 | Initial setup shall guide users through required organization currency, rounding, operational-rate, commercial-offer, cost-allocation, and pricing-policy categories without supplying numeric production defaults. |
+| UX-012 | Rate entry/import shall provide typed basis/currency fields, effective dates, lifecycle/source, formula preview, row-level validation, missing/overlap/conflict recovery, and an explanation of the selected rate and version. |
+| _Reserved_ | UX-013–UX-020 are intentionally reserved for future general workspace/document interaction requirements; allocate them only through this canonical file. |
 | UX-021 | Viewport selection shall synchronize with textual model tree, feature, setup, operation, tool, warning, and cost evidence. |
 | UX-022 | Viewport state shall show representation basis, units, analysis version, clipping/section state, and confidence warnings. |
 | UX-023 | Picking/highlighting shall use stable snapshot references rather than renderer-only IDs. |

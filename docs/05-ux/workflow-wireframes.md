@@ -3,14 +3,33 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-07-22
-- **Related requirement IDs:** UX-001 through UX-045, REQ-F-001, REQ-F-006 through REQ-F-065
+- **Last updated:** 2026-07-29
+- **Related requirement IDs:** UX-001 through UX-012, UX-021 through UX-045, REQ-F-001, REQ-F-006 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Validate compact pane widths and total-strip contents with estimators.
 - **Dependencies:** [Screen inventory](screen-inventory.md), [model review workflow](model-review-workflow.md)
 - **Supersedes / superseded by:** None
 
 These are structural wireframes, not visual designs. They specify hierarchy, visible evidence, and interaction regions; the [design system](design-system.md) defines appearance.
+
+## Basic rate setup
+
+```text
+┌ Rate Setup ─ Organization policy ──────────────────────────────────────────┐
+│ Currency [USD ▼] (explicit, not inferred)  Rounding [Half-even / 2 places] │
+│ Required: 8  Approved: 5  Missing: 2  Conflict: 1   [Import preview]       │
+├──────────────┬─────────┬──────────┬─────────────┬───────────┬──────────────┤
+│ Category     │ Amount  │ Basis    │ Scope       │ Effective │ State/source │
+│ Setup labor  │ 125.00  │ USD/hour│ Workcenter… │ 2026-01-01│ Approved     │
+│ Machine      │ —       │ USD/hour│ Machine…    │ —         │ Missing      │
+│ Inspection   │ 95.00 ! │ USD/hour│ Org         │ 2026-01-01│ Conflict (2) │
+├──────────────┴─────────┴──────────┴─────────────┴───────────┴──────────────┤
+│ Selected row inspector: formula preview / evidence / history / affected use │
+│ [Save draft] [Submit review]              [Resolve errors before approval] │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+CSV and bulk-paste actions first open a bounded dry-run table with row-level errors; no imported row becomes authoritative until validation and explicit acceptance. A missing/conflicting-rate link from an estimate opens this screen with the affected category and scope selected.
 
 ## Quote workspace
 
@@ -58,6 +77,7 @@ These are structural wireframes, not visual designs. They specify hierarchy, vis
 ├────┴──────────────┴───────────┴─────────┴─────────┴────────┴───────────────┤
 │ Selected: Mill setup A  [Geometry] [Tools] [Formula] [Overrides]             │
 │ Setup $… + run $… + tooling $… → operation cost $…  [Open cost breakdown]   │
+│ Rate trace: selected card/entry/version/effective scope (why) [Change/override]│
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

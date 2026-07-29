@@ -1,11 +1,11 @@
 # ADR-0006 — Standalone Persistence
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** REQ-F-001, REQ-F-010–REQ-F-012; REQ-NF-002, REQ-NF-007, REQ-NF-009  
-> **Related ADRs:** ADR-0005, ADR-0007, ADR-0008  
-> **Open questions:** Encryption/key policy; team-service database  
-> **Dependencies:** Persistence/backup spike  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** REQ-F-001, REQ-F-010–REQ-F-012, REQ-F-032; REQ-NF-002, REQ-NF-007, REQ-NF-009, REQ-NF-020
+> **Related ADRs:** ADR-0005, ADR-0007, ADR-0008
+> **Open questions:** Encryption/key policy; team-service database
+> **Dependencies:** Persistence/backup spike
 > **Supersedes:** None
 
 ## Decision proposed
@@ -22,4 +22,4 @@ We must define WAL-safe backup, foreign-key activation, migrations, concurrency,
 
 ## Acceptance gate
 
-Concurrent draft test, crash/recovery test, migration from two fixtures, database+blob backup/restore/integrity test on three OSes, threat review, and an explicit encryption-at-rest/key-management decision for each deployment profile before claiming protected storage.
+Concurrent draft test, crash/recovery test, migration from two fixtures, immutable rate-entry/card/selector/pricing/rounding version persistence and prior-estimate replay, database+blob backup/restore/integrity test on three OSes, threat review, and an explicit encryption-at-rest/key-management decision for each deployment profile before claiming protected storage.

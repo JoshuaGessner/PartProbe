@@ -3,8 +3,8 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-07-22
-- **Related requirement IDs:** UX-001 through UX-045, REQ-F-001 through REQ-F-065
+- **Last updated:** 2026-07-29
+- **Related requirement IDs:** UX-001 through UX-012, UX-021 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Which roles can see pricing and rate-card administration in the first slice?
 - **Dependencies:** [Screen inventory](screen-inventory.md), [workflow wireframes](workflow-wireframes.md)
@@ -16,6 +16,7 @@ The application has three levels: **Command center** (work to do), **records** (
 
 ```text
 Command center
+├─ First-run/basic Rate Setup
 ├─ RFQ inbox
 ├─ Quotes
 │  └─ Quote workspace: Overview | Parts | Routing | Analysis | Costs | Risks | Approval | Output
@@ -49,6 +50,7 @@ Part workspace (opened from Quote)
 
 | Intent | Route / workspace | Primary exit |
 |---|---|---|
+| Configure calculation inputs | Rate Setup | Confirm organization currency/rounding and resolve required rate categories without product-supplied values |
 | Triage received request | RFQ inbox | Create/assign quote or decline with reason |
 | Understand a model | Part workspace → Model review | Accept unit/validation snapshot or record uncertainty |
 | Build a manufacturing proposal | Quote → Routing | Save proposed operations and setup alternatives |
@@ -60,6 +62,8 @@ Part workspace (opened from Quote)
 | Learn from outcome | Actuals & variance | Controlled recommendation, never an automatic rule change |
 
 The Analysis tab uses progressive disclosure: baseline first; then route alternatives, availability, uncertainty, capacity/economics, sourcing, and bid priority as separately labeled lenses. Stale/missing badges and the pinned version manifest remain visible. No composite score is allowed to hide a blocker or its component factors.
+
+An estimate encountering a missing, unapproved, expired, or conflicting rate links directly to the relevant Rate Setup row and returns to the same estimate context after correction. Basic setup is separate from later advanced multi-user library administration.
 
 ## Saved views
 

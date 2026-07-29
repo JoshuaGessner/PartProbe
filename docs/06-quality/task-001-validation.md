@@ -1,11 +1,11 @@
 # TASK-001 Validation Evidence
 
-> **Status:** Complete  
-> **Last updated:** 2026-07-23  
-> **Related requirements:** REQ-NF-001, REQ-NF-003, REQ-NF-004, REQ-NF-010; CALC-001, CALC-003, CALC-005, CALC-016, CALC-017; TEST-001  
-> **Related ADRs:** ADR-0007  
-> **Open questions:** Approved decimal scale/rounding policy for TASK-002  
-> **Dependencies:** Rust 1.94.1, Cargo.lock, GitHub Actions runner access  
+> **Status:** Complete
+> **Last updated:** 2026-07-29
+> **Related requirements:** REQ-NF-001, REQ-NF-003, REQ-NF-004, REQ-NF-010; CALC-001, CALC-003, CALC-005, CALC-016, CALC-017; TEST-001
+> **Related ADRs:** ADR-0007
+> **Open questions:** Organization-specific rounding and pricing calibration under TASK-007
+> **Dependencies:** Rust 1.94.1, Cargo.lock, GitHub Actions runner access
 > **Supersedes:** None
 
 ## Implemented evidence
@@ -41,6 +41,6 @@ TEST-001 evidence includes exact money addition and pricing, currency mismatch, 
 
 ## Remaining evidence and limits
 
-- TASK-002 must reconcile reviewed worked estimates and settle decimal internal scale, presentation rounding, overflow, and historical replay policy before this spike API becomes a production contract.
+- TASK-002 adds synthetic deterministic rate, pricing, rounding, itemized-golden, and historical replay evidence without requiring real shop rates; TASK-007/M0.2 retains organization-specific calibration and policy review.
 - Canonical JSON is currently an internal, versioned spike representation—not an adopted external interchange standard.
 - No UI, persistence, geometry, runtime estimator, production routing, or advanced-analysis engine was implemented.

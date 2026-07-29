@@ -1,15 +1,17 @@
 # Decision Log
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** All  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** ADR acceptance owners/dates  
-> **Dependencies:** Spike evidence  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** All
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** ADR acceptance owners/dates
+> **Dependencies:** Spike evidence
 > **Supersedes:** None
 
 ## Working decisions
 
+- **2026-07-29:** Suggest USD during initial organization setup because it is the expected common case, but keep currency editable and require explicit confirmation; do not infer it from locale or hard-code it into calculations. Status: Active UX/domain boundary.
+- **2026-07-29:** Ship no numeric production rates; users govern effective-dated rate/pricing libraries. TASK-002 uses isolated synthetic fixtures for software determinism, while TASK-007/M0.2 retains real-shop policy and calibration review. Status: Active product/domain boundary.
 - **2026-07-22:** Adopt documentation-first Phase 0 governance and stable ID conventions. Status: Active.
 - **2026-07-22:** Treat the product as a human-reviewed estimator, not autonomous quote generation or production CAM. Status: Active product boundary.
 - **2026-07-22:** Treat local/offline and no external technical-data upload as the default boundary. Status: Active security principle.
@@ -27,7 +29,7 @@
 | ADR-0004 | STEP/STL/3MF first-class; IGES/OBJ experimental | In Review | Import corpus and packaging evidence |
 | ADR-0005 | Isolated geometry worker | In Review | IPC, crash/resource containment and operations evidence |
 | ADR-0006 | SQLite + content-addressed local blobs | In Review | Migration/crash/backup/restore/concurrency threat spike |
-| ADR-0007 | Typed versioned calculation DAG + fixed decimal | In Review | Exact golden/property/serialization evidence |
+| ADR-0007 | Typed versioned calculation DAG + fixed decimal | In Review | Exact synthetic golden/property/serialization, deterministic rate-selection, rounding and replay evidence; real-shop calibration is a separate M0.2 gate |
 | ADR-0008 | Immutable stage-versioned analysis snapshots | In Review | Replay/diff/migration/stable-reference evidence |
 | ADR-0009 | Bounded, human-adopted routing alternatives | In Review | route corpus, feasibility, ranking, explanation and adoption tests |
 | ADR-0010 | Advisory snapshot-based capacity/opportunity analysis | In Review | shop data definitions, stale-data, delivery and accounting-separation tests |

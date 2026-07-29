@@ -1,12 +1,26 @@
 # Progress Log
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-23  
-> **Related requirements:** All  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** OQ-001–OQ-050  
-> **Dependencies:** None  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** All
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** OQ-001–OQ-050
+> **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
+
+- Adopted the approved product boundary: PartProbe supplies no numeric production rates; organizations configure their own effective-dated rate and pricing libraries, while synthetic values remain isolated test/demo evidence.
+- Recorded USD as the initial setup suggestion for the expected common case; users must explicitly confirm or change it, and calculations retain an explicit currency rather than inferring locale.
+- Added validated rate-card/entry IDs and versions, ISO 4217-style currency, typed cost category/basis/composition/scope, explicit ownership, inclusive effective periods, retained lifecycle decisions, actor/time/reason governance, source provenance, and empty production-card construction.
+- Added deterministic ordered-scope resolution: exactly one approved effective match is selected and pinned with selector ID/version and the complete scope request; absence/unapproved/out-of-period yields `Unavailable`; equal matches yield `Blocked`.
+- Added versioned pricing and rounding policies preserving method, thresholds, currency, named boundary, scale, mode, unrounded/rounded values, and policy identity/version.
+- Implemented CALC-007–CALC-015 and CALC-018 foundations around the existing CALC-016/017 rules, including material, setup, cycle/run, operation, base, risk, rework, and price traces. CALC-009 is intentionally exact-only and rejects nonterminating setup amortization pending governed rational rounding; CALC-011 rejects duplicate and composite/component double charges.
+- Added an explicitly `synthetic_test_only` EX-01/03/12 fixture with exact itemized intermediate/output traces and independent quantity breaks; values are deterministic software evidence, not production defaults or shop accuracy claims.
+- Added pinned rate-card replay and serializable resolved-rate/rounding snapshot values.
+- Local formatting, strict Clippy, 41 runtime tests, one compile-fail doctest, and planning validation pass. TASK-002 adds 18 runtime tests; Windows/Linux/macOS TASK-002 CI evidence remains pending.
+- Updated product scope, requirements, data/version contracts, UX rate setup, validation, roadmap/backlog/milestones, ADR evidence, risks, assumptions, and release boundaries. TASK-007/M0.2 retains real-shop category/policy/calibration review.
+- No UI framework, database, importer, geometry kernel, external integration, production defaults, or advanced engine was added.
 
 ## 2026-07-23 — TASK-001 calculation foundation
 

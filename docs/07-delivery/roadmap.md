@@ -1,20 +1,20 @@
 # Product Roadmap
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** REQ-F-001–REQ-F-065; REQ-NF-001–REQ-NF-022  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** OQ-001–OQ-050  
-> **Dependencies:** Shop validation and technical spikes  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** REQ-F-001–REQ-F-065; REQ-NF-001–REQ-NF-022
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** OQ-001–OQ-050
+> **Dependencies:** Shop validation and technical spikes
 > **Supersedes:** None
 
 | Phase | Outcome | Exit evidence |
 |---|---|---|
 | 0 Discovery & validation | Approved problem, boundaries, decisions, fixture/data access | Interviews; reviewed docs; UI/geometry/persistence/calculation spikes; advanced-system ADR review; risk owners |
 | 1 Foundation | Cross-platform workspace and trustworthy future-safe primitives | Domain/money/units/provenance; route-set, requirement, availability, correction and revision snapshot contracts; repositories; geometry protocol; CI |
-| 2 CAD-assisted vertical slice | One approved model-to-transparent-quote workflow without advanced-scope overload | Original 28 criteria; basic requirement checklist; manual availability fields and make/buy comparison; preserved revisions; three-platform demo |
+| 2 CAD-assisted vertical slice | One approved model-to-transparent-quote workflow without advanced-scope overload | Original 28 criteria; guided basic rate/pricing setup, validation and selected-rate trace; basic requirement checklist; manual availability fields and make/buy comparison; preserved revisions; three-platform demo |
 | 3 Feature and decision support | Reviewed features plus manual/multiple route comparison and revision insight | Route alternatives; basic capacity lead-time check; geometry revision comparison; feature-cost overlays; correction capture; CAM report import |
-| 4 Shop libraries/readiness | Governed material/tool/machine/rate/vendor/template and availability data | Effective-dated approval/versioning, freshness/reservation workflows, theoretical versus readiness-adjusted estimates |
+| 4 Advanced shop-library governance/readiness | Governed multi-user material/tool/machine/rate/vendor/template and availability data | Effective-dated approval/versioning, structured import, conflict review, freshness/reservation workflows, theoretical versus readiness-adjusted estimates |
 | 5 Aerospace/quality/MBD depth | Requirement coverage and quality/documentation effort are explicit | Readiness matrix, FAI/CMM/cert/traceability; experimental AP242 PMI review under ADR-0012 |
 | 6 Actuals/CAM/calibration | Controlled estimate↔CAM↔machine↔actual reconciliation and learning | Neutral adapters, categorized variance, correction cohorts, reviewed rule proposals, immutable originals |
 | 7 Advanced optimization | Probabilistic estimates, automated route optimization, capacity/opportunity scoring and advanced revision explanations | Reviewed distributions/sensitivity, optimizer/capacity validation, structured PMI evidence, controlled recommendations; still not CAM/scheduling authority |

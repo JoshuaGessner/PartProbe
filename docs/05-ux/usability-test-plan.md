@@ -3,8 +3,8 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-07-22
-- **Related requirement IDs:** UX-001 through UX-010, TEST-012
+- **Last updated:** 2026-07-29
+- **Related requirement IDs:** UX-001 through UX-012, TEST-012, TEST-014
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Recruiter source and representative controlled-data test fixtures; final measurable first-slice targets.
 - **Dependencies:** [Screen inventory](screen-inventory.md), [accessibility](accessibility.md), representative fixtures, framework spike
@@ -28,6 +28,7 @@ Moderated 60–75 minute sessions: five-minute orientation, task scenarios, thin
 |---|---|---|
 | Triage a new RFQ | Finds package gaps, creates a quote, assigns ownership | Completion, misclassification, time, confidence |
 | Import a model with unit ambiguity | Confirms/corrects units and explains warning impact | Correct decision, error recovery, warning comprehension |
+| Configure rates and pricing | Creates or dry-run imports a rate card, corrects an invalid row, resolves one overlap, and explains which rate/version an estimate selected | Completion, validation recovery, selection-trace comprehension, keyboard operation |
 | Build first estimate | Selects material/stock/process, adjusts setup/runtime, adds inspection/risk | Completion, unnecessary steps, source comprehension |
 | Explain changed price | Locates cost driver and override history | Time to explanation, accuracy, trust rating |
 | Revise a model | Compares candidate analysis, preserves approved routing, records decision | Data-loss incidents, revision understanding |
@@ -37,7 +38,7 @@ Moderated 60–75 minute sessions: five-minute orientation, task scenarios, thin
 
 ## Provisional acceptance targets
 
-The first formative iteration targets at least 80% of representative participants completing the first four core scenarios without moderator rescue; it is a redesign trigger, not release acceptance. The vertical-slice release gate remains the 90% critical-task target in [success metrics](../00-product/success-metrics.md). At every stage, at least 90% must correctly distinguish estimated cost, risk allowance, and selling price; no participant may lose a durable edit or have an approved routing silently changed; keyboard-only users complete the subset; and all severity-1/2 accessibility defects are fixed before declaring the vertical slice usable. Time is diagnostic until baseline work is observed.
+The first formative iteration targets at least 80% of representative participants completing the first five core scenarios without moderator rescue; it is a redesign trigger, not release acceptance. The vertical-slice release gate remains the 90% critical-task target in [success metrics](../00-product/success-metrics.md). At every stage, at least 90% must correctly distinguish estimated cost, risk allowance, markup, margin, and selling price and explain the selected rate/version; no participant may lose a durable edit or have an approved routing silently changed; keyboard-only users complete the subset; and all severity-1/2 accessibility defects are fixed before declaring the vertical slice usable. Time is diagnostic until baseline work is observed.
 
 ## Data collection and analysis
 

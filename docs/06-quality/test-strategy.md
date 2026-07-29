@@ -1,11 +1,11 @@
 # Test Strategy
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-23  
-> **Related requirements:** All; TEST-001–TEST-099  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** Hardware/performance and accuracy thresholds  
-> **Dependencies:** Executable workspace and fixtures  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** All; TEST-001–TEST-099
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** Hardware/performance and accuracy thresholds
+> **Dependencies:** Executable workspace and fixtures
 > **Supersedes:** None
 
 Current executable evidence: [TASK-001 validation](task-001-validation.md) covers TEST-001 locally and on Windows, Linux, and macOS. All other test IDs remain planned.
@@ -13,7 +13,7 @@ Current executable evidence: [TASK-001 validation](task-001-validation.md) cover
 | ID | Layer | Core evidence |
 |---|---|---|
 | TEST-001 | Unit/property | Money, units, rules, invariants, serialization |
-| TEST-002 | Calculation golden | Reviewed worked estimate inputs and exact reconciled traces |
+| TEST-002 | Calculation golden | Synthetic test-only rate cards and exact reconciled traces; later real-shop calibration remains a separate M0.2 gate |
 | TEST-003 | Geometry golden | Units, dimensions, volume/area, validity, warnings, failure corpus |
 | TEST-004 | Feature recognition | Expected/ambiguous detections, false positives/negatives, confidence |
 | TEST-005 | Runtime golden | Method, material/machine/tools, cutting/non-cutting, error band |
@@ -25,7 +25,7 @@ Current executable evidence: [TASK-001 validation](task-001-validation.md) cover
 | TEST-011 | Security | Permissions, paths, malformed input, logs, isolation, update integrity |
 | TEST-012 | UI/accessibility | Keyboard/focus, semantics, contrast, scaling, viewport linkage, HiDPI |
 | TEST-013 | Units | Cross-system conversions, dimensional mismatch, ambiguous/missing units |
-| TEST-014 | Shop libraries | Effective dating, approval, source, selection, and prior-version replay |
+| TEST-014 | Shop libraries | Empty production defaults; effective dating, approval, source, deterministic selection, ambiguity blocking, and prior-version replay |
 | TEST-015 | Routing | Operation order, setup/lot basis, source, alternatives, adoption, manual preservation |
 | TEST-016 | Risk/approval | Category impacts, acceptance, thresholds, blockers, authorization |
 | TEST-017 | Outside/quality | Vendor expiry/minimums/freight and FAI/CMM/documentation category reconciliation |

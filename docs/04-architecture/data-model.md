@@ -1,11 +1,11 @@
 # Initial Data Model
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** REQ-F-001–REQ-F-065; DATA-001–DATA-042  
-> **Related ADRs:** ADR-0006–ADR-0014  
-> **Open questions:** OQ-019–OQ-024  
-> **Dependencies:** Persistence spike and domain review  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** REQ-F-001–REQ-F-065; DATA-001–DATA-042
+> **Related ADRs:** ADR-0006–ADR-0014
+> **Open questions:** OQ-019–OQ-024
+> **Dependencies:** Persistence spike and domain review
 > **Supersedes:** None
 
 | ID | Aggregate/record | Required invariants |
@@ -15,18 +15,18 @@
 | DATA-003 | Part/part revision | Stable part identity; immutable source revisions; parent/assembly links optional |
 | DATA-004 | Model analysis snapshot | Source hash, units/scale/healing, body-level representation basis, per-measurement derivation/tolerance/confidence ceiling and reasons, stage results, warnings, algorithm versions, approval |
 | DATA-005 | Material/offer/stock | Definition version separate from supplier offer/effective date |
-| DATA-006 | Machine/workcenter/rate card | Capability separate from finance; effective/approval versions |
+| DATA-006 | Machine/workcenter/rate card | Capability separate from finance; typed organization/site/cost-center/workcenter/machine/operation/labor-class scope; amount/currency/basis; effective interval; approval and immutable versions |
 | DATA-007 | Routing/setup/operation | Ordered revision; provenance; all time/cost categories; override history |
-| DATA-008 | Estimate/quantity scenario | Immutable published revision; calculation graph/result references |
+| DATA-008 | Estimate/quantity scenario | Immutable published revision; calculation graph/result references; pinned rate entry/card, selector, pricing and rounding-policy versions |
 | DATA-009 | Risk/requirement | Category, evidence, impact, owner, acceptance/resolution/customer visibility |
 | DATA-010 | Quote/quote revision | References approved estimate; template/version; issued artifact hash |
-| DATA-011 | Audit event | Append-preserving actor/time/action/object/context/result; sensitive-safe details |
+| DATA-011 | Audit event | Append-preserving actor/time/action/object/context/result and before/after references; sensitive-safe details for rate/policy/override decisions |
 | DATA-012 | Actuals/calibration proposal | Links original versions; category variance; cohort; authorization |
 | DATA-013 | Attachment/document asset | Source/derivative hashes, media/format, revision, classification, locator, integrity state |
 | DATA-014 | Unit/healing/import record | Declared/detected/confirmed units, scale, parser transfer, healing actions, warnings |
 | DATA-015 | Feature analysis snapshot | Geometry snapshot, recognizer versions, candidates/evidence/review lineage, source-body/measurement representation basis and enforced confidence ceiling |
 | DATA-016 | Setup/process alternative | Orientation/access/workholding assumptions, routing proposal, confidence, rejection/adoption |
-| DATA-017 | Version registry | Calculation, geometry, feature, runtime, rate-card, feed/speed, schema, and template versions |
+| DATA-017 | Version registry | Calculation, geometry, feature, runtime, rate-card/entry/selector, pricing, rounding, feed/speed, schema, and template versions |
 | DATA-018 | Confidence/warning/review decision | Dimension/reason chain, severity/blocking state, actor/time/reason/resolution |
 | DATA-019 | Routing alternative/set | Immutable generated/manual route, source/config versions, feasibility, adoption/rejection, parent estimate revision |
 | DATA-020 | Routing comparison | Candidate snapshot IDs, comparison policy/version, metrics, filters, score trace, selected route and approval |

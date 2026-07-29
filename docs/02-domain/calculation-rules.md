@@ -1,14 +1,16 @@
 # Calculation Rules
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** REQ-F-006–REQ-F-010, REQ-F-040–REQ-F-065, REQ-NF-003, REQ-NF-015–REQ-NF-021; TEST-001–TEST-006, TEST-040–TEST-099  
-> **Related ADRs:** ADR-0007, ADR-0009–ADR-0014  
-> **Open questions:** OQ-012–OQ-018  
-> **Dependencies:** Shop-approved rate policy  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** REQ-F-006–REQ-F-010, REQ-F-040–REQ-F-065, REQ-NF-003, REQ-NF-015–REQ-NF-021; TEST-001–TEST-006, TEST-040–TEST-099
+> **Related ADRs:** ADR-0007, ADR-0009–ADR-0014
+> **Open questions:** OQ-012–OQ-018
+> **Dependencies:** Shop-approved rate policy
 > **Supersedes:** None
 
 All currency uses fixed-precision decimal arithmetic. Geometry and physical calculations may use floating point internally with dimensional types and documented tolerance, but currency conversion occurs through explicit, tested boundaries. Inputs never carry implicit units.
+
+Reusable rates and pricing inputs follow [the rate-library contract](rate-library.md). PartProbe supplies no production rate values; missing or ambiguous applicable rates propagate explicit unavailable or blocked states.
 
 | ID | Rule | Boundary |
 |---|---|---|
@@ -20,7 +22,7 @@ All currency uses fixed-precision decimal arithmetic. Geometry and physical calc
 | CALC-006 | `expected_input_qty = make_qty / (1 - expected_scrap_rate)` | Scrap model and rounding-to-whole policy must be explicit. |
 | CALC-007 | `material_cost = purchased_qty × unit_price + cut + cert + inbound_freight - approved_remnant_credit` | Preserve vendor quote and effective date. |
 | CALC-008 | `setup_lot_cost = setup_hours × approved_setup_rate` | Setup rate version required. |
-| CALC-009 | `setup_unit_cost = setup_lot_cost / deliver_qty` | Presentation only; total remains authoritative. |
+| CALC-009 | `setup_unit_cost = setup_lot_cost / deliver_qty` | Presentation only; total remains authoritative. The current spike returns `RoundingRequired` for nonterminating division until governed rational-division rounding is implemented. |
 | CALC-010 | `cycle_time = cutting + non_cutting + load_unload + in_cycle_probe_or_inspection` | Each occurrence is classified once. Post-cycle operator inspection and quality/CMM/FAI are separate operation times, not repeated here. |
 | CALC-011 | `run_cost = cycle_time × make_qty × applicable_machine/labor rates` | Unattended overlap policy explicit; no silent double count. |
 | CALC-012 | `operation_cost = setup + programming + prove_out + run + tooling + consumables + fixture + quality_inspection + outside + freight` | In-cycle inspection is already inside run; post-cycle operator inspection is a separate labor operation; quality/CMM/FAI uses this category. No occurrence may be charged twice. |
@@ -50,7 +52,7 @@ All currency uses fixed-precision decimal arithmetic. Geometry and physical calc
 
 ## Rounding
 
-Do not round intermediate physical values for calculation. Currency nodes retain configured internal decimal scale; round using an explicit strategy only at documented invoice/quote presentation or supplier-charge boundaries. Store the unrounded value, rounded value, scale, and strategy. Negative-zero display is forbidden.
+Do not round intermediate physical values for calculation. Currency nodes retain exact representable decimal values; round using a versioned policy only at named supplier-charge, line-item, quote-total, or presentation boundaries. Store the unrounded value, rounded value, currency, scale or increment, strategy, boundary, and policy version. Negative-zero display is forbidden.
 
 ## Overrides and versioning
 

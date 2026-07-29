@@ -1,11 +1,11 @@
 # PartProbe Documentation Index
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-23  
-> **Related requirements:** All  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** OQ-001–OQ-050  
-> **Dependencies:** Shop review and M0.2 technical spikes  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** All
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** OQ-001–OQ-050
+> **Dependencies:** Shop review and M0.2 technical spikes
 > **Supersedes:** None
 
 PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop estimator. It turns models and explicit shop/customer inputs into a confidence-rated, editable routing and transparent cost/price foundation. It is not production CAM, an autonomous quote generator, or a compliance certification system.
@@ -14,17 +14,17 @@ PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop est
 
 - **Phase:** 0 — Discovery and Validation
 - **Milestone:** M0.2 — Evidence and decision closure, In Progress
-- **Overall status:** TASK-001 calculation foundation and three-OS CI evidence are complete; ADR evidence remains open, and broad production implementation is not authorized
-- **Recently completed:** Rust workspace, domain/calculation primitives, typed DAG validation, canonical snapshots, TEST-001 suite on Windows/Linux/macOS, and dependency record
+- **Overall status:** TASK-001 calculation foundation and three-OS CI evidence are complete; TASK-002 configurable-rate and synthetic-golden mechanics pass locally with cross-platform evidence pending; ADR evidence remains open, and broad production implementation is not authorized
+- **Recently completed:** Empty user-owned rate-card contracts; deterministic effective/scope/approval resolution; versioned pricing/rounding; CALC-007–018 foundations; synthetic EX-01/03/12 exact traces and replay tests; plus the prior Rust workspace, DAG/snapshot, three-OS TEST-001, and dependency evidence
 - **Documents awaiting review:** All documents marked Draft or In Review; especially ADR-0001–ADR-0014, advanced formulas/policies, calculation rules, requirements, security boundaries, and worked examples
 - **Blocking decisions:** ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
-- **Next actions:** Begin TASK-002, then TASK-003–TASK-018 in [backlog priority](07-delivery/backlog.md), sequenced by the roadmap
+- **Next actions:** Obtain TASK-002 three-OS evidence and close it, then proceed with TASK-003–TASK-018 in [backlog priority](07-delivery/backlog.md), sequenced by the roadmap
 
 Implementation readiness extends through the reversible TASK-001 foundation and evidence-producing spikes. Architecture selection, controlled-data enablement, runtime-accuracy claims, and product release remain blocked on M0.2 evidence and review.
 
 ## Coverage summaries
 
-- **Requirements:** REQ-F-001–065, REQ-NF-001–022, UX-001–010/021–045, SEC-001–014, CALC-001–035, GEO-001–015, FEAT-001–021, TIME-001–008, DATA-001–042, and TEST-001–099 are allocated and traced in the [requirements matrix](03-requirements/requirements-matrix.md). TASK-001 provides partial executable evidence; no requirement is yet Complete.
+- **Requirements:** REQ-F-001–065, REQ-NF-001–022, UX-001–012/021–045, SEC-001–014, CALC-001–035, GEO-001–015, FEAT-001–021, TIME-001–008, DATA-001–042, and TEST-001–099 are allocated and traced in the [requirements matrix](03-requirements/requirements-matrix.md). TASK-001 and local TASK-002 provide partial executable evidence; no requirement is yet Complete.
 - **Geometry:** Intake/units/hash/healing/validity/basic measurements/stock/feature/access/setup stages are specified. Two synthetic STL fixtures exist. No importer or analyzer is implemented; STEP/3MF and representative private fixtures remain required.
 - **Roadmap:** Phases 0–8 cover discovery, foundation, vertical slice, feature depth, libraries, aerospace/quality, actuals, advanced planning, and team deployment.
 - **Highest risks:** Native geometry containment/fidelity, false precision in runtime/uncertainty/allocation, implausible routes, stale capacity/availability, revision ambiguity, biased learning, vendor coupling, UI complexity, sensitive-data handling, and historical replay; see [risk register](07-delivery/risk-register.md).
@@ -37,7 +37,7 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 | Mission/scope/non-goals | `00-product/vision.md`, `scope.md`, `non-goals.md` |
 | Vocabulary | `00-product/terminology.md`; detailed additions in `02-domain/glossary.md` |
 | Requirements/status | `03-requirements/*`, especially `requirements-matrix.md` |
-| Calculation behavior | `02-domain/calculation-rules.md` |
+| Calculation behavior | `02-domain/calculation-rules.md`; rate and pricing inputs in `02-domain/rate-library.md` and `pricing-model.md` |
 | Domain/data boundaries | `02-domain/domain-overview.md`, `04-architecture/data-model.md` |
 | Architecture decisions | `04-architecture/adr/*`; `08-decisions/decision-log.md` records status |
 | UX/design | `05-ux/design-system.md` plus interaction/accessibility documents |
@@ -57,7 +57,7 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 | Isolated geometry-worker IPC/crash/resource boundary | Not started | ADR-0005 and TASK-003 |
 | STL/3MF mesh import/validation | Not started | ADR-0004 and TASK-004 |
 | SQLite/blob migrations, crash, backup/restore, concurrency | Not started | ADR-0006 and TASK-006 |
-| Typed decimal/unit calculation DAG and replay | Local and three-OS spike passes; reviewed-golden evidence pending | ADR-0007 and TASK-002 |
+| Typed decimal/unit calculation DAG, configurable rates and replay | TASK-001 passes on three OSes; TASK-002 synthetic rate/golden/replay mechanics pass locally and await three-OS evidence plus later shop calibration | ADR-0007, TASK-002 and TASK-007 |
 | Analysis snapshot version/diff/migration | Not started | ADR-0008 and TASK-003/006 |
 | Route feasibility/comparison and adoption | Not started | ADR-0009, TEST-040–044, TASK-011 |
 | Capacity/economic definitions and stale-source behavior | Not started | ADR-0010, TEST-045–050, TASK-012 |
@@ -78,7 +78,7 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 
 ### Domain
 
-[Overview](02-domain/domain-overview.md) · [Estimating](02-domain/estimating-model.md) · [Calculation rules](02-domain/calculation-rules.md) · [Geometry analysis](02-domain/geometry-analysis-model.md) · [Features](02-domain/feature-model.md) · [Stock](02-domain/stock-selection-model.md) · [Materials](02-domain/material-model.md) · [Tooling](02-domain/tooling-model.md) · [Feeds/speeds](02-domain/feeds-and-speeds-model.md) · [Machines/workcenters](02-domain/machine-and-workcenter-model.md) · [Routing/operations](02-domain/routing-and-operation-model.md) · [Routing alternatives](02-domain/routing-alternatives.md) · [Capacity/economics](02-domain/capacity-and-opportunity-cost.md) · [Probabilistic estimates](02-domain/probabilistic-estimation.md) · [Requirement coverage](02-domain/requirement-coverage.md) · [Revision cost](02-domain/revision-cost-analysis.md) · [Feature cost/risk](02-domain/feature-cost-allocation.md) · [Availability](02-domain/availability-model.md) · [Sourcing/make-buy](02-domain/sourcing-and-make-buy.md) · [Estimator learning](02-domain/estimator-learning.md) · [Bid/priority](02-domain/bid-and-quote-priority.md) · [Quality/inspection](02-domain/quality-and-inspection-model.md) · [Pricing](02-domain/pricing-model.md) · [Quote lifecycle](02-domain/quote-lifecycle.md) · [Actuals/calibration](02-domain/actuals-and-calibration.md) · [Worked examples](02-domain/worked-examples.md) · [Glossary](02-domain/glossary.md)
+[Overview](02-domain/domain-overview.md) · [Estimating](02-domain/estimating-model.md) · [Calculation rules](02-domain/calculation-rules.md) · [Rate library](02-domain/rate-library.md) · [Geometry analysis](02-domain/geometry-analysis-model.md) · [Features](02-domain/feature-model.md) · [Stock](02-domain/stock-selection-model.md) · [Materials](02-domain/material-model.md) · [Tooling](02-domain/tooling-model.md) · [Feeds/speeds](02-domain/feeds-and-speeds-model.md) · [Machines/workcenters](02-domain/machine-and-workcenter-model.md) · [Routing/operations](02-domain/routing-and-operation-model.md) · [Routing alternatives](02-domain/routing-alternatives.md) · [Capacity/economics](02-domain/capacity-and-opportunity-cost.md) · [Probabilistic estimates](02-domain/probabilistic-estimation.md) · [Requirement coverage](02-domain/requirement-coverage.md) · [Revision cost](02-domain/revision-cost-analysis.md) · [Feature cost/risk](02-domain/feature-cost-allocation.md) · [Availability](02-domain/availability-model.md) · [Sourcing/make-buy](02-domain/sourcing-and-make-buy.md) · [Estimator learning](02-domain/estimator-learning.md) · [Bid/priority](02-domain/bid-and-quote-priority.md) · [Quality/inspection](02-domain/quality-and-inspection-model.md) · [Pricing](02-domain/pricing-model.md) · [Quote lifecycle](02-domain/quote-lifecycle.md) · [Actuals/calibration](02-domain/actuals-and-calibration.md) · [Worked examples](02-domain/worked-examples.md) · [Glossary](02-domain/glossary.md)
 
 ### Requirements
 
@@ -98,7 +98,7 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 
 ### Quality
 
-[Strategy](06-quality/test-strategy.md) · [Calculations](06-quality/calculation-validation.md) · [TASK-001 evidence](06-quality/task-001-validation.md) · [Uncertainty](06-quality/uncertainty-validation.md) · [Revision comparison](06-quality/revision-comparison-validation.md) · [CAM reconciliation](06-quality/cam-reconciliation-validation.md) · [Geometry](06-quality/geometry-validation.md) · [Fixtures](06-quality/model-fixture-strategy.md) · [Features](06-quality/feature-recognition-validation.md) · [Runtime](06-quality/runtime-estimation-validation.md) · [Test data](06-quality/test-data-strategy.md) · [Security](06-quality/security-testing.md) · [Cross-platform](06-quality/cross-platform-testing.md) · [Release acceptance](06-quality/release-acceptance.md)
+[Strategy](06-quality/test-strategy.md) · [Calculations](06-quality/calculation-validation.md) · [TASK-001 evidence](06-quality/task-001-validation.md) · [TASK-002 evidence](06-quality/task-002-validation.md) · [Uncertainty](06-quality/uncertainty-validation.md) · [Revision comparison](06-quality/revision-comparison-validation.md) · [CAM reconciliation](06-quality/cam-reconciliation-validation.md) · [Geometry](06-quality/geometry-validation.md) · [Fixtures](06-quality/model-fixture-strategy.md) · [Features](06-quality/feature-recognition-validation.md) · [Runtime](06-quality/runtime-estimation-validation.md) · [Test data](06-quality/test-data-strategy.md) · [Security](06-quality/security-testing.md) · [Cross-platform](06-quality/cross-platform-testing.md) · [Release acceptance](06-quality/release-acceptance.md)
 
 ### Delivery and decisions
 

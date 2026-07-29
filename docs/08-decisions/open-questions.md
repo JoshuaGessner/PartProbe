@@ -1,11 +1,11 @@
 # Open Questions
 
-> **Status:** In Review  
-> **Last updated:** 2026-07-22  
-> **Related requirements:** All  
-> **Related ADRs:** ADR-0001–ADR-0014  
-> **Open questions:** OQ-001–OQ-050  
-> **Dependencies:** Shop, security, legal, and technical review  
+> **Status:** In Review
+> **Last updated:** 2026-07-29
+> **Related requirements:** All
+> **Related ADRs:** ADR-0001–ADR-0014
+> **Open questions:** OQ-001–OQ-050
+> **Dependencies:** Shop, security, legal, and technical review
 > **Supersedes:** None
 
 ## Shop and process
@@ -68,3 +68,5 @@
 - **OQ-050:** Which advanced metrics belong in customer output, internal approval only, or restricted management views?
 
 Do not block all work on unanswered questions; use visible assumptions and validation tasks. Do block approval where an answer materially affects safety, legality, data handling, or financial integrity.
+
+OQ-012–OQ-018 calibrate organization-owned rate categories, cost allocation, pricing/rounding, and approval policy under TASK-007/M0.2. They do not block TASK-002 deterministic rate-library and synthetic calculation mechanics, because production libraries start empty and missing/conflicting rates cannot become authoritative values.
