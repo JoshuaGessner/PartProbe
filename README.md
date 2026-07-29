@@ -8,18 +8,52 @@
 > **Dependencies:** Planning review and technical spikes
 > **Supersedes:** None
 
-PartProbe is a planned local-first, cross-platform CAD-assisted estimator for specialty machine shops. It will import engineering models, extract explainable geometry facts, propose editable manufacturing assumptions, and produce traceable cost and price foundations. It is an estimating assistant—not production CAM and not an autonomous quoting system.
+PartProbe is a local-first, cross-platform CAD-assisted estimator being built for specialty machine shops. Its target workflow imports engineering models, extracts explainable geometry facts, lets estimators review manufacturing assumptions, and produces traceable cost and price foundations. It is an estimating assistant—not production CAM, an autonomous quoting system, or accounting software.
 
-## Current status
+## Production status
 
-The project is in **Phase 0 — Discovery and Validation**. TASK-001 provides a reversible Rust calculation foundation and three-OS TEST-001 evidence. TASK-002 provides passing empty/user-owned rate-card, deterministic resolution, pricing/rounding, synthetic-golden, and replay mechanics on Windows, Linux, and macOS. TASK-003 now begins the evidence-gated geometry-worker production path.
+PartProbe is currently a **pre-alpha engineering foundation**, not an installable end-user product. Phase 0 evidence and M1 foundation implementation are running together while the architecture decisions remain In Review.
+
+| Area | Current evidence | Production limitation |
+|---|---|---|
+| Calculations | Typed money/units, deterministic calculation rules, itemized traces, versioned snapshots, and replay pass Windows/Linux/macOS CI | No complete estimate workflow, shop calibration, or estimator UI |
+| Rates and pricing | Empty-on-install, user-owned rate cards; effective dating, scope resolution, approval state, pricing and rounding policies | No rate-entry UI or durable rate library; PartProbe supplies no production rates |
+| Geometry worker | Bounded versioned IPC, validated capabilities, private workspaces, cancellation grace/acknowledgement, forced termination, audit/security seams, and governed derivative handoff | No production OS sandbox, resource enforcement, direct worker handle transport, or durable controlled store |
+| STEP/OCCT | Optional OCCT 8.0 Apple Silicon spike measures a synthetic STEP cube and polls cancellation during STEP transfer | Not a supported product importer; independent accuracy corpus, three-OS native builds, packaging, and legal review remain open |
+| Desktop and storage | UX, design system, persistence contracts, and release workflow are documented | No desktop application, database, save/reopen workflow, installer, or signed release exists |
+
+The default workspace currently has **88 runtime tests** plus a compile-fail doctest passing on Windows, Linux, and macOS. Nineteen focused optional-native adapter/worker tests pass locally on Apple Silicon. These results validate foundations and containment contracts; they do not establish production estimating accuracy or release readiness.
+
+## Product boundary
+
+- Organizations enter and govern their own labor, machine, material, outside-service, overhead, risk, and pricing inputs. Production libraries start empty.
+- USD is the expected primary currency, while currency remains explicitly typed for replay and validation.
+- Missing, stale, ambiguous, or unapproved rates remain unavailable or blocked; they are never converted to zero.
+- Accepted estimates remain deterministic and explainable. Recommendations and advanced analysis cannot silently replace a human-approved baseline.
+- CAD models, drawings, quotes, rates, and estimate data stay local by default and are not sent to external AI, telemetry, or analytics services.
+
+## Development path
+
+The current implementation order is:
+
+1. Finish TASK-003 worker descriptor/handle transport, OS containment/resource controls, representative geometry fixtures, and reproducible native builds.
+2. Complete TASK-004 STL/3MF mesh import comparison.
+3. Build TASK-005 desktop UX, including guided shop-owned rate setup and model review.
+4. Implement TASK-006 durable SQLite repositories, migrations, backup/restore, and historical replay.
+5. Validate real shop categories, policies, and calibration in TASK-007 before making accuracy claims.
+
+The first usable vertical slice still requires model intake, reviewable measurements, editable assumptions, a guided rate library, transparent estimate/pricing traces, save/reopen, previews, and cross-platform packaging.
+
+## Documentation
 
 Start with:
 
 - [Documentation index](docs/INDEX.md)
 - [Current project state](docs/PROJECT_STATE.md)
+- [Roadmap](docs/07-delivery/roadmap.md)
+- [Initial release plan](docs/07-delivery/release-plan.md)
+- [TASK-003 validation evidence](docs/06-quality/task-003-validation.md)
 - [Agent rules](AGENTS.md)
-- [Planning prompt](machine_shop_estimator_prompts/01_project_setup_and_deep_planning_prompt.md)
 
 ## Security posture
 
@@ -27,4 +61,15 @@ CAD models, drawings, quotes, and shop data are treated as potentially sensitive
 
 ## Development
 
-The calculation workspace is scaffolded, but no desktop application, geometry engine, persistence layer, or production estimator exists. TASK-001 and TASK-002 pass Windows, Linux, and macOS CI evidence. TASK-003 is the active development slice. Commands and current limits are documented in [PROJECT_STATE.md](docs/PROJECT_STATE.md).
+The repository is a Rust workspace pinned to Rust 1.94.1. Run the standard local gates with:
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --all-targets --locked
+cargo test --workspace --doc --locked
+python3 scripts/check_planning.py
+python3 scripts/hash_fixtures.py
+```
+
+Native OCCT commands require the separately built pinned dependency described in [TASK-003 validation evidence](docs/06-quality/task-003-validation.md). Commands, current limitations, and the active branch are maintained in [PROJECT_STATE.md](docs/PROJECT_STATE.md).

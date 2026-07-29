@@ -8,19 +8,21 @@
 > **Dependencies:** Roadmap
 > **Supersedes:** None
 
-## M0.1 Planning baseline — current
+## M0.1 Planning baseline
 
-Exit: navigable documentation, stable requirement IDs, research/ADRs ready for review, domain/calculation/data models, examples, fixture strategy, quality plan, advanced planning enhancement, risks, open questions, and exact next task. Status: **In Review**.
+Exit: navigable documentation, stable requirement IDs, research/ADRs ready for review, domain/calculation/data models, examples, fixture strategy, quality plan, advanced planning enhancement, risks, open questions, and exact next task. Status: **Baseline established; review remains open**.
 
 ## M0.2 Evidence and decision closure
 
 Exit: interviews complete; private fixture/data governance agreed; UI, geometry, worker, persistence, and calculation spikes measured; TASK-002 synthetic calculation mechanics plus TASK-007 real rate-category/pricing-policy calibration reviewed; ADR-0001–0014 accepted/rejected or explicitly deferred; route/capacity/uncertainty/PMI/CAM/availability data sources assessed; baseline accuracy and performance budgets set.
 
+Status: **In Progress.** Calculation/rate mechanics and a substantial worker/geometry spike now have executable evidence. Interviews, shop calibration, UI and persistence spikes, representative private-fixture governance, ADR closure, supported-platform native packaging, and accuracy/performance budgets remain open.
+
 ## M1 Foundation
 
 Exit: Cargo workspace; domain/units/money/provenance; migrations/repositories; worker protocol; initial import/measurement corpus; application shell/design system; cross-platform CI; future-safe identifiers/snapshots for route sets, requirements, revisions, availability, and correction events without implementing advanced engines.
 
-Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. Geometry worker/import, UI, persistence, and remaining foundation components are pending.
+Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. TASK-003 supplies the kernel-neutral geometry contracts, isolated worker protocol, controlled intake/output seams, cancellation behavior, and provisional Apple Silicon OCCT evidence. Production importer accuracy/containment/packaging, UI, persistence, mesh support, and remaining foundation components are pending.
 
 ## M2 Vertical slice
 

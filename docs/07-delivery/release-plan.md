@@ -10,6 +10,12 @@
 
 The first releasable vertical slice proves: RFQ/customer/one part revision; STEP/STL/3MF intake; unit confirmation; model view/warnings/AABB/volume/area; material mass and rectangular/round stock; removed volume; broad milling/turning process; rough setup/runtime proposal; editable assumptions; an empty-on-install rate library with guided shop-owned setup; blocked missing/conflicting rates; selected-rate and rounding traces; added cost/risk categories; quantity breaks; transparent cost/pricing; overrides; save/reopen; source hash/analysis version; internal and customer previews; Windows/Linux/macOS.
 
+## Current readiness
+
+The repository is not yet at developer alpha. Calculation and user-owned rate mechanics exist as headless Rust foundations, and the isolated geometry-worker has provisional STEP/OCCT evidence. The release still lacks the desktop workflow, supported STEP/STL/3MF importers, representative accuracy validation, durable save/reopen repositories and migrations, complete containment/resource controls, real-shop policy calibration, preview/report generation, installers/signing, and end-to-end acceptance evidence.
+
+The next release-critical sequence is TASK-003 worker/native completion, TASK-004 mesh import, TASK-005 desktop and guided rate setup, TASK-006 persistence/backup/replay, and TASK-007 shop calibration. Advanced routing, uncertainty, PMI, learning, CAM, capacity, and integration features remain outside the initial release gate.
+
 ## Staging
 
 1. Internal developer alpha using isolated, visibly synthetic data that cannot seed production libraries.
