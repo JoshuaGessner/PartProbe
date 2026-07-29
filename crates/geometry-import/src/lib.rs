@@ -885,6 +885,13 @@ fn copy_and_verify(
     Ok(())
 }
 
+#[cfg_attr(
+    windows,
+    allow(
+        clippy::permissions_set_readonly_false,
+        reason = "Windows requires clearing FILE_ATTRIBUTE_READONLY before deleting the staged copy"
+    )
+)]
 fn remove_staged_asset(staged_path: &Path) -> std::io::Result<()> {
     if !staged_path.exists() {
         return Ok(());
