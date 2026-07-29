@@ -5,6 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[[bin]]
+name = "partprobe-cancellation-worker-fixture"
+path = "tests/fixtures/cancellation_worker.rs"
+test = false
+bench = false
+
 [features]
 default = []
 native-occt = [

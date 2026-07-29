@@ -13,6 +13,8 @@
 - Added `geometry-core` as a kernel-neutral crate for canonical source hashes, model formats, representation basis, model units, analysis profiles, pipeline stages, stage states, sanitized warnings, immutable source descriptors, and validated stage reports.
 - Added `geometry-import` as a path-free, schema-versioned worker protocol using opaque asset capabilities, expected source hashes, ordered unique stages, analysis-profile versions, and strictly positive input/output/entity/time quotas.
 - Added a local subprocess supervisor that clears the inherited environment, sets a controlled working directory, bounds stdin/stdout JSON, polls cancellation and wall time, kills and reaps failed workers, verifies response schema/job/correlation identity, and maps launch, I/O, exit, timeout, quota, malformed-response, and cancellation failures to sanitized responses.
+- Replaced the one-shot raw request body with control-stream schema version 1: one bounded newline-framed `execute` message followed by at most one identity-bound user/deadline `cancel` message. The supervisor requires an explicit grace interval, validates the matching worker acknowledgement, preserves valid completion-wins races, and force-kills/reaps after grace with distinct cancellation/deadline diagnostics.
+- Added safe worker cancellation checkpoints before native work, after the blocking OCCT adapter returns, and around output creation. This permits cooperative acknowledgement whenever Rust regains control; it does not claim cancellation inside the current blocking OCCT call, which remains bounded by supervised termination.
 - Added a minimal `geometry-worker` executable that proves the process boundary and returns the explicit terminal diagnostic `NATIVE_ADAPTER_UNAVAILABLE`; it does not parse CAD or claim OCCT capability.
 - Added fixture expectation schema version 2 with exact decimal strings and typed `available`, `unavailable`, and `not_applicable` evidence. Closed/open mesh fixtures now distinguish authoritative volume from unavailable open-boundary volume.
 - Selected official OCCT 8.0.0 commit `d3056ef80c9668f395da40f5fd7be186cae4501f` for the reversible native spike and completed a minimal shared-library source build on Apple Silicon with no external CMake dependency enabled.
@@ -37,7 +39,7 @@
 
 ## Fixture schema migration
 
-Fixture expectation schema version 2 replaces ambiguous nullable/omitted measurements with explicit evidence states and exact decimal strings. This is a preproduction, test-fixture-only schema: no customer or persisted production record is migrated. Version 1 successful-geometry files fail validation and must be deliberately upgraded with reviewed evidence; the loader does not infer unavailable data as zero or silently reinterpret old files. The additive import-failure expectation schema starts at version 1 and carries only controlled failure/artifact outcomes; it does not migrate or reinterpret successful-geometry records, and unsupported versions fail validation. The `GeometryWorkerExecution`, `LocalAssetRoot`, authorization context/decision, audit event, controlled derivative write, and store receipt are preproduction in-memory APIs; the new access/storage IDs are additive validated primitives but are not used by a persisted record schema. There are no customer records to migrate. Durable authorization, audit, manifest, and locator schemas must start with explicit versions and migration/replay policies rather than treating these Rust layouts as storage contracts.
+Fixture expectation schema version 2 replaces ambiguous nullable/omitted measurements with explicit evidence states and exact decimal strings. This is a preproduction, test-fixture-only schema: no customer or persisted production record is migrated. Version 1 successful-geometry files fail validation and must be deliberately upgraded with reviewed evidence; the loader does not infer unavailable data as zero or silently reinterpret old files. The additive import-failure expectation schema starts at version 1 and carries only controlled failure/artifact outcomes; it does not migrate or reinterpret successful-geometry records, and unsupported versions fail validation. Worker control-stream schema version 1 replaces the preproduction one-shot raw request JSON; old supervisors/workers are intentionally incompatible and fail closed, so deployment must update both signed components together. The `GeometryWorkerExecution`, `LocalAssetRoot`, authorization context/decision, audit event, controlled derivative write, and store receipt are preproduction in-memory APIs; the new access/storage IDs are additive validated primitives but are not used by a persisted record schema. There are no customer records to migrate. Durable authorization, audit, manifest, and locator schemas must start with explicit versions and migration/replay policies rather than treating these Rust layouts as storage contracts.
 
 ## Local acceptance run
 
@@ -47,12 +49,12 @@ Environment: Apple Silicon macOS; Rust 1.94.1 workspace.
 |---|---|
 | `cargo fmt --all -- --check` | Pass |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Pass |
-| `cargo test --workspace --all-targets --locked` | Pass: 81 runtime tests |
+| `cargo test --workspace --all-targets --locked` | Pass: 88 runtime tests |
 | `cargo test --workspace --doc --locked` | Pass: one compile-fail unit-safety doctest |
 | `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-occt-adapter --features fixture-tools` | Pass: six native-link/ABI/failure/measurement/generator-reproduction tests |
-| `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-worker --features native-occt --test process_boundary` | Pass: six grant/staging/hash/measurement/invalid-entity process tests |
+| `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-worker --features native-occt --test process_boundary` | Pass: eleven grant/staging/hash/cancellation/measurement/invalid-entity process tests |
 
-TASK-003 currently adds forty default runtime tests: four access/security invariants, three application authorization/audit cases, four application derivative-persistence cases, four document-storage contract cases, five geometry-core invariants, nine protocol/supervisor/output/containment cases, six subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Twelve focused tests pass across the explicit local native adapter/worker commands.
+TASK-003 currently adds forty-seven default runtime tests: four access/security invariants, three application authorization/audit cases, four application derivative-persistence cases, four document-storage contract cases, five geometry-core invariants, eleven protocol/supervisor/output/containment cases, eleven subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Seventeen focused tests pass across the explicit local native adapter/worker commands.
 
 ## Cross-platform evidence
 
@@ -60,7 +62,7 @@ GitHub Actions run 30490605289 passes formatting, strict Clippy, all 81 default 
 
 ## Remaining acceptance evidence
 
-- Replace the current polling hard-kill behavior with a documented cooperative cancellation grace protocol where native work can acknowledge cancellation.
+- Add an OCCT progress/cancellation hook where supported so a blocking native operation can observe the validated control request before the supervisor's grace expires; retain forced termination as the bounded fallback.
 - Implement and approve deployment-specific role/project-membership/classification/record-state policy and repositories plus durable append-preserving audit persistence; implement the controlled-store adapter with versioned schema/migrations, atomic durability, integrity-on-open, backup/restore, encryption decision, and retention/disposition enforcement.
 - Add OS-specific network denial, filesystem sandboxing, CPU/memory limits, descendant-process containment, and cleanup/retention evidence. Clearing the environment and controlling the working directory are defense-in-depth, not a sandbox.
 - Complete legal review of OCCT 8.0.0 notices, source offer/relinking approach, shared-library packaging, and third-party/transitive native inventory before distribution.

@@ -7,6 +7,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -22,6 +23,8 @@ use sha2::{Digest, Sha256};
 pub const WORKER_INPUT_FILENAME: &str = "partprobe-input.asset";
 /// Fixed worker-local output name; the response carries only an opaque reference.
 pub const WORKER_OUTPUT_FILENAME: &str = "partprobe-output.json";
+/// Current schema for the supervisor-to-worker control stream.
+pub const WORKER_CONTROL_SCHEMA_VERSION: u16 = 1;
 
 static JOB_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -364,6 +367,153 @@ impl GeometryWorkerRequest {
     }
 }
 
+/// Reason a running worker is asked to stop cooperatively.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkerCancellationReason {
+    /// A user or application owner cancelled the job.
+    UserRequested,
+    /// The request's wall-clock deadline elapsed.
+    DeadlineExceeded,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "message", rename_all = "snake_case")]
+enum WorkerControlCommand {
+    Execute {
+        request: GeometryWorkerRequest,
+    },
+    Cancel {
+        job_id: GeometryJobId,
+        correlation_id: CorrelationId,
+        reason: WorkerCancellationReason,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "message", rename_all = "snake_case", deny_unknown_fields)]
+enum WorkerControlCommandWire {
+    Execute {
+        request: GeometryWorkerRequest,
+    },
+    Cancel {
+        job_id: GeometryJobId,
+        correlation_id: CorrelationId,
+        reason: WorkerCancellationReason,
+    },
+}
+
+/// One validated frame on the bounded supervisor-to-worker control stream.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GeometryWorkerControlMessage {
+    control_schema_version: u16,
+    #[serde(flatten)]
+    command: WorkerControlCommand,
+}
+
+#[derive(Deserialize)]
+struct GeometryWorkerControlMessageWire {
+    control_schema_version: u16,
+    #[serde(flatten)]
+    command: WorkerControlCommandWire,
+}
+
+impl<'de> Deserialize<'de> for GeometryWorkerControlMessage {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = GeometryWorkerControlMessageWire::deserialize(deserializer)?;
+        if wire.control_schema_version != WORKER_CONTROL_SCHEMA_VERSION {
+            return Err(serde::de::Error::custom(
+                "unsupported geometry worker control schema version",
+            ));
+        }
+        let command = match wire.command {
+            WorkerControlCommandWire::Execute { request } => {
+                WorkerControlCommand::Execute { request }
+            }
+            WorkerControlCommandWire::Cancel {
+                job_id,
+                correlation_id,
+                reason,
+            } => WorkerControlCommand::Cancel {
+                job_id,
+                correlation_id,
+                reason,
+            },
+        };
+        Ok(Self {
+            control_schema_version: wire.control_schema_version,
+            command,
+        })
+    }
+}
+
+impl GeometryWorkerControlMessage {
+    /// Creates the first control-stream frame for one validated request.
+    #[must_use]
+    pub const fn execute(request: GeometryWorkerRequest) -> Self {
+        Self {
+            control_schema_version: WORKER_CONTROL_SCHEMA_VERSION,
+            command: WorkerControlCommand::Execute { request },
+        }
+    }
+
+    /// Creates a cancellation frame bound to the request identity.
+    #[must_use]
+    pub fn cancel(request: &GeometryWorkerRequest, reason: WorkerCancellationReason) -> Self {
+        Self {
+            control_schema_version: WORKER_CONTROL_SCHEMA_VERSION,
+            command: WorkerControlCommand::Cancel {
+                job_id: request.job_id().clone(),
+                correlation_id: request.correlation_id().clone(),
+                reason,
+            },
+        }
+    }
+
+    /// Returns the control protocol schema version.
+    #[must_use]
+    pub const fn control_schema_version(&self) -> u16 {
+        self.control_schema_version
+    }
+
+    /// Consumes an execute frame and returns its request.
+    #[must_use]
+    pub fn into_execute_request(self) -> Option<GeometryWorkerRequest> {
+        match self.command {
+            WorkerControlCommand::Execute { request } => Some(request),
+            WorkerControlCommand::Cancel { .. } => None,
+        }
+    }
+
+    /// Validates a cancellation frame against the running request.
+    pub fn cancellation_reason_for(
+        &self,
+        request: &GeometryWorkerRequest,
+    ) -> Result<WorkerCancellationReason, DomainError> {
+        let WorkerControlCommand::Cancel {
+            job_id,
+            correlation_id,
+            reason,
+        } = &self.command
+        else {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker control message",
+                reason: "a running worker accepts only a cancellation frame",
+            });
+        };
+        if job_id != request.job_id() || correlation_id != request.correlation_id() {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker cancellation identity",
+                reason: "job and correlation IDs must match the running request",
+            });
+        }
+        Ok(*reason)
+    }
+}
+
 /// Versioned response from the isolated worker.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct GeometryWorkerResponse {
@@ -522,6 +672,10 @@ pub enum WorkerTermination {
     MalformedResponse,
     /// User or supervisor cancelled the job.
     Cancelled,
+    /// A cancelled worker did not exit within the configured grace interval.
+    CancellationGraceExceeded,
+    /// A timed-out worker did not exit within the configured grace interval.
+    TimeoutGraceExceeded,
     /// Protocol input/output failed.
     ProtocolIo,
     /// Controlled source could not be staged safely.
@@ -556,6 +710,8 @@ pub fn recoverable_termination_response(
         WorkerTermination::QuotaExceeded => "WORKER_QUOTA_EXCEEDED",
         WorkerTermination::MalformedResponse => "WORKER_MALFORMED_RESPONSE",
         WorkerTermination::Cancelled => "WORKER_CANCELLED",
+        WorkerTermination::CancellationGraceExceeded => "WORKER_CANCEL_FORCE_TERMINATED",
+        WorkerTermination::TimeoutGraceExceeded => "WORKER_TIMEOUT_FORCE_TERMINATED",
         WorkerTermination::ProtocolIo => "WORKER_PROTOCOL_IO",
         WorkerTermination::AssetStageFailed => "ASSET_STAGE_FAILED",
         WorkerTermination::AssetGrantMismatch => "ASSET_GRANT_MISMATCH",
@@ -583,20 +739,26 @@ pub fn recoverable_termination_response(
 pub struct SupervisorPolicy {
     max_protocol_bytes: usize,
     poll_interval_millis: u64,
+    cancellation_grace_millis: u64,
 }
 
 impl SupervisorPolicy {
     /// Validates protocol and polling limits.
-    pub fn new(max_protocol_bytes: usize, poll_interval_millis: u64) -> Result<Self, DomainError> {
-        if max_protocol_bytes == 0 || poll_interval_millis == 0 {
+    pub fn new(
+        max_protocol_bytes: usize,
+        poll_interval_millis: u64,
+        cancellation_grace_millis: u64,
+    ) -> Result<Self, DomainError> {
+        if max_protocol_bytes == 0 || poll_interval_millis == 0 || cancellation_grace_millis == 0 {
             return Err(DomainError::InvalidValue {
                 field: "geometry supervisor policy",
-                reason: "protocol and polling limits must be greater than zero",
+                reason: "protocol, polling, and cancellation-grace limits must be greater than zero",
             });
         }
         Ok(Self {
             max_protocol_bytes,
             poll_interval_millis,
+            cancellation_grace_millis,
         })
     }
 
@@ -610,6 +772,12 @@ impl SupervisorPolicy {
     #[must_use]
     pub const fn poll_interval_millis(self) -> u64 {
         self.poll_interval_millis
+    }
+
+    /// Returns the cooperative cancellation grace interval.
+    #[must_use]
+    pub const fn cancellation_grace_millis(self) -> u64 {
+        self.cancellation_grace_millis
     }
 }
 
@@ -958,10 +1126,11 @@ impl GeometryWorkerSupervisor {
             return response_for(request, WorkerTermination::Cancelled);
         }
 
-        let request_bytes = match serde_json::to_vec(request) {
-            Ok(bytes) if bytes.len() <= self.policy.max_protocol_bytes => bytes,
-            _ => return response_for(request, WorkerTermination::QuotaExceeded),
-        };
+        let request_frame =
+            match serialize_control_frame(GeometryWorkerControlMessage::execute(request.clone())) {
+                Ok(bytes) if bytes.len() <= self.policy.max_protocol_bytes => bytes,
+                _ => return response_for(request, WorkerTermination::QuotaExceeded),
+            };
 
         let mut command = Command::new(&self.executable);
         command
@@ -978,15 +1147,15 @@ impl GeometryWorkerSupervisor {
             Err(_) => return response_for(request, WorkerTermination::LaunchFailed),
         };
 
-        let Some(mut stdin) = child.stdin.take() else {
+        let Some(stdin) = child.stdin.take() else {
             terminate_and_reap(&mut child);
             return response_for(request, WorkerTermination::ProtocolIo);
         };
-        let writer = thread::spawn(move || stdin.write_all(&request_bytes));
+        let (control_tx, control_writer) = spawn_control_writer(stdin, request_frame);
 
         let Some(stdout) = child.stdout.take() else {
             terminate_and_reap(&mut child);
-            let _ = writer.join();
+            close_control_writer(control_tx, control_writer);
             return response_for(request, WorkerTermination::ProtocolIo);
         };
         let response_limit = self.policy.max_protocol_bytes;
@@ -994,33 +1163,56 @@ impl GeometryWorkerSupervisor {
 
         let timeout = Duration::from_millis(request.quotas().wall_time_millis());
         let poll_interval = Duration::from_millis(self.policy.poll_interval_millis);
+        let cancellation_grace = Duration::from_millis(self.policy.cancellation_grace_millis);
         let started = Instant::now();
+        let mut shutdown = None;
         let status = loop {
-            if cancellation.load(Ordering::Acquire) {
-                terminate_and_reap(&mut child);
-                let _ = writer.join();
-                let _ = reader.join();
-                return response_for(request, WorkerTermination::Cancelled);
+            if shutdown.is_none() {
+                let reason = if cancellation.load(Ordering::Acquire) {
+                    Some(WorkerCancellationReason::UserRequested)
+                } else if started.elapsed() >= timeout {
+                    Some(WorkerCancellationReason::DeadlineExceeded)
+                } else {
+                    None
+                };
+                if let Some(reason) = reason {
+                    let _ = control_tx.send(ControlWriterCommand::Send(
+                        GeometryWorkerControlMessage::cancel(request, reason),
+                    ));
+                    shutdown = Some((reason, Instant::now()));
+                }
             }
             match child.try_wait() {
                 Ok(Some(status)) => break status,
-                Ok(None) if started.elapsed() < timeout => thread::sleep(poll_interval),
                 Ok(None) => {
-                    terminate_and_reap(&mut child);
-                    let _ = writer.join();
-                    let _ = reader.join();
-                    return response_for(request, WorkerTermination::Timeout);
+                    if let Some((reason, grace_started)) = shutdown
+                        && grace_started.elapsed() >= cancellation_grace
+                    {
+                        terminate_and_reap(&mut child);
+                        close_control_writer(control_tx, control_writer);
+                        let _ = reader.join();
+                        let termination = match reason {
+                            WorkerCancellationReason::UserRequested => {
+                                WorkerTermination::CancellationGraceExceeded
+                            }
+                            WorkerCancellationReason::DeadlineExceeded => {
+                                WorkerTermination::TimeoutGraceExceeded
+                            }
+                        };
+                        return response_for(request, termination);
+                    }
+                    thread::sleep(poll_interval);
                 }
                 Err(_) => {
                     terminate_and_reap(&mut child);
-                    let _ = writer.join();
+                    close_control_writer(control_tx, control_writer);
                     let _ = reader.join();
                     return response_for(request, WorkerTermination::ProtocolIo);
                 }
             }
         };
 
-        if !matches!(writer.join(), Ok(Ok(()))) {
+        if !close_control_writer(control_tx, control_writer) {
             let _ = reader.join();
             return response_for(request, WorkerTermination::ProtocolIo);
         }
@@ -1042,6 +1234,29 @@ impl GeometryWorkerSupervisor {
             || response.job_id() != request.job_id()
             || response.correlation_id() != request.correlation_id()
         {
+            return response_for(request, WorkerTermination::MalformedResponse);
+        }
+        let reported_cancellation = response.diagnostic_codes().iter().find_map(|code| {
+            matches!(code.as_str(), "WORKER_CANCELLED" | "WORKER_TIMEOUT").then(|| code.as_str())
+        });
+        let acknowledges_cancellation = response
+            .diagnostic_codes()
+            .iter()
+            .any(|code| code.as_str() == "WORKER_CANCELLATION_ACKNOWLEDGED");
+        let expected_cancellation = shutdown.map(|(reason, _)| match reason {
+            WorkerCancellationReason::UserRequested => "WORKER_CANCELLED",
+            WorkerCancellationReason::DeadlineExceeded => "WORKER_TIMEOUT",
+        });
+        let cancellation_evidence_is_valid = match (
+            expected_cancellation,
+            reported_cancellation,
+            acknowledges_cancellation,
+        ) {
+            (None, None, false) | (Some(_), None, false) => true,
+            (Some(expected), Some(reported), true) => expected == reported,
+            _ => false,
+        };
+        if !cancellation_evidence_is_valid {
             return response_for(request, WorkerTermination::MalformedResponse);
         }
         response
@@ -1251,6 +1466,57 @@ fn read_bounded(stdout: impl Read, max_protocol_bytes: usize) -> Result<Vec<u8>,
         return Err(ReadFailure::LimitExceeded);
     }
     Ok(bytes)
+}
+
+enum ControlWriterCommand {
+    Send(GeometryWorkerControlMessage),
+    Close,
+}
+
+fn serialize_control_frame(
+    message: GeometryWorkerControlMessage,
+) -> Result<Vec<u8>, serde_json::Error> {
+    let mut bytes = serde_json::to_vec(&message)?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
+fn spawn_control_writer(
+    mut stdin: std::process::ChildStdin,
+    request_frame: Vec<u8>,
+) -> (
+    mpsc::Sender<ControlWriterCommand>,
+    thread::JoinHandle<std::io::Result<()>>,
+) {
+    let (sender, receiver) = mpsc::channel();
+    let writer = thread::spawn(move || {
+        stdin.write_all(&request_frame)?;
+        stdin.flush()?;
+        while let Ok(command) = receiver.recv() {
+            match command {
+                ControlWriterCommand::Send(message) => {
+                    stdin.write_all(&serialize_control_frame(message).map_err(|_| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "control message serialization failed",
+                        )
+                    })?)?;
+                    stdin.flush()?;
+                }
+                ControlWriterCommand::Close => break,
+            }
+        }
+        Ok(())
+    });
+    (sender, writer)
+}
+
+fn close_control_writer(
+    sender: mpsc::Sender<ControlWriterCommand>,
+    writer: thread::JoinHandle<std::io::Result<()>>,
+) -> bool {
+    let _ = sender.send(ControlWriterCommand::Close);
+    matches!(writer.join(), Ok(Ok(())))
 }
 
 fn terminate_and_reap(child: &mut std::process::Child) {

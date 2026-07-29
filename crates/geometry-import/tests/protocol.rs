@@ -6,8 +6,9 @@ use partprobe_geometry_core::{
     AnalysisProfile, AnalysisProfileId, GeometryStage, Sha256Digest, StageStatus,
 };
 use partprobe_geometry_import::{
-    AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerRequest, GeometryWorkerSupervisor,
-    LocalAssetRoot, ResourceQuotas, SupervisorPolicy, WorkerTermination,
+    AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerControlMessage,
+    GeometryWorkerRequest, GeometryWorkerSupervisor, LocalAssetRoot, ResourceQuotas,
+    SupervisorPolicy, WORKER_CONTROL_SCHEMA_VERSION, WorkerCancellationReason, WorkerTermination,
     open_local_source_read_only, recoverable_termination_response,
 };
 
@@ -41,6 +42,54 @@ fn request_is_path_free_and_versioned() {
     assert!(value.get("path").is_none());
     assert!(value.get("filename").is_none());
     assert!(AssetCapability::new("/tmp/model.step").is_err());
+}
+
+#[test]
+fn control_frames_are_versioned_path_free_and_identity_bound() {
+    let active_request = request();
+    let execute = GeometryWorkerControlMessage::execute(active_request.clone());
+    let value = serde_json::to_value(&execute).expect("execute frame must serialize");
+
+    assert_eq!(
+        execute.control_schema_version(),
+        WORKER_CONTROL_SCHEMA_VERSION
+    );
+    assert_eq!(value["message"], "execute");
+    assert!(value.get("path").is_none());
+    let decoded: GeometryWorkerControlMessage =
+        serde_json::from_value(value.clone()).expect("execute frame must deserialize");
+    assert_eq!(
+        decoded
+            .into_execute_request()
+            .expect("execute frame must contain a request"),
+        active_request
+    );
+
+    let mut unsupported = value;
+    unsupported["control_schema_version"] = serde_json::json!(2);
+    assert!(serde_json::from_value::<GeometryWorkerControlMessage>(unsupported).is_err());
+
+    let cancel = GeometryWorkerControlMessage::cancel(
+        &active_request,
+        WorkerCancellationReason::UserRequested,
+    );
+    assert_eq!(
+        cancel
+            .cancellation_reason_for(&active_request)
+            .expect("matching cancellation identity must validate"),
+        WorkerCancellationReason::UserRequested
+    );
+    let mut other_value = serde_json::to_value(request()).expect("request must serialize");
+    other_value["job_id"] = serde_json::json!("other-job");
+    let other: GeometryWorkerRequest =
+        serde_json::from_value(other_value).expect("other request must deserialize");
+    assert!(cancel.cancellation_reason_for(&other).is_err());
+}
+
+#[test]
+fn supervisor_policy_requires_an_explicit_nonzero_cancellation_grace() {
+    assert!(SupervisorPolicy::new(4_096, 1, 50).is_ok());
+    assert!(SupervisorPolicy::new(4_096, 1, 0).is_err());
 }
 
 #[test]
@@ -90,6 +139,14 @@ fn supervisor_failures_become_sanitized_recoverable_results() {
             "WORKER_MALFORMED_RESPONSE",
         ),
         (WorkerTermination::Cancelled, "WORKER_CANCELLED"),
+        (
+            WorkerTermination::CancellationGraceExceeded,
+            "WORKER_CANCEL_FORCE_TERMINATED",
+        ),
+        (
+            WorkerTermination::TimeoutGraceExceeded,
+            "WORKER_TIMEOUT_FORCE_TERMINATED",
+        ),
     ] {
         let response = recoverable_termination_response(
             SchemaVersion::new(1).expect("schema version must be valid"),
@@ -109,7 +166,7 @@ fn supervisor_maps_launch_failure_and_precancel_without_path_leakage() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from("__partprobe_worker_does_not_exist__"),
         std::env::temp_dir(),
-        SupervisorPolicy::new(4_096, 1).expect("policy must be valid"),
+        SupervisorPolicy::new(4_096, 1, 50).expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
 
