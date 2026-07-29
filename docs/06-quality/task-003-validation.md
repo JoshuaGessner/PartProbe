@@ -4,8 +4,8 @@
 > **Last updated:** 2026-07-29
 > **Related requirements:** REQ-F-002–REQ-F-004, REQ-F-021–REQ-F-022; REQ-NF-002, REQ-NF-004–REQ-NF-005, REQ-NF-011–REQ-NF-014; GEO-001–GEO-007; TEST-003, TEST-021–TEST-030
 > **Related ADRs:** ADR-0002, ADR-0005, ADR-0008
-> **Open questions:** OCCT build/version, target-specific sandbox and resource enforcement, analytic STEP corpus, and distribution approval
-> **Dependencies:** TASK-002 integration; OCCT dependency evidence is not yet approved or added
+> **Open questions:** Reproducible three-OS OCCT builds, target-specific sandbox and resource enforcement, independent analytic STEP corpus, and distribution approval
+> **Dependencies:** TASK-002 integration; OCCT 8.0.0 is selected for the spike but not approved for distribution
 > **Supersedes:** None
 
 ## Implemented contract evidence
@@ -21,7 +21,7 @@
 - Added deterministic synthetic `FIX-STEP-001` generation, manifest hash, schema-v2 expected evidence, and analytic area/volume/centroid checks. Its same-kernel generation/read limitation is documented.
 - Connected the optional worker to OCCT for the exact six-stage spike profile. The subprocess writes a bounded schema-v1 `provisional_spike` snapshot and returns only an opaque reference; measurements use documented six-decimal canonicalization and remain non-authoritative.
 - Custom deserialization revalidates source hashes, byte counts, stage ordering, warning consistency, IDs, and quotas.
-- No OCCT, C++, FFI, hashing, operating-system sandbox, or new third-party dependency was added. Existing Serde, Serde JSON, and project-owned domain types are reused.
+- Default builds add no OCCT runtime or C++ linkage. The optional native feature and SHA-256 staging dependency remain isolated, while an operating-system sandbox is not yet implemented.
 
 ## Fixture schema migration
 
@@ -44,12 +44,12 @@ TASK-003 currently adds seventeen default runtime tests: five geometry-core inva
 
 ## Cross-platform evidence
 
-GitHub Actions run 30467602461 passes formatting, strict Clippy, all 56 default runtime tests, and documentation tests on Windows, Linux, and macOS for commit `c31fafb`. This proves the kernel-neutral contracts, bounded subprocess transport, fixture schema, optional adapter crate/build script, locked `cc` toolchain, and feature-off behavior are cross-platform. It does not prove native OCCT linking, sandbox, or packaging behavior; the focused native-feature evidence is Apple Silicon only.
+GitHub Actions run 30474167026 passes formatting, strict Clippy, all 58 default runtime tests, and documentation tests on Windows, Linux, and macOS for commit `ab89bab`. This proves the kernel-neutral contracts, bounded subprocess transport, fixed-name hashed staging, fixture schema, optional adapter crate/build script, locked Rust dependencies, and feature-off behavior are cross-platform. It does not prove native OCCT linking, sandbox, or packaging behavior; the focused native-feature evidence is Apple Silicon only.
 
 ## Remaining acceptance evidence
 
 - Replace the current polling hard-kill behavior with a documented cooperative cancellation grace protocol where native work can acknowledge cancellation.
-- Add an asset-capability resolver that grants only the requested source and controlled output locations; the current worker receives no source asset.
+- Formalize the current one-source staging path behind an asset-capability resolver with target-appropriate descriptor/handle grants and controlled output ownership.
 - Add OS-specific network denial, filesystem sandboxing, CPU/memory limits, descendant-process containment, and cleanup/retention evidence. Clearing the environment and controlling the working directory are defense-in-depth, not a sandbox.
 - Complete legal review of OCCT 8.0.0 notices, source offer/relinking approach, shared-library packaging, and third-party/transitive native inventory before distribution.
 - Add reproducible OCCT 8.0.0 build automation and artifact fingerprints for Windows, Linux, and macOS; the current native source-build evidence is Apple Silicon only.

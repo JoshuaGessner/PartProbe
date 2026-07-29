@@ -49,6 +49,7 @@
 - Documented six-decimal provisional measurement formatting after the first native run exposed `599.9999999999999`; raw native values remain internal and production tolerance policy remains open.
 - Same-kernel fixture generation/read is integration evidence, not independent accuracy evidence. Descriptor-backed grants, sandbox/resource enforcement, independent STEP corpus, legal approval, and three-OS native packaging remain.
 - Local default validation passes strict Clippy, 58 runtime tests, and the compile-fail doctest; eight focused native adapter/worker tests also pass.
+- GitHub Actions run 30474167026 passes formatting, strict Clippy, all 58 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `ab89bab`; native OCCT evidence remains Apple Silicon only.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
