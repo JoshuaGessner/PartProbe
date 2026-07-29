@@ -1,7 +1,10 @@
 #include <BRepGProp.hxx>
+#include <BRepPrimAPI_MakeBox.hxx>
 #include <GProp_GProps.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <STEPControl_Reader.hxx>
+#include <STEPControl_StepModelType.hxx>
+#include <STEPControl_Writer.hxx>
 #include <Standard_Failure.hxx>
 #include <TopAbs_ShapeEnum.hxx>
 #include <TopExp_Explorer.hxx>
@@ -94,5 +97,25 @@ extern "C" int partprobe_occt_analyze_step(const char *path,
     return fail(result, "OCCT_STANDARD_FAILURE");
   } catch (...) {
     return fail(result, "OCCT_UNKNOWN_FAILURE");
+  }
+}
+
+extern "C" int partprobe_occt_write_step_cube(const char *path,
+                                               double size_mm) noexcept {
+  if (path == nullptr || path[0] == '\0' || !(size_mm > 0.0)) {
+    return 1;
+  }
+  try {
+    const TopoDS_Shape cube =
+        BRepPrimAPI_MakeBox(size_mm, size_mm, size_mm).Shape();
+    STEPControl_Writer writer;
+    if (writer.Transfer(cube, STEPControl_AsIs) != IFSelect_RetDone) {
+      return 1;
+    }
+    return writer.Write(path) == IFSelect_RetDone ? 0 : 1;
+  } catch (const Standard_Failure &) {
+    return 1;
+  } catch (...) {
+    return 1;
   }
 }

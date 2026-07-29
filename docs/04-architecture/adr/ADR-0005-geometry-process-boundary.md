@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-07-29
 - **Related requirement IDs:** REQ-NF-011–REQ-NF-014, GEO-001–GEO-014, SEC-001–SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0003, ADR-0004
 - **Open questions:** Sandbox mechanisms per target OS, resource quota defaults, local IPC authentication and update strategy
@@ -29,3 +29,7 @@ CAD input is untrusted and native kernels require FFI; Rust describes foreign ca
 ## Approval evidence required
 
 Demonstrate malformed-file termination, quota enforcement, worker crash recovery, IPC fuzz/contract validation, no-network tests, filesystem escape tests, controlled-data logging review, and packaging/signing on each target OS. The security profile must degrade safely on platforms where a desired sandbox primitive is unavailable.
+
+## Current TASK-003 evidence
+
+The supervisor now uses bounded stdio JSON, a cleared environment, controlled working directory, timeout/kill/reap behavior, fixed-name source staging, input byte and SHA-256 checks, read-only staged bytes, and cleanup. The optional OCCT worker accepts only the fixed staged name and emits a bounded fixed-name provisional snapshot plus an opaque response reference. Hash mismatch is rejected before launch, and the analytic STEP cube completes through the real subprocess boundary. This evidence narrows the design but does not satisfy OS sandbox, no-network, descriptor-based grant, descendant-process, memory/CPU, or packaging approval gates.

@@ -1,8 +1,10 @@
 //! Versioned, path-free protocol for the isolated geometry worker.
 
 use std::collections::BTreeSet;
+use std::fmt::Write as _;
+use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -13,6 +15,12 @@ use partprobe_geometry_core::{
     AnalysisProfile, GeometryStage, GeometryStageReport, Sha256Digest, StageStatus,
 };
 use serde::{Deserialize, Deserializer, Serialize};
+use sha2::{Digest, Sha256};
+
+/// Fixed worker-local input name; no caller path crosses the protocol.
+pub const WORKER_INPUT_FILENAME: &str = "partprobe-input.asset";
+/// Fixed worker-local output name; the response carries only an opaque reference.
+pub const WORKER_OUTPUT_FILENAME: &str = "partprobe-output.json";
 
 macro_rules! protocol_token {
     ($(#[$attribute:meta])* $name:ident, $field:literal) => {
@@ -513,6 +521,12 @@ pub enum WorkerTermination {
     Cancelled,
     /// Protocol input/output failed.
     ProtocolIo,
+    /// Controlled source could not be staged safely.
+    AssetStageFailed,
+    /// Staged source bytes did not match the request.
+    AssetHashMismatch,
+    /// Controlled source cleanup failed.
+    AssetCleanupFailed,
 }
 
 /// Converts a worker termination into a safe recoverable response.
@@ -530,6 +544,9 @@ pub fn recoverable_termination_response(
         WorkerTermination::MalformedResponse => "WORKER_MALFORMED_RESPONSE",
         WorkerTermination::Cancelled => "WORKER_CANCELLED",
         WorkerTermination::ProtocolIo => "WORKER_PROTOCOL_IO",
+        WorkerTermination::AssetStageFailed => "ASSET_STAGE_FAILED",
+        WorkerTermination::AssetHashMismatch => "ASSET_HASH_MISMATCH",
+        WorkerTermination::AssetCleanupFailed => "ASSET_CLEANUP_FAILED",
     };
     GeometryWorkerResponse::new(
         schema_version,
@@ -584,6 +601,7 @@ pub struct GeometryWorkerSupervisor {
     executable: PathBuf,
     working_directory: PathBuf,
     policy: SupervisorPolicy,
+    native_library_directory: Option<PathBuf>,
 }
 
 impl GeometryWorkerSupervisor {
@@ -609,7 +627,23 @@ impl GeometryWorkerSupervisor {
             executable,
             working_directory,
             policy,
+            native_library_directory: None,
         })
+    }
+
+    /// Adds one controlled directory containing the worker's native shared libraries.
+    pub fn with_native_library_directory(
+        mut self,
+        native_library_directory: PathBuf,
+    ) -> Result<Self, DomainError> {
+        if !native_library_directory.is_dir() {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker native library directory",
+                reason: "must identify an existing controlled directory",
+            });
+        }
+        self.native_library_directory = Some(native_library_directory);
+        Ok(self)
     }
 
     /// Executes one request with bounded messages, timeout, cancellation, and sanitized failures.
@@ -628,14 +662,17 @@ impl GeometryWorkerSupervisor {
             _ => return response_for(request, WorkerTermination::QuotaExceeded),
         };
 
-        let mut child = match Command::new(&self.executable)
+        let mut command = Command::new(&self.executable);
+        command
             .env_clear()
             .current_dir(&self.working_directory)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-        {
+            .stderr(Stdio::null());
+        if let Some(directory) = &self.native_library_directory {
+            configure_native_library_path(&mut command, directory);
+        }
+        let mut child = match command.spawn() {
             Ok(child) => child,
             Err(_) => return response_for(request, WorkerTermination::LaunchFailed),
         };
@@ -708,6 +745,27 @@ impl GeometryWorkerSupervisor {
         }
         response
     }
+
+    /// Stages one authorized source under a fixed worker-local name, executes, then removes it.
+    #[must_use]
+    pub fn execute_with_asset(
+        &self,
+        request: &GeometryWorkerRequest,
+        authorized_source: &Path,
+        cancellation: &AtomicBool,
+    ) -> GeometryWorkerResponse {
+        let staged_path = self.working_directory.join(WORKER_INPUT_FILENAME);
+        let stage_result = stage_asset(request, authorized_source, &staged_path);
+        if let Err(termination) = stage_result {
+            return response_for(request, termination);
+        }
+
+        let response = self.execute(request, cancellation);
+        if remove_staged_asset(&staged_path).is_err() {
+            return response_for(request, WorkerTermination::AssetCleanupFailed);
+        }
+        response
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -734,6 +792,110 @@ fn read_bounded(stdout: impl Read, max_protocol_bytes: usize) -> Result<Vec<u8>,
 fn terminate_and_reap(child: &mut std::process::Child) {
     let _ = child.kill();
     let _ = child.wait();
+}
+
+fn configure_native_library_path(command: &mut Command, directory: &Path) {
+    #[cfg(target_os = "macos")]
+    command.env("DYLD_LIBRARY_PATH", directory);
+    #[cfg(all(unix, not(target_os = "macos")))]
+    command.env("LD_LIBRARY_PATH", directory);
+    #[cfg(windows)]
+    command.env("PATH", directory);
+}
+
+fn stage_asset(
+    request: &GeometryWorkerRequest,
+    authorized_source: &Path,
+    staged_path: &Path,
+) -> Result<(), WorkerTermination> {
+    let source_metadata = std::fs::symlink_metadata(authorized_source)
+        .map_err(|_| WorkerTermination::AssetStageFailed)?;
+    if source_metadata.file_type().is_symlink()
+        || !source_metadata.is_file()
+        || source_metadata.len() == 0
+        || source_metadata.len() > request.quotas().max_input_bytes()
+    {
+        return Err(WorkerTermination::AssetStageFailed);
+    }
+
+    let mut source =
+        File::open(authorized_source).map_err(|_| WorkerTermination::AssetStageFailed)?;
+    let mut staged = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(staged_path)
+        .map_err(|_| WorkerTermination::AssetStageFailed)?;
+    let copy_result = copy_and_verify(request, &mut source, &mut staged);
+    drop(staged);
+    if let Err(termination) = copy_result {
+        let _ = std::fs::remove_file(staged_path);
+        return Err(termination);
+    }
+
+    let Ok(metadata) = std::fs::metadata(staged_path) else {
+        let _ = std::fs::remove_file(staged_path);
+        return Err(WorkerTermination::AssetStageFailed);
+    };
+    let mut permissions = metadata.permissions();
+    permissions.set_readonly(true);
+    if std::fs::set_permissions(staged_path, permissions).is_err() {
+        let _ = std::fs::remove_file(staged_path);
+        return Err(WorkerTermination::AssetStageFailed);
+    }
+    Ok(())
+}
+
+fn copy_and_verify(
+    request: &GeometryWorkerRequest,
+    source: &mut File,
+    staged: &mut File,
+) -> Result<(), WorkerTermination> {
+    let mut hasher = Sha256::new();
+    let mut total = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = source
+            .read(&mut buffer)
+            .map_err(|_| WorkerTermination::AssetStageFailed)?;
+        if read == 0 {
+            break;
+        }
+        total = total
+            .checked_add(u64::try_from(read).map_err(|_| WorkerTermination::AssetStageFailed)?)
+            .ok_or(WorkerTermination::AssetStageFailed)?;
+        if total > request.quotas().max_input_bytes() {
+            return Err(WorkerTermination::AssetStageFailed);
+        }
+        hasher.update(&buffer[..read]);
+        staged
+            .write_all(&buffer[..read])
+            .map_err(|_| WorkerTermination::AssetStageFailed)?;
+    }
+    staged
+        .flush()
+        .map_err(|_| WorkerTermination::AssetStageFailed)?;
+
+    let mut actual_hash = String::with_capacity(64);
+    for byte in hasher.finalize() {
+        write!(&mut actual_hash, "{byte:02x}").map_err(|_| WorkerTermination::AssetStageFailed)?;
+    }
+    if actual_hash != request.expected_source_hash().as_str() {
+        return Err(WorkerTermination::AssetHashMismatch);
+    }
+    Ok(())
+}
+
+fn remove_staged_asset(staged_path: &Path) -> std::io::Result<()> {
+    if !staged_path.exists() {
+        return Ok(());
+    }
+    #[cfg(windows)]
+    {
+        let mut permissions = std::fs::metadata(staged_path)?.permissions();
+        permissions.set_readonly(false);
+        std::fs::set_permissions(staged_path, permissions)?;
+    }
+    std::fs::remove_file(staged_path)
 }
 
 fn response_for(

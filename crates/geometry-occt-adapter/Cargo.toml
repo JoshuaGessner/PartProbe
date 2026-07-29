@@ -7,6 +7,12 @@ rust-version.workspace = true
 [features]
 default = []
 native-occt = []
+fixture-tools = ["native-occt"]
+
+[[bin]]
+name = "generate-step-cube"
+path = "src/bin/generate_step_cube.rs"
+required-features = ["fixture-tools"]
 
 [build-dependencies]
 cc.workspace = true

@@ -37,6 +37,19 @@
 - Default builds do not link or fetch OCCT. The explicit local native feature passes link/ABI and missing-file sanitization tests; legal approval, capability resolution, analytic STEP evidence, and three-OS build/package fingerprints remain mandatory.
 - GitHub Actions run 30467602461 passes all 56 default runtime tests, strict Clippy, formatting, and documentation tests on Windows, Linux, and macOS; this validates feature-off portability, not native OCCT artifacts.
 
+## 2026-07-29 — TASK-003 controlled STEP measurement path
+
+- Added fixed-name source staging with regular-file/symlink checks, create-new semantics, streaming byte quota, SHA-256 verification, read-only staged permissions, sanitized failures, and cleanup after worker completion.
+- Added regression evidence that a create-new staging conflict preserves the pre-existing controlled file rather than claiming or deleting it.
+- Added RustCrypto `sha2 0.11.0` with default features disabled and recorded its exact transitive graph.
+- Added feature-gated deterministic AP214 cube generation. Timestamp normalization makes repeated 10 mm fixture generation reproduce SHA-256 `031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2`.
+- Added a native regression test that regenerates the cube and byte-compares it with the committed STEP fixture.
+- Added `FIX-STEP-001` manifest and schema-v2 expectations: one exact solid, 600 mm² area, 1000 mm³ volume, and `(5,5,5)` mm centroid within `0.000001`.
+- Connected the optional worker to the OCCT adapter for the exact intake-through-basic-properties profile and a bounded schema-v1 provisional snapshot. The subprocess test passes staging, cleared-environment native loading, STEP transfer, measurements, opaque reference, and source cleanup.
+- Documented six-decimal provisional measurement formatting after the first native run exposed `599.9999999999999`; raw native values remain internal and production tolerance policy remains open.
+- Same-kernel fixture generation/read is integration evidence, not independent accuracy evidence. Descriptor-backed grants, sandbox/resource enforcement, independent STEP corpus, legal approval, and three-OS native packaging remain.
+- Local default validation passes strict Clippy, 58 runtime tests, and the compile-fail doctest; eight focused native adapter/worker tests also pass.
+
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
 - Adopted the approved product boundary: PartProbe supplies no numeric production rates; organizations configure their own effective-dated rate and pricing libraries, while synthetic values remain isolated test/demo evidence.

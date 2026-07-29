@@ -5,9 +5,18 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[features]
+default = []
+native-occt = [
+    "dep:partprobe-geometry-occt-adapter",
+    "partprobe-geometry-occt-adapter/native-occt",
+]
+
 [dependencies]
 partprobe-geometry-core.workspace = true
 partprobe-geometry-import.workspace = true
+partprobe-geometry-occt-adapter = { workspace = true, optional = true }
+serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

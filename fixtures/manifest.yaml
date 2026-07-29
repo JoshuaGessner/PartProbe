@@ -49,8 +49,38 @@ fixtures:
       - unavailable_volume_policy
     expected: expected/open_cube_10mm.json
     sha256: f78bc469609e5805ced85c710be08b985443a21e1b5b3da9c7f19ffa008ed55d
+  - id: FIX-STEP-001
+    title: Exact 10 mm synthetic STEP cube
+    path: models/cube_10mm.step
+    format: step-ap214
+    representation: exact_brep
+    source: project-generated-synthetic-occt-8.0.0
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_mm
+    declared_units: mm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-geometry-occt-adapter-fixture-tools-v1
+      kernel: occt-8.0.0-d3056ef80c9668f395da40f5fd7be186cae4501f
+    expected_worker_outcome: provisional_spike_success
+    resource_ceiling:
+      max_input_bytes: 1000000
+      max_output_bytes: 65536
+      max_entities: 100000
+      wall_time_millis: 5000
+    owner: geometry-maintainers
+    recorded_date: 2026-07-29
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, TEST-021, TEST-025]
+    purpose:
+      - exact_step_transfer
+      - declared_unit_resolution
+      - exact_volume_area_centroid_golden
+    expected: expected/cube_10mm_step.json
+    sha256: 031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2
 required_next:
-  - exact_step_cube_with_known_units
   - 3mf_cube_with_package_units
   - malformed_and_resource_limit_corpus
   - multi_body_step

@@ -1,0 +1,43 @@
+{
+  "schema_version": 2,
+  "fixture_id": "FIX-STEP-001",
+  "representation": "exact_brep",
+  "imported_units": "millimeter",
+  "confirmed_units": "millimeter",
+  "body_count": 1,
+  "triangle_count": null,
+  "watertight": {
+    "state": "available",
+    "value": true
+  },
+  "manifold": {
+    "state": "not_applicable",
+    "reason_code": "EXACT_BREP_TOPOLOGY"
+  },
+  "aabb_mm": {
+    "state": "available",
+    "value": {
+      "x": "10",
+      "y": "10",
+      "z": "10"
+    }
+  },
+  "surface_area_mm2": {
+    "state": "available",
+    "value": "600"
+  },
+  "enclosed_volume_mm3": {
+    "state": "available",
+    "value": "1000"
+  },
+  "center_of_mass_mm": {
+    "state": "available",
+    "value": {
+      "x": "5",
+      "y": "5",
+      "z": "5"
+    }
+  },
+  "absolute_tolerance": "0.000001",
+  "required_warnings": []
+}

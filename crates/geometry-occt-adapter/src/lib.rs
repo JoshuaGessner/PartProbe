@@ -73,6 +73,8 @@ mod native {
             result: *mut NativeResult,
             result_size: usize,
         ) -> c_int;
+        #[cfg(feature = "fixture-tools")]
+        fn partprobe_occt_write_step_cube(path: *const c_char, size_mm: f64) -> c_int;
     }
 
     pub fn abi_version() -> u32 {
@@ -138,6 +140,30 @@ mod native {
         })
     }
 
+    #[cfg(feature = "fixture-tools")]
+    pub fn write_synthetic_step_cube(path: &Path, size_mm: f64) -> Result<(), NativeAdapterError> {
+        if !size_mm.is_finite() || size_mm <= 0.0 {
+            return Err(NativeAdapterError {
+                diagnostic_code: "OCCT_INVALID_ARGUMENT",
+            });
+        }
+        let path = path.to_str().ok_or(NativeAdapterError {
+            diagnostic_code: "ASSET_PATH_ENCODING_UNSUPPORTED",
+        })?;
+        let path = CString::new(path).map_err(|_| NativeAdapterError {
+            diagnostic_code: "ASSET_PATH_ENCODING_UNSUPPORTED",
+        })?;
+        // SAFETY: `path` is NUL-terminated and valid for the call; C++ catches all exceptions.
+        let status = unsafe { partprobe_occt_write_step_cube(path.as_ptr(), size_mm) };
+        if status == 0 {
+            Ok(())
+        } else {
+            Err(NativeAdapterError {
+                diagnostic_code: "STEP_FIXTURE_WRITE_FAILED",
+            })
+        }
+    }
+
     fn diagnostic_code(result: &NativeResult) -> &'static str {
         // SAFETY: C++ always zero-initializes the fixed buffer and writes bounded static codes.
         let code = unsafe { CStr::from_ptr(result.diagnostic_code.as_ptr()) }
@@ -170,6 +196,21 @@ mod native {
                 .expect_err("missing STEP asset must fail");
             assert_eq!(error.diagnostic_code(), "STEP_READ_FAILED");
         }
+
+        #[test]
+        fn analytic_step_cube_matches_reviewable_properties() {
+            let fixture =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
+            let properties = analyze_step(&fixture).expect("analytic STEP cube must import");
+
+            assert_eq!(properties.transferred_roots, 1);
+            assert_eq!(properties.solid_body_count, 1);
+            assert!((properties.surface_area_mm2 - 600.0).abs() <= 0.000_001);
+            assert!((properties.enclosed_volume_mm3 - 1000.0).abs() <= 0.000_001);
+            for component in properties.center_of_mass_mm {
+                assert!((component - 5.0).abs() <= 0.000_001);
+            }
+        }
     }
 }
 
@@ -191,6 +232,38 @@ pub fn analyze_step(
     native::analyze_step(worker_local_path)
 }
 
+/// Writes a synthetic analytic cube used only to regenerate the public STEP fixture.
+#[cfg(feature = "fixture-tools")]
+pub fn write_synthetic_step_cube(
+    output_path: &std::path::Path,
+    size_mm: f64,
+) -> Result<(), NativeAdapterError> {
+    native::write_synthetic_step_cube(output_path, size_mm)?;
+    normalize_step_timestamp(output_path)
+}
+
+#[cfg(feature = "fixture-tools")]
+fn normalize_step_timestamp(output_path: &std::path::Path) -> Result<(), NativeAdapterError> {
+    const PREFIX: &str = "FILE_NAME('Open CASCADE Shape Model','";
+    const TIMESTAMP_LENGTH: usize = 19;
+    const FIXED_TIMESTAMP: &str = "2000-01-01T00:00:00";
+    let error = || NativeAdapterError {
+        diagnostic_code: "STEP_FIXTURE_NORMALIZATION_FAILED",
+    };
+
+    let mut contents = std::fs::read_to_string(output_path).map_err(|_| error())?;
+    let start = contents.find(PREFIX).ok_or_else(error)? + PREFIX.len();
+    let end = start.checked_add(TIMESTAMP_LENGTH).ok_or_else(error)?;
+    if !contents.is_char_boundary(start)
+        || !contents.is_char_boundary(end)
+        || contents.as_bytes().get(end) != Some(&b'\'')
+    {
+        return Err(error());
+    }
+    contents.replace_range(start..end, FIXED_TIMESTAMP);
+    std::fs::write(output_path, contents).map_err(|_| error())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,5 +275,25 @@ mod tests {
             cfg!(feature = "native-occt"),
             "capability must reflect the explicit Cargo feature"
         );
+    }
+}
+
+#[cfg(all(test, feature = "fixture-tools"))]
+mod fixture_tool_tests {
+    use super::*;
+
+    #[test]
+    fn generated_step_cube_reproduces_the_committed_fixture() {
+        let output = std::env::temp_dir().join(format!(
+            "partprobe-generated-cube-{}.step",
+            std::process::id()
+        ));
+        write_synthetic_step_cube(&output, 10.0).expect("fixture generation must succeed");
+        let committed = include_bytes!("../../../fixtures/models/cube_10mm.step");
+        assert_eq!(
+            std::fs::read(&output).expect("generated fixture must be readable"),
+            committed
+        );
+        std::fs::remove_file(output).expect("generated fixture must be removable");
     }
 }

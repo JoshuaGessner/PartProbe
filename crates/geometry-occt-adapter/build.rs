@@ -36,6 +36,7 @@ fn main() {
         "TKShHealing",
         "TKMesh",
         "TKTopAlgo",
+        "TKPrim",
         "TKBRep",
         "TKGeomAlgo",
         "TKGeomBase",

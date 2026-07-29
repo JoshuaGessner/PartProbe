@@ -3,6 +3,7 @@ use partprobe_test_support::geometry_fixtures::{ExpectedEvidence, GeometryFixtur
 
 const CLOSED: &str = include_str!("../../../fixtures/expected/cube_10mm.json");
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");
+const STEP: &str = include_str!("../../../fixtures/expected/cube_10mm_step.json");
 
 #[test]
 fn committed_mesh_expectations_satisfy_the_versioned_contract() {
@@ -10,9 +11,12 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         serde_json::from_str(CLOSED).expect("closed fixture expectation must be valid");
     let open: GeometryFixtureExpectation =
         serde_json::from_str(OPEN).expect("open fixture expectation must be valid");
+    let step: GeometryFixtureExpectation =
+        serde_json::from_str(STEP).expect("STEP fixture expectation must be valid");
 
     assert_eq!(closed.fixture_id(), "FIX-MESH-001");
     assert_eq!(open.fixture_id(), "FIX-MESH-002");
+    assert_eq!(step.fixture_id(), "FIX-STEP-001");
     assert_eq!(closed.representation(), RepresentationBasis::Mesh);
     assert!(matches!(
         closed.enclosed_volume_mm3(),
@@ -21,6 +25,11 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert!(matches!(
         open.enclosed_volume_mm3(),
         ExpectedEvidence::Unavailable { .. }
+    ));
+    assert_eq!(step.representation(), RepresentationBasis::ExactBrep);
+    assert!(matches!(
+        step.enclosed_volume_mm3(),
+        ExpectedEvidence::Available { .. }
     ));
 }
 

@@ -42,6 +42,10 @@ Version 2 is a preproduction fixture-contract migration with no customer or pers
 | Feature parts | through/blind hole, counterbore/countersink, pocket/open pocket, slot, boss, thin wall, turning profile, ambiguous blends | type/dimensions/evidence/confidence and visual mapping |
 | Adversarial | malformed records, giant counts, recursion/compression bombs, invalid UTF/XML, worker fault injection | quotas, controlled failure, no UI crash |
 
+`FIX-STEP-001` is a project-generated AP214 10 mm cube with declared millimetres, one solid, 600 mm² surface area, 1000 mm³ volume, and centroid `(5, 5, 5)` mm. The committed feature-gated generator uses the pinned OCCT 8.0.0 build and normalizes the volatile STEP header timestamp to `2000-01-01T00:00:00`; repeated generation produced SHA-256 `031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2`.
+
+Because OCCT generates and reads this fixture, it proves deterministic project plumbing and analytic measurement reconciliation, not independent translator correctness. Release accuracy still needs STEP authored by an independent reviewed source plus malformed, alternate-schema, assembly, and partial-transfer cases.
+
 ## Ground truth and tolerances
 
 Use analytic construction or a reviewed independent CAD/calculation reference. Document coordinate system, dimensions, unit, expected tolerance and whether the value is exact or approximate. A mesh fixture records triangle count, resolution and expected error bound; a finer mesh is not automatically an equivalent fixture. Feature ground truth is annotated with geometry refs, expected candidate state, deliberate ambiguities, known false positives and known false negatives.
