@@ -1,7 +1,7 @@
 # Security Model
 
 > **Status:** Draft  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-07-29
 > **Related requirement IDs:** REQ-NF-002, REQ-NF-005, REQ-NF-007, REQ-NF-009, REQ-NF-015–REQ-NF-019, SEC-001–SEC-014  
 > **Related architecture decision IDs:** ADR-0001, ADR-0005, ADR-0006, ADR-0012–ADR-0014  
 > **Open questions:** Cryptographic/key-management provider, identity/MFA, supported classifications, threat model, and incident owner  
@@ -51,5 +51,9 @@ For CUI-bound systems, scope controls to components that process/store/transmit 
 ## Required security evidence
 
 Architecture/configuration version; threat model; authorization tests; audit/export samples without content; dependency/SBOM provenance; signed-update verification; backup/restore drill; parser-fuzz/crash-containment results; incident runbook/tabletop; and controlled-data policy review. Formal assessment/compliance evidence is owned by the deploying organization.
+
+## Current implementation boundary
+
+The headless `security` and `application` crates now define versioned allow/deny decisions, an explicit deny-all baseline, content-minimized authorization context, an append-only audit port, and a local geometry-asset read service that fails closed when decision audit cannot be appended. The open directory capability is bound to a stable root ID, so policy evaluation and filesystem containment use the same root identity. No role catalog, project-membership repository, classification policy, identity provider, durable audit store, or deployment-specific allow policy is implemented; those remain required adapters and approval evidence rather than inferred defaults.
 
 References: [permissions matrix](../03-requirements/permissions-matrix.md), [defense-data research](../01-research/defense-data-handling.md), [security testing](../06-quality/security-testing.md).

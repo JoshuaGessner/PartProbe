@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
-use partprobe_domain::{RuleVersion, SchemaVersion};
+use partprobe_domain::{AssetRootId, RuleVersion, SchemaVersion};
 use partprobe_geometry_core::{
     AnalysisProfile, AnalysisProfileId, GeometryStage, Sha256Digest, StageStatus,
 };
@@ -167,7 +167,11 @@ fn local_asset_root_contains_parent_resolution_and_rejects_final_links() {
     std::fs::write(&outside, b"outside-source").expect("outside source must be written");
     create_directory_symlink(&test_directory, &outside_link);
     create_file_symlink(&outside, &final_link);
-    let root_capability = LocalAssetRoot::open(&root).expect("asset root must open");
+    let root_capability = LocalAssetRoot::open(
+        AssetRootId::new("test-root").expect("root ID must be valid"),
+        &root,
+    )
+    .expect("asset root must open");
     let capability = || AssetCapability::new("contained-capability").expect("valid capability");
 
     let grant = root_capability

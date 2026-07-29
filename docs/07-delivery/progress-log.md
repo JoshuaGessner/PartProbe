@@ -71,6 +71,11 @@
 - The resolver enforces filesystem containment only. Application policy must still deny by default across actor, project membership, classification, record state, approved root, and asset capability and must record sanitized allow/deny audit evidence.
 - Initial GitHub Actions run 30486724775 passed Linux/macOS and all Windows containment assertions, then exposed a test-cleanup portability error: Windows requires `remove_dir` for a directory symlink while Unix requires `remove_file`. The target-specific cleanup helper corrects the harness without changing production containment behavior.
 - Replacement GitHub Actions run 30486941813 passes formatting, strict Clippy, all 66 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `33ad74f`, including the capability-root traversal, absolute-path, escaping-parent-link, and final-link regression.
+- Added headless `security` and `application` crates with no new third-party dependency. The policy port consumes explicit actor, project, record/version, deployment-defined classification and state, protected operation, root identity, correlation, and trusted time without receiving a filesystem path, capability token, or file content.
+- Added a versioned deny-all baseline, versioned allow/deny results, bounded reason codes, content-minimized decision events, and an append-only audit port. Local asset reads record the policy decision before containment resolution and fail closed if audit append fails.
+- Bound `LocalAssetRoot` to a stable domain `AssetRootId`, so the evaluated root identity and the open directory capability cannot be supplied independently.
+- Seven new access/security/application tests cover validated opaque IDs, deserialization guards, deny-all evidence, versioned reason codes, allowed read audit, content minimization, and audit-unavailable fail-closed behavior. The full local workspace now has 73 runtime tests; three-OS authorization evidence is pending.
+- No organization-specific role, classification, project-membership rule, or allow policy was invented. Deployment policy/repository adapters and durable append-preserving audit persistence remain required.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 

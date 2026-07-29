@@ -1,5 +1,6 @@
 //! UI-independent domain primitives for PartProbe.
 
+pub mod access;
 #[doc(hidden)]
 pub mod decimal_serde;
 pub mod error;
@@ -10,6 +11,9 @@ pub mod rates;
 pub mod units;
 pub mod value_state;
 
+pub use access::{
+    ActorId, AssetRootId, DataClassificationId, ProjectId, RecordId, RecordStateId, RecordVersionId,
+};
 pub use error::DomainError;
 pub use money::{CurrencyCode, Money};
 pub use pricing::{

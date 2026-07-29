@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::ambient_authority;
-use partprobe_domain::{DomainError, SchemaVersion};
+use partprobe_domain::{AssetRootId, DomainError, SchemaVersion};
 use partprobe_geometry_core::{
     AnalysisProfile, GeometryStage, GeometryStageReport, Sha256Digest, StageStatus,
 };
@@ -732,18 +732,28 @@ impl GeometryWorkerExecution {
 /// authorization decision.
 #[derive(Debug)]
 pub struct LocalAssetRoot {
+    asset_root_id: AssetRootId,
     directory: cap_std::fs::Dir,
 }
 
 impl LocalAssetRoot {
     /// Opens an application-authorized directory as the root of subsequent relative lookups.
-    pub fn open(root_path: &Path) -> Result<Self, DomainError> {
+    pub fn open(asset_root_id: AssetRootId, root_path: &Path) -> Result<Self, DomainError> {
         let directory = cap_std::fs::Dir::open_ambient_dir(root_path, ambient_authority())
             .map_err(|_| DomainError::InvalidValue {
                 field: "geometry local asset root",
                 reason: "authorized root must identify an accessible directory",
             })?;
-        Ok(Self { directory })
+        Ok(Self {
+            asset_root_id,
+            directory,
+        })
+    }
+
+    /// Returns the stable identity bound to this open directory capability.
+    #[must_use]
+    pub const fn asset_root_id(&self) -> &AssetRootId {
+        &self.asset_root_id
     }
 
     /// Resolves a relative path beneath this root and returns a one-use read grant.

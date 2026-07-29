@@ -1,7 +1,7 @@
 # Module Boundaries
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-07-29
 > **Related requirements:** REQ-NF-001, REQ-NF-004, REQ-NF-010, REQ-NF-015–REQ-NF-021  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** Exact crate split after dependency-cycle spike  
@@ -42,3 +42,5 @@
 | `apps/geometry-worker` | native parser/kernel host | geometry-core, native adapters |
 
 No UI crate may execute SQL or receive raw kernel pointers. Advanced-analysis crates do not own approval, scheduling, purchasing, supplier transmission, or rule activation. Integration adapters depend inward on versioned ports and may not leak vendor DTOs into the domain. Dependency direction is enforced with workspace policy tests and review.
+
+TASK-003 instantiates the first narrow `security` and `application` slices for local geometry-asset reads. `security` owns policy/audit contracts and depends only on domain identities. `application` coordinates policy, audit, and `geometry-import`; `geometry-import` remains unaware of actors, roles, classification rules, or audit persistence. This preserves inward dependency direction while deployment-specific adapters remain unimplemented.

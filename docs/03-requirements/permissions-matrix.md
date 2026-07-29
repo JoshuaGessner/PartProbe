@@ -1,7 +1,7 @@
 # Permissions Matrix
 
 > **Status:** Draft  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-07-29
 > **Related requirement IDs:** REQ-F-020, REQ-F-032–REQ-F-034, SEC-003, SEC-005, SEC-007, SEC-008  
 > **Related architecture decision IDs:** ADR-0006  
 > **Open questions:** Identity provider, MFA policy, customer/external roles, export approver, and classification authority  
@@ -44,5 +44,9 @@ Authorization is deny-by-default and evaluated as `role permission ∩ project m
 3. Revalidate active assignments on project closure, role change, classification change, and session revocation.
 4. Audit allow and deny decisions for sensitive read/export/print/download/backup/restore events without placing content in logs.
 5. The matrix is a product design baseline, not a CMMC, NIST, ITAR, EAR, or contract compliance determination.
+
+## Current implementation boundary
+
+The application asset-read service evaluates actor, project, record/version, classification, record state, operation, and the identity bound to the open asset root. It records the exact policy ID/version, allow/deny outcome, stable reason code, correlation ID, and trusted application timestamp before any relative file resolution. Missing deployment policy uses an explicit versioned deny-all implementation, and an unavailable audit sink fails closed. The baseline roles above remain unconfigured product guidance: no role name or organization-specific permission is hard-coded, and no requirement in this matrix is Complete.
 
 References: [security model](../04-architecture/security-model.md), [defense-data research](../01-research/defense-data-handling.md).
