@@ -74,8 +74,9 @@
 - Added headless `security` and `application` crates with no new third-party dependency. The policy port consumes explicit actor, project, record/version, deployment-defined classification and state, protected operation, root identity, correlation, and trusted time without receiving a filesystem path, capability token, or file content.
 - Added a versioned deny-all baseline, versioned allow/deny results, bounded reason codes, content-minimized decision events, and an append-only audit port. Local asset reads record the policy decision before containment resolution and fail closed if audit append fails.
 - Bound `LocalAssetRoot` to a stable domain `AssetRootId`, so the evaluated root identity and the open directory capability cannot be supplied independently.
-- Seven new access/security/application tests cover validated opaque IDs, deserialization guards, deny-all evidence, versioned reason codes, allowed read audit, content minimization, and audit-unavailable fail-closed behavior. The full local workspace now has 73 runtime tests; three-OS authorization evidence is pending.
+- Seven new access/security/application tests cover validated opaque IDs, deserialization guards, deny-all evidence, versioned reason codes, allowed read audit, content minimization, and audit-unavailable fail-closed behavior. The full workspace now has 73 runtime tests.
 - No organization-specific role, classification, project-membership rule, or allow policy was invented. Deployment policy/repository adapters and durable append-preserving audit persistence remain required.
+- GitHub Actions run 30487803871 passes formatting, strict Clippy, all 73 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `bbfa112`, including root-identity binding, deny-all evidence, audited allow, and audit-unavailable fail-closed behavior.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
