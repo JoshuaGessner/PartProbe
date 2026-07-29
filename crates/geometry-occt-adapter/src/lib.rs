@@ -198,6 +198,14 @@ mod native {
         }
 
         #[test]
+        fn invalid_step_entity_failure_exposes_only_a_stable_code() {
+            let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures/models/invalid_entity.step");
+            let error = analyze_step(&fixture).expect_err("invalid STEP entity must fail");
+            assert_eq!(error.diagnostic_code(), "STEP_TRANSFER_FAILED");
+        }
+
+        #[test]
         fn analytic_step_cube_matches_reviewable_properties() {
             let fixture =
                 Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");

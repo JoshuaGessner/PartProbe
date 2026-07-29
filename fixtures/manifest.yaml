@@ -80,9 +80,39 @@ fixtures:
       - exact_volume_area_centroid_golden
     expected: expected/cube_10mm_step.json
     sha256: 031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2
+  - id: FIX-STEP-002
+    title: STEP with intentionally invalid entity
+    path: models/invalid_entity.step
+    format: step-invalid
+    representation: unknown
+    source: project-authored-adversarial
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: unavailable_invalid_source
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: occt_step_spike_v1
+    algorithm_versions:
+      kernel: occt-8.0.0-d3056ef80c9668f395da40f5fd7be186cae4501f
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 1000000
+      max_output_bytes: 65536
+      max_entities: 100000
+      wall_time_millis: 5000
+    owner: geometry-maintainers
+    recorded_date: 2026-07-29
+    reviewed_date: null
+    requirements: [GEO-006, REQ-NF-005, TEST-003, TEST-024]
+    purpose:
+      - invalid_entity_transfer_rejection
+      - sanitized_diagnostic
+      - failed_import_cleanup
+    expected: expected/invalid_step_entity_rejection.json
+    sha256: b0bb25521620d14798110de10dc78739e18d28cd160a10a16c4163a269ca1157
 required_next:
   - 3mf_cube_with_package_units
-  - malformed_and_resource_limit_corpus
+  - expanded_malformed_and_resource_limit_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts
   - shop_reviewed_private_parts

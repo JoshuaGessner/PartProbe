@@ -19,13 +19,14 @@
 - Added an optional `geometry-occt-adapter` C ABI boundary. Default builds do not link OCCT; the explicit native feature requires `PARTPROBE_OCCT_ROOT`, dynamically links shared libraries, catches all C++ exceptions, checks ABI/result bounds, and exposes stable diagnostics without native exception text or paths.
 - Added one-job asset-grant staging: regular-file and symlink checks, create-new fixed destination, streaming input quota, SHA-256 verification, read-only worker-local bytes, sanitized mismatch/staging/cleanup failures, and post-worker input removal.
 - Added deterministic synthetic `FIX-STEP-001` generation, manifest hash, schema-v2 expected evidence, and analytic area/volume/centroid checks. Its same-kernel generation/read limitation is documented.
+- Added project-authored adversarial `FIX-STEP-002` and a separate schema-v1 failure expectation. The optional adapter and supervised worker return sanitized recoverable `STEP_TRANSFER_FAILED`, create no snapshot/output, and remove the staged input.
 - Connected the optional worker to OCCT for the exact six-stage spike profile. The subprocess writes a bounded schema-v1 `provisional_spike` snapshot and returns only an opaque reference; measurements use documented six-decimal canonicalization and remain non-authoritative.
 - Custom deserialization revalidates source hashes, byte counts, stage ordering, warning consistency, IDs, and quotas.
 - Default builds add no OCCT runtime or C++ linkage. The optional native feature and SHA-256 staging dependency remain isolated, while an operating-system sandbox is not yet implemented.
 
 ## Fixture schema migration
 
-Fixture expectation schema version 2 replaces ambiguous nullable/omitted measurements with explicit evidence states and exact decimal strings. This is a preproduction, test-fixture-only schema: no customer or persisted production record is migrated. Version 1 expected files fail validation and must be deliberately upgraded with reviewed evidence; the loader does not infer unavailable data as zero or silently reinterpret old files.
+Fixture expectation schema version 2 replaces ambiguous nullable/omitted measurements with explicit evidence states and exact decimal strings. This is a preproduction, test-fixture-only schema: no customer or persisted production record is migrated. Version 1 successful-geometry files fail validation and must be deliberately upgraded with reviewed evidence; the loader does not infer unavailable data as zero or silently reinterpret old files. The additive import-failure expectation schema starts at version 1 and carries only controlled failure/artifact outcomes; it does not migrate or reinterpret successful-geometry records, and unsupported versions fail validation.
 
 ## Local acceptance run
 
@@ -35,12 +36,12 @@ Environment: Apple Silicon macOS; Rust 1.94.1 workspace.
 |---|---|
 | `cargo fmt --all -- --check` | Pass |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Pass |
-| `cargo test --workspace --all-targets --locked` | Pass: 58 runtime tests |
+| `cargo test --workspace --all-targets --locked` | Pass: 60 runtime tests |
 | `cargo test --workspace --doc --locked` | Pass: one compile-fail unit-safety doctest |
-| `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-occt-adapter --features fixture-tools` | Pass: five native-link/ABI/failure/measurement/generator-reproduction tests |
-| `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-worker --features native-occt --test process_boundary` | Pass: hash rejection and supervised STEP measurement snapshot |
+| `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-occt-adapter --features fixture-tools` | Pass: six native-link/ABI/failure/measurement/generator-reproduction tests |
+| `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-worker --features native-occt --test process_boundary` | Pass: four staging/hash/measurement/invalid-entity process tests |
 
-TASK-003 currently adds seventeen default runtime tests: five geometry-core invariants, six protocol/supervisor cases, three subprocess-boundary cases, two fixture-contract cases, and one default-disabled adapter case. Eight focused tests pass across the explicit local native adapter/worker commands.
+TASK-003 currently adds nineteen default runtime tests: five geometry-core invariants, six protocol/supervisor cases, three subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Ten focused tests pass across the explicit local native adapter/worker commands.
 
 ## Cross-platform evidence
 
@@ -54,7 +55,7 @@ GitHub Actions run 30474167026 passes formatting, strict Clippy, all 58 default 
 - Complete legal review of OCCT 8.0.0 notices, source offer/relinking approach, shared-library packaging, and third-party/transitive native inventory before distribution.
 - Add reproducible OCCT 8.0.0 build automation and artifact fingerprints for Windows, Linux, and macOS; the current native source-build evidence is Apple Silicon only.
 - Replace pathname staging with a descriptor/handle-backed capability where each target permits it; add OS sandbox, no-network, CPU/memory/descendant limits, and output cleanup/retention enforcement.
-- Add independently authored analytic STEP, malformed, alternate-schema, assembly, and partial-transfer fixtures before treating the same-kernel cube as accuracy evidence.
+- Add independently authored analytic STEP plus broader malformed, alternate-schema, assembly, partial-transfer, and resource-limit fixtures before treating the same-kernel cube as accuracy evidence.
 - Add legally redistributable analytic STEP fixtures with reviewed hashes, units, exact measurements, transfer/validity expectations, tolerances, and malformed cases.
 - Build the OCCT adapter and worker on Windows, Linux, and macOS; record dependency fingerprints, package artifacts, elapsed/peak resources, deterministic reruns, and crash containment.
 - Do not mark TASK-003 Complete or ADR-0002/0005 Accepted until accuracy, containment, packaging, and legal evidence pass.

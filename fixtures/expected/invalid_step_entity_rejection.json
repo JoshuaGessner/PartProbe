@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-STEP-002",
+  "source_sha256": "b0bb25521620d14798110de10dc78739e18d28cd160a10a16c4163a269ca1157",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "STEP_TRANSFER_FAILED",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

@@ -44,7 +44,9 @@ Version 2 is a preproduction fixture-contract migration with no customer or pers
 
 `FIX-STEP-001` is a project-generated AP214 10 mm cube with declared millimetres, one solid, 600 mm² surface area, 1000 mm³ volume, and centroid `(5, 5, 5)` mm. The committed feature-gated generator uses the pinned OCCT 8.0.0 build and normalizes the volatile STEP header timestamp to `2000-01-01T00:00:00`; repeated generation produced SHA-256 `031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2`.
 
-Because OCCT generates and reads this fixture, it proves deterministic project plumbing and analytic measurement reconciliation, not independent translator correctness. Release accuracy still needs STEP authored by an independent reviewed source plus malformed, alternate-schema, assembly, and partial-transfer cases.
+`FIX-STEP-002` is a small project-authored STEP envelope containing one intentionally invalid entity, SHA-256 `b0bb25521620d14798110de10dc78739e18d28cd160a10a16c4163a269ca1157`. Its separate failure-expectation schema version 1 requires recoverable `STEP_TRANSFER_FAILED`, no snapshot or output file, and removal of the staged input. It carries no geometry measurements or unit claims. This schema is additive and does not migrate or reinterpret schema-v2 successful-geometry expectations; unsupported failure-schema versions are rejected.
+
+Because OCCT generates and reads `FIX-STEP-001`, it proves deterministic project plumbing and analytic measurement reconciliation, not independent translator correctness. `FIX-STEP-002` adds one adversarial transfer/cleanup case, not a comprehensive malformed-input corpus. Release accuracy and containment still need STEP authored by an independent reviewed source plus broader malformed, alternate-schema, assembly, partial-transfer, and resource-limit cases.
 
 ## Ground truth and tolerances
 

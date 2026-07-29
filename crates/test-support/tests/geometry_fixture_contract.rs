@@ -1,9 +1,13 @@
 use partprobe_geometry_core::RepresentationBasis;
-use partprobe_test_support::geometry_fixtures::{ExpectedEvidence, GeometryFixtureExpectation};
+use partprobe_test_support::geometry_fixtures::{
+    ExpectedEvidence, GeometryFixtureExpectation, GeometryImportFailureExpectation,
+};
 
 const CLOSED: &str = include_str!("../../../fixtures/expected/cube_10mm.json");
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");
 const STEP: &str = include_str!("../../../fixtures/expected/cube_10mm_step.json");
+const INVALID_STEP: &str =
+    include_str!("../../../fixtures/expected/invalid_step_entity_rejection.json");
 
 #[test]
 fn committed_mesh_expectations_satisfy_the_versioned_contract() {
@@ -43,4 +47,38 @@ fn deserialization_rejects_false_authority_for_open_mesh_volume() {
 
     value["schema_version"] = serde_json::json!(1);
     assert!(serde_json::from_value::<GeometryFixtureExpectation>(value).is_err());
+}
+
+#[test]
+fn invalid_step_expectation_requires_controlled_recoverable_failure() {
+    let expectation: GeometryImportFailureExpectation =
+        serde_json::from_str(INVALID_STEP).expect("invalid STEP expectation must be valid");
+
+    assert_eq!(expectation.fixture_id(), "FIX-STEP-002");
+    assert_eq!(
+        expectation.expected_diagnostic_code().as_str(),
+        "STEP_TRANSFER_FAILED"
+    );
+    assert!(!expectation.snapshot_expected());
+    assert!(!expectation.output_file_expected());
+    assert!(!expectation.staged_input_retained());
+}
+
+#[test]
+fn failure_expectation_rejects_success_or_retained_artifacts() {
+    for invalid in [
+        INVALID_STEP.replace(
+            "\"expected_status\": \"failed_recoverable\"",
+            "\"expected_status\": \"succeeded\"",
+        ),
+        INVALID_STEP.replace(
+            "\"snapshot_expected\": false",
+            "\"snapshot_expected\": true",
+        ),
+    ] {
+        assert!(
+            serde_json::from_str::<GeometryImportFailureExpectation>(&invalid).is_err(),
+            "failure expectation invariants must survive deserialization"
+        );
+    }
 }

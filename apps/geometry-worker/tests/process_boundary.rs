@@ -11,6 +11,8 @@ use partprobe_geometry_import::{
     AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerRequest, GeometryWorkerSupervisor,
     ResourceQuotas, SupervisorPolicy, WORKER_INPUT_FILENAME,
 };
+#[cfg(feature = "native-occt")]
+use partprobe_test_support::geometry_fixtures::GeometryImportFailureExpectation;
 
 fn request() -> GeometryWorkerRequest {
     GeometryWorkerRequest::new(
@@ -35,14 +37,17 @@ fn request() -> GeometryWorkerRequest {
 }
 
 #[cfg(feature = "native-occt")]
-fn native_request() -> GeometryWorkerRequest {
+fn native_request(
+    expected_hash: &str,
+    job_id: &str,
+    correlation_id: &str,
+) -> GeometryWorkerRequest {
     GeometryWorkerRequest::new(
         SchemaVersion::new(1).expect("schema version must be valid"),
-        GeometryJobId::new("native-process-job-1").expect("job ID must be valid"),
-        CorrelationId::new("native-process-correlation-1").expect("correlation ID must be valid"),
+        GeometryJobId::new(job_id).expect("job ID must be valid"),
+        CorrelationId::new(correlation_id).expect("correlation ID must be valid"),
         AssetCapability::new("native-asset-capability-1").expect("capability must be valid"),
-        Sha256Digest::new("031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2")
-            .expect("hash must be valid"),
+        Sha256Digest::new(expected_hash).expect("hash must be valid"),
         vec![
             GeometryStage::Intake,
             GeometryStage::Identify,
@@ -167,8 +172,12 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
     let source =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
 
-    let response =
-        supervisor.execute_with_asset(&native_request(), &source, &AtomicBool::new(false));
+    let request = native_request(
+        "031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2",
+        "native-process-job-1",
+        "native-process-correlation-1",
+    );
+    let response = supervisor.execute_with_asset(&request, &source, &AtomicBool::new(false));
 
     assert_eq!(response.status(), StageStatus::Succeeded);
     assert_eq!(
@@ -192,5 +201,59 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
 
     std::fs::remove_file(output).expect("snapshot must be removable");
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(feature = "native-occt")]
+#[test]
+fn supervised_native_worker_rejects_invalid_step_entity_without_output() {
+    let expectation: GeometryImportFailureExpectation = serde_json::from_str(include_str!(
+        "../../../fixtures/expected/invalid_step_entity_rejection.json"
+    ))
+    .expect("failure expectation must be valid");
+    assert_eq!(expectation.fixture_id(), "FIX-STEP-002");
+
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-invalid-step-worker-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let occt_root =
+        PathBuf::from(std::env::var_os("PARTPROBE_OCCT_ROOT").expect("OCCT root must be set"));
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5).expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid")
+    .with_native_library_directory(occt_root.join("lib"))
+    .expect("native library directory must be valid");
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/invalid_entity.step");
+    let request = native_request(
+        expectation.source_sha256().as_str(),
+        "invalid-step-process-job-1",
+        "invalid-step-process-correlation-1",
+    );
+
+    let response = supervisor.execute_with_asset(&request, &source, &AtomicBool::new(false));
+
+    assert_eq!(response.status(), expectation.expected_status());
+    assert_eq!(
+        response.diagnostic_codes()[0].as_str(),
+        expectation.expected_diagnostic_code().as_str()
+    );
+    assert_eq!(
+        response.snapshot_reference().is_some(),
+        expectation.snapshot_expected()
+    );
+    assert_eq!(
+        job_directory.join(WORKER_OUTPUT_FILENAME).exists(),
+        expectation.output_file_expected()
+    );
+    assert_eq!(
+        job_directory.join(WORKER_INPUT_FILENAME).exists(),
+        expectation.staged_input_retained()
+    );
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }

@@ -339,6 +339,7 @@ dependencies = [
  "partprobe-geometry-core",
  "partprobe-geometry-import",
  "partprobe-geometry-occt-adapter",
+ "partprobe-test-support",
  "serde",
  "serde_json",
 ]
@@ -350,6 +351,7 @@ dependencies = [
  "partprobe-domain",
  "partprobe-estimation-engine",
  "partprobe-geometry-core",
+ "partprobe-geometry-import",
  "rust_decimal",
  "serde",
  "serde_json",

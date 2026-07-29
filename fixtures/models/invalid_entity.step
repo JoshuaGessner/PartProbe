@@ -1,0 +1,10 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('PartProbe malformed parser fixture'),'2;1');
+FILE_NAME('invalid_entity.step','2000-01-01T00:00:00',('PartProbe'),('PartProbe'),'','','');
+FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+ENDSEC;
+DATA;
+#1=PARTPROBE_INTENTIONALLY_INVALID_ENTITY();
+ENDSEC;
+END-ISO-10303-21;

@@ -3,11 +3,15 @@
 use std::collections::BTreeSet;
 
 use partprobe_domain::{DomainError, SchemaVersion};
-use partprobe_geometry_core::{GeometryWarningCode, ModelLengthUnit, RepresentationBasis};
+use partprobe_geometry_core::{
+    GeometryWarningCode, ModelLengthUnit, RepresentationBasis, Sha256Digest, StageStatus,
+};
+use partprobe_geometry_import::DiagnosticCode;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, Serialize};
 
 const FIXTURE_EXPECTATION_SCHEMA_VERSION: u16 = 2;
+const IMPORT_FAILURE_EXPECTATION_SCHEMA_VERSION: u16 = 1;
 
 /// Explicit expectation state; unavailable and inapplicable never become zero.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -259,5 +263,143 @@ impl GeometryFixtureExpectation {
     #[must_use]
     pub fn required_warnings(&self) -> &[GeometryWarningCode] {
         &self.required_warnings
+    }
+}
+
+/// Expected controlled outcome for an import that must fail without producing geometry evidence.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GeometryImportFailureExpectation {
+    schema_version: SchemaVersion,
+    fixture_id: String,
+    source_sha256: Sha256Digest,
+    expected_status: StageStatus,
+    expected_diagnostic_code: DiagnosticCode,
+    snapshot_expected: bool,
+    output_file_expected: bool,
+    staged_input_retained: bool,
+}
+
+#[derive(Deserialize)]
+struct GeometryImportFailureExpectationWire {
+    schema_version: SchemaVersion,
+    fixture_id: String,
+    source_sha256: Sha256Digest,
+    expected_status: StageStatus,
+    expected_diagnostic_code: DiagnosticCode,
+    snapshot_expected: bool,
+    output_file_expected: bool,
+    staged_input_retained: bool,
+}
+
+impl<'de> Deserialize<'de> for GeometryImportFailureExpectation {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = GeometryImportFailureExpectationWire::deserialize(deserializer)?;
+        Self::new(
+            wire.schema_version,
+            wire.fixture_id,
+            wire.source_sha256,
+            wire.expected_status,
+            wire.expected_diagnostic_code,
+            wire.snapshot_expected,
+            wire.output_file_expected,
+            wire.staged_input_retained,
+        )
+        .map_err(serde::de::Error::custom)
+    }
+}
+
+impl GeometryImportFailureExpectation {
+    /// Builds a failure expectation that cannot masquerade as successful geometry evidence.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        schema_version: SchemaVersion,
+        fixture_id: impl Into<String>,
+        source_sha256: Sha256Digest,
+        expected_status: StageStatus,
+        expected_diagnostic_code: DiagnosticCode,
+        snapshot_expected: bool,
+        output_file_expected: bool,
+        staged_input_retained: bool,
+    ) -> Result<Self, DomainError> {
+        let fixture_id = fixture_id.into();
+        if schema_version.value() != IMPORT_FAILURE_EXPECTATION_SCHEMA_VERSION {
+            return Err(DomainError::InvalidValue {
+                field: "geometry import failure schema version",
+                reason: "unsupported failure expectation schema version",
+            });
+        }
+        if fixture_id.trim().is_empty() {
+            return Err(DomainError::InvalidValue {
+                field: "geometry import failure fixture ID",
+                reason: "must not be empty",
+            });
+        }
+        if expected_status != StageStatus::FailedRecoverable {
+            return Err(DomainError::InvalidValue {
+                field: "geometry import failure status",
+                reason: "adversarial fixture must fail recoverably",
+            });
+        }
+        if snapshot_expected || output_file_expected || staged_input_retained {
+            return Err(DomainError::InvalidValue {
+                field: "geometry import failure artifacts",
+                reason: "failed import must not retain staged input or produce snapshot/output",
+            });
+        }
+        Ok(Self {
+            schema_version,
+            fixture_id,
+            source_sha256,
+            expected_status,
+            expected_diagnostic_code,
+            snapshot_expected,
+            output_file_expected,
+            staged_input_retained,
+        })
+    }
+
+    /// Returns the fixture ID.
+    #[must_use]
+    pub fn fixture_id(&self) -> &str {
+        &self.fixture_id
+    }
+
+    /// Returns the expected source digest.
+    #[must_use]
+    pub const fn source_sha256(&self) -> &Sha256Digest {
+        &self.source_sha256
+    }
+
+    /// Returns the required recoverable status.
+    #[must_use]
+    pub const fn expected_status(&self) -> StageStatus {
+        self.expected_status
+    }
+
+    /// Returns the required sanitized diagnostic.
+    #[must_use]
+    pub const fn expected_diagnostic_code(&self) -> &DiagnosticCode {
+        &self.expected_diagnostic_code
+    }
+
+    /// Returns whether a snapshot is expected.
+    #[must_use]
+    pub const fn snapshot_expected(&self) -> bool {
+        self.snapshot_expected
+    }
+
+    /// Returns whether an output file is expected.
+    #[must_use]
+    pub const fn output_file_expected(&self) -> bool {
+        self.output_file_expected
+    }
+
+    /// Returns whether the staged input may remain.
+    #[must_use]
+    pub const fn staged_input_retained(&self) -> bool {
+        self.staged_input_retained
     }
 }

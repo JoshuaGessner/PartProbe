@@ -48,8 +48,9 @@
 - Connected the optional worker to the OCCT adapter for the exact intake-through-basic-properties profile and a bounded schema-v1 provisional snapshot. The subprocess test passes staging, cleared-environment native loading, STEP transfer, measurements, opaque reference, and source cleanup.
 - Documented six-decimal provisional measurement formatting after the first native run exposed `599.9999999999999`; raw native values remain internal and production tolerance policy remains open.
 - Same-kernel fixture generation/read is integration evidence, not independent accuracy evidence. Descriptor-backed grants, sandbox/resource enforcement, independent STEP corpus, legal approval, and three-OS native packaging remain.
-- Local default validation passes strict Clippy, 58 runtime tests, and the compile-fail doctest; eight focused native adapter/worker tests also pass.
+- Local default validation passes strict Clippy, 60 runtime tests, and the compile-fail doctest; ten focused native adapter/worker tests also pass.
 - GitHub Actions run 30474167026 passes formatting, strict Clippy, all 58 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `ab89bab`; native OCCT evidence remains Apple Silicon only.
+- Added `FIX-STEP-002`, a project-authored invalid-entity STEP fixture with a schema-v1 failure expectation. The adapter and supervised worker return recoverable `STEP_TRANSFER_FAILED`, produce no snapshot/output, and clean the staged source.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
