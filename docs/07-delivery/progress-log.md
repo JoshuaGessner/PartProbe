@@ -23,7 +23,7 @@
 - Added a minimal `geometry-worker` executable and process-boundary integration test. The worker explicitly returns `NATIVE_ADAPTER_UNAVAILABLE`; it does not parse CAD or present the process boundary as native-kernel evidence.
 - Upgraded the two bootstrap fixture expectations to schema version 2 with exact decimal strings and explicit available/unavailable/not-applicable states. The open cube cannot expose enclosed volume as authoritative.
 - Recorded the fixture-only migration policy: version 1 is rejected and requires reviewed explicit conversion; missing evidence is never guessed as zero.
-- Four additional tests bring the local workspace to 55 runtime tests plus one compile-fail doctest; formatting and strict Clippy pass.
+- Four additional tests bring the workspace to 55 runtime tests plus one compile-fail doctest; formatting and strict Clippy pass locally and in GitHub Actions run 30465722294 on Windows, Linux, and macOS.
 - No new third-party package was added. Serde JSON's existing reviewed role now includes the bounded internal worker protocol.
 - Remaining containment work is explicit: capability-to-handle resolution, cooperative cancellation grace, OS sandbox/network denial, CPU/memory/descendant limits, cleanup evidence, OCCT selection, analytic STEP fixtures, and three-OS native packaging/benchmarks.
 
