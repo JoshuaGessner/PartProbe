@@ -69,7 +69,8 @@
 - Added one containment regression covering a normal nested file, `..` escape, absolute-path access, an escaping parent symlink, and a final file symlink. The local default workspace now has 66 runtime tests; three-OS evidence for this new boundary is pending the next CI run.
 - Added exact `cap-std 4.0.2` and `cap-fs-ext 4.0.2` dependencies after rejecting race-prone canonicalization/metadata prechecks and project-owned unsafe cross-platform handle traversal. Their target-specific dependency and license surface is recorded; automated advisory/SBOM review remains a release gate.
 - The resolver enforces filesystem containment only. Application policy must still deny by default across actor, project membership, classification, record state, approved root, and asset capability and must record sanitized allow/deny audit evidence.
-- Initial GitHub Actions run 30486724775 passed Linux/macOS and all Windows containment assertions, then exposed a test-cleanup portability error: Windows requires `remove_dir` for a directory symlink while Unix requires `remove_file`. The target-specific cleanup helper corrects the harness without changing production containment behavior; a replacement three-OS run is pending.
+- Initial GitHub Actions run 30486724775 passed Linux/macOS and all Windows containment assertions, then exposed a test-cleanup portability error: Windows requires `remove_dir` for a directory symlink while Unix requires `remove_file`. The target-specific cleanup helper corrects the harness without changing production containment behavior.
+- Replacement GitHub Actions run 30486941813 passes formatting, strict Clippy, all 66 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `33ad74f`, including the capability-root traversal, absolute-path, escaping-parent-link, and final-link regression.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 

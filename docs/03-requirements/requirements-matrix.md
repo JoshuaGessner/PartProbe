@@ -24,6 +24,6 @@
 | FEAT-001–021 | Model requirements | feature pipeline/model | TEST-031–039 | No executable detector |
 | TIME-001–008 | Runtime research/model | runtime architecture | TEST-005 | Synthetic examples |
 | DATA-001–042 | Data model | persistence + bounded domain aggregates | TEST-007, TEST-014–018, TEST-040–099 | Conceptual schema |
-| TEST-001–099 | Quality strategy and specialized plans | `docs/06-quality` | Self-audit + future executable suites | TEST-001 and partial TEST-002/003/014 have executable evidence; TASK-003 has a 65-test three-OS baseline plus a 66-test local containment baseline, while remaining acceptance suites stay planned |
+| TEST-001–099 | Quality strategy and specialized plans | `docs/06-quality` | Self-audit + future executable suites | TEST-001 and partial TEST-002/003/014 have executable evidence; TASK-003 has a 66-test three-OS containment baseline, while remaining acceptance suites stay planned |
 
 Coverage means planned traceability, not completion. [TASK-001 evidence](../06-quality/task-001-validation.md), [TASK-002 evidence](../06-quality/task-002-validation.md), and [TASK-003 evidence](../06-quality/task-003-validation.md) are linked, but affected requirements remain incomplete until their downstream UI, persistence, accuracy, containment, calibration, and approval gates pass.
