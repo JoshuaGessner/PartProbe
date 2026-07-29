@@ -57,6 +57,7 @@
 - GitHub Actions run 30477805222 passes formatting, strict Clippy, all 63 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `96f3bf8`, including the deleted-path open-grant regression.
 - Added a cross-platform read-only local-source opener that protects the final component with Unix `O_NOFOLLOW` or Windows open-reparse-point/attribute rejection plus identification-only security quality of service; the one-use grant retains no pathname.
 - The new regular-file/link regression and all process tests use the hardened opener. Local validation passes 64 default runtime tests and twelve focused native tests.
+- GitHub Actions run 30479210538 passes formatting, strict Clippy, all 64 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `a9b57f2`, including the platform-specific final-component link/reparse-point regression.
 - Application-service path authorization and parent-component containment, direct worker descriptor/handle transport or a documented copy fallback, controlled output ownership, and OS sandbox/resource enforcement remain open.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
