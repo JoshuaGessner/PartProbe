@@ -20,6 +20,8 @@
 - Added one-job asset staging: open-handle regular-file validation, create-new fixed destination, streaming input quota, SHA-256 verification, read-only worker-local bytes, sanitized mismatch/staging/cleanup failures, and post-worker input removal.
 - Replaced the supervisor's source-path API with a consumed `AssetReadGrant` bound to the request capability and an already-open regular file. Staging rewinds the same handle, verifies authorized length plus hash/quota, drops it before launch, and rejects capability mismatch or post-grant length drift.
 - Added a cross-platform read-only local-source opener that rejects a linked final component with Unix `O_NOFOLLOW` or a Windows open-reparse-point plus attribute check and identification-only security quality of service. It returns only the one-use open-handle grant; application-service path authorization and parent containment remain separate.
+- Added atomically created private per-job directories, owner-only Unix mode, inherited-root Windows ACL behavior, fixed-name isolation inside that directory, and deterministic input/output/directory cleanup diagnostics.
+- Added controlled referenced-output claiming: no-follow regular-file validation, nonempty and quota/length bounds, immutable supervisor-owned bytes, SHA-256 and byte-length evidence bound to the opaque snapshot reference, and removal of the worker-visible pathname. Unreferenced worker output is discarded; response status remains distinct from artifact presence.
 - Added deterministic synthetic `FIX-STEP-001` generation, manifest hash, schema-v2 expected evidence, and analytic area/volume/centroid checks. Its same-kernel generation/read limitation is documented.
 - Added project-authored adversarial `FIX-STEP-002` and a separate schema-v1 failure expectation. The optional adapter and supervised worker return sanitized recoverable `STEP_TRANSFER_FAILED`, create no snapshot/output, and remove the staged input.
 - Connected the optional worker to OCCT for the exact six-stage spike profile. The subprocess writes a bounded schema-v1 `provisional_spike` snapshot and returns only an opaque reference; measurements use documented six-decimal canonicalization and remain non-authoritative.
@@ -28,7 +30,7 @@
 
 ## Fixture schema migration
 
-Fixture expectation schema version 2 replaces ambiguous nullable/omitted measurements with explicit evidence states and exact decimal strings. This is a preproduction, test-fixture-only schema: no customer or persisted production record is migrated. Version 1 successful-geometry files fail validation and must be deliberately upgraded with reviewed evidence; the loader does not infer unavailable data as zero or silently reinterpret old files. The additive import-failure expectation schema starts at version 1 and carries only controlled failure/artifact outcomes; it does not migrate or reinterpret successful-geometry records, and unsupported versions fail validation.
+Fixture expectation schema version 2 replaces ambiguous nullable/omitted measurements with explicit evidence states and exact decimal strings. This is a preproduction, test-fixture-only schema: no customer or persisted production record is migrated. Version 1 successful-geometry files fail validation and must be deliberately upgraded with reviewed evidence; the loader does not infer unavailable data as zero or silently reinterpret old files. The additive import-failure expectation schema starts at version 1 and carries only controlled failure/artifact outcomes; it does not migrate or reinterpret successful-geometry records, and unsupported versions fail validation. The new `GeometryWorkerExecution` output envelope is an in-memory preproduction API, not a serialized schema; callers must deliberately consume or discard its immutable artifact, and there are no persisted customer records to migrate.
 
 ## Local acceptance run
 
@@ -38,12 +40,12 @@ Environment: Apple Silicon macOS; Rust 1.94.1 workspace.
 |---|---|
 | `cargo fmt --all -- --check` | Pass |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Pass |
-| `cargo test --workspace --all-targets --locked` | Pass: 64 runtime tests |
+| `cargo test --workspace --all-targets --locked` | Pass: 65 runtime tests |
 | `cargo test --workspace --doc --locked` | Pass: one compile-fail unit-safety doctest |
 | `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-occt-adapter --features fixture-tools` | Pass: six native-link/ABI/failure/measurement/generator-reproduction tests |
 | `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-worker --features native-occt --test process_boundary` | Pass: six grant/staging/hash/measurement/invalid-entity process tests |
 
-TASK-003 currently adds twenty-three default runtime tests: five geometry-core invariants, seven protocol/supervisor cases, six subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Twelve focused tests pass across the explicit local native adapter/worker commands.
+TASK-003 currently adds twenty-four default runtime tests: five geometry-core invariants, eight protocol/supervisor/output cases, six subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Twelve focused tests pass across the explicit local native adapter/worker commands.
 
 ## Cross-platform evidence
 
@@ -52,11 +54,11 @@ GitHub Actions run 30479210538 passes formatting, strict Clippy, all 64 default 
 ## Remaining acceptance evidence
 
 - Replace the current polling hard-kill behavior with a documented cooperative cancellation grace protocol where native work can acknowledge cancellation.
-- Implement application-service authorization and parent-component containment around the final-component-safe opener; define controlled output ownership.
+- Implement application-service authorization and parent-component containment around the final-component-safe opener; persist claimed output through the controlled derivative store with classification, authorization, retention, and audit evidence.
 - Add OS-specific network denial, filesystem sandboxing, CPU/memory limits, descendant-process containment, and cleanup/retention evidence. Clearing the environment and controlling the working directory are defense-in-depth, not a sandbox.
 - Complete legal review of OCCT 8.0.0 notices, source offer/relinking approach, shared-library packaging, and third-party/transitive native inventory before distribution.
 - Add reproducible OCCT 8.0.0 build automation and artifact fingerprints for Windows, Linux, and macOS; the current native source-build evidence is Apple Silicon only.
-- Pass the granted descriptor/handle directly into the sandboxed worker where practical, retain a documented verified-copy fallback, and add OS sandbox, no-network, CPU/memory/descendant limits, and output cleanup/retention enforcement.
+- Pass the granted descriptor/handle directly into the sandboxed worker where practical, retain a documented verified-copy fallback, and add OS sandbox, no-network, CPU/memory/descendant limits, and durable-output retention/disposition enforcement.
 - Add independently authored analytic STEP plus broader malformed, alternate-schema, assembly, partial-transfer, and resource-limit fixtures before treating the same-kernel cube as accuracy evidence.
 - Add legally redistributable analytic STEP fixtures with reviewed hashes, units, exact measurements, transfer/validity expectations, tolerances, and malformed cases.
 - Build the OCCT adapter and worker on Windows, Linux, and macOS; record dependency fingerprints, package artifacts, elapsed/peak resources, deterministic reruns, and crash containment.

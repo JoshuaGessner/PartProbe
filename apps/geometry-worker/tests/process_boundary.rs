@@ -90,7 +90,8 @@ fn supervisor_executes_the_path_free_worker_contract() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
     let request = request();
     let grant = asset_grant(&request, &source);
-    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::FailedTerminal);
     assert_eq!(response.job_id().as_str(), "process-job-1");
@@ -98,7 +99,14 @@ fn supervisor_executes_the_path_free_worker_contract() {
         response.diagnostic_codes()[0].as_str(),
         "NATIVE_ADAPTER_UNAVAILABLE"
     );
+    assert!(execution.output().is_none());
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
 
@@ -118,19 +126,21 @@ fn supervisor_rejects_hash_mismatch_before_worker_launch() {
 
     let request = request();
     let grant = asset_grant(&request, &source);
-    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
     assert_eq!(
         response.diagnostic_codes()[0].as_str(),
         "ASSET_HASH_MISMATCH"
     );
+    assert!(execution.output().is_none());
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
 
 #[test]
-fn staging_conflict_preserves_the_preexisting_file() {
+fn private_job_namespace_preserves_a_preexisting_parent_file() {
     let job_directory = std::env::temp_dir().join(format!(
         "partprobe-worker-conflict-test-{}",
         std::process::id()
@@ -150,13 +160,15 @@ fn staging_conflict_preserves_the_preexisting_file() {
 
     let request = request();
     let grant = asset_grant(&request, &source);
-    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
     assert_eq!(
         response.diagnostic_codes()[0].as_str(),
-        "ASSET_STAGE_FAILED"
+        "WORKER_LAUNCH_FAILED"
     );
+    assert!(execution.output().is_none());
     assert_eq!(
         std::fs::read(&staged_path).expect("preexisting file must remain"),
         b"preexisting-controlled-file"
@@ -186,13 +198,15 @@ fn supervisor_rejects_a_grant_bound_to_another_capability() {
     )
     .expect("authorized source must create a read grant");
 
-    let response = supervisor.execute_with_grant(&request(), grant, &AtomicBool::new(false));
+    let execution = supervisor.execute_with_grant(&request(), grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
     assert_eq!(
         response.diagnostic_codes()[0].as_str(),
         "ASSET_GRANT_MISMATCH"
     );
+    assert!(execution.output().is_none());
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
@@ -225,13 +239,15 @@ fn supervisor_rejects_source_length_drift_after_grant_creation() {
     )
     .expect("supervisor must be valid");
 
-    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
     assert_eq!(
         response.diagnostic_codes()[0].as_str(),
         "ASSET_STAGE_FAILED"
     );
+    assert!(execution.output().is_none());
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     std::fs::remove_file(source).expect("drift source must be removable");
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
@@ -261,13 +277,15 @@ fn open_grant_remains_authoritative_after_its_source_path_is_removed() {
     )
     .expect("supervisor must be valid");
 
-    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::FailedTerminal);
     assert_eq!(
         response.diagnostic_codes()[0].as_str(),
         "NATIVE_ADAPTER_UNAVAILABLE"
     );
+    assert!(execution.output().is_none());
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
@@ -299,7 +317,8 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
         "native-process-correlation-1",
     );
     let grant = asset_grant(&request, &source);
-    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::Succeeded);
     assert_eq!(
@@ -309,10 +328,19 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
             .as_str(),
         "geometry-snapshot-v1"
     );
-    let output = job_directory.join(WORKER_OUTPUT_FILENAME);
+    let output = execution
+        .output()
+        .expect("success must return claimed controlled output");
+    assert_eq!(
+        output.snapshot_reference(),
+        response
+            .snapshot_reference()
+            .expect("success must reference a snapshot")
+    );
+    assert!(output.byte_length() > 0);
+    assert_eq!(output.content_hash().as_str().len(), 64);
     let snapshot: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(&output).expect("worker snapshot must be readable"))
-            .expect("worker snapshot must be valid JSON");
+        serde_json::from_slice(output.bytes()).expect("worker snapshot must be valid JSON");
     assert_eq!(snapshot["evidence_state"], "provisional_spike");
     assert_eq!(snapshot["surface_area_mm2"], "600");
     assert_eq!(snapshot["enclosed_volume_mm3"], "1000");
@@ -321,8 +349,14 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
         serde_json::json!(["5", "5", "5"])
     );
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    assert!(!job_directory.join(WORKER_OUTPUT_FILENAME).exists());
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
 
-    std::fs::remove_file(output).expect("snapshot must be removable");
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
 
@@ -359,7 +393,8 @@ fn supervised_native_worker_rejects_invalid_step_entity_without_output() {
     );
 
     let grant = asset_grant(&request, &source);
-    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), expectation.expected_status());
     assert_eq!(
@@ -371,7 +406,7 @@ fn supervised_native_worker_rejects_invalid_step_entity_without_output() {
         expectation.snapshot_expected()
     );
     assert_eq!(
-        job_directory.join(WORKER_OUTPUT_FILENAME).exists(),
+        execution.output().is_some(),
         expectation.output_file_expected()
     );
     assert_eq!(

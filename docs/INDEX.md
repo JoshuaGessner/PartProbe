@@ -15,7 +15,7 @@ PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop est
 - **Phase:** 0 — Discovery and Validation
 - **Milestone:** M0.2 — Evidence and decision closure, In Progress
 - **Overall status:** TASK-001 and TASK-002 calculation/rate foundations pass local and three-OS CI evidence; TASK-003 has cross-platform worker-contract and final-component-safe source-opening evidence plus an Apple Silicon provisional end-to-end OCCT STEP measurement; ADR acceptance and production native distribution remain evidence-gated
-- **Recently completed:** User-owned rate/rule foundations; kernel-neutral geometry contracts; bounded subprocess evidence; schema-v2 fixture expectations; exact OCCT 8.0.0 source build/C ABI; consumed already-open supervisor grants; final-component-safe read-only source opening; deterministic synthetic STEP reconciliation; and controlled invalid-entity rejection.
+- **Recently completed:** User-owned rate/rule foundations; kernel-neutral geometry contracts; bounded subprocess evidence; schema-v2 fixture expectations; exact OCCT 8.0.0 source build/C ABI; consumed already-open supervisor grants; final-component-safe read-only source opening; private per-job workspaces; immutable hash/length-bound output claiming; deterministic synthetic STEP reconciliation; and controlled invalid-entity rejection.
 - **Documents awaiting review:** All documents marked Draft or In Review; especially ADR-0001–ADR-0014, advanced formulas/policies, calculation rules, requirements, security boundaries, and worked examples
 - **Blocking decisions:** ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
 - **Next actions:** Integrate TASK-002 PR #1, then execute TASK-003–TASK-018 in [backlog priority](07-delivery/backlog.md), beginning with the kernel-neutral worker contract, fixture scorecard, and OCCT build/benchmark evidence
@@ -54,7 +54,7 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 |---|---|---|
 | Tauri 2 + Leptos desktop shell, dense table, accessibility, wgpu/PDF integration | Not started | ADR-0001/0003 and TASK-005 |
 | OCCT STEP import/measurement/healing/package corpus | Exact 8.0.0 Apple Silicon build and supervised synthetic-cube measurement pass; independent corpus, three-OS artifacts, legal/package evidence pending | ADR-0002 and TASK-003 |
-| Isolated geometry-worker IPC/crash/resource boundary | Bounded subprocess, consumed already-open supervisor grant, fixed-name verified staging, and final-component-safe local opening pass three OSes; application-service path authorization/parent containment, direct worker handles, and OS sandbox/resource enforcement pending | ADR-0005 and TASK-003 |
+| Isolated geometry-worker IPC/crash/resource boundary | Bounded subprocess, consumed already-open supervisor grant, fixed-name verified staging, and final-component-safe local opening pass three OSes; private per-job workspaces and immutable output claiming pass locally; application-service path authorization/parent containment, controlled-store persistence, direct worker handles, and OS sandbox/resource enforcement pending | ADR-0005 and TASK-003 |
 | STL/3MF mesh import/validation | Not started | ADR-0004 and TASK-004 |
 | SQLite/blob migrations, crash, backup/restore, concurrency | Not started | ADR-0006 and TASK-006 |
 | Typed decimal/unit calculation DAG, configurable rates and replay | TASK-001 and TASK-002 pass on three OSes; later shop calibration remains pending | ADR-0007, TASK-002 and TASK-007 |

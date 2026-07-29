@@ -6,7 +6,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -21,6 +21,8 @@ use sha2::{Digest, Sha256};
 pub const WORKER_INPUT_FILENAME: &str = "partprobe-input.asset";
 /// Fixed worker-local output name; the response carries only an opaque reference.
 pub const WORKER_OUTPUT_FILENAME: &str = "partprobe-output.json";
+
+static JOB_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 macro_rules! protocol_token {
     ($(#[$attribute:meta])* $name:ident, $field:literal) => {
@@ -529,6 +531,14 @@ pub enum WorkerTermination {
     AssetHashMismatch,
     /// Controlled source cleanup failed.
     AssetCleanupFailed,
+    /// A private per-job workspace could not be created.
+    WorkspacePrepareFailed,
+    /// Worker output could not be claimed and validated.
+    OutputClaimFailed,
+    /// Worker output could not be removed from the filesystem namespace.
+    OutputCleanupFailed,
+    /// The private per-job workspace could not be removed.
+    WorkspaceCleanupFailed,
 }
 
 /// Converts a worker termination into a safe recoverable response.
@@ -550,6 +560,10 @@ pub fn recoverable_termination_response(
         WorkerTermination::AssetGrantMismatch => "ASSET_GRANT_MISMATCH",
         WorkerTermination::AssetHashMismatch => "ASSET_HASH_MISMATCH",
         WorkerTermination::AssetCleanupFailed => "ASSET_CLEANUP_FAILED",
+        WorkerTermination::WorkspacePrepareFailed => "WORKSPACE_PREPARE_FAILED",
+        WorkerTermination::OutputClaimFailed => "OUTPUT_CLAIM_FAILED",
+        WorkerTermination::OutputCleanupFailed => "OUTPUT_CLEANUP_FAILED",
+        WorkerTermination::WorkspaceCleanupFailed => "WORKSPACE_CLEANUP_FAILED",
     };
     GeometryWorkerResponse::new(
         schema_version,
@@ -637,6 +651,74 @@ impl AssetReadGrant {
     #[must_use]
     pub const fn authorized_byte_length(&self) -> u64 {
         self.authorized_byte_length
+    }
+}
+
+/// Pathless, read-only worker output claimed and verified by the supervisor.
+#[derive(Debug)]
+#[must_use = "controlled worker output must be persisted or deliberately discarded"]
+pub struct ControlledWorkerOutput {
+    snapshot_reference: SnapshotReference,
+    content_hash: Sha256Digest,
+    byte_length: u64,
+    bytes: Box<[u8]>,
+}
+
+impl ControlledWorkerOutput {
+    /// Returns the opaque snapshot identity bound to these bytes.
+    #[must_use]
+    pub const fn snapshot_reference(&self) -> &SnapshotReference {
+        &self.snapshot_reference
+    }
+
+    /// Returns the supervisor-computed SHA-256 digest.
+    #[must_use]
+    pub const fn content_hash(&self) -> &Sha256Digest {
+        &self.content_hash
+    }
+
+    /// Returns the verified byte length.
+    #[must_use]
+    pub const fn byte_length(&self) -> u64 {
+        self.byte_length
+    }
+
+    /// Returns the supervisor-owned immutable bytes.
+    #[must_use]
+    pub const fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// One supervised execution with an optional pathless controlled output.
+#[derive(Debug)]
+#[must_use = "worker execution results and controlled output must be inspected"]
+pub struct GeometryWorkerExecution {
+    response: GeometryWorkerResponse,
+    output: Option<ControlledWorkerOutput>,
+}
+
+impl GeometryWorkerExecution {
+    fn new(response: GeometryWorkerResponse, output: Option<ControlledWorkerOutput>) -> Self {
+        Self { response, output }
+    }
+
+    /// Returns the validated worker response.
+    #[must_use]
+    pub const fn response(&self) -> &GeometryWorkerResponse {
+        &self.response
+    }
+
+    /// Returns output claimed for the response's optional snapshot reference.
+    #[must_use]
+    pub const fn output(&self) -> Option<&ControlledWorkerOutput> {
+        self.output.as_ref()
+    }
+
+    /// Transfers the response and optional controlled output.
+    #[must_use]
+    pub fn into_parts(self) -> (GeometryWorkerResponse, Option<ControlledWorkerOutput>) {
+        (self.response, self.output)
     }
 }
 
@@ -754,6 +836,15 @@ impl GeometryWorkerSupervisor {
         request: &GeometryWorkerRequest,
         cancellation: &AtomicBool,
     ) -> GeometryWorkerResponse {
+        self.execute_in(request, cancellation, &self.working_directory)
+    }
+
+    fn execute_in(
+        &self,
+        request: &GeometryWorkerRequest,
+        cancellation: &AtomicBool,
+        working_directory: &Path,
+    ) -> GeometryWorkerResponse {
         if cancellation.load(Ordering::Acquire) {
             return response_for(request, WorkerTermination::Cancelled);
         }
@@ -766,7 +857,7 @@ impl GeometryWorkerSupervisor {
         let mut command = Command::new(&self.executable);
         command
             .env_clear()
-            .current_dir(&self.working_directory)
+            .current_dir(working_directory)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -847,26 +938,185 @@ impl GeometryWorkerSupervisor {
         response
     }
 
-    /// Stages one already-open source grant, executes, then removes the worker-local copy.
-    #[must_use]
+    /// Runs one grant in a private workspace and returns only claimed pathless output.
     pub fn execute_with_grant(
         &self,
         request: &GeometryWorkerRequest,
         mut grant: AssetReadGrant,
         cancellation: &AtomicBool,
-    ) -> GeometryWorkerResponse {
-        let staged_path = self.working_directory.join(WORKER_INPUT_FILENAME);
+    ) -> GeometryWorkerExecution {
+        if cancellation.load(Ordering::Acquire) {
+            return failed_execution(request, WorkerTermination::Cancelled);
+        }
+        let job_directory = match create_job_directory(&self.working_directory) {
+            Ok(path) => path,
+            Err(_) => {
+                return failed_execution(request, WorkerTermination::WorkspacePrepareFailed);
+            }
+        };
+        let staged_path = job_directory.join(WORKER_INPUT_FILENAME);
+        let output_path = job_directory.join(WORKER_OUTPUT_FILENAME);
         let stage_result = stage_asset(request, &mut grant, &staged_path);
         if let Err(termination) = stage_result {
-            return response_for(request, termination);
+            drop(grant);
+            let cleanup = remove_staged_asset(&staged_path)
+                .and_then(|()| std::fs::remove_dir(&job_directory));
+            return failed_execution(
+                request,
+                if cleanup.is_ok() {
+                    termination
+                } else {
+                    WorkerTermination::WorkspaceCleanupFailed
+                },
+            );
         }
         drop(grant);
 
-        let response = self.execute(request, cancellation);
-        if remove_staged_asset(&staged_path).is_err() {
-            return response_for(request, WorkerTermination::AssetCleanupFailed);
+        let response = self.execute_in(request, cancellation, &job_directory);
+        let output = reconcile_worker_output(request, &response, &output_path);
+        let asset_cleanup = remove_staged_asset(&staged_path);
+        let workspace_cleanup = std::fs::remove_dir(&job_directory);
+
+        if asset_cleanup.is_err() {
+            return failed_execution(request, WorkerTermination::AssetCleanupFailed);
         }
-        response
+        let output = match output {
+            Ok(output) => output,
+            Err(termination) => return failed_execution(request, termination),
+        };
+        if workspace_cleanup.is_err() {
+            return failed_execution(request, WorkerTermination::WorkspaceCleanupFailed);
+        }
+        GeometryWorkerExecution::new(response, output)
+    }
+}
+
+fn create_job_directory(root: &Path) -> std::io::Result<PathBuf> {
+    const MAX_ATTEMPTS: usize = 128;
+
+    for _ in 0..MAX_ATTEMPTS {
+        let sequence = JOB_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let path = root.join(format!(".partprobe-job-{}-{sequence}", std::process::id()));
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        match builder.create(&path) {
+            Ok(()) => return Ok(path),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "could not allocate a unique worker job directory",
+    ))
+}
+
+fn reconcile_worker_output(
+    request: &GeometryWorkerRequest,
+    response: &GeometryWorkerResponse,
+    output_path: &Path,
+) -> Result<Option<ControlledWorkerOutput>, WorkerTermination> {
+    let Some(snapshot_reference) = response.snapshot_reference().cloned() else {
+        remove_worker_output(output_path).map_err(|_| WorkerTermination::OutputCleanupFailed)?;
+        return Ok(None);
+    };
+    let claimed = claim_worker_output(
+        snapshot_reference,
+        output_path,
+        request.quotas().max_output_bytes(),
+    );
+    match claimed {
+        Ok(output) => Ok(Some(output)),
+        Err(termination) => {
+            if remove_worker_output(output_path).is_err() {
+                Err(WorkerTermination::OutputCleanupFailed)
+            } else {
+                Err(termination)
+            }
+        }
+    }
+}
+
+fn claim_worker_output(
+    snapshot_reference: SnapshotReference,
+    output_path: &Path,
+    max_output_bytes: u64,
+) -> Result<ControlledWorkerOutput, WorkerTermination> {
+    let mut source = open_final_component_read_only(output_path)
+        .map_err(|_| WorkerTermination::OutputClaimFailed)?;
+    let metadata = source
+        .metadata()
+        .map_err(|_| WorkerTermination::OutputClaimFailed)?;
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > max_output_bytes {
+        return Err(WorkerTermination::OutputClaimFailed);
+    }
+
+    let (content_hash, bytes) = read_worker_output(&mut source, metadata.len(), max_output_bytes)?;
+    std::fs::remove_file(output_path).map_err(|_| WorkerTermination::OutputCleanupFailed)?;
+    Ok(ControlledWorkerOutput {
+        snapshot_reference,
+        content_hash,
+        byte_length: metadata.len(),
+        bytes,
+    })
+}
+
+fn read_worker_output(
+    source: &mut File,
+    expected_byte_length: u64,
+    max_output_bytes: u64,
+) -> Result<(Sha256Digest, Box<[u8]>), WorkerTermination> {
+    source
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| WorkerTermination::OutputClaimFailed)?;
+    let mut hasher = Sha256::new();
+    let mut total = 0_u64;
+    let expected_capacity =
+        usize::try_from(expected_byte_length).map_err(|_| WorkerTermination::OutputClaimFailed)?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(expected_capacity)
+        .map_err(|_| WorkerTermination::OutputClaimFailed)?;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = source
+            .read(&mut buffer)
+            .map_err(|_| WorkerTermination::OutputClaimFailed)?;
+        if read == 0 {
+            break;
+        }
+        total = total
+            .checked_add(u64::try_from(read).map_err(|_| WorkerTermination::OutputClaimFailed)?)
+            .ok_or(WorkerTermination::OutputClaimFailed)?;
+        if total > max_output_bytes || total > expected_byte_length {
+            return Err(WorkerTermination::OutputClaimFailed);
+        }
+        hasher.update(&buffer[..read]);
+        bytes.extend_from_slice(&buffer[..read]);
+    }
+    if total != expected_byte_length {
+        return Err(WorkerTermination::OutputClaimFailed);
+    }
+
+    let mut digest = String::with_capacity(64);
+    for byte in hasher.finalize() {
+        write!(&mut digest, "{byte:02x}").map_err(|_| WorkerTermination::OutputClaimFailed)?;
+    }
+    let content_hash =
+        Sha256Digest::new(digest).map_err(|_| WorkerTermination::OutputClaimFailed)?;
+    Ok((content_hash, bytes.into_boxed_slice()))
+}
+
+fn remove_worker_output(output_path: &Path) -> std::io::Result<()> {
+    match std::fs::symlink_metadata(output_path) {
+        Ok(_) => std::fs::remove_file(output_path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
 }
 
@@ -1024,4 +1274,45 @@ fn response_for(
         request.correlation_id().clone(),
         termination,
     )
+}
+
+fn failed_execution(
+    request: &GeometryWorkerRequest,
+    termination: WorkerTermination,
+) -> GeometryWorkerExecution {
+    GeometryWorkerExecution::new(response_for(request, termination), None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn claimed_worker_output_is_hashed_unlinked_and_immutable() {
+        let job_directory =
+            create_job_directory(&std::env::temp_dir()).expect("private job directory must exist");
+        let output_path = job_directory.join(WORKER_OUTPUT_FILENAME);
+        let expected_bytes = b"controlled-output";
+        std::fs::write(&output_path, expected_bytes).expect("test output must be written");
+
+        let output = claim_worker_output(
+            SnapshotReference::new("controlled-snapshot")
+                .expect("snapshot reference must be valid"),
+            &output_path,
+            1_024,
+        )
+        .expect("regular bounded output must be claimed");
+
+        assert_eq!(output.snapshot_reference().as_str(), "controlled-snapshot");
+        assert_eq!(output.byte_length(), 17);
+        assert!(!output_path.exists());
+        assert_eq!(output.bytes(), expected_bytes);
+        assert_eq!(
+            output.content_hash().as_str(),
+            "c2aa13ac2ee8062adde83a6469537d6f71c686d669f91cb1ab8e07712fdb2797"
+        );
+
+        drop(output);
+        std::fs::remove_dir(job_directory).expect("empty private job directory must be removed");
+    }
 }
