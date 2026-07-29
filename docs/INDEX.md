@@ -15,7 +15,7 @@ PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop est
 - **Phase:** 0 — Discovery and Validation
 - **Milestone:** M0.2 — Evidence and decision closure, In Progress
 - **Overall status:** TASK-001 and TASK-002 calculation/rate foundations pass local and three-OS CI evidence; TASK-003 geometry-worker evidence is beginning; ADR acceptance and later production commitments remain evidence-gated
-- **Recently completed:** Empty user-owned rate-card contracts; deterministic effective/scope/approval resolution; versioned pricing/rounding; CALC-007–018 foundations; synthetic EX-01/03/12 exact traces and replay tests; plus the prior Rust workspace, DAG/snapshot, three-OS TEST-001, and dependency evidence
+- **Recently completed:** Empty user-owned rate-card contracts; deterministic effective/scope/approval resolution; versioned pricing/rounding; CALC-007–018 foundations; synthetic EX-01/03/12 exact traces and replay tests; plus the prior Rust workspace, DAG/snapshot, three-OS TEST-001, and dependency evidence. TASK-003 now has its first kernel-neutral geometry/worker contract slice.
 - **Documents awaiting review:** All documents marked Draft or In Review; especially ADR-0001–ADR-0014, advanced formulas/policies, calculation rules, requirements, security boundaries, and worked examples
 - **Blocking decisions:** ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
 - **Next actions:** Integrate TASK-002 PR #1, then execute TASK-003–TASK-018 in [backlog priority](07-delivery/backlog.md), beginning with the kernel-neutral worker contract, fixture scorecard, and OCCT build/benchmark evidence
@@ -53,8 +53,8 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 | Spike | Status | Evidence gate |
 |---|---|---|
 | Tauri 2 + Leptos desktop shell, dense table, accessibility, wgpu/PDF integration | Not started | ADR-0001/0003 and TASK-005 |
-| OCCT STEP import/measurement/healing/package corpus | Not started | ADR-0002 and TASK-003 |
-| Isolated geometry-worker IPC/crash/resource boundary | Not started | ADR-0005 and TASK-003 |
+| OCCT STEP import/measurement/healing/package corpus | Contract foundation in progress; native adapter/corpus not started | ADR-0002 and TASK-003 |
+| Isolated geometry-worker IPC/crash/resource boundary | Neutral protocol and failure mapping pass locally; transport/sandbox pending | ADR-0005 and TASK-003 |
 | STL/3MF mesh import/validation | Not started | ADR-0004 and TASK-004 |
 | SQLite/blob migrations, crash, backup/restore, concurrency | Not started | ADR-0006 and TASK-006 |
 | Typed decimal/unit calculation DAG, configurable rates and replay | TASK-001 and TASK-002 pass on three OSes; later shop calibration remains pending | ADR-0007, TASK-002 and TASK-007 |
@@ -98,7 +98,7 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 
 ### Quality
 
-[Strategy](06-quality/test-strategy.md) · [Calculations](06-quality/calculation-validation.md) · [TASK-001 evidence](06-quality/task-001-validation.md) · [TASK-002 evidence](06-quality/task-002-validation.md) · [Uncertainty](06-quality/uncertainty-validation.md) · [Revision comparison](06-quality/revision-comparison-validation.md) · [CAM reconciliation](06-quality/cam-reconciliation-validation.md) · [Geometry](06-quality/geometry-validation.md) · [Fixtures](06-quality/model-fixture-strategy.md) · [Features](06-quality/feature-recognition-validation.md) · [Runtime](06-quality/runtime-estimation-validation.md) · [Test data](06-quality/test-data-strategy.md) · [Security](06-quality/security-testing.md) · [Cross-platform](06-quality/cross-platform-testing.md) · [Release acceptance](06-quality/release-acceptance.md)
+[Strategy](06-quality/test-strategy.md) · [Calculations](06-quality/calculation-validation.md) · [TASK-001 evidence](06-quality/task-001-validation.md) · [TASK-002 evidence](06-quality/task-002-validation.md) · [TASK-003 evidence](06-quality/task-003-validation.md) · [Uncertainty](06-quality/uncertainty-validation.md) · [Revision comparison](06-quality/revision-comparison-validation.md) · [CAM reconciliation](06-quality/cam-reconciliation-validation.md) · [Geometry](06-quality/geometry-validation.md) · [Fixtures](06-quality/model-fixture-strategy.md) · [Features](06-quality/feature-recognition-validation.md) · [Runtime](06-quality/runtime-estimation-validation.md) · [Test data](06-quality/test-data-strategy.md) · [Security](06-quality/security-testing.md) · [Cross-platform](06-quality/cross-platform-testing.md) · [Release acceptance](06-quality/release-acceptance.md)
 
 ### Delivery and decisions
 

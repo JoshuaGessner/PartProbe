@@ -8,6 +8,15 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-07-29 — TASK-003 geometry-worker contract started
+
+- Added dependency-free `geometry-core` and `geometry-import` crates before selecting a native kernel build.
+- Added validated lowercase SHA-256 evidence, source byte/format descriptors, model-unit and representation labels, versioned analysis profiles, ordered pipeline stages, explicit stage states, and sanitized warning contracts.
+- Added a schema-versioned, path-free worker request using opaque asset capabilities, expected source hashes, canonical stage ordering, and explicit input/output/entity/wall-time quotas.
+- Added recoverable mappings for worker exit, timeout, quota breach, malformed response, and cancellation; no raw CAD contents, unrestricted paths, geometry coordinates, or model names enter the protocol.
+- Ten new tests pass with the full local workspace gate, for 51 runtime tests total plus one compile-fail doctest.
+- OCCT is not installed or added. Native adapter, IPC transport, process sandbox, analytic STEP fixtures, dependency/license review, packaging, and Windows/Linux/macOS benchmarks remain TASK-003 work.
+
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
 - Adopted the approved product boundary: PartProbe supplies no numeric production rates; organizations configure their own effective-dated rate and pricing libraries, while synthetic values remain isolated test/demo evidence.

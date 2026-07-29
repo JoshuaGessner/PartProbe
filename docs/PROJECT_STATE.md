@@ -10,17 +10,17 @@
 
 - **Current phase:** Phase 0 — Discovery and Validation
 - **Current milestone:** M0.2 evidence and decision closure; TASK-001 and TASK-002 are validated on three OSes
-- **Current branch:** `codex/task-002-rate-library`; PR #1 is ready for integration
+- **Current branch:** `codex/task-003-geometry-worker-contract`, stacked on TASK-002 PR #1
 - **Last completed task:** TASK-002 configurable rate-library, pricing/rounding, synthetic-golden, replay, and Windows/Linux/macOS validation
-- **Work in progress:** TASK-003 OCCT/isolated geometry-worker contract, fixture, packaging, licensing, and benchmark scoping
-- **Next task:** Implement the first [TASK-003 OCCT/worker spike](07-delivery/backlog.md) slice without committing to OCCT distribution before license/build evidence
+- **Work in progress:** TASK-003 kernel-neutral geometry contracts and isolated-worker protocol pass locally; local IPC, supervisor process, analytic STEP corpus, OCCT adapter, packaging, licensing, and three-OS benchmarks remain
+- **Next task:** Implement the local worker transport/supervisor and analytic fixture contract, then introduce an exact OCCT build only after dependency/license evidence
 - **Build status:** Rust 1.94.1 workspace passes locally and on Windows/Linux/macOS in GitHub Actions run 30461694180
-- **Test status:** Format and strict Clippy pass; 41 runtime tests and one compile-fail doctest pass locally and on three OSes; planning validator covers 136 documentation files
+- **Test status:** TASK-002 has 41 runtime tests plus one compile-fail doctest passing locally and on three OSes; the stacked TASK-003 branch has 51 runtime tests and the doctest passing locally; planning validator covers 137 documentation files
 - **Active technical debt:** Rate entry has no UI or persistence yet; pinned ISO 4217 registry validation, nonterminating rational-division rounding, rounding increments beyond decimal scale, and graph-wide evaluation/migration remain pending; canonical JSON remains an internal spike contract; STEP/3MF and representative machining fixtures remain pending
 - **Active blockers:** No shop rates block TASK-002 mechanics because production libraries start empty and tests are synthetic; TASK-007/M0.2 still requires real category/policy/calibration review, and ADR acceptance plus broader production work still require shop/security/legal inputs and representative fixtures
 - **Open architecture decisions:** ADR-0001 through ADR-0014 are In Review
 - **Supported model formats:** None implemented. First-class plan: STEP, STL, 3MF. Experimental plan: IGES, OBJ
-- **Geometry capabilities:** None implemented. Documented pipeline and golden expectations only
+- **Geometry capabilities:** Kernel-neutral source/format/unit/representation/stage/warning contracts and a path-free versioned worker request/response boundary are implemented; no parser, kernel, measurement, tessellation, IPC transport, or sandbox is implemented
 - **Runtime capabilities:** None implemented. Six estimation levels and validation structure documented only
 - **Advanced capabilities:** None implemented. Route optimization, capacity/opportunity, uncertainty, revision/PMI/coverage, feature allocations, learning, CAM reconciliation, availability, sourcing, and bid priority are planning artifacts only
 - **Current fixtures:** `FIX-MESH-001` closed and `FIX-MESH-002` open 10 mm synthetic STL cubes with bootstrap expected records and verified hashes; expert review/licensing remain open

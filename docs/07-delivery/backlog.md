@@ -29,6 +29,8 @@
 
 ## Prioritized discovery/spike tasks
 
+TASK-003 is **In Progress** on 2026-07-29. Its first stacked slice adds dependency-free kernel-neutral geometry contracts, a path-free versioned worker protocol, hard quota validation, and recoverable supervisor failure mapping with ten local tests. Actual IPC, process isolation, OCCT, analytic STEP fixtures, native packaging, license evidence, and three-OS benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
+
 | ID | Task | Links | Exit |
 |---|---|---|---|
 | TASK-002 | Implement the configurable rate-library contract and reconcile EX-01/03/12 as synthetic executable golden estimates | REQ-F-005–010, REQ-F-014–018, REQ-F-032; TEST-002/014 | No production defaults; exact itemized traces; missing/ambiguous-rate, rounding and replay evidence |
