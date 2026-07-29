@@ -200,7 +200,7 @@ fn local_asset_root_contains_parent_resolution_and_rejects_final_links() {
     drop(root_capability);
 
     std::fs::remove_file(final_link).expect("final link must be removable");
-    std::fs::remove_file(outside_link).expect("outside link must be removable");
+    remove_directory_symlink(&outside_link);
     std::fs::remove_file(nested.join("source.asset")).expect("source must be removable");
     std::fs::remove_dir(nested).expect("nested directory must be removable");
     std::fs::remove_dir(root).expect("root directory must be removable");
@@ -226,4 +226,14 @@ fn create_directory_symlink(source: &std::path::Path, link: &std::path::Path) {
 #[cfg(windows)]
 fn create_directory_symlink(source: &std::path::Path, link: &std::path::Path) {
     std::os::windows::fs::symlink_dir(source, link).expect("directory symlink must be created");
+}
+
+#[cfg(unix)]
+fn remove_directory_symlink(link: &std::path::Path) {
+    std::fs::remove_file(link).expect("directory symlink must be removable");
+}
+
+#[cfg(windows)]
+fn remove_directory_symlink(link: &std::path::Path) {
+    std::fs::remove_dir(link).expect("directory symlink must be removable");
 }
