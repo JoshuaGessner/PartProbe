@@ -1,15 +1,14 @@
 [package]
-name = "partprobe-application"
+name = "partprobe-document-storage"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
 
 [dependencies]
-partprobe-document-storage.workspace = true
 partprobe-domain.workspace = true
-partprobe-geometry-import.workspace = true
 partprobe-security.workspace = true
+sha2.workspace = true
 
 [lints]
 workspace = true

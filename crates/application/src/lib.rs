@@ -2,6 +2,11 @@
 
 use std::path::Path;
 
+use partprobe_document_storage::{
+    ArtifactMediaType, ArtifactSchemaRef, ControlledDerivativeStore, ControlledDerivativeWrite,
+    DerivativeGovernance, DerivativeIdentity, DerivativeReference, DerivativeStoreError,
+    ImmutableBlob, StoredDerivative,
+};
 use partprobe_domain::{
     ActorId, DataClassificationId, ProjectId, RecordId, RecordStateId, RecordVersionId, RecordedAt,
 };
@@ -118,4 +123,150 @@ pub enum AssetReadServiceError {
     AuditUnavailable,
     /// The relative filesystem lookup failed containment or file validation.
     ContainmentRejected,
+}
+
+/// Complete application-owned metadata required before persisting worker output.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GeometryDerivativeMetadata {
+    artifact_id: RecordId,
+    artifact_version_id: RecordVersionId,
+    source_record_id: RecordId,
+    source_record_version_id: RecordVersionId,
+    classification_id: DataClassificationId,
+    access_policy: partprobe_security::SecurityPolicyRef,
+    retention_policy: partprobe_document_storage::RetentionPolicyRef,
+    authorization_correlation_id: partprobe_security::AuditCorrelationId,
+    schema: ArtifactSchemaRef,
+    media_type: ArtifactMediaType,
+    created_by: ActorId,
+    created_at: RecordedAt,
+}
+
+impl GeometryDerivativeMetadata {
+    /// Creates explicit lineage, classification, policy, schema, and creation evidence.
+    #[allow(clippy::too_many_arguments)]
+    #[must_use]
+    pub const fn new(
+        artifact_id: RecordId,
+        artifact_version_id: RecordVersionId,
+        source_record_id: RecordId,
+        source_record_version_id: RecordVersionId,
+        classification_id: DataClassificationId,
+        access_policy: partprobe_security::SecurityPolicyRef,
+        retention_policy: partprobe_document_storage::RetentionPolicyRef,
+        authorization_correlation_id: partprobe_security::AuditCorrelationId,
+        schema: ArtifactSchemaRef,
+        media_type: ArtifactMediaType,
+        created_by: ActorId,
+        created_at: RecordedAt,
+    ) -> Self {
+        Self {
+            artifact_id,
+            artifact_version_id,
+            source_record_id,
+            source_record_version_id,
+            classification_id,
+            access_policy,
+            retention_policy,
+            authorization_correlation_id,
+            schema,
+            media_type,
+            created_by,
+            created_at,
+        }
+    }
+}
+
+/// Application service that consumes controlled worker output only after governed persistence.
+#[derive(Debug)]
+pub struct GeometryDerivativePersistenceService<S> {
+    store: S,
+}
+
+impl<S> GeometryDerivativePersistenceService<S>
+where
+    S: ControlledDerivativeStore,
+{
+    /// Creates a persistence service over a deployment-provided controlled store.
+    #[must_use]
+    pub const fn new(store: S) -> Self {
+        Self { store }
+    }
+
+    /// Revalidates, governs, and persists one claimed worker output.
+    pub fn persist(
+        &self,
+        output: partprobe_geometry_import::ControlledWorkerOutput,
+        metadata: GeometryDerivativeMetadata,
+    ) -> Result<StoredDerivative, GeometryDerivativePersistenceFailure> {
+        let blob = match ImmutableBlob::from_claimed_sha256(
+            output.content_hash().as_str(),
+            output.byte_length(),
+            Box::from(output.bytes()),
+        ) {
+            Ok(blob) => blob,
+            Err(_) => {
+                return Err(GeometryDerivativePersistenceFailure::OutputIntegrity(
+                    output,
+                ));
+            }
+        };
+        let derivative_reference =
+            match DerivativeReference::new(output.snapshot_reference().as_str()) {
+                Ok(reference) => reference,
+                Err(_) => {
+                    return Err(GeometryDerivativePersistenceFailure::OutputIntegrity(
+                        output,
+                    ));
+                }
+            };
+        let identity = DerivativeIdentity::new(
+            metadata.artifact_id,
+            metadata.artifact_version_id,
+            metadata.source_record_id,
+            metadata.source_record_version_id,
+            derivative_reference,
+        );
+        let write = ControlledDerivativeWrite::new(
+            identity,
+            DerivativeGovernance::new(
+                metadata.classification_id,
+                metadata.access_policy,
+                metadata.retention_policy,
+                metadata.authorization_correlation_id,
+                metadata.created_by,
+                metadata.created_at,
+            ),
+            metadata.schema,
+            metadata.media_type,
+            blob,
+        );
+        let stored = self.store.persist(&write).map_err(|error| {
+            GeometryDerivativePersistenceFailure::Store {
+                write: Box::new(write.clone()),
+                error,
+            }
+        })?;
+        if !stored.matches(&write) {
+            return Err(GeometryDerivativePersistenceFailure::Store {
+                write: Box::new(write),
+                error: DerivativeStoreError::IntegrityConflict,
+            });
+        }
+        Ok(stored)
+    }
+}
+
+/// Failed persistence with bytes retained for explicit retry, quarantine, or disposition.
+#[derive(Debug)]
+pub enum GeometryDerivativePersistenceFailure {
+    /// Worker output failed independent validation and remains available to the caller.
+    OutputIntegrity(partprobe_geometry_import::ControlledWorkerOutput),
+    /// The governed write remains available after a store or receipt failure.
+    Store {
+        /// Complete immutable bytes and manifest attempted by the service.
+        write: Box<ControlledDerivativeWrite>,
+        /// Content-free failure category.
+        error: DerivativeStoreError,
+    },
 }

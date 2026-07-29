@@ -26,6 +26,9 @@
 - Bound each `LocalAssetRoot` to a stable `AssetRootId`, preventing the application from authorizing one logical root while passing another open directory capability to the resolver.
 - Added atomically created private per-job directories, owner-only Unix mode, inherited-root Windows ACL behavior, fixed-name isolation inside that directory, and deterministic input/output/directory cleanup diagnostics.
 - Added controlled referenced-output claiming: no-follow regular-file validation, nonempty and quota/length bounds, immutable supervisor-owned bytes, SHA-256 and byte-length evidence bound to the opaque snapshot reference, and removal of the worker-visible pathname. Unreferenced worker output is discarded; response status remains distinct from artifact presence.
+- Added `document-storage` as a persistence-neutral controlled-derivative contract. Its immutable manifest retains artifact/source record and version lineage, the producing snapshot reference, inherited classification, exact access and retention policy references, authorization/audit correlation, actor/time, versioned payload schema, declared media type, independently recomputed SHA-256/length, explicit verified integrity state, and an opaque adapter-owned locator.
+- Added an application persistence service that independently revalidates claimed worker bytes, assembles the governed manifest, delegates through a controlled-store port, and rejects a receipt that does not exactly match the requested manifest. Integrity and store failures preserve the original output or complete governed write for explicit retry, quarantine, or disposition.
+- Added no filesystem or database adapter. ADR-0006 and TASK-006 still own the durable schema, ordered migrations, atomic/fsync behavior, encryption decision, optimistic concurrency, integrity-on-open, backup/restore, and controlled retention/disposition evidence.
 - Added deterministic synthetic `FIX-STEP-001` generation, manifest hash, schema-v2 expected evidence, and analytic area/volume/centroid checks. Its same-kernel generation/read limitation is documented.
 - Added project-authored adversarial `FIX-STEP-002` and a separate schema-v1 failure expectation. The optional adapter and supervised worker return sanitized recoverable `STEP_TRANSFER_FAILED`, create no snapshot/output, and remove the staged input.
 - Connected the optional worker to OCCT for the exact six-stage spike profile. The subprocess writes a bounded schema-v1 `provisional_spike` snapshot and returns only an opaque reference; measurements use documented six-decimal canonicalization and remain non-authoritative.
@@ -34,7 +37,7 @@
 
 ## Fixture schema migration
 
-Fixture expectation schema version 2 replaces ambiguous nullable/omitted measurements with explicit evidence states and exact decimal strings. This is a preproduction, test-fixture-only schema: no customer or persisted production record is migrated. Version 1 successful-geometry files fail validation and must be deliberately upgraded with reviewed evidence; the loader does not infer unavailable data as zero or silently reinterpret old files. The additive import-failure expectation schema starts at version 1 and carries only controlled failure/artifact outcomes; it does not migrate or reinterpret successful-geometry records, and unsupported versions fail validation. The `GeometryWorkerExecution`, `LocalAssetRoot`, authorization context/decision, and audit event are preproduction in-memory APIs; the new access IDs are additive validated primitives but are not used by a persisted record schema. There are no customer records to migrate. A durable authorization/audit schema must start with an explicit version and migration/replay policy rather than treating these Rust layouts as storage contracts.
+Fixture expectation schema version 2 replaces ambiguous nullable/omitted measurements with explicit evidence states and exact decimal strings. This is a preproduction, test-fixture-only schema: no customer or persisted production record is migrated. Version 1 successful-geometry files fail validation and must be deliberately upgraded with reviewed evidence; the loader does not infer unavailable data as zero or silently reinterpret old files. The additive import-failure expectation schema starts at version 1 and carries only controlled failure/artifact outcomes; it does not migrate or reinterpret successful-geometry records, and unsupported versions fail validation. The `GeometryWorkerExecution`, `LocalAssetRoot`, authorization context/decision, audit event, controlled derivative write, and store receipt are preproduction in-memory APIs; the new access/storage IDs are additive validated primitives but are not used by a persisted record schema. There are no customer records to migrate. Durable authorization, audit, manifest, and locator schemas must start with explicit versions and migration/replay policies rather than treating these Rust layouts as storage contracts.
 
 ## Local acceptance run
 
@@ -44,12 +47,12 @@ Environment: Apple Silicon macOS; Rust 1.94.1 workspace.
 |---|---|
 | `cargo fmt --all -- --check` | Pass |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Pass |
-| `cargo test --workspace --all-targets --locked` | Pass: 73 runtime tests |
+| `cargo test --workspace --all-targets --locked` | Pass: 81 runtime tests |
 | `cargo test --workspace --doc --locked` | Pass: one compile-fail unit-safety doctest |
 | `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-occt-adapter --features fixture-tools` | Pass: six native-link/ABI/failure/measurement/generator-reproduction tests |
 | `PARTPROBE_OCCT_ROOT=… cargo test -p partprobe-geometry-worker --features native-occt --test process_boundary` | Pass: six grant/staging/hash/measurement/invalid-entity process tests |
 
-TASK-003 currently adds thirty-two default runtime tests: four access/security invariants, three application authorization/audit cases, five geometry-core invariants, nine protocol/supervisor/output/containment cases, six subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Twelve focused tests pass across the explicit local native adapter/worker commands.
+TASK-003 currently adds forty default runtime tests: four access/security invariants, three application authorization/audit cases, four application derivative-persistence cases, four document-storage contract cases, five geometry-core invariants, nine protocol/supervisor/output/containment cases, six subprocess-boundary cases, four fixture-contract cases, and one default-disabled adapter case. Twelve focused tests pass across the explicit local native adapter/worker commands.
 
 ## Cross-platform evidence
 
@@ -58,7 +61,7 @@ GitHub Actions run 30487803871 passes formatting, strict Clippy, all 73 default 
 ## Remaining acceptance evidence
 
 - Replace the current polling hard-kill behavior with a documented cooperative cancellation grace protocol where native work can acknowledge cancellation.
-- Implement and approve deployment-specific role/project-membership/classification/record-state policy and repositories plus durable append-preserving audit persistence; persist claimed output through the controlled derivative store with classification, authorization, retention, and audit evidence.
+- Implement and approve deployment-specific role/project-membership/classification/record-state policy and repositories plus durable append-preserving audit persistence; implement the controlled-store adapter with versioned schema/migrations, atomic durability, integrity-on-open, backup/restore, encryption decision, and retention/disposition enforcement.
 - Add OS-specific network denial, filesystem sandboxing, CPU/memory limits, descendant-process containment, and cleanup/retention evidence. Clearing the environment and controlling the working directory are defense-in-depth, not a sandbox.
 - Complete legal review of OCCT 8.0.0 notices, source offer/relinking approach, shared-library packaging, and third-party/transitive native inventory before distribution.
 - Add reproducible OCCT 8.0.0 build automation and artifact fingerprints for Windows, Linux, and macOS; the current native source-build evidence is Apple Silicon only.

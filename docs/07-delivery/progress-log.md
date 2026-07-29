@@ -77,6 +77,10 @@
 - Seven new access/security/application tests cover validated opaque IDs, deserialization guards, deny-all evidence, versioned reason codes, allowed read audit, content minimization, and audit-unavailable fail-closed behavior. The full workspace now has 73 runtime tests.
 - No organization-specific role, classification, project-membership rule, or allow policy was invented. Deployment policy/repository adapters and durable append-preserving audit persistence remain required.
 - GitHub Actions run 30487803871 passes formatting, strict Clippy, all 73 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `bbfa112`, including root-identity binding, deny-all evidence, audited allow, and audit-unavailable fail-closed behavior.
+- Added a persistence-neutral `document-storage` crate for controlled derivatives. It accepts only nonempty immutable bytes whose claimed SHA-256 and length are independently recomputed, then derives a verified manifest with artifact/source lineage, snapshot reference, classification, versioned access/retention policies, authorization correlation, actor/time, schema/media type, and integrity evidence.
+- Added an application handoff that consumes claimed worker output, independently validates it, builds the governed write, validates the store receipt exactly, and preserves bytes on integrity/store/receipt failure for explicit retry, quarantine, or disposition.
+- Eight new tests cover forged hash/length rejection, canonical media-type validation, complete manifest evidence, matching receipts, successful governed handoff, store-unavailable recovery, receipt-conflict rejection, and alternate-transport hash validation. The local workspace now has 81 runtime tests.
+- No new third-party package was added; the already-reviewed `sha2` dependency is reused for independent derivative verification. No durable adapter, database schema, encryption, backup/restore, or retention enforcement is claimed; ADR-0006 and TASK-006 retain those decisions and evidence.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 

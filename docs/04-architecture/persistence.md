@@ -1,7 +1,7 @@
 # Persistence Architecture
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-07-29
 > **Related requirements:** REQ-F-001, REQ-F-010–REQ-F-012; REQ-NF-002, REQ-NF-007, REQ-NF-009  
 > **Related ADRs:** ADR-0006  
 > **Open questions:** OQ-021, OQ-022  
@@ -20,3 +20,9 @@ Standalone uses one local SQLite database plus content-addressed local document 
 - Never open a database from another trust domain without defensive treatment; see SQLite's [defensive guidance](https://sqlite.org/security.html).
 
 Team/LAN mode uses a service and central database/object store behind the same application ports. It must not place the standalone SQLite file on a shared network filesystem.
+
+## Current implementation boundary
+
+TASK-003 implements only the persistence-neutral controlled-derivative port and application handoff. The in-memory write contract independently verifies immutable bytes and retains lineage, classification, exact access/retention policy references, authorization correlation, actor/time, schema/media type, integrity state, and an opaque adapter locator. It is not a durable schema and does not prove atomicity, fsync behavior, encryption, integrity-on-open, backup/restore, concurrency, or retention/disposition enforcement.
+
+TASK-006 must implement those behaviors behind the port after ADR-0006 review, beginning with an explicit schema version and migration/replay policy. No customer or persisted production record exists to migrate from the TASK-003 Rust layout.

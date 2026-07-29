@@ -2,6 +2,7 @@
 members = [
     "apps/geometry-worker",
     "crates/application",
+    "crates/document-storage",
     "crates/domain",
     "crates/estimation-engine",
     "crates/geometry-core",
@@ -20,6 +21,7 @@ rust-version = "1.94"
 [workspace.dependencies]
 partprobe-geometry-worker = { path = "apps/geometry-worker" }
 partprobe-application = { path = "crates/application" }
+partprobe-document-storage = { path = "crates/document-storage" }
 partprobe-domain = { path = "crates/domain" }
 partprobe-estimation-engine = { path = "crates/estimation-engine" }
 partprobe-geometry-core = { path = "crates/geometry-core" }

@@ -13,9 +13,8 @@ use std::time::{Duration, Instant};
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::ambient_authority;
 use partprobe_domain::{AssetRootId, DomainError, SchemaVersion};
-use partprobe_geometry_core::{
-    AnalysisProfile, GeometryStage, GeometryStageReport, Sha256Digest, StageStatus,
-};
+pub use partprobe_geometry_core::Sha256Digest;
+use partprobe_geometry_core::{AnalysisProfile, GeometryStage, GeometryStageReport, StageStatus};
 use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -667,6 +666,42 @@ pub struct ControlledWorkerOutput {
 }
 
 impl ControlledWorkerOutput {
+    /// Revalidates claimed immutable output parts for alternate supervisor transports and tests.
+    pub fn from_claimed_parts(
+        snapshot_reference: SnapshotReference,
+        content_hash: Sha256Digest,
+        bytes: Box<[u8]>,
+    ) -> Result<Self, DomainError> {
+        if bytes.is_empty() {
+            return Err(DomainError::InvalidValue {
+                field: "controlled worker output",
+                reason: "must not be empty",
+            });
+        }
+        let byte_length = u64::try_from(bytes.len()).map_err(|_| DomainError::InvalidValue {
+            field: "controlled worker output",
+            reason: "byte length exceeds the supported range",
+        })?;
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        let mut actual_hash = String::with_capacity(64);
+        for byte in hasher.finalize() {
+            write!(&mut actual_hash, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+        if actual_hash != content_hash.as_str() {
+            return Err(DomainError::InvalidValue {
+                field: "controlled worker output",
+                reason: "claimed content hash must match the supplied bytes",
+            });
+        }
+        Ok(Self {
+            snapshot_reference,
+            content_hash,
+            byte_length,
+            bytes,
+        })
+    }
+
     /// Returns the opaque snapshot identity bound to these bytes.
     #[must_use]
     pub const fn snapshot_reference(&self) -> &SnapshotReference {

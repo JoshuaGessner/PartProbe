@@ -404,9 +404,19 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 name = "partprobe-application"
 version = "0.1.0"
 dependencies = [
+ "partprobe-document-storage",
  "partprobe-domain",
  "partprobe-geometry-import",
  "partprobe-security",
+]
+
+[[package]]
+name = "partprobe-document-storage"
+version = "0.1.0"
+dependencies = [
+ "partprobe-domain",
+ "partprobe-security",
+ "sha2",
 ]
 
 [[package]]
