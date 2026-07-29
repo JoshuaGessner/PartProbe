@@ -27,6 +27,15 @@
 - No new third-party package was added. Serde JSON's existing reviewed role now includes the bounded internal worker protocol.
 - Remaining containment work is explicit: capability-to-handle resolution, cooperative cancellation grace, OS sandbox/network denial, CPU/memory/descendant limits, cleanup evidence, OCCT selection, analytic STEP fixtures, and three-OS native packaging/benchmarks.
 
+## 2026-07-29 — TASK-003 exact OCCT spike baseline
+
+- Selected official OCCT 8.0.0 tag `V8_0_0`, commit `d3056ef80c9668f395da40f5fd7be186cae4501f`, instead of Homebrew's older platform-specific package.
+- Configured and built shared C++17 libraries from source on Apple Silicon with PCH, TBB, FreeType, all top-level modules, and external CMake dependencies disabled; requested only `TKDESTEP`, `TKShHealing`, and `TKMesh`.
+- Recorded that OCCT resolves a broader internal CAF/XCAF and visualization-adjacent toolkit graph even under the minimal request; local installed shared libraries are approximately 46 MiB.
+- Added optional `geometry-occt-adapter` with a project-owned C ABI, dynamic linking, stable ABI version, bounded result layout, finite/nonnegative result checks, caught C++ exceptions, and sanitized diagnostics.
+- Added exact build dependency `cc 1.4.0` with `find-msvc-tools 0.1.9` and `shlex 2.0.1`; all are build-only and MIT OR Apache-2.0.
+- Default builds do not link or fetch OCCT. The explicit local native feature passes link/ABI and missing-file sanitization tests; legal approval, capability resolution, analytic STEP evidence, and three-OS build/package fingerprints remain mandatory.
+
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
 - Adopted the approved product boundary: PartProbe supplies no numeric production rates; organizations configure their own effective-dated rate and pricing libraries, while synthetic values remain isolated test/demo evidence.

@@ -5,6 +5,7 @@ members = [
     "crates/estimation-engine",
     "crates/geometry-core",
     "crates/geometry-import",
+    "crates/geometry-occt-adapter",
     "crates/test-support",
 ]
 resolver = "3"
@@ -20,9 +21,11 @@ partprobe-domain = { path = "crates/domain" }
 partprobe-estimation-engine = { path = "crates/estimation-engine" }
 partprobe-geometry-core = { path = "crates/geometry-core" }
 partprobe-geometry-import = { path = "crates/geometry-import" }
+partprobe-geometry-occt-adapter = { path = "crates/geometry-occt-adapter" }
 rust_decimal = { version = "=1.42.1", default-features = false, features = ["serde-with-str", "std"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
+cc = { version = "=1.4.0", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

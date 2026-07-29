@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-07-29
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, REQ-NF-011–REQ-NF-014, GEO-001–GEO-014, SEC-004
 - **Related architecture decision IDs:** ADR-0004, ADR-0005
 - **Open questions:** Cross-platform fixture results, LGPL compliance decision, worker API and OCCT build reproducibility
@@ -19,6 +19,8 @@ The estimator needs validated measurements and topology from interchange CAD whi
 Adopt **OCCT as the initial exact B-rep kernel, accessed only by a sandboxed native geometry worker and neutral Rust contract**. Use Rust-native mesh processing for STL/3MF/OBJ measurement/validation. Keep a provider interface so a commercial kernel/translator can later be added without changing quote-domain types.
 
 OCCT documents STEP AP203/AP214/AP242 and IGES interfaces, with validity checking and data exchange. [OCCT overview](https://dev.opencascade.org/doc/overview/html/index.html) Its license is LGPL 2.1 with an additional exception and requires visible notices/consideration of LGPL obligations in proprietary applications. [OCCT licensing](https://dev.opencascade.org/resources/licensing)
+
+The TASK-003 spike baseline is official OCCT 8.0.0 tag `V8_0_0`, commit `d3056ef80c9668f395da40f5fd7be186cae4501f`, built as shared C++17 libraries from source. A project-owned C ABI shim is optional, dynamically linked, and confined to `geometry-occt-adapter`; default builds contain no native adapter. This exact spike selection does not accept this ADR or approve redistribution.
 
 ## Consequences
 

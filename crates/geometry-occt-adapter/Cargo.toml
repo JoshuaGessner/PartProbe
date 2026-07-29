@@ -1,0 +1,15 @@
+[package]
+name = "partprobe-geometry-occt-adapter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+native-occt = []
+
+[build-dependencies]
+cc.workspace = true
+
+[lints.rust]
+unsafe_code = "deny"

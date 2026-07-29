@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-07-29
 - **Related requirement IDs:** REQ-F-022, REQ-NF-011, REQ-NF-014, GEO-001–GEO-014, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0005
 - **Open questions:** Does the chosen OCCT build meet target-platform packaging and performance goals? Is commercial native-format translation commercially justified?
@@ -15,6 +15,14 @@
 Use **OCCT behind a narrow, out-of-process geometry adapter** for the initial exact-B-rep path; pair it with Rust-owned mesh parsing/analysis and `wgpu` rendering. This maximizes practical STEP/IGES interoperability without putting C++ ABI, parser faults, or global kernel state inside the desktop process. It remains **In Review** until fixture, legal, and cross-platform packaging evidence is collected.
 
 OCCT provides modular data exchange for STEP, IGES, STL and other formats, plus translation and validity checking. [OCCT overview](https://dev.opencascade.org/doc/overview/html/index.html) Its public license is LGPL 2.1 with an additional exception, not “license-free.” [OCCT licensing](https://dev.opencascade.org/resources/licensing)
+
+## TASK-003 exact spike baseline
+
+The reversible native spike pins official OCCT **8.0.0**, tag `V8_0_0`, commit `d3056ef80c9668f395da40f5fd7be186cae4501f`, released 2026-05-07. Version 8.0.0 is the current official release and requires C++17; the project will not substitute Homebrew's currently older 7.9.3 package because a platform-specific version would undermine replay and cross-platform comparison. [Official release](https://github.com/Open-Cascade-SAS/OCCT/releases/tag/V8_0_0) [Build requirements](https://dev.opencascade.org/doc/overview/html/build_upgrade__building_occt.html)
+
+The first Apple Silicon source-build profile uses shared Release libraries, PCH off, TBB and FreeType off, all top-level modules off, and `BUILD_ADDITIONAL_TOOLKITS=TKDESTEP;TKShHealing;TKMesh`. CMake resolves the required internal toolkit graph, which includes CAF/XCAF and visualization-adjacent libraries despite disabling those top-level modules. The build completed with Apple Clang 21 and CMake 4.3.4 in approximately six minutes and installed about 46 MiB of shared libraries. No external third-party library was enabled by CMake.
+
+The Rust bridge candidate is a project-owned C ABI shim compiled with `cc 1.4.0`, dynamically linked to OCCT, and enabled only by an explicit Cargo feature plus `PARTPROBE_OCCT_ROOT`. It catches C++ exceptions before they cross the ABI, returns stable content-free diagnostics, and exposes no OCCT type to Rust. This is engineering spike evidence only: OCCT is not shipped, enabled by default, or legally approved for product distribution.
 
 | Candidate | Strengths | Material risks | Recommendation |
 |---|---|---|---|
