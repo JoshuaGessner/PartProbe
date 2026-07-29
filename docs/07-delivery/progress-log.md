@@ -81,6 +81,7 @@
 - Added an application handoff that consumes claimed worker output, independently validates it, builds the governed write, validates the store receipt exactly, and preserves bytes on integrity/store/receipt failure for explicit retry, quarantine, or disposition.
 - Eight new tests cover forged hash/length rejection, canonical media-type validation, complete manifest evidence, matching receipts, successful governed handoff, store-unavailable recovery, receipt-conflict rejection, and alternate-transport hash validation. The local workspace now has 81 runtime tests.
 - No new third-party package was added; the already-reviewed `sha2` dependency is reused for independent derivative verification. No durable adapter, database schema, encryption, backup/restore, or retention enforcement is claimed; ADR-0006 and TASK-006 retain those decisions and evidence.
+- GitHub Actions run 30490605289 passes formatting, strict Clippy, all 81 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `b45f159`, including governed derivative handoff, recoverable store failure, and receipt-conflict evidence.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
