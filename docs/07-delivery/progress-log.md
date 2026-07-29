@@ -18,7 +18,7 @@
 - Implemented CALC-007–CALC-015 and CALC-018 foundations around the existing CALC-016/017 rules, including material, setup, cycle/run, operation, base, risk, rework, and price traces. CALC-009 is intentionally exact-only and rejects nonterminating setup amortization pending governed rational rounding; CALC-011 rejects duplicate and composite/component double charges.
 - Added an explicitly `synthetic_test_only` EX-01/03/12 fixture with exact itemized intermediate/output traces and independent quantity breaks; values are deterministic software evidence, not production defaults or shop accuracy claims.
 - Added pinned rate-card replay and serializable resolved-rate/rounding snapshot values.
-- Local formatting, strict Clippy, 41 runtime tests, one compile-fail doctest, and planning validation pass. TASK-002 adds 18 runtime tests; Windows/Linux/macOS TASK-002 CI evidence remains pending.
+- Local formatting, strict Clippy, 41 runtime tests, one compile-fail doctest, and planning validation pass. TASK-002 adds 18 runtime tests; GitHub Actions run 30461694180 passes Windows, Linux, and macOS.
 - Updated product scope, requirements, data/version contracts, UX rate setup, validation, roadmap/backlog/milestones, ADR evidence, risks, assumptions, and release boundaries. TASK-007/M0.2 retains real-shop category/policy/calibration review.
 - No UI framework, database, importer, geometry kernel, external integration, production defaults, or advanced engine was added.
 

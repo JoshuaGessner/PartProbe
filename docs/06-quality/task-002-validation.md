@@ -1,11 +1,11 @@
 # TASK-002 Validation Evidence
 
-> **Status:** In Review
+> **Status:** Complete
 > **Last updated:** 2026-07-29
 > **Related requirements:** REQ-F-008–REQ-F-010, REQ-F-014–REQ-F-018, REQ-F-032; REQ-NF-003, REQ-NF-004, REQ-NF-009, REQ-NF-017, REQ-NF-020; UX-011–UX-012; CALC-007–CALC-018; TEST-002, TEST-014
 > **Related ADRs:** ADR-0007
 > **Open questions:** Organization-specific cost categories, accounting treatment, pricing/rounding policy, roles, and calibration under TASK-007
-> **Dependencies:** Rust 1.94.1, Cargo.lock; cross-platform CI run pending
+> **Dependencies:** Rust 1.94.1, Cargo.lock
 > **Supersedes:** None
 
 ## Implemented evidence
@@ -47,7 +47,7 @@ TASK-002 adds 18 runtime tests: eight domain invariants and ten estimation/rate-
 
 ## Remaining evidence and limits
 
-- Windows/Linux/macOS CI evidence for TASK-002 is pending; TASK-001 remains the latest passing three-OS run.
+- GitHub Actions run 30461694180 passes the complete Rust workflow on Windows, Linux, and macOS for commit `ac767e7`.
 - No rate-entry UI, persistence repository/migration, CSV import, authorization service, or production estimate workflow was implemented.
 - The synthetic fixture contract is schema version 2 after making owner and component/composite classification mandatory. No production records exist to migrate; lifecycle `prior_decisions` defaults empty when reading earlier spike JSON, while earlier fixtures must be explicitly upgraded rather than guessed.
 - Governed rounding for nonterminating setup-unit division remains pending; the spike returns `RoundingRequired` instead of silently approximating.

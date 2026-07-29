@@ -20,11 +20,11 @@
 
 ## TASK-002 — Configurable rate library and synthetic golden estimates
 
-**Status:** Implementation and local validation complete on 2026-07-29; Windows/Linux/macOS CI evidence remains pending, so the task is not yet Complete. See [validation evidence](../06-quality/task-002-validation.md).
+**Status:** Complete on 2026-07-29; local and Windows/Linux/macOS CI validation pass in run 30461694180. See [validation evidence](../06-quality/task-002-validation.md).
 **Requirements:** REQ-F-008–REQ-F-010, REQ-F-014–REQ-F-018, REQ-F-032; REQ-NF-003/004/009/017/020; UX-011/012; CALC-007–CALC-018; TEST-002/014.
 **ADR constraints:** ADR-0007 remains In Review; implementation remains a reversible domain/calculation spike.
 **Scope:** Empty production rate card; user-owned immutable/effective/scoped/approved rates; deterministic selection and missing/conflict states; versioned pricing/rounding; synthetic EX-01/03/12 itemized traces and pinned replay. No UI, persistence, production defaults, or real-shop calibration.
-**Acceptance:** strict local checks pass; 41 total runtime tests plus one compile-fail doctest pass; synthetic fixtures are isolated and exact; missing/conflicting rates and duplicate/composite double charges cannot produce authoritative values; historical selector/rate versions replay. Three-OS CI remains required before completion.
+**Acceptance:** strict local and three-OS checks pass; 41 total runtime tests plus one compile-fail doctest pass; synthetic fixtures are isolated and exact; missing/conflicting rates and duplicate/composite double charges cannot produce authoritative values; historical selector/rate versions replay.
 **Calibration boundary:** TASK-007/M0.2—not TASK-002—validates real shop categories, accounting treatment, pricing/rounding policy, roles, and accuracy.
 
 ## Prioritized discovery/spike tasks

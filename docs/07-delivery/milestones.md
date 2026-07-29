@@ -20,7 +20,7 @@ Exit: interviews complete; private fixture/data governance agreed; UI, geometry,
 
 Exit: Cargo workspace; domain/units/money/provenance; migrations/repositories; worker protocol; initial import/measurement corpus; application shell/design system; cross-platform CI; future-safe identifiers/snapshots for route sets, requirements, revisions, availability, and correction events without implementing advanced engines.
 
-Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies locally passing configurable rate, rounding, pricing, synthetic-golden, and replay mechanics; cross-platform TASK-002 evidence and the remaining foundation components are pending.
+Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. Geometry worker/import, UI, persistence, and remaining foundation components are pending.
 
 ## M2 Vertical slice
 

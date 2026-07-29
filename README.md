@@ -12,7 +12,7 @@ PartProbe is a planned local-first, cross-platform CAD-assisted estimator for sp
 
 ## Current status
 
-The project is in **Phase 0 — Discovery and Validation**. TASK-001 provides a reversible Rust calculation foundation and three-OS TEST-001 evidence. TASK-002 now provides locally passing empty/user-owned rate-card, deterministic resolution, pricing/rounding, synthetic-golden, and replay mechanics; cross-platform TASK-002 evidence remains pending. Broad production development is intentionally deferred until the documented readiness gates are reviewed.
+The project is in **Phase 0 — Discovery and Validation**. TASK-001 provides a reversible Rust calculation foundation and three-OS TEST-001 evidence. TASK-002 provides passing empty/user-owned rate-card, deterministic resolution, pricing/rounding, synthetic-golden, and replay mechanics on Windows, Linux, and macOS. TASK-003 now begins the evidence-gated geometry-worker production path.
 
 Start with:
 
@@ -27,4 +27,4 @@ CAD models, drawings, quotes, and shop data are treated as potentially sensitive
 
 ## Development
 
-The calculation workspace is scaffolded, but no desktop application, geometry engine, persistence layer, or production estimator exists. TASK-001 is complete with passing Windows, Linux, and macOS CI evidence; TASK-002 implementation passes locally and awaits three-OS evidence before closure. The next planned development slice after that is TASK-003. Commands and current limits are documented in [PROJECT_STATE.md](docs/PROJECT_STATE.md).
+The calculation workspace is scaffolded, but no desktop application, geometry engine, persistence layer, or production estimator exists. TASK-001 and TASK-002 pass Windows, Linux, and macOS CI evidence. TASK-003 is the active development slice. Commands and current limits are documented in [PROJECT_STATE.md](docs/PROJECT_STATE.md).

@@ -9,14 +9,14 @@
 > **Supersedes:** None
 
 - **Current phase:** Phase 0 — Discovery and Validation
-- **Current milestone:** M0.2 evidence and decision closure; TASK-001 validated on three OSes and TASK-002 rate/golden mechanics validated locally
-- **Current branch:** `main`
-- **Last completed task:** TASK-001 implementation and Windows/Linux/macOS validation: workspace, primitives, typed DAG, canonical snapshots, tests, CI, and dependency evidence
-- **Work in progress:** TASK-002 cross-platform evidence and closeout; local configurable rate-library, pricing/rounding, synthetic-golden, and replay implementation passes
-- **Next task:** Complete [TASK-002 three-OS evidence](07-delivery/backlog.md), then begin TASK-003 OCCT/worker spike
-- **Build status:** Rust 1.94.1 workspace passes on Apple Silicon macOS locally and on Windows/Linux/macOS in GitHub Actions run 30005930156
-- **Test status:** Format and strict Clippy pass; 41 runtime tests and one compile-fail doctest pass locally; planning validator covers 136 documentation files; TASK-001 remains the latest three-OS evidence and TASK-002 CI is pending
-- **Active technical debt:** Rate entry has no UI or persistence yet; pinned ISO 4217 registry validation, nonterminating rational-division rounding, rounding increments beyond decimal scale, graph-wide evaluation/migration, and cross-platform TASK-002 evidence remain pending; canonical JSON remains an internal spike contract; STEP/3MF and representative machining fixtures remain pending
+- **Current milestone:** M0.2 evidence and decision closure; TASK-001 and TASK-002 are validated on three OSes
+- **Current branch:** `codex/task-002-rate-library`; PR #1 is ready for integration
+- **Last completed task:** TASK-002 configurable rate-library, pricing/rounding, synthetic-golden, replay, and Windows/Linux/macOS validation
+- **Work in progress:** TASK-003 OCCT/isolated geometry-worker contract, fixture, packaging, licensing, and benchmark scoping
+- **Next task:** Implement the first [TASK-003 OCCT/worker spike](07-delivery/backlog.md) slice without committing to OCCT distribution before license/build evidence
+- **Build status:** Rust 1.94.1 workspace passes locally and on Windows/Linux/macOS in GitHub Actions run 30461694180
+- **Test status:** Format and strict Clippy pass; 41 runtime tests and one compile-fail doctest pass locally and on three OSes; planning validator covers 136 documentation files
+- **Active technical debt:** Rate entry has no UI or persistence yet; pinned ISO 4217 registry validation, nonterminating rational-division rounding, rounding increments beyond decimal scale, and graph-wide evaluation/migration remain pending; canonical JSON remains an internal spike contract; STEP/3MF and representative machining fixtures remain pending
 - **Active blockers:** No shop rates block TASK-002 mechanics because production libraries start empty and tests are synthetic; TASK-007/M0.2 still requires real category/policy/calibration review, and ADR acceptance plus broader production work still require shop/security/legal inputs and representative fixtures
 - **Open architecture decisions:** ADR-0001 through ADR-0014 are In Review
 - **Supported model formats:** None implemented. First-class plan: STEP, STL, 3MF. Experimental plan: IGES, OBJ
@@ -25,7 +25,7 @@
 - **Advanced capabilities:** None implemented. Route optimization, capacity/opportunity, uncertainty, revision/PMI/coverage, feature allocations, learning, CAM reconciliation, availability, sourcing, and bid priority are planning artifacts only
 - **Current fixtures:** `FIX-MESH-001` closed and `FIX-MESH-002` open 10 mm synthetic STL cubes with bootstrap expected records and verified hashes; expert review/licensing remain open
 - **Calculation capabilities:** CALC-001/003/005 and CALC-007–018 foundations, with CALC-009 limited to exact division; empty configurable rate cards; scoped/effective/approved resolution; unavailable/blocked ambiguity states; versioned pricing/rounding; synthetic EX-01/03/12 exact itemized traces; pinned replay; typed money/currency/units; graph validation; value states; provenance/version wrappers; and canonical snapshots are implemented as a reversible spike
-- **Files likely next:** TASK-002 three-OS CI evidence/closeout, then TASK-003 geometry-worker benchmark; no production UI, persistence, or advanced engine should be introduced through this calculation slice
+- **Files likely next:** TASK-003 kernel-neutral `geometry-core`, worker protocol/supervisor, analytic STEP fixtures, benchmark harness, dependency/license evidence, and three-OS worker CI; UI, persistence, and advanced engines remain separate slices
 
 ## Commands currently available
 

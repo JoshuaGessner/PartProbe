@@ -14,17 +14,17 @@ PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop est
 
 - **Phase:** 0 — Discovery and Validation
 - **Milestone:** M0.2 — Evidence and decision closure, In Progress
-- **Overall status:** TASK-001 calculation foundation and three-OS CI evidence are complete; TASK-002 configurable-rate and synthetic-golden mechanics pass locally with cross-platform evidence pending; ADR evidence remains open, and broad production implementation is not authorized
+- **Overall status:** TASK-001 and TASK-002 calculation/rate foundations pass local and three-OS CI evidence; TASK-003 geometry-worker evidence is beginning; ADR acceptance and later production commitments remain evidence-gated
 - **Recently completed:** Empty user-owned rate-card contracts; deterministic effective/scope/approval resolution; versioned pricing/rounding; CALC-007–018 foundations; synthetic EX-01/03/12 exact traces and replay tests; plus the prior Rust workspace, DAG/snapshot, three-OS TEST-001, and dependency evidence
 - **Documents awaiting review:** All documents marked Draft or In Review; especially ADR-0001–ADR-0014, advanced formulas/policies, calculation rules, requirements, security boundaries, and worked examples
 - **Blocking decisions:** ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
-- **Next actions:** Obtain TASK-002 three-OS evidence and close it, then proceed with TASK-003–TASK-018 in [backlog priority](07-delivery/backlog.md), sequenced by the roadmap
+- **Next actions:** Integrate TASK-002 PR #1, then execute TASK-003–TASK-018 in [backlog priority](07-delivery/backlog.md), beginning with the kernel-neutral worker contract, fixture scorecard, and OCCT build/benchmark evidence
 
 Implementation readiness extends through the reversible TASK-001 foundation and evidence-producing spikes. Architecture selection, controlled-data enablement, runtime-accuracy claims, and product release remain blocked on M0.2 evidence and review.
 
 ## Coverage summaries
 
-- **Requirements:** REQ-F-001–065, REQ-NF-001–022, UX-001–012/021–045, SEC-001–014, CALC-001–035, GEO-001–015, FEAT-001–021, TIME-001–008, DATA-001–042, and TEST-001–099 are allocated and traced in the [requirements matrix](03-requirements/requirements-matrix.md). TASK-001 and local TASK-002 provide partial executable evidence; no requirement is yet Complete.
+- **Requirements:** REQ-F-001–065, REQ-NF-001–022, UX-001–012/021–045, SEC-001–014, CALC-001–035, GEO-001–015, FEAT-001–021, TIME-001–008, DATA-001–042, and TEST-001–099 are allocated and traced in the [requirements matrix](03-requirements/requirements-matrix.md). TASK-001 and TASK-002 provide partial cross-platform executable evidence; no product requirement is yet Complete.
 - **Geometry:** Intake/units/hash/healing/validity/basic measurements/stock/feature/access/setup stages are specified. Two synthetic STL fixtures exist. No importer or analyzer is implemented; STEP/3MF and representative private fixtures remain required.
 - **Roadmap:** Phases 0–8 cover discovery, foundation, vertical slice, feature depth, libraries, aerospace/quality, actuals, advanced planning, and team deployment.
 - **Highest risks:** Native geometry containment/fidelity, false precision in runtime/uncertainty/allocation, implausible routes, stale capacity/availability, revision ambiguity, biased learning, vendor coupling, UI complexity, sensitive-data handling, and historical replay; see [risk register](07-delivery/risk-register.md).
@@ -57,7 +57,7 @@ Implementation readiness extends through the reversible TASK-001 foundation and 
 | Isolated geometry-worker IPC/crash/resource boundary | Not started | ADR-0005 and TASK-003 |
 | STL/3MF mesh import/validation | Not started | ADR-0004 and TASK-004 |
 | SQLite/blob migrations, crash, backup/restore, concurrency | Not started | ADR-0006 and TASK-006 |
-| Typed decimal/unit calculation DAG, configurable rates and replay | TASK-001 passes on three OSes; TASK-002 synthetic rate/golden/replay mechanics pass locally and await three-OS evidence plus later shop calibration | ADR-0007, TASK-002 and TASK-007 |
+| Typed decimal/unit calculation DAG, configurable rates and replay | TASK-001 and TASK-002 pass on three OSes; later shop calibration remains pending | ADR-0007, TASK-002 and TASK-007 |
 | Analysis snapshot version/diff/migration | Not started | ADR-0008 and TASK-003/006 |
 | Route feasibility/comparison and adoption | Not started | ADR-0009, TEST-040–044, TASK-011 |
 | Capacity/economic definitions and stale-source behavior | Not started | ADR-0010, TEST-045–050, TASK-012 |
