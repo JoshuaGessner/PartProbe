@@ -1,7 +1,7 @@
 //! Optional, narrow C ABI boundary for the out-of-process OCCT adapter.
 
 /// Native adapter ABI version implemented by this crate.
-pub const OCCT_ADAPTER_ABI_VERSION: u32 = 1;
+pub const OCCT_ADAPTER_ABI_VERSION: u32 = 2;
 
 /// Returns whether this build contains the optional OCCT bridge.
 #[must_use]
@@ -44,8 +44,9 @@ impl NativeAdapterError {
 #[cfg(feature = "native-occt")]
 #[allow(unsafe_code)]
 mod native {
-    use std::ffi::{CStr, CString, c_char, c_int};
+    use std::ffi::{CStr, CString, c_char, c_int, c_void};
     use std::mem::size_of;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::path::Path;
 
     use super::{NativeAdapterError, NativeBasicProperties, OCCT_ADAPTER_ABI_VERSION};
@@ -72,6 +73,8 @@ mod native {
             path: *const c_char,
             result: *mut NativeResult,
             result_size: usize,
+            cancellation_probe: extern "C" fn(*const c_void) -> u8,
+            cancellation_context: *const c_void,
         ) -> c_int;
         #[cfg(feature = "fixture-tools")]
         fn partprobe_occt_write_step_cube(path: *const c_char, size_mm: f64) -> c_int;
@@ -83,6 +86,29 @@ mod native {
     }
 
     pub fn analyze_step(path: &Path) -> Result<NativeBasicProperties, NativeAdapterError> {
+        analyze_step_with_cancellation(path, &|| false)
+    }
+
+    pub fn analyze_step_with_cancellation<P>(
+        path: &Path,
+        cancellation_probe: &P,
+    ) -> Result<NativeBasicProperties, NativeAdapterError>
+    where
+        P: Fn() -> bool + Sync,
+    {
+        extern "C" fn probe<P>(context: *const c_void) -> u8
+        where
+            P: Fn() -> bool + Sync,
+        {
+            if context.is_null() {
+                return 1;
+            }
+            // SAFETY: the context points to the borrowed probe for the duration of the blocking
+            // native call. `P: Sync` permits concurrent read-only callback invocation.
+            let probe = unsafe { &*context.cast::<P>() };
+            u8::from(catch_unwind(AssertUnwindSafe(probe)).unwrap_or(true))
+        }
+
         let path = path.to_str().ok_or(NativeAdapterError {
             diagnostic_code: "ASSET_PATH_ENCODING_UNSUPPORTED",
         })?;
@@ -103,7 +129,13 @@ mod native {
         // SAFETY: `path` is NUL-terminated and lives through the call; `result` is writable,
         // correctly aligned, and paired with its exact size. C++ catches exceptions internally.
         let status = unsafe {
-            partprobe_occt_analyze_step(path.as_ptr(), &mut result, size_of::<NativeResult>())
+            partprobe_occt_analyze_step(
+                path.as_ptr(),
+                &mut result,
+                size_of::<NativeResult>(),
+                probe::<P>,
+                std::ptr::from_ref(cancellation_probe).cast::<c_void>(),
+            )
         };
         if status != 0 {
             return Err(NativeAdapterError {
@@ -172,6 +204,7 @@ mod native {
         match code {
             "OCCT_ABI_MISMATCH" => "OCCT_ABI_MISMATCH",
             "OCCT_INVALID_ARGUMENT" => "OCCT_INVALID_ARGUMENT",
+            "OCCT_CANCELLED" => "OCCT_CANCELLED",
             "STEP_READ_FAILED" => "STEP_READ_FAILED",
             "STEP_TRANSFER_FAILED" => "STEP_TRANSFER_FAILED",
             "STEP_NO_SHAPE" => "STEP_NO_SHAPE",
@@ -219,6 +252,35 @@ mod native {
                 assert!((component - 5.0).abs() <= 0.000_001);
             }
         }
+
+        #[test]
+        fn cancellation_probe_stops_native_analysis_with_a_stable_code() {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+
+            let fixture =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
+            let calls = AtomicUsize::new(0);
+            let error = analyze_step_with_cancellation(&fixture, &|| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                true
+            })
+            .expect_err("pre-requested cancellation must stop native analysis");
+
+            assert_eq!(error.diagnostic_code(), "OCCT_CANCELLED");
+            assert!(calls.load(Ordering::Relaxed) > 0);
+        }
+
+        #[test]
+        fn cancellation_probe_panic_is_contained_at_the_native_boundary() {
+            let fixture =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
+            let error = analyze_step_with_cancellation(&fixture, &|| {
+                panic!("probe failure must not unwind through C++")
+            })
+            .expect_err("a failed probe must stop native analysis");
+
+            assert_eq!(error.diagnostic_code(), "OCCT_CANCELLED");
+        }
     }
 }
 
@@ -238,6 +300,23 @@ pub fn analyze_step(
     worker_local_path: &std::path::Path,
 ) -> Result<NativeBasicProperties, NativeAdapterError> {
     native::analyze_step(worker_local_path)
+}
+
+/// Imports one controlled STEP asset while polling cancellation where OCCT supports progress.
+///
+/// OCCT 8.0 polls the probe during STEP root transfer. File parsing and the current property
+/// calculations do not expose a progress range, so callers still require an external deadline and
+/// force-termination boundary for those phases. A probe panic is contained and treated as a
+/// cancellation request rather than unwinding through the native ABI.
+#[cfg(feature = "native-occt")]
+pub fn analyze_step_with_cancellation<P>(
+    worker_local_path: &std::path::Path,
+    cancellation_probe: &P,
+) -> Result<NativeBasicProperties, NativeAdapterError>
+where
+    P: Fn() -> bool + Sync,
+{
+    native::analyze_step_with_cancellation(worker_local_path, cancellation_probe)
 }
 
 /// Writes a synthetic analytic cube used only to regenerate the public STEP fixture.

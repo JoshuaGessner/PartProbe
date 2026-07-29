@@ -196,10 +196,16 @@ fn build_response(
         return Ok(response);
     }
 
-    let properties = match partprobe_geometry_occt_adapter::analyze_step(&source) {
-        Ok(properties) => properties,
-        Err(error) => return failed_response(request, error.diagnostic_code()),
-    };
+    let properties =
+        match partprobe_geometry_occt_adapter::analyze_step_with_cancellation(&source, &|| {
+            cancellation.load(Ordering::Acquire) != CANCELLATION_NONE
+        }) {
+            Ok(properties) => properties,
+            Err(error) if error.diagnostic_code() == "OCCT_CANCELLED" => {
+                return cancellation_response(request, cancellation)?.ok_or(());
+            }
+            Err(error) => return failed_response(request, error.diagnostic_code()),
+        };
     if let Some(response) = cancellation_response(request, cancellation)? {
         return Ok(response);
     }

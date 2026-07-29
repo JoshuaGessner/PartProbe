@@ -29,7 +29,7 @@
 
 ## Prioritized discovery/spike tasks
 
-TASK-003 is **In Progress** on 2026-07-29. Its stacked slices add kernel-neutral contracts, a path-free protocol, bounded subprocess supervision, schema-versioned cooperative cancellation with forced termination, fixed-name hashed asset staging, fixture expectation schema version 2, deterministic synthetic STEP generation, and an optional OCCT 8.0.0 C ABI completing a provisional end-to-end cube measurement. Direct worker descriptor/handle transport, cancellation inside blocking native operations, independent STEP fixtures, OS sandbox/resource enforcement, legal approval, reproducible native packaging, and three-OS native benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
+TASK-003 is **In Progress** on 2026-07-29. Its stacked slices add kernel-neutral contracts, a path-free protocol, bounded subprocess supervision, schema-versioned cooperative cancellation with forced termination, fixed-name hashed asset staging, fixture expectation schema version 2, deterministic synthetic STEP generation, and an optional OCCT 8.0.0 ABI v2 completing a provisional end-to-end cube measurement and polling cancellation during STEP root transfer. Direct worker descriptor/handle transport, cancellation proof during a representative long transfer, internally uninterruptible parse/property phases, independent STEP fixtures, OS sandbox/resource enforcement, legal approval, reproducible native packaging, and three-OS native benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
 
 | ID | Task | Links | Exit |
 |---|---|---|---|
