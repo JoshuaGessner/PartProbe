@@ -51,6 +51,7 @@
 - Local default validation passes strict Clippy, 60 runtime tests, and the compile-fail doctest; ten focused native adapter/worker tests also pass.
 - GitHub Actions run 30474167026 passes formatting, strict Clippy, all 58 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `ab89bab`; native OCCT evidence remains Apple Silicon only.
 - Added `FIX-STEP-002`, a project-authored invalid-entity STEP fixture with a schema-v1 failure expectation. The adapter and supervised worker return recoverable `STEP_TRANSFER_FAILED`, produce no snapshot/output, and clean the staged source.
+- GitHub Actions run 30475113583 passes formatting, strict Clippy, all 60 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `7dc1a81`; this validates the failure-expectation contract cross-platform, not native OCCT execution.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
