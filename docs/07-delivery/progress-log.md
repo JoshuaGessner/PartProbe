@@ -52,6 +52,9 @@
 - GitHub Actions run 30474167026 passes formatting, strict Clippy, all 58 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `ab89bab`; native OCCT evidence remains Apple Silicon only.
 - Added `FIX-STEP-002`, a project-authored invalid-entity STEP fixture with a schema-v1 failure expectation. The adapter and supervised worker return recoverable `STEP_TRANSFER_FAILED`, produce no snapshot/output, and clean the staged source.
 - GitHub Actions run 30475113583 passes formatting, strict Clippy, all 60 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `7dc1a81`; this validates the failure-expectation contract cross-platform, not native OCCT execution.
+- Replaced the supervisor's source-path API with a consumed `AssetReadGrant` that binds the request capability to one already-open regular file, captures authorized length, rewinds the same handle, and drops it before worker launch.
+- Added process regressions proving the supervisor does not reopen a deleted source path and rejects capability mismatch or post-grant length drift without launching the worker. Local validation now passes 63 default runtime tests and twelve focused native tests.
+- Application resolver no-follow/read-only policy, direct worker descriptor/handle transport or documented copy fallback, controlled output ownership, and OS sandbox/resource enforcement remain open.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 

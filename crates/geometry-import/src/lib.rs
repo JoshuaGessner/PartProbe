@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -523,6 +523,8 @@ pub enum WorkerTermination {
     ProtocolIo,
     /// Controlled source could not be staged safely.
     AssetStageFailed,
+    /// Open source grant did not match the request's opaque capability.
+    AssetGrantMismatch,
     /// Staged source bytes did not match the request.
     AssetHashMismatch,
     /// Controlled source cleanup failed.
@@ -545,6 +547,7 @@ pub fn recoverable_termination_response(
         WorkerTermination::Cancelled => "WORKER_CANCELLED",
         WorkerTermination::ProtocolIo => "WORKER_PROTOCOL_IO",
         WorkerTermination::AssetStageFailed => "ASSET_STAGE_FAILED",
+        WorkerTermination::AssetGrantMismatch => "ASSET_GRANT_MISMATCH",
         WorkerTermination::AssetHashMismatch => "ASSET_HASH_MISMATCH",
         WorkerTermination::AssetCleanupFailed => "ASSET_CLEANUP_FAILED",
     };
@@ -592,6 +595,48 @@ impl SupervisorPolicy {
     #[must_use]
     pub const fn poll_interval_millis(self) -> u64 {
         self.poll_interval_millis
+    }
+}
+
+/// One-job read grant that binds an opaque capability to an already-open source file.
+#[derive(Debug)]
+#[must_use = "asset read grants must be consumed by one supervisor execution"]
+pub struct AssetReadGrant {
+    asset_capability: AssetCapability,
+    source: File,
+    authorized_byte_length: u64,
+}
+
+impl AssetReadGrant {
+    /// Validates an already-open regular, nonempty source without resolving a pathname.
+    pub fn new(asset_capability: AssetCapability, source: File) -> Result<Self, DomainError> {
+        let metadata = source.metadata().map_err(|_| DomainError::InvalidValue {
+            field: "geometry asset read grant",
+            reason: "source metadata must be readable from the open handle",
+        })?;
+        if !metadata.is_file() || metadata.len() == 0 {
+            return Err(DomainError::InvalidValue {
+                field: "geometry asset read grant",
+                reason: "source handle must identify a nonempty regular file",
+            });
+        }
+        Ok(Self {
+            asset_capability,
+            source,
+            authorized_byte_length: metadata.len(),
+        })
+    }
+
+    /// Returns the opaque capability bound to this grant.
+    #[must_use]
+    pub const fn asset_capability(&self) -> &AssetCapability {
+        &self.asset_capability
+    }
+
+    /// Returns the source length captured when the grant was created.
+    #[must_use]
+    pub const fn authorized_byte_length(&self) -> u64 {
+        self.authorized_byte_length
     }
 }
 
@@ -746,19 +791,20 @@ impl GeometryWorkerSupervisor {
         response
     }
 
-    /// Stages one authorized source under a fixed worker-local name, executes, then removes it.
+    /// Stages one already-open source grant, executes, then removes the worker-local copy.
     #[must_use]
-    pub fn execute_with_asset(
+    pub fn execute_with_grant(
         &self,
         request: &GeometryWorkerRequest,
-        authorized_source: &Path,
+        mut grant: AssetReadGrant,
         cancellation: &AtomicBool,
     ) -> GeometryWorkerResponse {
         let staged_path = self.working_directory.join(WORKER_INPUT_FILENAME);
-        let stage_result = stage_asset(request, authorized_source, &staged_path);
+        let stage_result = stage_asset(request, &mut grant, &staged_path);
         if let Err(termination) = stage_result {
             return response_for(request, termination);
         }
+        drop(grant);
 
         let response = self.execute(request, cancellation);
         if remove_staged_asset(&staged_path).is_err() {
@@ -805,27 +851,30 @@ fn configure_native_library_path(command: &mut Command, directory: &Path) {
 
 fn stage_asset(
     request: &GeometryWorkerRequest,
-    authorized_source: &Path,
+    grant: &mut AssetReadGrant,
     staged_path: &Path,
 ) -> Result<(), WorkerTermination> {
-    let source_metadata = std::fs::symlink_metadata(authorized_source)
-        .map_err(|_| WorkerTermination::AssetStageFailed)?;
-    if source_metadata.file_type().is_symlink()
-        || !source_metadata.is_file()
-        || source_metadata.len() == 0
-        || source_metadata.len() > request.quotas().max_input_bytes()
-    {
+    if grant.asset_capability() != request.asset_capability() {
+        return Err(WorkerTermination::AssetGrantMismatch);
+    }
+    if grant.authorized_byte_length() > request.quotas().max_input_bytes() {
         return Err(WorkerTermination::AssetStageFailed);
     }
-
-    let mut source =
-        File::open(authorized_source).map_err(|_| WorkerTermination::AssetStageFailed)?;
+    grant
+        .source
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| WorkerTermination::AssetStageFailed)?;
     let mut staged = OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(staged_path)
         .map_err(|_| WorkerTermination::AssetStageFailed)?;
-    let copy_result = copy_and_verify(request, &mut source, &mut staged);
+    let copy_result = copy_and_verify(
+        request,
+        &mut grant.source,
+        grant.authorized_byte_length,
+        &mut staged,
+    );
     drop(staged);
     if let Err(termination) = copy_result {
         let _ = std::fs::remove_file(staged_path);
@@ -848,6 +897,7 @@ fn stage_asset(
 fn copy_and_verify(
     request: &GeometryWorkerRequest,
     source: &mut File,
+    authorized_byte_length: u64,
     staged: &mut File,
 ) -> Result<(), WorkerTermination> {
     let mut hasher = Sha256::new();
@@ -874,6 +924,9 @@ fn copy_and_verify(
     staged
         .flush()
         .map_err(|_| WorkerTermination::AssetStageFailed)?;
+    if total != authorized_byte_length {
+        return Err(WorkerTermination::AssetStageFailed);
+    }
 
     let mut actual_hash = String::with_capacity(64);
     for byte in hasher.finalize() {

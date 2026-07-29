@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
 use partprobe_domain::{RuleVersion, SchemaVersion};
@@ -8,8 +10,8 @@ use partprobe_geometry_core::{
 #[cfg(feature = "native-occt")]
 use partprobe_geometry_import::WORKER_OUTPUT_FILENAME;
 use partprobe_geometry_import::{
-    AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerRequest, GeometryWorkerSupervisor,
-    ResourceQuotas, SupervisorPolicy, WORKER_INPUT_FILENAME,
+    AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
+    GeometryWorkerSupervisor, ResourceQuotas, SupervisorPolicy, WORKER_INPUT_FILENAME,
 };
 #[cfg(feature = "native-occt")]
 use partprobe_test_support::geometry_fixtures::GeometryImportFailureExpectation;
@@ -34,6 +36,14 @@ fn request() -> GeometryWorkerRequest {
         ResourceQuotas::new(1_000_000, 1_000_000, 100_000, 5_000).expect("quotas must be valid"),
     )
     .expect("request must be valid")
+}
+
+fn asset_grant(request: &GeometryWorkerRequest, source: &Path) -> AssetReadGrant {
+    AssetReadGrant::new(
+        request.asset_capability().clone(),
+        File::open(source).expect("authorized source must open"),
+    )
+    .expect("authorized source must create a read grant")
 }
 
 #[cfg(feature = "native-occt")]
@@ -80,7 +90,9 @@ fn supervisor_executes_the_path_free_worker_contract() {
 
     let source =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
-    let response = supervisor.execute_with_asset(&request(), &source, &AtomicBool::new(false));
+    let request = request();
+    let grant = asset_grant(&request, &source);
+    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
 
     assert_eq!(response.status(), StageStatus::FailedTerminal);
     assert_eq!(response.job_id().as_str(), "process-job-1");
@@ -106,7 +118,9 @@ fn supervisor_rejects_hash_mismatch_before_worker_launch() {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/models/open_cube_10mm_ascii.stl");
 
-    let response = supervisor.execute_with_asset(&request(), &source, &AtomicBool::new(false));
+    let request = request();
+    let grant = asset_grant(&request, &source);
+    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
 
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
     assert_eq!(
@@ -136,7 +150,9 @@ fn staging_conflict_preserves_the_preexisting_file() {
     let source =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
 
-    let response = supervisor.execute_with_asset(&request(), &source, &AtomicBool::new(false));
+    let request = request();
+    let grant = asset_grant(&request, &source);
+    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
 
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
     assert_eq!(
@@ -148,6 +164,113 @@ fn staging_conflict_preserves_the_preexisting_file() {
         b"preexisting-controlled-file"
     );
     std::fs::remove_file(staged_path).expect("preexisting file must be removable");
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[test]
+fn supervisor_rejects_a_grant_bound_to_another_capability() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-grant-mismatch-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from("worker-must-not-launch"),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5).expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    let grant = AssetReadGrant::new(
+        AssetCapability::new("different-asset-capability").expect("capability must be valid"),
+        File::open(source).expect("authorized source must open"),
+    )
+    .expect("authorized source must create a read grant");
+
+    let response = supervisor.execute_with_grant(&request(), grant, &AtomicBool::new(false));
+
+    assert_eq!(response.status(), StageStatus::FailedRecoverable);
+    assert_eq!(
+        response.diagnostic_codes()[0].as_str(),
+        "ASSET_GRANT_MISMATCH"
+    );
+    assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[test]
+fn supervisor_rejects_source_length_drift_after_grant_creation() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-grant-drift-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let source = job_directory.join("authorized-source.asset");
+    std::fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl"),
+        &source,
+    )
+    .expect("source fixture must copy");
+    let request = request();
+    let grant = asset_grant(&request, &source);
+    OpenOptions::new()
+        .append(true)
+        .open(&source)
+        .expect("source must reopen for drift simulation")
+        .write_all(b"drift")
+        .expect("source drift must be written");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from("worker-must-not-launch"),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5).expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+
+    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+
+    assert_eq!(response.status(), StageStatus::FailedRecoverable);
+    assert_eq!(
+        response.diagnostic_codes()[0].as_str(),
+        "ASSET_STAGE_FAILED"
+    );
+    assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    std::fs::remove_file(source).expect("drift source must be removable");
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn open_grant_remains_authoritative_after_its_source_path_is_removed() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-open-grant-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let source = job_directory.join("authorized-source.asset");
+    std::fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl"),
+        &source,
+    )
+    .expect("source fixture must copy");
+    let request = request();
+    let grant = asset_grant(&request, &source);
+    std::fs::remove_file(source).expect("source path must be removable after grant creation");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5).expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+
+    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+
+    assert_eq!(response.status(), StageStatus::FailedTerminal);
+    assert_eq!(
+        response.diagnostic_codes()[0].as_str(),
+        "NATIVE_ADAPTER_UNAVAILABLE"
+    );
+    assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
 
@@ -177,7 +300,8 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
         "native-process-job-1",
         "native-process-correlation-1",
     );
-    let response = supervisor.execute_with_asset(&request, &source, &AtomicBool::new(false));
+    let grant = asset_grant(&request, &source);
+    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
 
     assert_eq!(response.status(), StageStatus::Succeeded);
     assert_eq!(
@@ -236,7 +360,8 @@ fn supervised_native_worker_rejects_invalid_step_entity_without_output() {
         "invalid-step-process-correlation-1",
     );
 
-    let response = supervisor.execute_with_asset(&request, &source, &AtomicBool::new(false));
+    let grant = asset_grant(&request, &source);
+    let response = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
 
     assert_eq!(response.status(), expectation.expected_status());
     assert_eq!(
