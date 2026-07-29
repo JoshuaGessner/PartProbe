@@ -40,7 +40,7 @@ TASK-003 currently adds fifteen default runtime tests: five geometry-core invari
 
 ## Cross-platform evidence
 
-GitHub Actions run 30465722294 passes formatting, strict Clippy, all 55 runtime tests, and documentation tests on Windows, Linux, and macOS for commit `9f729a8`. This proves the kernel-neutral contracts, bounded subprocess transport, non-authoritative worker executable, and fixture expectation schema are cross-platform. It does not prove native sandbox, OCCT, or packaging behavior.
+GitHub Actions run 30467602461 passes formatting, strict Clippy, all 56 default runtime tests, and documentation tests on Windows, Linux, and macOS for commit `c31fafb`. This proves the kernel-neutral contracts, bounded subprocess transport, fixture schema, optional adapter crate/build script, locked `cc` toolchain, and feature-off behavior are cross-platform. It does not prove native OCCT linking, sandbox, or packaging behavior; the focused native-feature evidence is Apple Silicon only.
 
 ## Remaining acceptance evidence
 

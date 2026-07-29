@@ -35,6 +35,7 @@
 - Added optional `geometry-occt-adapter` with a project-owned C ABI, dynamic linking, stable ABI version, bounded result layout, finite/nonnegative result checks, caught C++ exceptions, and sanitized diagnostics.
 - Added exact build dependency `cc 1.4.0` with `find-msvc-tools 0.1.9` and `shlex 2.0.1`; all are build-only and MIT OR Apache-2.0.
 - Default builds do not link or fetch OCCT. The explicit local native feature passes link/ABI and missing-file sanitization tests; legal approval, capability resolution, analytic STEP evidence, and three-OS build/package fingerprints remain mandatory.
+- GitHub Actions run 30467602461 passes all 56 default runtime tests, strict Clippy, formatting, and documentation tests on Windows, Linux, and macOS; this validates feature-off portability, not native OCCT artifacts.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
