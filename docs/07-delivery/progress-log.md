@@ -87,6 +87,7 @@
 - Added a dedicated nonproduction cancellation worker fixture. Seven new tests cover control schema/identity and grace validation, cooperative user/deadline acknowledgement, missing acknowledgement rejection, uncooperative user/deadline force termination, and private-workspace cleanup. The local workspace now has 88 runtime tests.
 - The native worker polls cancellation at safe Rust boundaries before/after its current blocking adapter call and around output creation. Cancellation within OCCT itself is not claimed; an adapter progress/cancellation hook, OS sandbox, CPU/memory/descendant limits, and three-OS native evidence remain.
 - No third-party dependency or persisted schema was added. The preproduction control-stream migration intentionally requires a coordinated supervisor/worker update and rejects the prior raw request body.
+- GitHub Actions run 30492554999 passes formatting, strict Clippy, all 88 default runtime tests, and documentation tests on Windows, Linux, and macOS at commit `ec78b15`, including cooperative acknowledgement, malformed-acknowledgement rejection, forced user/deadline termination, reaping, and cleanup evidence.
 
 ## 2026-07-29 — TASK-002 configurable rates and synthetic golden mechanics
 
