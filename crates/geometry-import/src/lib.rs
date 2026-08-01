@@ -24,7 +24,9 @@ pub const WORKER_INPUT_FILENAME: &str = "partprobe-input.asset";
 /// Fixed worker-local output name; the response carries only an opaque reference.
 pub const WORKER_OUTPUT_FILENAME: &str = "partprobe-output.json";
 /// Current schema for the supervisor-to-worker control stream.
-pub const WORKER_CONTROL_SCHEMA_VERSION: u16 = 1;
+pub const WORKER_CONTROL_SCHEMA_VERSION: u16 = 2;
+/// Current schema for the process-launch asset transport manifest.
+pub const WORKER_ASSET_TRANSPORT_SCHEMA_VERSION: u16 = 1;
 
 static JOB_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -367,6 +369,151 @@ impl GeometryWorkerRequest {
     }
 }
 
+/// Platform-neutral description of how one authorized asset reaches the worker.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkerAssetTransport {
+    /// A Unix file descriptor delivered through an allowlisted launch channel.
+    UnixDescriptor,
+    /// A Windows handle delivered through an allowlisted launch channel.
+    WindowsHandle,
+    /// A supervisor-created, hash-verified copy in the private job workspace.
+    VerifiedPrivateCopy,
+}
+
+/// Deployment choice for worker asset transport.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WorkerAssetTransportPolicy {
+    /// Use only the currently implemented verified-copy transport.
+    VerifiedCopyOnly,
+    /// Prefer direct transport, recording an explicit fallback when unavailable.
+    PreferDirect,
+    /// Fail closed unless direct transport is implemented and allowlisted.
+    RequireDirect,
+}
+
+/// Why an execution used a fallback rather than a preferred direct transport.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WorkerAssetFallbackReason {
+    /// No reviewed launcher can yet restrict inherited descriptors or handles to an allowlist.
+    DirectTransportUnavailable,
+}
+
+/// Versioned, path-free binding for the exact asset prepared for one worker launch.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct WorkerAssetManifest {
+    transport_schema_version: u16,
+    transport: WorkerAssetTransport,
+    job_id: GeometryJobId,
+    correlation_id: CorrelationId,
+    asset_capability: AssetCapability,
+    authorized_byte_length: u64,
+    expected_source_hash: Sha256Digest,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WorkerAssetManifestWire {
+    transport_schema_version: u16,
+    transport: WorkerAssetTransport,
+    job_id: GeometryJobId,
+    correlation_id: CorrelationId,
+    asset_capability: AssetCapability,
+    authorized_byte_length: u64,
+    expected_source_hash: Sha256Digest,
+}
+
+impl<'de> Deserialize<'de> for WorkerAssetManifest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = WorkerAssetManifestWire::deserialize(deserializer)?;
+        if wire.transport_schema_version != WORKER_ASSET_TRANSPORT_SCHEMA_VERSION {
+            return Err(serde::de::Error::custom(
+                "unsupported geometry worker asset transport schema version",
+            ));
+        }
+        if wire.authorized_byte_length == 0 {
+            return Err(serde::de::Error::custom(
+                "geometry worker asset length must be nonzero",
+            ));
+        }
+        Ok(Self {
+            transport_schema_version: wire.transport_schema_version,
+            transport: wire.transport,
+            job_id: wire.job_id,
+            correlation_id: wire.correlation_id,
+            asset_capability: wire.asset_capability,
+            authorized_byte_length: wire.authorized_byte_length,
+            expected_source_hash: wire.expected_source_hash,
+        })
+    }
+}
+
+impl WorkerAssetManifest {
+    /// Creates the explicit verified-private-copy binding for one request.
+    #[must_use]
+    pub fn verified_private_copy(request: &GeometryWorkerRequest, byte_length: u64) -> Self {
+        Self {
+            transport_schema_version: WORKER_ASSET_TRANSPORT_SCHEMA_VERSION,
+            transport: WorkerAssetTransport::VerifiedPrivateCopy,
+            job_id: request.job_id().clone(),
+            correlation_id: request.correlation_id().clone(),
+            asset_capability: request.asset_capability().clone(),
+            authorized_byte_length: byte_length,
+            expected_source_hash: request.expected_source_hash().clone(),
+        }
+    }
+
+    /// Returns the asset transport contract version.
+    #[must_use]
+    pub const fn transport_schema_version(&self) -> u16 {
+        self.transport_schema_version
+    }
+
+    /// Returns the explicitly selected transport.
+    #[must_use]
+    pub const fn transport(&self) -> WorkerAssetTransport {
+        self.transport
+    }
+
+    /// Returns the byte length captured from the open supervisor grant.
+    #[must_use]
+    pub const fn authorized_byte_length(&self) -> u64 {
+        self.authorized_byte_length
+    }
+
+    /// Validates that this launch manifest belongs to exactly one request.
+    pub fn validate_for(&self, request: &GeometryWorkerRequest) -> Result<(), DomainError> {
+        if self.transport != WorkerAssetTransport::VerifiedPrivateCopy {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker asset transport",
+                reason: "direct descriptor and handle transports are not implemented",
+            });
+        }
+        if self.job_id != *request.job_id()
+            || self.correlation_id != *request.correlation_id()
+            || self.asset_capability != *request.asset_capability()
+            || self.expected_source_hash != *request.expected_source_hash()
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker asset manifest identity",
+                reason: "job, correlation, capability, and source hash must match the request",
+            });
+        }
+        if self.authorized_byte_length == 0
+            || self.authorized_byte_length > request.quotas().max_input_bytes()
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker asset manifest length",
+                reason: "authorized byte length must be nonzero and within the request quota",
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Reason a running worker is asked to stop cooperatively.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -381,7 +528,8 @@ pub enum WorkerCancellationReason {
 #[serde(tag = "message", rename_all = "snake_case")]
 enum WorkerControlCommand {
     Execute {
-        request: GeometryWorkerRequest,
+        request: Box<GeometryWorkerRequest>,
+        asset_manifest: WorkerAssetManifest,
     },
     Cancel {
         job_id: GeometryJobId,
@@ -394,7 +542,8 @@ enum WorkerControlCommand {
 #[serde(tag = "message", rename_all = "snake_case", deny_unknown_fields)]
 enum WorkerControlCommandWire {
     Execute {
-        request: GeometryWorkerRequest,
+        request: Box<GeometryWorkerRequest>,
+        asset_manifest: WorkerAssetManifest,
     },
     Cancel {
         job_id: GeometryJobId,
@@ -430,9 +579,13 @@ impl<'de> Deserialize<'de> for GeometryWorkerControlMessage {
             ));
         }
         let command = match wire.command {
-            WorkerControlCommandWire::Execute { request } => {
-                WorkerControlCommand::Execute { request }
-            }
+            WorkerControlCommandWire::Execute {
+                request,
+                asset_manifest,
+            } => WorkerControlCommand::Execute {
+                request,
+                asset_manifest,
+            },
             WorkerControlCommandWire::Cancel {
                 job_id,
                 correlation_id,
@@ -453,10 +606,13 @@ impl<'de> Deserialize<'de> for GeometryWorkerControlMessage {
 impl GeometryWorkerControlMessage {
     /// Creates the first control-stream frame for one validated request.
     #[must_use]
-    pub const fn execute(request: GeometryWorkerRequest) -> Self {
+    pub fn execute(request: GeometryWorkerRequest, asset_manifest: WorkerAssetManifest) -> Self {
         Self {
             control_schema_version: WORKER_CONTROL_SCHEMA_VERSION,
-            command: WorkerControlCommand::Execute { request },
+            command: WorkerControlCommand::Execute {
+                request: Box::new(request),
+                asset_manifest,
+            },
         }
     }
 
@@ -479,11 +635,14 @@ impl GeometryWorkerControlMessage {
         self.control_schema_version
     }
 
-    /// Consumes an execute frame and returns its request.
+    /// Consumes an execute frame and returns its request plus asset binding.
     #[must_use]
-    pub fn into_execute_request(self) -> Option<GeometryWorkerRequest> {
+    pub fn into_execute(self) -> Option<(GeometryWorkerRequest, WorkerAssetManifest)> {
         match self.command {
-            WorkerControlCommand::Execute { request } => Some(request),
+            WorkerControlCommand::Execute {
+                request,
+                asset_manifest,
+            } => Some((*request, asset_manifest)),
             WorkerControlCommand::Cancel { .. } => None,
         }
     }
@@ -682,6 +841,12 @@ pub enum WorkerTermination {
     AssetStageFailed,
     /// Open source grant did not match the request's opaque capability.
     AssetGrantMismatch,
+    /// Worker asset manifest did not match the request identity or source contract.
+    AssetManifestMismatch,
+    /// Requested direct asset transport is unavailable and fallback was forbidden.
+    AssetDirectTransportUnavailable,
+    /// Worker could not validate the explicitly selected asset transport.
+    AssetTransportInvalid,
     /// Staged source bytes did not match the request.
     AssetHashMismatch,
     /// Controlled source cleanup failed.
@@ -715,6 +880,9 @@ pub fn recoverable_termination_response(
         WorkerTermination::ProtocolIo => "WORKER_PROTOCOL_IO",
         WorkerTermination::AssetStageFailed => "ASSET_STAGE_FAILED",
         WorkerTermination::AssetGrantMismatch => "ASSET_GRANT_MISMATCH",
+        WorkerTermination::AssetManifestMismatch => "ASSET_MANIFEST_MISMATCH",
+        WorkerTermination::AssetDirectTransportUnavailable => "ASSET_DIRECT_TRANSPORT_UNAVAILABLE",
+        WorkerTermination::AssetTransportInvalid => "ASSET_TRANSPORT_INVALID",
         WorkerTermination::AssetHashMismatch => "ASSET_HASH_MISMATCH",
         WorkerTermination::AssetCleanupFailed => "ASSET_CLEANUP_FAILED",
         WorkerTermination::WorkspacePrepareFailed => "WORKSPACE_PREPARE_FAILED",
@@ -823,6 +991,35 @@ impl AssetReadGrant {
     }
 }
 
+/// Immutable worker-owned bytes verified against one launch manifest and request.
+#[derive(Debug)]
+#[must_use = "verified worker asset bytes must be consumed by the configured adapter"]
+pub struct VerifiedWorkerAsset {
+    transport: WorkerAssetTransport,
+    content_hash: Sha256Digest,
+    bytes: Box<[u8]>,
+}
+
+impl VerifiedWorkerAsset {
+    /// Returns the explicit transport that supplied these bytes.
+    #[must_use]
+    pub const fn transport(&self) -> WorkerAssetTransport {
+        self.transport
+    }
+
+    /// Returns the independently recomputed worker-side digest.
+    #[must_use]
+    pub const fn content_hash(&self) -> &Sha256Digest {
+        &self.content_hash
+    }
+
+    /// Returns the exact immutable bytes that adapters must parse.
+    #[must_use]
+    pub const fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
 /// Pathless, read-only worker output claimed and verified by the supervisor.
 #[derive(Debug)]
 #[must_use = "controlled worker output must be persisted or deliberately discarded"]
@@ -901,11 +1098,23 @@ impl ControlledWorkerOutput {
 pub struct GeometryWorkerExecution {
     response: GeometryWorkerResponse,
     output: Option<ControlledWorkerOutput>,
+    asset_transport: Option<WorkerAssetTransport>,
+    fallback_reason: Option<WorkerAssetFallbackReason>,
 }
 
 impl GeometryWorkerExecution {
-    fn new(response: GeometryWorkerResponse, output: Option<ControlledWorkerOutput>) -> Self {
-        Self { response, output }
+    fn new(
+        response: GeometryWorkerResponse,
+        output: Option<ControlledWorkerOutput>,
+        asset_transport: Option<WorkerAssetTransport>,
+        fallback_reason: Option<WorkerAssetFallbackReason>,
+    ) -> Self {
+        Self {
+            response,
+            output,
+            asset_transport,
+            fallback_reason,
+        }
     }
 
     /// Returns the validated worker response.
@@ -920,10 +1129,34 @@ impl GeometryWorkerExecution {
         self.output.as_ref()
     }
 
+    /// Returns the transport selected for this execution, when preparation reached that stage.
+    #[must_use]
+    pub const fn asset_transport(&self) -> Option<WorkerAssetTransport> {
+        self.asset_transport
+    }
+
+    /// Returns the explicit reason a preferred direct transport used a fallback.
+    #[must_use]
+    pub const fn fallback_reason(&self) -> Option<WorkerAssetFallbackReason> {
+        self.fallback_reason
+    }
+
     /// Transfers the response and optional controlled output.
     #[must_use]
-    pub fn into_parts(self) -> (GeometryWorkerResponse, Option<ControlledWorkerOutput>) {
-        (self.response, self.output)
+    pub fn into_parts(
+        self,
+    ) -> (
+        GeometryWorkerResponse,
+        Option<ControlledWorkerOutput>,
+        Option<WorkerAssetTransport>,
+        Option<WorkerAssetFallbackReason>,
+    ) {
+        (
+            self.response,
+            self.output,
+            self.asset_transport,
+            self.fallback_reason,
+        )
     }
 }
 
@@ -1062,6 +1295,7 @@ pub struct GeometryWorkerSupervisor {
     working_directory: PathBuf,
     policy: SupervisorPolicy,
     native_library_directory: Option<PathBuf>,
+    asset_transport_policy: WorkerAssetTransportPolicy,
 }
 
 impl GeometryWorkerSupervisor {
@@ -1088,6 +1322,7 @@ impl GeometryWorkerSupervisor {
             working_directory,
             policy,
             native_library_directory: None,
+            asset_transport_policy: WorkerAssetTransportPolicy::VerifiedCopyOnly,
         })
     }
 
@@ -1106,19 +1341,20 @@ impl GeometryWorkerSupervisor {
         Ok(self)
     }
 
-    /// Executes one request with bounded messages, timeout, cancellation, and sanitized failures.
+    /// Selects the deployment policy for direct transport or explicit verified-copy fallback.
     #[must_use]
-    pub fn execute(
-        &self,
-        request: &GeometryWorkerRequest,
-        cancellation: &AtomicBool,
-    ) -> GeometryWorkerResponse {
-        self.execute_in(request, cancellation, &self.working_directory)
+    pub const fn with_asset_transport_policy(
+        mut self,
+        asset_transport_policy: WorkerAssetTransportPolicy,
+    ) -> Self {
+        self.asset_transport_policy = asset_transport_policy;
+        self
     }
 
     fn execute_in(
         &self,
         request: &GeometryWorkerRequest,
+        asset_manifest: WorkerAssetManifest,
         cancellation: &AtomicBool,
         working_directory: &Path,
     ) -> GeometryWorkerResponse {
@@ -1126,11 +1362,13 @@ impl GeometryWorkerSupervisor {
             return response_for(request, WorkerTermination::Cancelled);
         }
 
-        let request_frame =
-            match serialize_control_frame(GeometryWorkerControlMessage::execute(request.clone())) {
-                Ok(bytes) if bytes.len() <= self.policy.max_protocol_bytes => bytes,
-                _ => return response_for(request, WorkerTermination::QuotaExceeded),
-            };
+        let request_frame = match serialize_control_frame(GeometryWorkerControlMessage::execute(
+            request.clone(),
+            asset_manifest,
+        )) {
+            Ok(bytes) if bytes.len() <= self.policy.max_protocol_bytes => bytes,
+            _ => return response_for(request, WorkerTermination::QuotaExceeded),
+        };
 
         let mut command = Command::new(&self.executable);
         command
@@ -1176,9 +1414,9 @@ impl GeometryWorkerSupervisor {
                     None
                 };
                 if let Some(reason) = reason {
-                    let _ = control_tx.send(ControlWriterCommand::Send(
+                    let _ = control_tx.send(ControlWriterCommand::Send(Box::new(
                         GeometryWorkerControlMessage::cancel(request, reason),
-                    ));
+                    )));
                     shutdown = Some((reason, Instant::now()));
                 }
             }
@@ -1270,12 +1508,34 @@ impl GeometryWorkerSupervisor {
         cancellation: &AtomicBool,
     ) -> GeometryWorkerExecution {
         if cancellation.load(Ordering::Acquire) {
-            return failed_execution(request, WorkerTermination::Cancelled);
+            return failed_execution(request, WorkerTermination::Cancelled, None, None);
         }
+        let (asset_transport, fallback_reason) = match self.asset_transport_policy {
+            WorkerAssetTransportPolicy::VerifiedCopyOnly => {
+                (WorkerAssetTransport::VerifiedPrivateCopy, None)
+            }
+            WorkerAssetTransportPolicy::PreferDirect => (
+                WorkerAssetTransport::VerifiedPrivateCopy,
+                Some(WorkerAssetFallbackReason::DirectTransportUnavailable),
+            ),
+            WorkerAssetTransportPolicy::RequireDirect => {
+                return failed_execution(
+                    request,
+                    WorkerTermination::AssetDirectTransportUnavailable,
+                    None,
+                    None,
+                );
+            }
+        };
         let job_directory = match create_job_directory(&self.working_directory) {
             Ok(path) => path,
             Err(_) => {
-                return failed_execution(request, WorkerTermination::WorkspacePrepareFailed);
+                return failed_execution(
+                    request,
+                    WorkerTermination::WorkspacePrepareFailed,
+                    Some(asset_transport),
+                    fallback_reason,
+                );
             }
         };
         let staged_path = job_directory.join(WORKER_INPUT_FILENAME);
@@ -1292,26 +1552,47 @@ impl GeometryWorkerSupervisor {
                 } else {
                     WorkerTermination::WorkspaceCleanupFailed
                 },
+                Some(asset_transport),
+                fallback_reason,
             );
         }
+        let asset_manifest =
+            WorkerAssetManifest::verified_private_copy(request, grant.authorized_byte_length());
         drop(grant);
 
-        let response = self.execute_in(request, cancellation, &job_directory);
+        let response = self.execute_in(request, asset_manifest, cancellation, &job_directory);
         let output = reconcile_worker_output(request, &response, &output_path);
         let asset_cleanup = remove_staged_asset(&staged_path);
         let workspace_cleanup = std::fs::remove_dir(&job_directory);
 
         if asset_cleanup.is_err() {
-            return failed_execution(request, WorkerTermination::AssetCleanupFailed);
+            return failed_execution(
+                request,
+                WorkerTermination::AssetCleanupFailed,
+                Some(asset_transport),
+                fallback_reason,
+            );
         }
         let output = match output {
             Ok(output) => output,
-            Err(termination) => return failed_execution(request, termination),
+            Err(termination) => {
+                return failed_execution(
+                    request,
+                    termination,
+                    Some(asset_transport),
+                    fallback_reason,
+                );
+            }
         };
         if workspace_cleanup.is_err() {
-            return failed_execution(request, WorkerTermination::WorkspaceCleanupFailed);
+            return failed_execution(
+                request,
+                WorkerTermination::WorkspaceCleanupFailed,
+                Some(asset_transport),
+                fallback_reason,
+            );
         }
-        GeometryWorkerExecution::new(response, output)
+        GeometryWorkerExecution::new(response, output, Some(asset_transport), fallback_reason)
     }
 }
 
@@ -1469,7 +1750,7 @@ fn read_bounded(stdout: impl Read, max_protocol_bytes: usize) -> Result<Vec<u8>,
 }
 
 enum ControlWriterCommand {
-    Send(GeometryWorkerControlMessage),
+    Send(Box<GeometryWorkerControlMessage>),
     Close,
 }
 
@@ -1495,7 +1776,7 @@ fn spawn_control_writer(
         while let Ok(command) = receiver.recv() {
             match command {
                 ControlWriterCommand::Send(message) => {
-                    stdin.write_all(&serialize_control_frame(message).map_err(|_| {
+                    stdin.write_all(&serialize_control_frame(*message).map_err(|_| {
                         std::io::Error::new(
                             std::io::ErrorKind::InvalidData,
                             "control message serialization failed",
@@ -1531,6 +1812,80 @@ fn configure_native_library_path(command: &mut Command, directory: &Path) {
     command.env("LD_LIBRARY_PATH", directory);
     #[cfg(windows)]
     command.env("PATH", directory);
+}
+
+/// Opens and independently verifies the fixed private-copy input before any adapter sees bytes.
+pub fn verify_worker_asset_copy(
+    request: &GeometryWorkerRequest,
+    manifest: &WorkerAssetManifest,
+    worker_directory: &Path,
+) -> Result<VerifiedWorkerAsset, WorkerTermination> {
+    if manifest.transport() != WorkerAssetTransport::VerifiedPrivateCopy {
+        return Err(WorkerTermination::AssetTransportInvalid);
+    }
+    manifest
+        .validate_for(request)
+        .map_err(|_| WorkerTermination::AssetManifestMismatch)?;
+    let source_path = worker_directory.join(WORKER_INPUT_FILENAME);
+    let mut source = open_final_component_read_only(&source_path)
+        .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    let metadata = source
+        .metadata()
+        .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    if !metadata.is_file()
+        || metadata.len() != manifest.authorized_byte_length()
+        || metadata.len() > request.quotas().max_input_bytes()
+    {
+        return Err(WorkerTermination::AssetTransportInvalid);
+    }
+    let (content_hash, bytes) = read_verified_worker_asset(
+        &mut source,
+        manifest.authorized_byte_length(),
+        request.quotas().max_input_bytes(),
+    )?;
+    if &content_hash != request.expected_source_hash() {
+        return Err(WorkerTermination::AssetHashMismatch);
+    }
+    Ok(VerifiedWorkerAsset {
+        transport: manifest.transport(),
+        content_hash,
+        bytes,
+    })
+}
+
+fn read_verified_worker_asset(
+    source: &mut File,
+    expected_byte_length: u64,
+    max_input_bytes: u64,
+) -> Result<(Sha256Digest, Box<[u8]>), WorkerTermination> {
+    source
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    let capacity = usize::try_from(expected_byte_length)
+        .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(capacity)
+        .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    let limit = max_input_bytes.min(expected_byte_length).saturating_add(1);
+    source
+        .take(limit)
+        .read_to_end(&mut bytes)
+        .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    let actual_length =
+        u64::try_from(bytes.len()).map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    if actual_length != expected_byte_length || actual_length > max_input_bytes {
+        return Err(WorkerTermination::AssetTransportInvalid);
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    let mut digest = String::with_capacity(64);
+    for byte in hasher.finalize() {
+        write!(&mut digest, "{byte:02x}").map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    }
+    let content_hash =
+        Sha256Digest::new(digest).map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    Ok((content_hash, bytes.into_boxed_slice()))
 }
 
 fn stage_asset(
@@ -1657,8 +2012,15 @@ fn response_for(
 fn failed_execution(
     request: &GeometryWorkerRequest,
     termination: WorkerTermination,
+    asset_transport: Option<WorkerAssetTransport>,
+    fallback_reason: Option<WorkerAssetFallbackReason>,
 ) -> GeometryWorkerExecution {
-    GeometryWorkerExecution::new(response_for(request, termination), None)
+    GeometryWorkerExecution::new(
+        response_for(request, termination),
+        None,
+        asset_transport,
+        fallback_reason,
+    )
 }
 
 #[cfg(test)]

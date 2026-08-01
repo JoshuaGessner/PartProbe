@@ -1,7 +1,7 @@
 //! Optional, narrow C ABI boundary for the out-of-process OCCT adapter.
 
 /// Native adapter ABI version implemented by this crate.
-pub const OCCT_ADAPTER_ABI_VERSION: u32 = 2;
+pub const OCCT_ADAPTER_ABI_VERSION: u32 = 3;
 
 /// Returns whether this build contains the optional OCCT bridge.
 #[must_use]
@@ -69,6 +69,14 @@ mod native {
 
     unsafe extern "C" {
         fn partprobe_occt_abi_version() -> u32;
+        fn partprobe_occt_analyze_step_bytes(
+            bytes: *const u8,
+            byte_count: usize,
+            result: *mut NativeResult,
+            result_size: usize,
+            cancellation_probe: extern "C" fn(*const c_void) -> u8,
+            cancellation_context: *const c_void,
+        ) -> c_int;
         fn partprobe_occt_analyze_step(
             path: *const c_char,
             result: *mut NativeResult,
@@ -89,9 +97,70 @@ mod native {
         analyze_step_with_cancellation(path, &|| false)
     }
 
+    pub fn analyze_step_bytes(
+        step_bytes: &[u8],
+    ) -> Result<NativeBasicProperties, NativeAdapterError> {
+        analyze_step_bytes_with_cancellation(step_bytes, &|| false)
+    }
+
+    pub fn analyze_step_bytes_with_cancellation<P>(
+        step_bytes: &[u8],
+        cancellation_probe: &P,
+    ) -> Result<NativeBasicProperties, NativeAdapterError>
+    where
+        P: Fn() -> bool + Sync,
+    {
+        analyze_with_cancellation(cancellation_probe, |probe, context, result| {
+            // SAFETY: the slice pointer and exact length remain valid for the blocking call;
+            // `result` and cancellation callback/context satisfy `analyze_with_cancellation`.
+            unsafe {
+                partprobe_occt_analyze_step_bytes(
+                    step_bytes.as_ptr(),
+                    step_bytes.len(),
+                    result,
+                    size_of::<NativeResult>(),
+                    probe,
+                    context,
+                )
+            }
+        })
+    }
+
     pub fn analyze_step_with_cancellation<P>(
         path: &Path,
         cancellation_probe: &P,
+    ) -> Result<NativeBasicProperties, NativeAdapterError>
+    where
+        P: Fn() -> bool + Sync,
+    {
+        let path = path.to_str().ok_or(NativeAdapterError {
+            diagnostic_code: "ASSET_PATH_ENCODING_UNSUPPORTED",
+        })?;
+        let path = CString::new(path).map_err(|_| NativeAdapterError {
+            diagnostic_code: "ASSET_PATH_ENCODING_UNSUPPORTED",
+        })?;
+        analyze_with_cancellation(cancellation_probe, |probe, context, result| {
+            // SAFETY: `path` is NUL-terminated and lives through the call; `result` and the
+            // cancellation callback/context satisfy `analyze_with_cancellation`.
+            unsafe {
+                partprobe_occt_analyze_step(
+                    path.as_ptr(),
+                    result,
+                    size_of::<NativeResult>(),
+                    probe,
+                    context,
+                )
+            }
+        })
+    }
+
+    fn analyze_with_cancellation<P>(
+        cancellation_probe: &P,
+        analyze: impl FnOnce(
+            extern "C" fn(*const c_void) -> u8,
+            *const c_void,
+            *mut NativeResult,
+        ) -> c_int,
     ) -> Result<NativeBasicProperties, NativeAdapterError>
     where
         P: Fn() -> bool + Sync,
@@ -109,12 +178,6 @@ mod native {
             u8::from(catch_unwind(AssertUnwindSafe(probe)).unwrap_or(true))
         }
 
-        let path = path.to_str().ok_or(NativeAdapterError {
-            diagnostic_code: "ASSET_PATH_ENCODING_UNSUPPORTED",
-        })?;
-        let path = CString::new(path).map_err(|_| NativeAdapterError {
-            diagnostic_code: "ASSET_PATH_ENCODING_UNSUPPORTED",
-        })?;
         let mut result = NativeResult {
             abi_version: OCCT_ADAPTER_ABI_VERSION,
             transferred_roots: 0,
@@ -126,17 +189,11 @@ mod native {
             center_of_mass_z_mm: 0.0,
             diagnostic_code: [0; DIAGNOSTIC_CAPACITY],
         };
-        // SAFETY: `path` is NUL-terminated and lives through the call; `result` is writable,
-        // correctly aligned, and paired with its exact size. C++ catches exceptions internally.
-        let status = unsafe {
-            partprobe_occt_analyze_step(
-                path.as_ptr(),
-                &mut result,
-                size_of::<NativeResult>(),
-                probe::<P>,
-                std::ptr::from_ref(cancellation_probe).cast::<c_void>(),
-            )
-        };
+        let status = analyze(
+            probe::<P>,
+            std::ptr::from_ref(cancellation_probe).cast::<c_void>(),
+            &mut result,
+        );
         if status != 0 {
             return Err(NativeAdapterError {
                 diagnostic_code: diagnostic_code(&result),
@@ -239,6 +296,13 @@ mod native {
         }
 
         #[test]
+        fn invalid_step_bytes_expose_only_a_stable_code() {
+            let bytes = include_bytes!("../../../fixtures/models/invalid_entity.step");
+            let error = analyze_step_bytes(bytes).expect_err("invalid STEP bytes must fail");
+            assert_eq!(error.diagnostic_code(), "STEP_TRANSFER_FAILED");
+        }
+
+        #[test]
         fn analytic_step_cube_matches_reviewable_properties() {
             let fixture =
                 Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
@@ -254,13 +318,27 @@ mod native {
         }
 
         #[test]
+        fn analytic_step_cube_bytes_match_reviewable_properties() {
+            let bytes = include_bytes!("../../../fixtures/models/cube_10mm.step");
+            let properties =
+                analyze_step_bytes(bytes).expect("analytic STEP cube bytes must import");
+
+            assert_eq!(properties.transferred_roots, 1);
+            assert_eq!(properties.solid_body_count, 1);
+            assert!((properties.surface_area_mm2 - 600.0).abs() <= 0.000_001);
+            assert!((properties.enclosed_volume_mm3 - 1000.0).abs() <= 0.000_001);
+            for component in properties.center_of_mass_mm {
+                assert!((component - 5.0).abs() <= 0.000_001);
+            }
+        }
+
+        #[test]
         fn cancellation_probe_stops_native_analysis_with_a_stable_code() {
             use std::sync::atomic::{AtomicUsize, Ordering};
 
-            let fixture =
-                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
+            let bytes = include_bytes!("../../../fixtures/models/cube_10mm.step");
             let calls = AtomicUsize::new(0);
-            let error = analyze_step_with_cancellation(&fixture, &|| {
+            let error = analyze_step_bytes_with_cancellation(bytes, &|| {
                 calls.fetch_add(1, Ordering::Relaxed);
                 true
             })
@@ -272,9 +350,8 @@ mod native {
 
         #[test]
         fn cancellation_probe_panic_is_contained_at_the_native_boundary() {
-            let fixture =
-                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
-            let error = analyze_step_with_cancellation(&fixture, &|| {
+            let bytes = include_bytes!("../../../fixtures/models/cube_10mm.step");
+            let error = analyze_step_bytes_with_cancellation(bytes, &|| {
                 panic!("probe failure must not unwind through C++")
             })
             .expect_err("a failed probe must stop native analysis");
@@ -289,6 +366,32 @@ mod native {
 #[must_use]
 pub fn linked_abi_version() -> u32 {
     native::abi_version()
+}
+
+/// Imports one caller-bounded in-memory STEP asset and returns basic unrounded measurements.
+///
+/// The bytes must already have passed the worker's capability, length, quota, and hash checks.
+/// Values remain non-authoritative until unit, tolerance, fixture, and replay validation succeeds.
+#[cfg(feature = "native-occt")]
+pub fn analyze_step_bytes(step_bytes: &[u8]) -> Result<NativeBasicProperties, NativeAdapterError> {
+    native::analyze_step_bytes(step_bytes)
+}
+
+/// Imports caller-bounded STEP bytes while polling cancellation where OCCT supports progress.
+///
+/// OCCT 8.0 polls the probe before and after stream parsing and during STEP root transfer. Stream
+/// parsing and the current property calculations do not expose a progress range, so callers still
+/// require an external deadline and force-termination boundary for those phases. A probe panic is
+/// contained and treated as a cancellation request rather than unwinding through the native ABI.
+#[cfg(feature = "native-occt")]
+pub fn analyze_step_bytes_with_cancellation<P>(
+    step_bytes: &[u8],
+    cancellation_probe: &P,
+) -> Result<NativeBasicProperties, NativeAdapterError>
+where
+    P: Fn() -> bool + Sync,
+{
+    native::analyze_step_bytes_with_cancellation(step_bytes, cancellation_probe)
 }
 
 /// Imports one controlled STEP asset and returns basic unrounded native measurements.

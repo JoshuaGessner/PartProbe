@@ -1,14 +1,14 @@
 # Test Strategy
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** All; TEST-001–TEST-099
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** Hardware/performance and accuracy thresholds
 > **Dependencies:** Executable workspace and fixtures
 > **Supersedes:** None
 
-Current executable evidence: [TASK-001 validation](task-001-validation.md) covers TEST-001 locally and on Windows, Linux, and macOS. All other test IDs remain planned.
+Current executable evidence: [TASK-001 validation](task-001-validation.md) covers TEST-001; [TASK-002 validation](task-002-validation.md) provides partial TEST-002/014 evidence; and [TASK-003 validation](task-003-validation.md) provides partial TEST-003/008/011/019/021/023/030 evidence. Requirements remain incomplete until their full acceptance suites, target evidence, and approvals pass.
 
 | ID | Layer | Core evidence |
 |---|---|---|

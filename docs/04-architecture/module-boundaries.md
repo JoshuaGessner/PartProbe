@@ -1,7 +1,7 @@
 # Module Boundaries
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** REQ-NF-001, REQ-NF-004, REQ-NF-010, REQ-NF-015–REQ-NF-021  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** Exact crate split after dependency-cycle spike  
@@ -14,7 +14,7 @@
 |---|---|---|
 | `crates/domain` | IDs, units, money, entities, provenance, lifecycle | minimal vetted primitives |
 | `crates/geometry-core` | kernel-neutral geometry DTOs/stages | domain units/IDs |
-| `crates/geometry-import` | worker client/protocol/import orchestration | geometry-core, platform |
+| `crates/geometry-import` | worker client/protocol/import orchestration; platform-neutral asset-transport policy, manifest, and verification contract | geometry-core, platform |
 | `crates/feature-recognition` | detector traits/results | geometry-core, domain |
 | `crates/setup-planner` | proposal/alternative logic | domain, geometry-core, feature results |
 | `crates/tooling` | tool candidates/compatibility | domain |
@@ -43,4 +43,4 @@
 
 No UI crate may execute SQL or receive raw kernel pointers. Advanced-analysis crates do not own approval, scheduling, purchasing, supplier transmission, or rule activation. Integration adapters depend inward on versioned ports and may not leak vendor DTOs into the domain. Dependency direction is enforced with workspace policy tests and review.
 
-TASK-003 instantiates narrow `security`, `application`, and `document-storage` slices for local geometry-asset reads and governed derivative handoff. `security` owns policy/audit contracts and depends only on domain identities. `document-storage` owns immutable blob, manifest, policy-reference, integrity, and controlled-store port types without selecting a filesystem or database. `application` coordinates policy, audit, `geometry-import`, and the storage port; `geometry-import` remains unaware of actors, roles, classification rules, audit persistence, or durable storage. This preserves inward dependency direction while deployment-specific adapters remain unimplemented.
+TASK-003 instantiates narrow `security`, `application`, and `document-storage` slices for local geometry-asset reads and governed derivative handoff. `security` owns policy/audit contracts and depends only on domain identities. `document-storage` owns immutable blob, manifest, policy-reference, integrity, and controlled-store port types without selecting a filesystem or database. `application` coordinates policy, audit, `geometry-import`, and the storage port; `geometry-import` remains unaware of actors, roles, classification rules, audit persistence, or durable storage. `geometry-import` currently implements only the cross-platform `verified_private_copy` transport and exposes fail-closed policy for unavailable Unix-descriptor/Windows-HANDLE modes. A future whitelist-capable launcher and its target-specific descriptor/HANDLE mechanics belong behind this neutral contract, preferably in `crates/platform`; they must not leak raw resources into domain or application APIs. This preserves inward dependency direction while deployment-specific adapters remain unimplemented.

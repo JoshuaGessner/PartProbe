@@ -1,7 +1,7 @@
 # Milestones
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -22,7 +22,7 @@ Status: **In Progress.** Calculation/rate mechanics and a substantial worker/geo
 
 Exit: Cargo workspace; domain/units/money/provenance; migrations/repositories; worker protocol; initial import/measurement corpus; application shell/design system; cross-platform CI; future-safe identifiers/snapshots for route sets, requirements, revisions, availability, and correction events without implementing advanced engines.
 
-Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. TASK-003 supplies the kernel-neutral geometry contracts, isolated worker protocol, controlled intake/output seams, cancellation behavior, and provisional Apple Silicon OCCT evidence. Production importer accuracy/containment/packaging, UI, persistence, mesh support, and remaining foundation components are pending.
+Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. TASK-003 supplies kernel-neutral geometry contracts, an isolated control-schema-v2 worker, explicit verified-copy transport and revalidation, controlled intake/output seams, cancellation behavior, and provisional Apple Silicon OCCT ABI-v3 byte-stream evidence. Direct-resource whitelisting, ambient-resource exclusion, production importer accuracy/containment/packaging, UI, persistence, mesh support, and remaining foundation components are pending.
 
 ## M2 Vertical slice
 

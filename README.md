@@ -1,7 +1,7 @@
 # PartProbe
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** REQ-F-001–REQ-F-065; REQ-NF-001–REQ-NF-022
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -18,11 +18,11 @@ PartProbe is currently a **pre-alpha engineering foundation**, not an installabl
 |---|---|---|
 | Calculations | Typed money/units, deterministic calculation rules, itemized traces, versioned snapshots, and replay pass Windows/Linux/macOS CI | No complete estimate workflow, shop calibration, or estimator UI |
 | Rates and pricing | Empty-on-install, user-owned rate cards; effective dating, scope resolution, approval state, pricing and rounding policies | No rate-entry UI or durable rate library; PartProbe supplies no production rates |
-| Geometry worker | Bounded versioned IPC, validated capabilities, private workspaces, cancellation grace/acknowledgement, forced termination, audit/security seams, and governed derivative handoff | No production OS sandbox, resource enforcement, direct worker handle transport, or durable controlled store |
-| STEP/OCCT | Optional OCCT 8.0 Apple Silicon spike measures a synthetic STEP cube and polls cancellation during STEP transfer | Not a supported product importer; independent accuracy corpus, three-OS native builds, packaging, and legal review remain open |
+| Geometry worker | Bounded control schema v2, explicit verified-copy transport manifest, worker-side identity/hash/length/quota verification, private workspaces, cancellation grace/acknowledgement, forced termination, audit/security seams, and governed derivative handoff | No production OS sandbox/resource enforcement, whitelist-capable direct descriptor/HANDLE transport, unrelated-resource inheritance proof, or durable controlled store |
+| STEP/OCCT | Optional OCCT 8.0 Apple Silicon ABI-v3 spike parses exact verified bytes, measures a synthetic STEP cube, and polls cancellation during STEP transfer | Not a supported product importer; independent accuracy corpus, three-OS native builds, packaging, and legal review remain open |
 | Desktop and storage | UX, design system, persistence contracts, and release workflow are documented | No desktop application, database, save/reopen workflow, installer, or signed release exists |
 
-The default workspace currently has **88 runtime tests** plus a compile-fail doctest passing on Windows, Linux, and macOS. Nineteen focused optional-native adapter/worker tests pass locally on Apple Silicon. These results validate foundations and containment contracts; they do not establish production estimating accuracy or release readiness.
+The default workspace currently has **93 runtime tests** plus a compile-fail doctest passing locally; the prior 88-test baseline passes Windows, Linux, and macOS pending the Checkpoint 15 CI run. Twenty-one focused optional-native adapter/worker tests pass locally on Apple Silicon. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
 
 ## Product boundary
 
@@ -36,7 +36,7 @@ The default workspace currently has **88 runtime tests** plus a compile-fail doc
 
 The current implementation order is:
 
-1. Finish TASK-003 worker descriptor/handle transport, OS containment/resource controls, representative geometry fixtures, and reproducible native builds.
+1. Finish TASK-003 whitelist-capable descriptor/HANDLE transport, ambient-resource exclusion, OS containment/resource controls, representative geometry fixtures, and reproducible native builds.
 2. Complete TASK-004 STL/3MF mesh import comparison.
 3. Build TASK-005 desktop UX, including guided shop-owned rate setup and model review.
 4. Implement TASK-006 durable SQLite repositories, migrations, backup/restore, and historical replay.

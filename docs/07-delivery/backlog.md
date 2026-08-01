@@ -1,7 +1,7 @@
 # Delivery Backlog
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -29,7 +29,7 @@
 
 ## Prioritized discovery/spike tasks
 
-TASK-003 is **In Progress** on 2026-07-29. Its stacked slices add kernel-neutral contracts, a path-free protocol, bounded subprocess supervision, schema-versioned cooperative cancellation with forced termination, fixed-name hashed asset staging, fixture expectation schema version 2, deterministic synthetic STEP generation, and an optional OCCT 8.0.0 ABI v2 completing a provisional end-to-end cube measurement and polling cancellation during STEP root transfer. Direct worker descriptor/handle transport, cancellation proof during a representative long transfer, internally uninterruptible parse/property phases, independent STEP fixtures, OS sandbox/resource enforcement, legal approval, reproducible native packaging, and three-OS native benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
+TASK-003 is **In Progress** on 2026-08-01. Its stacked slices add kernel-neutral contracts, bounded control schema v2, asset-transport manifest v1, explicit `verified_private_copy` with worker-side identity/hash/length/quota verification, fail-closed unavailable direct modes, cooperative cancellation with forced termination, fixture expectation schema v2, deterministic synthetic STEP generation, and optional OCCT 8.0.0 ABI v3 parsing the exact verified bytes while polling cancellation during STEP root transfer. A whitelist-capable Unix descriptor/Windows HANDLE launcher plus unrelated-resource inheritance proof, cancellation during a representative long transfer, internally uninterruptible stream/property bounds, independent STEP fixtures, OS sandbox/resource enforcement, legal approval, reproducible native packaging, and three-OS native benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
 
 | ID | Task | Links | Exit |
 |---|---|---|---|

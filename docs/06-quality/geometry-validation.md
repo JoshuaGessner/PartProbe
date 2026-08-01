@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-08-01
 - **Related requirement IDs:** GEO-001–GEO-014, REQ-NF-011–REQ-NF-014, TEST-021–TEST-030, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Reviewed tolerance table by format/property? Fixture-owner assignments? Release resource budgets?
@@ -21,7 +21,7 @@ Prove that geometry claims are reproducible, correctly labelled by representatio
 | Unit / property | pure conversions, envelope/volume/mass derivations, no negative removed volume | deterministic tests and property tests |
 | Format integration | parser/translator reports, units, bodies/shells, validation flags, source preservation | representative golden fixtures |
 | Cross-platform | same input/profile produces accepted comparable snapshot on Windows, Linux, macOS | artifact diff with OS/library fingerprints |
-| Robustness | malformed/untrusted input cannot crash desktop, escape filesystem or exceed policy | worker termination/quota tests |
+| Robustness | malformed/untrusted input cannot crash desktop, escape filesystem, substitute the authorized source, inherit an unrelated resource, or exceed policy | transport identity/hash/length/quota/fallback tests plus worker termination tests |
 | Visual | tessellation maps feature/body picks to snapshot references | screenshot/interaction tests, not measurement oracle |
 | Regression | known issue stays diagnosed or fixed | minimized fixture, expected outcome, issue link |
 
@@ -39,6 +39,7 @@ Each fixture expectation pins: source SHA-256, format/version, declared and conf
 - OBJ with missing/malicious MTL/texture path; the test asserts no external path traversal.
 - Unitless and conflicting-scale inputs: analysis blocks approval and preserves user resolution reason.
 - Healing candidate: source/derivative hashes and altered topology warning must be present.
+- Worker asset transport: capability/job/correlation mismatch, deleted source, same-length hash tamper, length drift, quota breach, explicit verified-copy selection, unavailable direct mode, and unrelated descriptor/HANDLE inheritance.
 - Worker crash, timeout, memory/CPU budget, malformed IPC response and cancellation: desktop remains usable and quote state unchanged.
 
 ## Acceptance rules

@@ -1,7 +1,7 @@
 # PartProbe Documentation Index
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -14,11 +14,11 @@ PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop est
 
 - **Phase:** 0 — Discovery and Validation
 - **Milestone:** M0.2 — Evidence and decision closure, In Progress
-- **Overall status:** Pre-alpha engineering foundation. TASK-001 and TASK-002 calculation/rate mechanics pass local and three-OS CI; TASK-003 has cross-platform worker-contract, authorization/audit seam, safe source-opening, private-workspace, controlled-output, and cancellation evidence plus an Apple Silicon provisional OCCT STEP measurement. No desktop product, durable repository, supported production importer, calibrated deployment, or release package exists
-- **Recently completed:** User-owned rate/rule foundations; kernel-neutral geometry contracts; bounded subprocess and cooperative/forced cancellation; schema-v2 fixture expectations; exact OCCT 8.0.0 source build and adapter ABI v2 transfer cancellation; consumed already-open supervisor grants; final-component-safe read-only source opening; private per-job workspaces; immutable hash/length-bound output claiming; governed derivative handoff; deterministic synthetic STEP reconciliation; and controlled invalid-entity rejection.
+- **Overall status:** Pre-alpha engineering foundation. TASK-001 and TASK-002 calculation/rate mechanics pass local and three-OS CI; TASK-003 has cross-platform worker contracts, explicit verified-copy transport, worker-side byte verification, authorization/audit seams, safe source opening, private workspaces, controlled output, and cancellation evidence plus Apple Silicon provisional OCCT byte-stream measurements. No desktop product, durable repository, supported production importer, calibrated deployment, or release package exists
+- **Recently completed:** User-owned rate/rule foundations; kernel-neutral geometry contracts; bounded subprocess and cooperative/forced cancellation; schema-v2 fixture expectations; exact OCCT 8.0.0 source build and adapter ABI v3 byte-stream parsing; control schema v2 plus transport manifest v1; explicit verified-copy/fail-closed direct policy; consumed already-open grants; worker-side hash/length/quota verification; final-component-safe source opening; private workspaces; immutable output claiming; governed derivative handoff; deterministic synthetic STEP reconciliation; and controlled invalid-entity rejection.
 - **Documents awaiting review:** All documents marked Draft or In Review; especially ADR-0001–ADR-0014, advanced formulas/policies, calculation rules, requirements, security boundaries, and worked examples
 - **Blocking decisions:** ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
-- **Next actions:** Finish TASK-003 direct worker handle/copy-fallback design, OS containment/resource limits, representative fixture evidence, and reproducible native builds; then execute TASK-004 mesh import, TASK-005 desktop/rate UX, TASK-006 persistence, and TASK-007 shop calibration in [backlog priority](07-delivery/backlog.md)
+- **Next actions:** Finish TASK-003 whitelist-capable direct descriptor/HANDLE launch, unrelated-resource inheritance proof, OS containment/resource limits, representative fixture evidence, and reproducible native builds; then execute TASK-004 mesh import, TASK-005 desktop/rate UX, TASK-006 persistence, and TASK-007 shop calibration in [backlog priority](07-delivery/backlog.md)
 
 Implementation readiness extends through reversible TASK-001/002 calculation and rate mechanics plus the evidence-producing TASK-003 worker/OCCT spike. Architecture acceptance, controlled-data deployment, shop calibration, native packaging, runtime-accuracy claims, and product release remain blocked on M0.2/M1 evidence and review.
 
@@ -54,7 +54,7 @@ Implementation readiness extends through reversible TASK-001/002 calculation and
 |---|---|---|
 | Tauri 2 + Leptos desktop shell, dense table, accessibility, wgpu/PDF integration | Not started | ADR-0001/0003 and TASK-005 |
 | OCCT STEP import/measurement/healing/package corpus | Exact 8.0.0 Apple Silicon build and supervised synthetic-cube measurement pass; independent corpus, three-OS artifacts, legal/package evidence pending | ADR-0002 and TASK-003 |
-| Isolated geometry-worker IPC/crash/resource boundary | Bounded subprocess, consumed already-open supervisor grant, fixed-name verified staging, final-component-safe local opening, private per-job workspaces, immutable output claiming, governed storage handoff, and cooperative/forced cancellation pass three OSes in the 88-test baseline. OCCT STEP transfer cancellation passes locally through adapter ABI v2; representative mid-transfer proof, uninterruptible parse/property bounds, direct worker handles, and OS sandbox/resource enforcement remain pending | ADR-0005 and TASK-003 |
+| Isolated geometry-worker IPC/crash/resource boundary | Bounded subprocess, consumed already-open grant, explicit identity-bound verified-copy transport, worker-side hash/length/quota verification, final-component-safe opening, private workspaces, immutable output claiming, governed storage handoff, and cooperative/forced cancellation pass in the 93-test local baseline; the prior 88-test baseline passes three OSes. OCCT verified-byte stream parsing and transfer cancellation pass locally through adapter ABI v3; post-checkpoint three-OS CI, direct-resource whitelisting, unrelated inheritance proof, representative mid-transfer proof, uninterruptible parse/property bounds, and OS sandbox/resource enforcement remain pending | ADR-0005 and TASK-003 |
 | STL/3MF mesh import/validation | Not started | ADR-0004 and TASK-004 |
 | SQLite/blob migrations, crash, backup/restore, concurrency | Not started | ADR-0006 and TASK-006 |
 | Typed decimal/unit calculation DAG, configurable rates and replay | TASK-001 and TASK-002 pass on three OSes; later shop calibration remains pending | ADR-0007, TASK-002 and TASK-007 |

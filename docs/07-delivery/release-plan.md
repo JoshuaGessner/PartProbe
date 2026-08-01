@@ -1,7 +1,7 @@
 # Initial Release Plan
 
 > **Status:** Draft
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** REQ-F-001–REQ-F-011; REQ-NF-001–REQ-NF-010
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** Supported OS versions, signing, quote format, accuracy thresholds
@@ -12,7 +12,7 @@ The first releasable vertical slice proves: RFQ/customer/one part revision; STEP
 
 ## Current readiness
 
-The repository is not yet at developer alpha. Calculation and user-owned rate mechanics exist as headless Rust foundations, and the isolated geometry-worker has provisional STEP/OCCT evidence. The release still lacks the desktop workflow, supported STEP/STL/3MF importers, representative accuracy validation, durable save/reopen repositories and migrations, complete containment/resource controls, real-shop policy calibration, preview/report generation, installers/signing, and end-to-end acceptance evidence.
+The repository is not yet at developer alpha. Calculation and user-owned rate mechanics exist as headless Rust foundations, and the isolated geometry-worker now has explicit verified-copy/worker-revalidation plus provisional OCCT verified-byte-stream evidence. The release still lacks whitelist-capable direct-resource launch, ambient-resource exclusion, the desktop workflow, supported STEP/STL/3MF importers, representative accuracy validation, durable save/reopen repositories and migrations, complete containment/resource controls, real-shop policy calibration, preview/report generation, installers/signing, and end-to-end acceptance evidence.
 
 The next release-critical sequence is TASK-003 worker/native completion, TASK-004 mesh import, TASK-005 desktop and guided rate setup, TASK-006 persistence/backup/replay, and TASK-007 shop calibration. Advanced routing, uncertainty, PMI, learning, CAM, capacity, and integration features remain outside the initial release gate.
 

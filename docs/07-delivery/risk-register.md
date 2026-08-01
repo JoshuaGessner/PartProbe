@@ -1,7 +1,7 @@
 # Risk Register
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -10,7 +10,7 @@
 
 | ID | Risk | Probability | Impact | Mitigation | Owner | Trigger | Review date | Affected milestone | State |
 |---|---|---|---|---|---|---|---|---|---|
-| RISK-001 | OCCT/FFI defect or malformed CAD escapes/crashes host | M | Critical | Isolated worker, quotas, corpus/fuzzing, restart boundaries | Geometry lead | Host crash, escape, leak or corrupted output | 2026-07-22 | M0.2–M2 | Open |
+| RISK-001 | OCCT/FFI defect, malformed CAD, wrong-resource binding, or unintended descriptor/HANDLE inheritance escapes/crashes/leaks from the worker boundary | M | Critical | Isolated worker, explicit identity-bound verified-copy transport, immutable byte-stream parsing, quotas, fail-closed direct policy, future exact inheritance allowlist, corpus/fuzzing, restart boundaries | Geometry lead | Host crash, escape, unrelated inherited resource, fallback represented as direct, leak, or corrupted output | 2026-08-01 | M0.2–M2 | Open |
 | RISK-002 | STEP translation/healing silently changes geometry | M | Critical | Preserve source and pre/post metrics/actions; user review | Geometry lead | Material measurement/topology delta without warning | 2026-07-22 | M0.2–M2 | Open |
 | RISK-003 | Mesh evidence is mistaken for exact topology | H | High | Separate representation types, confidence ceiling, labels | Product/geometry | Mesh-derived fact shown as exact/high confidence | 2026-07-22 | M1–M3 | Open |
 | RISK-004 | UI/WebView/GPU stack fails dense accessible cross-platform needs | M | High | Time-boxed spike with common suite and fallback | UI lead | Platform workflow/accessibility/performance gate fails | 2026-07-22 | M0.2–M2 | Open |

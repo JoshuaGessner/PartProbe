@@ -1,7 +1,7 @@
 # Security Model
 
 > **Status:** Draft  
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirement IDs:** REQ-NF-002, REQ-NF-005, REQ-NF-007, REQ-NF-009, REQ-NF-015–REQ-NF-019, SEC-001–SEC-014  
 > **Related architecture decision IDs:** ADR-0001, ADR-0005, ADR-0006, ADR-0012–ADR-0014  
 > **Open questions:** Cryptographic/key-management provider, identity/MFA, supported classifications, threat model, and incident owner  
@@ -15,7 +15,7 @@ Protect estimate, CAD, drawing, pricing, and attachment confidentiality and inte
 ## Trust boundaries
 
 1. **Desktop client:** untrusted file/UI input; holds the minimum decrypted data needed for the active authorized session.
-2. **Import worker:** separate, least-privilege process for geometry/document parsing and thumbnail/derivative creation; no direct access outside an approved staging directory.
+2. **Import worker:** separate, least-privilege process for geometry/document parsing and thumbnail/derivative creation; receives either one explicitly allowlisted inherited resource or an explicitly selected, identity/hash/length-bound verified private copy. It has no direct access outside approved input/output resources; current direct descriptor/HANDLE modes remain unavailable until inheritance allowlisting is proven.
 3. **Application service (team/controlled profile):** policy decision/enforcement point for identity, authorization, records, audit, and exports.
 4. **Object/document storage:** classification-aware attachments and derivatives, content hashes, revision lineage, retention policy, and encryption only when required by an approved deployment/key-management decision.
 5. **Backup/update/diagnostic channels:** separately authorized; no data-bearing telemetry or support upload by default.

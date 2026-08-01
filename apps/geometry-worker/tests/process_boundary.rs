@@ -1,6 +1,8 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+#[cfg(not(feature = "native-occt"))]
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -15,6 +17,11 @@ use partprobe_geometry_import::{
     AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
     GeometryWorkerSupervisor, ResourceQuotas, SupervisorPolicy, WORKER_INPUT_FILENAME,
     open_local_source_read_only,
+};
+#[cfg(not(feature = "native-occt"))]
+use partprobe_geometry_import::{
+    GeometryWorkerControlMessage, GeometryWorkerResponse, WorkerAssetFallbackReason,
+    WorkerAssetManifest, WorkerAssetTransport, WorkerAssetTransportPolicy,
 };
 #[cfg(feature = "native-occt")]
 use partprobe_test_support::geometry_fixtures::GeometryImportFailureExpectation;
@@ -81,6 +88,40 @@ fn asset_grant(request: &GeometryWorkerRequest, source: &Path) -> AssetReadGrant
         .expect("authorized source must create a read-only grant")
 }
 
+fn cancellation_asset_grant(request: &GeometryWorkerRequest) -> AssetReadGrant {
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    asset_grant(request, &source)
+}
+
+#[cfg(not(feature = "native-occt"))]
+fn run_worker_control_message(
+    worker_directory: &Path,
+    message: &GeometryWorkerControlMessage,
+) -> GeometryWorkerResponse {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_partprobe-geometry-worker"))
+        .env_clear()
+        .current_dir(worker_directory)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("worker must launch");
+    let mut frame = serde_json::to_vec(message).expect("control message must serialize");
+    frame.push(b'\n');
+    child
+        .stdin
+        .as_mut()
+        .expect("worker stdin must exist")
+        .write_all(&frame)
+        .expect("control frame must be written");
+    let output = child
+        .wait_with_output()
+        .expect("worker process must be reaped");
+    assert!(output.status.success(), "worker must return a response");
+    serde_json::from_slice(&output.stdout).expect("worker response must deserialize")
+}
+
 #[cfg(feature = "native-occt")]
 fn native_request(
     expected_hash: &str,
@@ -136,8 +177,52 @@ fn supervisor_executes_the_path_free_worker_contract() {
         response.diagnostic_codes()[0].as_str(),
         "NATIVE_ADAPTER_UNAVAILABLE"
     );
+    assert_eq!(
+        execution.asset_transport(),
+        Some(WorkerAssetTransport::VerifiedPrivateCopy)
+    );
+    assert_eq!(execution.fallback_reason(), None);
     assert!(execution.output().is_none());
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn preferred_direct_transport_records_the_verified_copy_fallback() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-fallback-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid")
+    .with_asset_transport_policy(WorkerAssetTransportPolicy::PreferDirect);
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    let request = request();
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+
+    assert_eq!(
+        execution.asset_transport(),
+        Some(WorkerAssetTransport::VerifiedPrivateCopy)
+    );
+    assert_eq!(
+        execution.fallback_reason(),
+        Some(WorkerAssetFallbackReason::DirectTransportUnavailable)
+    );
     assert!(
         std::fs::read_dir(&job_directory)
             .expect("job root must be readable")
@@ -176,6 +261,85 @@ fn supervisor_rejects_hash_mismatch_before_worker_launch() {
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
 
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn worker_rejects_manifest_identity_mismatch_before_adapter_dispatch() {
+    let worker_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-manifest-mismatch-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&worker_directory).expect("worker directory must be created");
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    let bytes = std::fs::read(source).expect("fixture must be readable");
+    std::fs::write(worker_directory.join(WORKER_INPUT_FILENAME), &bytes)
+        .expect("private copy must be written");
+    let request = request();
+    let manifest = WorkerAssetManifest::verified_private_copy(
+        &request,
+        u64::try_from(bytes.len()).expect("fixture length must fit"),
+    );
+    let message = GeometryWorkerControlMessage::execute(request, manifest);
+    let mut value = serde_json::to_value(message).expect("control message must serialize");
+    value["asset_manifest"]["job_id"] = serde_json::json!("other-job");
+    let message: GeometryWorkerControlMessage =
+        serde_json::from_value(value).expect("mismatched frame remains structurally valid");
+
+    let response = run_worker_control_message(&worker_directory, &message);
+
+    assert_eq!(response.status(), StageStatus::FailedRecoverable);
+    assert_eq!(
+        response.diagnostic_codes()[0].as_str(),
+        "ASSET_MANIFEST_MISMATCH"
+    );
+    std::fs::remove_file(worker_directory.join(WORKER_INPUT_FILENAME))
+        .expect("private copy must be removable");
+    std::fs::remove_dir(worker_directory).expect("worker directory must be removable");
+}
+
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn worker_recomputes_private_copy_length_and_hash_before_adapter_dispatch() {
+    let worker_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-copy-revalidation-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&worker_directory).expect("worker directory must be created");
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    let fixture = std::fs::read(source).expect("fixture must be readable");
+    let request = request();
+    let manifest = WorkerAssetManifest::verified_private_copy(
+        &request,
+        u64::try_from(fixture.len()).expect("fixture length must fit"),
+    );
+    let message = GeometryWorkerControlMessage::execute(request.clone(), manifest.clone());
+    let staged_path = worker_directory.join(WORKER_INPUT_FILENAME);
+    std::fs::write(&staged_path, vec![0_u8; fixture.len()])
+        .expect("same-length tampered copy must be written");
+
+    let hash_response = run_worker_control_message(&worker_directory, &message);
+
+    assert_eq!(hash_response.status(), StageStatus::FailedRecoverable);
+    assert_eq!(
+        hash_response.diagnostic_codes()[0].as_str(),
+        "ASSET_HASH_MISMATCH"
+    );
+    std::fs::write(&staged_path, &fixture[..fixture.len() - 1])
+        .expect("short tampered copy must be written");
+    let length_message = GeometryWorkerControlMessage::execute(request, manifest);
+
+    let length_response = run_worker_control_message(&worker_directory, &length_message);
+
+    assert_eq!(length_response.status(), StageStatus::FailedRecoverable);
+    assert_eq!(
+        length_response.diagnostic_codes()[0].as_str(),
+        "ASSET_TRANSPORT_INVALID"
+    );
+    std::fs::remove_file(staged_path).expect("private copy must be removable");
+    std::fs::remove_dir(worker_directory).expect("worker directory must be removable");
+}
+
 #[test]
 fn running_worker_acknowledges_user_cancellation_within_grace() {
     let supervisor = cancellation_fixture_supervisor(2_000);
@@ -188,7 +352,9 @@ fn running_worker_acknowledges_user_cancellation_within_grace() {
     });
     let started = Instant::now();
 
-    let response = supervisor.execute(&request, &cancellation);
+    let grant = cancellation_asset_grant(&request);
+    let execution = supervisor.execute_with_grant(&request, grant, &cancellation);
+    let response = execution.response();
 
     signal.join().expect("cancellation signal must complete");
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
@@ -211,7 +377,9 @@ fn cancellation_response_without_acknowledgement_is_rejected() {
         cancellation_signal.store(true, Ordering::Release);
     });
 
-    let response = supervisor.execute(&request, &cancellation);
+    let grant = cancellation_asset_grant(&request);
+    let execution = supervisor.execute_with_grant(&request, grant, &cancellation);
+    let response = execution.response();
 
     signal.join().expect("cancellation signal must complete");
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
@@ -267,7 +435,9 @@ fn wall_deadline_uses_cooperative_cancellation_before_force() {
     let request = cancellation_request("cooperative-deadline", 30);
     let started = Instant::now();
 
-    let response = supervisor.execute(&request, &AtomicBool::new(false));
+    let grant = cancellation_asset_grant(&request);
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
     assert_eq!(response.diagnostic_codes()[0].as_str(), "WORKER_TIMEOUT");
@@ -284,7 +454,9 @@ fn uncooperative_deadline_is_force_terminated_after_grace() {
     let request = cancellation_request("uncooperative-deadline", 30);
     let started = Instant::now();
 
-    let response = supervisor.execute(&request, &AtomicBool::new(false));
+    let grant = cancellation_asset_grant(&request);
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::FailedRecoverable);
     assert_eq!(

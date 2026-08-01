@@ -13,10 +13,11 @@ use partprobe_geometry_core::StageStatus;
 use partprobe_geometry_core::{GeometryStage, GeometryStageReport};
 use partprobe_geometry_import::{
     DiagnosticCode, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerResponse,
-    WorkerCancellationReason,
+    VerifiedWorkerAsset, WorkerCancellationReason, recoverable_termination_response,
+    verify_worker_asset_copy,
 };
 #[cfg(feature = "native-occt")]
-use partprobe_geometry_import::{SnapshotReference, WORKER_INPUT_FILENAME, WORKER_OUTPUT_FILENAME};
+use partprobe_geometry_import::{SnapshotReference, WORKER_OUTPUT_FILENAME};
 #[cfg(feature = "native-occt")]
 use serde::Serialize;
 
@@ -36,7 +37,7 @@ fn main() -> ExitCode {
 fn run() -> Result<(), ()> {
     let mut stdin = std::io::stdin();
     let message = read_control_message(&mut stdin)?.ok_or(())?;
-    let request = message.into_execute_request().ok_or(())?;
+    let (request, asset_manifest) = message.into_execute().ok_or(())?;
     let cancellation = Arc::new(AtomicU8::new(CANCELLATION_NONE));
     let cancellation_reader = Arc::clone(&cancellation);
     let control_request = request.clone();
@@ -44,7 +45,21 @@ fn run() -> Result<(), ()> {
         watch_control_stream(&mut stdin, &control_request, &cancellation_reader);
     });
 
-    let response = build_response(&request, &cancellation)?;
+    let worker_directory = std::env::current_dir().map_err(|_| ())?;
+    let asset = match verify_worker_asset_copy(&request, &asset_manifest, &worker_directory) {
+        Ok(asset) => asset,
+        Err(termination) => {
+            let response = recoverable_termination_response(
+                request.schema_version(),
+                request.job_id().clone(),
+                request.correlation_id().clone(),
+                termination,
+            );
+            let response_bytes = serde_json::to_vec(&response).map_err(|_| ())?;
+            return std::io::stdout().write_all(&response_bytes).map_err(|_| ());
+        }
+    };
+    let response = build_response(&request, &asset, &cancellation)?;
     let response_bytes = serde_json::to_vec(&response).map_err(|_| ())?;
     std::io::stdout().write_all(&response_bytes).map_err(|_| ())
 }
@@ -123,6 +138,7 @@ fn cancellation_response(
 #[cfg(not(feature = "native-occt"))]
 fn build_response(
     request: &GeometryWorkerRequest,
+    _asset: &VerifiedWorkerAsset,
     cancellation: &AtomicU8,
 ) -> Result<GeometryWorkerResponse, ()> {
     if let Some(response) = cancellation_response(request, cancellation)? {
@@ -164,6 +180,7 @@ struct NativeSpikeSnapshot<'a> {
 #[cfg(feature = "native-occt")]
 fn build_response(
     request: &GeometryWorkerRequest,
+    asset: &VerifiedWorkerAsset,
     cancellation: &AtomicU8,
 ) -> Result<GeometryWorkerResponse, ()> {
     const SUPPORTED_STAGES: [GeometryStage; 6] = [
@@ -181,31 +198,16 @@ fn build_response(
         return Ok(response);
     }
 
-    let source = std::env::current_dir()
-        .map_err(|_| ())?
-        .join(WORKER_INPUT_FILENAME);
-    let metadata = std::fs::symlink_metadata(&source).map_err(|_| ())?;
-    if metadata.file_type().is_symlink()
-        || !metadata.is_file()
-        || metadata.len() == 0
-        || metadata.len() > request.quotas().max_input_bytes()
-    {
-        return failed_response(request, "ASSET_GRANT_INVALID");
-    }
-    if let Some(response) = cancellation_response(request, cancellation)? {
-        return Ok(response);
-    }
-
-    let properties =
-        match partprobe_geometry_occt_adapter::analyze_step_with_cancellation(&source, &|| {
-            cancellation.load(Ordering::Acquire) != CANCELLATION_NONE
-        }) {
-            Ok(properties) => properties,
-            Err(error) if error.diagnostic_code() == "OCCT_CANCELLED" => {
-                return cancellation_response(request, cancellation)?.ok_or(());
-            }
-            Err(error) => return failed_response(request, error.diagnostic_code()),
-        };
+    let properties = match partprobe_geometry_occt_adapter::analyze_step_bytes_with_cancellation(
+        asset.bytes(),
+        &|| cancellation.load(Ordering::Acquire) != CANCELLATION_NONE,
+    ) {
+        Ok(properties) => properties,
+        Err(error) if error.diagnostic_code() == "OCCT_CANCELLED" => {
+            return cancellation_response(request, cancellation)?.ok_or(());
+        }
+        Err(error) => return failed_response(request, error.diagnostic_code()),
+    };
     if let Some(response) = cancellation_response(request, cancellation)? {
         return Ok(response);
     }

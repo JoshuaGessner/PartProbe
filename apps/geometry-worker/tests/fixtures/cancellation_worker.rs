@@ -4,7 +4,7 @@ use std::time::Duration;
 use partprobe_geometry_core::StageStatus;
 use partprobe_geometry_import::{
     DiagnosticCode, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerResponse,
-    WorkerCancellationReason,
+    WorkerCancellationReason, recoverable_termination_response, verify_worker_asset_copy,
 };
 
 fn main() {
@@ -17,7 +17,19 @@ fn run() -> Result<(), ()> {
     let stdin = std::io::stdin();
     let mut lines = stdin.lock().lines();
     let execute = read_message(&mut lines)?;
-    let request = execute.into_execute_request().ok_or(())?;
+    let (request, asset_manifest) = execute.into_execute().ok_or(())?;
+    let worker_directory = std::env::current_dir().map_err(|_| ())?;
+    if let Err(termination) = verify_worker_asset_copy(&request, &asset_manifest, &worker_directory)
+    {
+        let response = recoverable_termination_response(
+            request.schema_version(),
+            request.job_id().clone(),
+            request.correlation_id().clone(),
+            termination,
+        );
+        let bytes = serde_json::to_vec(&response).map_err(|_| ())?;
+        return std::io::stdout().write_all(&bytes).map_err(|_| ());
+    }
 
     if request.job_id().as_str().contains("uncooperative") {
         std::thread::sleep(Duration::from_secs(5));

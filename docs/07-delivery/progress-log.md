@@ -1,12 +1,23 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-01 — TASK-003 Checkpoint 15 explicit worker asset transport
+
+- Advanced the preproduction control stream to schema version 2 and added asset-transport manifest schema version 1. The manifest is path-free and binds transport, job, correlation, capability, authorized byte length, and expected SHA-256; mixed/unsupported versions and mismatched identities fail closed.
+- Added a platform-neutral supervisor policy: `VerifiedCopyOnly` explicitly selects `verified_private_copy`; `PreferDirect` records `DirectTransportUnavailable` before using that fallback; and `RequireDirect` returns `ASSET_DIRECT_TRANSPORT_UNAVAILABLE` without creating a workspace or launching. No direct Unix descriptor or Windows HANDLE support is claimed.
+- Preserved the consumed already-open source grant, create-new private staging, supervisor-side length/quota/hash checks, deleted-source behavior, read-only copy, cancellation/force-kill/reap, output claiming, and deterministic cleanup. The worker now independently opens the fixed copy with final-component protection and revalidates manifest/request identity, regular-file type, exact length, quota, and SHA-256 before adapter dispatch.
+- Advanced optional native adapter ABI v2 to v3. Verified immutable bytes cross the C ABI by pointer and length and OCCT reads them through `STEPControl_Reader::ReadStream` under a fixed non-sensitive name, eliminating the post-verification pathname reopen. Cancellation callback and sanitized failure behavior remain intact; stream parsing and property calls remain internally uninterruptible.
+- Added tests for control/transport versioning, path-free explicit transport, manifest mismatch, unavailable direct modes, observable fallback reason, same-length hash tampering, length tampering, default worker verification, and cancellation/deadline/forced cleanup through granted assets. Local validation passes 93 default runtime tests, one compile-fail doctest, ten native adapter tests, and eleven native worker process tests.
+- No new dependency or persisted/customer schema was added. The coordinated preproduction control/transport/ABI migration requires rebuilding supervisor, worker, and adapter together; fixture schemas and request schema version 1 did not change.
+- Direct-resource launch remains blocked on a reviewed platform launcher that whitelists exactly stdio plus the intended descriptor/HANDLE and proves an intentionally inheritable unrelated resource is absent. OS sandbox/network denial, CPU/memory/descendant containment, representative native fixtures, three-OS native builds, packaging/legal approval, durable policy/audit/store adapters, and production support remain open. TASK-003 and ADR-0005 remain In Progress/In Review.
+- Commit, push, post-checkpoint GitHub Actions run, and PR mergeability evidence are pending this checkpoint closeout.
 
 ## 2026-07-29 — TASK-003 geometry-worker contract started
 

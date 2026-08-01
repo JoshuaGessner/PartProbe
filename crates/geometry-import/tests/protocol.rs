@@ -8,8 +8,10 @@ use partprobe_geometry_core::{
 use partprobe_geometry_import::{
     AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerControlMessage,
     GeometryWorkerRequest, GeometryWorkerSupervisor, LocalAssetRoot, ResourceQuotas,
-    SupervisorPolicy, WORKER_CONTROL_SCHEMA_VERSION, WorkerCancellationReason, WorkerTermination,
-    open_local_source_read_only, recoverable_termination_response,
+    SupervisorPolicy, WORKER_ASSET_TRANSPORT_SCHEMA_VERSION, WORKER_CONTROL_SCHEMA_VERSION,
+    WorkerAssetManifest, WorkerAssetTransport, WorkerAssetTransportPolicy,
+    WorkerCancellationReason, WorkerTermination, open_local_source_read_only,
+    recoverable_termination_response,
 };
 
 fn request() -> GeometryWorkerRequest {
@@ -47,7 +49,8 @@ fn request_is_path_free_and_versioned() {
 #[test]
 fn control_frames_are_versioned_path_free_and_identity_bound() {
     let active_request = request();
-    let execute = GeometryWorkerControlMessage::execute(active_request.clone());
+    let manifest = WorkerAssetManifest::verified_private_copy(&active_request, 42);
+    let execute = GeometryWorkerControlMessage::execute(active_request.clone(), manifest.clone());
     let value = serde_json::to_value(&execute).expect("execute frame must serialize");
 
     assert_eq!(
@@ -55,18 +58,30 @@ fn control_frames_are_versioned_path_free_and_identity_bound() {
         WORKER_CONTROL_SCHEMA_VERSION
     );
     assert_eq!(value["message"], "execute");
+    assert_eq!(
+        value["asset_manifest"]["transport"],
+        "verified_private_copy"
+    );
+    assert_eq!(
+        value["asset_manifest"]["transport_schema_version"],
+        WORKER_ASSET_TRANSPORT_SCHEMA_VERSION
+    );
     assert!(value.get("path").is_none());
+    assert!(value.get("descriptor").is_none());
+    assert!(value.get("handle").is_none());
     let decoded: GeometryWorkerControlMessage =
         serde_json::from_value(value.clone()).expect("execute frame must deserialize");
-    assert_eq!(
-        decoded
-            .into_execute_request()
-            .expect("execute frame must contain a request"),
-        active_request
-    );
+    let (decoded_request, decoded_manifest) = decoded
+        .into_execute()
+        .expect("execute frame must contain a request");
+    assert_eq!(decoded_request, active_request);
+    assert_eq!(decoded_manifest, manifest);
+    decoded_manifest
+        .validate_for(&decoded_request)
+        .expect("matching manifest must validate");
 
     let mut unsupported = value;
-    unsupported["control_schema_version"] = serde_json::json!(2);
+    unsupported["control_schema_version"] = serde_json::json!(1);
     assert!(serde_json::from_value::<GeometryWorkerControlMessage>(unsupported).is_err());
 
     let cancel = GeometryWorkerControlMessage::cancel(
@@ -84,6 +99,24 @@ fn control_frames_are_versioned_path_free_and_identity_bound() {
     let other: GeometryWorkerRequest =
         serde_json::from_value(other_value).expect("other request must deserialize");
     assert!(cancel.cancellation_reason_for(&other).is_err());
+}
+
+#[test]
+fn asset_manifest_mismatch_and_unimplemented_direct_transport_fail_closed() {
+    let active_request = request();
+    let manifest = WorkerAssetManifest::verified_private_copy(&active_request, 42);
+    let mut mismatched = serde_json::to_value(&manifest).expect("manifest must serialize");
+    mismatched["job_id"] = serde_json::json!("other-job");
+    let mismatched: WorkerAssetManifest =
+        serde_json::from_value(mismatched).expect("mismatched manifest remains structurally valid");
+    assert!(mismatched.validate_for(&active_request).is_err());
+
+    let mut direct = serde_json::to_value(&manifest).expect("manifest must serialize");
+    direct["transport"] = serde_json::json!("unix_descriptor");
+    let direct: WorkerAssetManifest = serde_json::from_value(direct)
+        .expect("direct transport token is part of the neutral schema");
+    assert_eq!(direct.transport(), WorkerAssetTransport::UnixDescriptor);
+    assert!(direct.validate_for(&active_request).is_err());
 }
 
 #[test]
@@ -170,14 +203,60 @@ fn supervisor_maps_launch_failure_and_precancel_without_path_leakage() {
     )
     .expect("supervisor must be valid");
 
-    let launch = supervisor.execute(&request(), &AtomicBool::new(false));
-    let cancelled = supervisor.execute(&request(), &AtomicBool::new(true));
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    let mut request_value = serde_json::to_value(request()).expect("request must serialize");
+    request_value["expected_source_hash"] =
+        serde_json::json!("c46f940641e08eb3cbcaed5e1d90191c089651dd8d42064ecdaaa7a8b3e069ab");
+    let launch_request: GeometryWorkerRequest =
+        serde_json::from_value(request_value).expect("fixture request must deserialize");
+    let launch_grant =
+        open_local_source_read_only(launch_request.asset_capability().clone(), &source)
+            .expect("fixture grant must open");
+    let cancel_grant =
+        open_local_source_read_only(launch_request.asset_capability().clone(), &source)
+            .expect("fixture grant must open");
+    let launch =
+        supervisor.execute_with_grant(&launch_request, launch_grant, &AtomicBool::new(false));
+    let cancelled =
+        supervisor.execute_with_grant(&launch_request, cancel_grant, &AtomicBool::new(true));
 
     assert_eq!(
-        launch.diagnostic_codes()[0].as_str(),
+        launch.response().diagnostic_codes()[0].as_str(),
         "WORKER_LAUNCH_FAILED"
     );
-    assert_eq!(cancelled.diagnostic_codes()[0].as_str(), "WORKER_CANCELLED");
+    assert_eq!(
+        cancelled.response().diagnostic_codes()[0].as_str(),
+        "WORKER_CANCELLED"
+    );
+}
+
+#[test]
+fn require_direct_transport_fails_closed_without_creating_a_fallback() {
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    let mut request_value = serde_json::to_value(request()).expect("request must serialize");
+    request_value["expected_source_hash"] =
+        serde_json::json!("c46f940641e08eb3cbcaed5e1d90191c089651dd8d42064ecdaaa7a8b3e069ab");
+    let active_request: GeometryWorkerRequest =
+        serde_json::from_value(request_value).expect("fixture request must deserialize");
+    let grant = open_local_source_read_only(active_request.asset_capability().clone(), &source)
+        .expect("fixture grant must open");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from("__partprobe_worker_must_not_launch__"),
+        std::env::temp_dir(),
+        SupervisorPolicy::new(4_096, 1, 50).expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid")
+    .with_asset_transport_policy(WorkerAssetTransportPolicy::RequireDirect);
+
+    let execution = supervisor.execute_with_grant(&active_request, grant, &AtomicBool::new(false));
+
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "ASSET_DIRECT_TRANSPORT_UNAVAILABLE"
+    );
+    assert!(execution.asset_transport().is_none());
 }
 
 #[test]

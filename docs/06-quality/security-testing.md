@@ -1,7 +1,7 @@
 # Security Testing
 
 > **Status:** Draft  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-08-01
 > **Related requirement IDs:** SEC-001–SEC-010, TEST-011, TEST-020, TEST-030  
 > **Related architecture decision IDs:** ADR-0001, ADR-0005, ADR-0006  
 > **Open questions:** Threat model owner, penetration-test scope, supported import formats, and deployment-specific assurance obligations  
@@ -19,7 +19,7 @@ Run security testing only against authorized environments and sanitized/non-cont
 | Authentication/session | invalid/expired/revoked session; credential reset; MFA/identity integration where configured; no secrets in local/project exports |
 | Authorization | deny-by-default; cross-project access; role escalation; record-state/classification checks; service endpoint enforcement independent of UI |
 | Controlled actions | export, print, clipboard, share, support bundle, backup/restore and classification transition require authorization and produce audit evidence |
-| Import/parser | malformed, oversized, polyglot, archive-bomb/path-traversal inputs; worker crash/timeout/memory containment; staging cleanup; no arbitrary file read/write |
+| Import/parser | malformed, oversized, polyglot, archive-bomb/path-traversal inputs; intended-resource-only transport; capability/job/correlation mismatch; unrelated descriptor/HANDLE exclusion; deleted-source behavior; source replacement/race resistance; explicit verified-copy labeling and revalidation; worker crash/timeout/memory containment; staging cleanup; no arbitrary file read/write |
 | Storage/crypto | attachment hash mismatch; tampered manifest; encryption/key/rotation/recovery behavior per approved ADR; cache/preview/log classification inheritance |
 | Audit/logging | required events emitted; tampering/ordering/replay behavior; no CAD/drawing/price/secret content in logs; authorized query only |
 | Update/dependency | signature failure, rollback/revocation path, dependency inventory/SBOM, known-vulnerability triage and remediation evidence |
