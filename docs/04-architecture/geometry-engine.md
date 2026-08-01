@@ -12,7 +12,7 @@
 
 ## Architecture
 
-The geometry engine is a UI-independent application service backed by a sandboxed `geometry-worker`. The desktop process submits a content-addressed asset and job options; it receives a versioned `GeometryAnalysisSnapshot` plus a derived display mesh. The UI never links directly to a geometry kernel, and the kernel never writes quote data.
+The target geometry engine is a UI-independent application service backed by an isolated, partially OS-contained `geometry-worker`. The future desktop process submits a content-addressed asset and job options; it receives a versioned `GeometryAnalysisSnapshot` plus a derived display mesh. The UI never links directly to a geometry kernel, and the kernel never writes quote data. The current spike has no desktop client or display-mesh output and is not an operating-system sandbox.
 
 ```text
 desktop UI ── application service ── job store / snapshot repository
@@ -64,7 +64,7 @@ The reversible spike now uses a bounded, newline-framed control stream with its 
 
 Native adapter ABI version 3 passes verified bytes by pointer and length to `STEPControl_Reader::ReadStream` under a fixed non-sensitive auxiliary name and passes the worker's atomic cancellation probe into an OCCT `Message_ProgressIndicator`. OCCT 8.0 polls `UserBreak()` during STEP root transfer, so a validated cancel can stop that phase and return the sanitized `OCCT_CANCELLED` boundary code; Rust contains probe panics and treats them as cancellation rather than unwinding through C++. Stream parsing and `SurfaceProperties`/`VolumeProperties` do not expose progress ranges, so they remain uninterruptible internally. The supervisor's grace-bounded kill/reap path remains the required bound for those phases and for any native code that stops polling.
 
-The supervisor treats launch, protocol I/O, worker exit, timeout, quota breach, malformed response, output-claim failure, cleanup failure, or cancellation as sanitized failure. The target design still requires no worker network, least-privilege source/output handles, OS-enforced temporary-storage isolation, CPU/memory/descendant limits, and derivative cleanup under retention policy. A private directory, cleared environment, and controlled working root are defense in depth, not an OS sandbox.
+The supervisor treats launch, protocol I/O, worker exit, timeout, quota breach, malformed response, output-claim failure, cleanup failure, or cancellation as sanitized failure. Current partial resource containment includes Unix CPU/regular-file/core limits and process-group cleanup, Linux address-space limits, and a suspended Windows Job with per-process CPU, committed-memory, one-process, and kill-on-close controls. The target design still requires no worker network, OS-enforced filesystem confinement/temporary-storage isolation, hard macOS memory enforcement, hostile Unix descendant escape prevention, aggregate-output limits, and derivative cleanup under retention policy. A private directory, cleared environment, controlled working root, and these partial limits are defense in depth, not an OS sandbox.
 
 ## Kernel adapter boundary
 

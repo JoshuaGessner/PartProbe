@@ -1,7 +1,7 @@
 # System Architecture Overview
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-08-01
 > **Related requirements:** REQ-F-001–REQ-F-065; REQ-NF-001–REQ-NF-022  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** OQ-021, OQ-022, OQ-031–OQ-050  
@@ -10,7 +10,9 @@
 
 ## Recommended shape
 
-PartProbe is a Cargo workspace with a Tauri 2 desktop shell and Leptos CSR UI, Rust application/domain services, a deterministic estimation graph, SQLite standalone persistence, content-addressed local document storage, and an isolated native geometry worker using OCCT-based STEP B-rep translation and analysis for successfully translated, validated solids. Invalid, partial, or healed results remain explicitly limited. A `wgpu` renderer consumes a sanitized render scene rather than kernel objects. These choices remain **In Review** until their ADR spike gates pass.
+The recommended target architecture is a Cargo workspace with a Tauri 2 desktop shell and Leptos CSR UI, Rust application/domain services, a deterministic estimation graph, SQLite standalone persistence, content-addressed local document storage, and an isolated native geometry worker using OCCT-based STEP B-rep translation and analysis for successfully translated, validated solids. Invalid, partial, or healed results remain explicitly limited. A `wgpu` renderer consumes a sanitized render scene rather than kernel objects. These choices remain **In Review** until their ADR spike gates pass.
+
+The current repository implements headless calculation/rate foundations and partial application, security, document-storage, platform, geometry-worker, and optional Apple Silicon OCCT spike boundaries. The Tauri/Leptos desktop shell, `wgpu` viewer, SQLite repositories, complete estimate application service, and supported product importer are not implemented.
 
 ```text
 Leptos UI + wgpu viewport

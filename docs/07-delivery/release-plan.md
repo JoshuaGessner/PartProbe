@@ -16,6 +16,8 @@ The repository is not yet at developer alpha. Calculation and user-owned rate me
 
 The next release-critical sequence is TASK-003 worker/native completion, TASK-004 mesh import, TASK-005 desktop and guided rate setup, TASK-006 persistence/backup/replay, and TASK-007 shop calibration. Advanced routing, uncertainty, PMI, learning, CAM, capacity, and integration features remain outside the initial release gate.
 
+For earlier engineering feedback, the [testable GUI vertical-slice plan](gui-vertical-slice-plan.md) defines an internal Apple-Silicon, STEP-only, session-only slice at approximately five focused checkpoints, with a 3D viewport adding roughly two or three. It deliberately omits save/reopen, production format support, cross-platform packaging, reports, and calibration, so it is not a release stage or evidence that the repository has reached developer alpha.
+
 ## Staging
 
 1. Internal developer alpha using isolated, visibly synthetic data that cannot seed production libraries.

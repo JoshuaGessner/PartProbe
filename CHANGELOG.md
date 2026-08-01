@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -25,7 +25,12 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - Executable TASK-001 tests, passing three-OS CI evidence, dependency record, and validation evidence.
 - User-owned effective-dated rate cards, explicit approval/source/effective-period contracts, deterministic missing/ambiguity behavior, and no numeric production defaults.
 - Versioned rounding and pricing policies, CALC-007–CALC-018 deterministic foundations, and isolated synthetic EX-01/03/12 golden/replay tests.
+- Kernel-neutral geometry contracts, bounded schema-v2 worker control and transport, verified-copy plus exact Unix descriptor/Windows HANDLE direct delivery, worker-side source verification, cancellation/forced termination, private staging, controlled output claiming, and governed derivative handoff.
+- Optional OCCT 8.0.0 ABI-v3 Apple Silicon byte-stream parsing with provisional synthetic STEP measurements and cancellation polling; default builds remain native-feature-off.
+- Partial worker resource containment: Unix CPU/file/core/process-group controls, Linux memory limits, and suspended Windows Job CPU/memory/one-process/tree-kill controls.
+- A canonical testable-GUI plan separating the five-checkpoint internal STEP/session-only slice, optional viewport increment, cross-platform alpha, and release acceptance.
 
 ### Security
 
 - Established local-first, no-external-upload-by-default policy for technical and quote data.
+- Added deny-by-default authorization/audit seams, capability-root containment, exact child-resource allowlists, and explicit documentation that partial worker controls are not an OS sandbox.

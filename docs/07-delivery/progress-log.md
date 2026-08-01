@@ -8,6 +8,15 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-01 — Documentation and GUI-readiness reconciliation
+
+- Audited the canonical project state, README, requirements matrix, architecture/security boundaries, delivery plan, validation evidence, changelog, and agent rules against the implemented Checkpoint 18 workspace and the prior branch-head three-OS run 30707058682.
+- Corrected stale 96-test/Checkpoint 17 status, removed claims that all CPU/memory containment is absent, and qualified the current worker as partially OS-contained rather than sandboxed. Present-tense guidance now distinguishes implemented Unix/Linux/Windows controls from open network/filesystem, macOS-memory, hostile-Unix-descendant, aggregate-output, packaging, and deployment gates.
+- Added `gui-vertical-slice-plan.md` as the canonical distance-to-GUI plan. The nearest honest target is an internal Apple-Silicon, STEP-only, session-only, provisional facts-and-estimate workflow at approximately five focused checkpoints; a visible 3D viewport adds roughly two or three because tessellation and viewer implementations do not exist.
+- Updated agent guidance so current-state claims come from `PROJECT_STATE.md` and validation evidence, UI code cannot own CAD parsing or authoritative calculations, missing values remain explicit, and developer-only evidence cannot be promoted to production support or milestone completion.
+- Local closeout passes formatting, warnings-as-errors Clippy, all 99 default macOS runtime tests, the compile-fail doctest, the 138-file planning validator, fixture-hash verification, and diff checks.
+- No calculation rule, rate behavior, geometry interpretation, persisted/customer schema, dependency, production rate, or compliance claim changed.
+
 ## 2026-08-01 — TASK-003 Checkpoint 18 worker resource launch profile
 
 - Added mandatory host-side CPU, memory-request, and regular-file ceilings to every `WorkerCommand`; supervisor policy now requires explicit nonzero deployment CPU and memory bounds, and the effective CPU ceiling is the lower of that policy and the request wall deadline. No control/request/transport/fixture/persisted schema, calculation rule, or geometry interpretation changed.

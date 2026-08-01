@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-08-01
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -48,6 +48,11 @@ These rules are mandatory for every person or agent changing this repository.
 36. PMI-derived requirements are proposed, revision-bound evidence until confirmed; graphical PMI is not semantic PMI.
 37. Integration adapters must expose a vendor-neutral core contract, declared source/version, bounded payload, and controlled-data policy.
 38. Published quotes and historical analyses pin route, requirement, source, library, algorithm, capacity, uncertainty, and policy versions needed for replay; later releases never silently recalculate them.
+39. Treat `docs/PROJECT_STATE.md` and linked validation evidence as the authority for present-tense implementation and test status; do not promote historical checkpoint counts or CI runs into current claims.
+40. Distinguish a technical spike, internal developer test slice, developer alpha, supported product capability, and release acceptance. One-platform, optional-feature, synthetic-fixture, or session-only evidence does not establish production support.
+41. Desktop code must use typed application services for authorization, CAD analysis, calculation, and persistence. The UI must not parse CAD, execute authoritative estimate rules, bypass audit/policy boundaries, or convert missing/conflicting inputs to zero.
+42. Describe the geometry worker as partially OS-contained, not sandboxed, until target-specific network denial, filesystem confinement, resource enforcement, and descendant controls have approved evidence on every supported target.
+43. A session-only developer GUI must visibly label provisional analysis and ephemeral state and cannot satisfy save/reopen, persistence, importer-support, milestone, or release acceptance criteria.
 
 ## Documentation protocol
 
