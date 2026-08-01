@@ -11,10 +11,12 @@ use std::fs::OpenOptions;
 use partprobe_geometry_core::StageStatus;
 #[cfg(feature = "native-occt")]
 use partprobe_geometry_core::{GeometryStage, GeometryStageReport};
+#[cfg(unix)]
+use partprobe_geometry_import::verify_worker_asset_direct;
 use partprobe_geometry_import::{
     DiagnosticCode, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerResponse,
-    VerifiedWorkerAsset, WorkerCancellationReason, recoverable_termination_response,
-    verify_worker_asset_copy,
+    VerifiedWorkerAsset, WorkerAssetManifest, WorkerAssetTransport, WorkerCancellationReason,
+    WorkerTermination, recoverable_termination_response, verify_worker_asset_copy,
 };
 #[cfg(feature = "native-occt")]
 use partprobe_geometry_import::{SnapshotReference, WORKER_OUTPUT_FILENAME};
@@ -45,8 +47,7 @@ fn run() -> Result<(), ()> {
         watch_control_stream(&mut stdin, &control_request, &cancellation_reader);
     });
 
-    let worker_directory = std::env::current_dir().map_err(|_| ())?;
-    let asset = match verify_worker_asset_copy(&request, &asset_manifest, &worker_directory) {
+    let asset = match acquire_worker_asset(&request, &asset_manifest) {
         Ok(asset) => asset,
         Err(termination) => {
             let response = recoverable_termination_response(
@@ -62,6 +63,35 @@ fn run() -> Result<(), ()> {
     let response = build_response(&request, &asset, &cancellation)?;
     let response_bytes = serde_json::to_vec(&response).map_err(|_| ())?;
     std::io::stdout().write_all(&response_bytes).map_err(|_| ())
+}
+
+fn acquire_worker_asset(
+    request: &GeometryWorkerRequest,
+    manifest: &WorkerAssetManifest,
+) -> Result<VerifiedWorkerAsset, WorkerTermination> {
+    match manifest.transport() {
+        WorkerAssetTransport::VerifiedPrivateCopy => {
+            let worker_directory =
+                std::env::current_dir().map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+            verify_worker_asset_copy(request, manifest, &worker_directory)
+        }
+        WorkerAssetTransport::UnixDescriptor => {
+            #[cfg(unix)]
+            {
+                let resource_id = manifest
+                    .worker_resource_id()
+                    .ok_or(WorkerTermination::AssetTransportInvalid)?;
+                let source = partprobe_platform::take_inherited_worker_asset(resource_id)
+                    .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+                verify_worker_asset_direct(request, manifest, source)
+            }
+            #[cfg(not(unix))]
+            {
+                Err(WorkerTermination::AssetTransportInvalid)
+            }
+        }
+        WorkerAssetTransport::WindowsHandle => Err(WorkerTermination::AssetTransportInvalid),
+    }
 }
 
 fn read_control_message(

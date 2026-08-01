@@ -26,7 +26,7 @@ pub const WORKER_OUTPUT_FILENAME: &str = "partprobe-output.json";
 /// Current schema for the supervisor-to-worker control stream.
 pub const WORKER_CONTROL_SCHEMA_VERSION: u16 = 2;
 /// Current schema for the process-launch asset transport manifest.
-pub const WORKER_ASSET_TRANSPORT_SCHEMA_VERSION: u16 = 1;
+pub const WORKER_ASSET_TRANSPORT_SCHEMA_VERSION: u16 = 2;
 
 static JOB_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -409,6 +409,7 @@ pub struct WorkerAssetManifest {
     asset_capability: AssetCapability,
     authorized_byte_length: u64,
     expected_source_hash: Sha256Digest,
+    worker_resource_id: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -421,6 +422,7 @@ struct WorkerAssetManifestWire {
     asset_capability: AssetCapability,
     authorized_byte_length: u64,
     expected_source_hash: Sha256Digest,
+    worker_resource_id: Option<u64>,
 }
 
 impl<'de> Deserialize<'de> for WorkerAssetManifest {
@@ -439,6 +441,18 @@ impl<'de> Deserialize<'de> for WorkerAssetManifest {
                 "geometry worker asset length must be nonzero",
             ));
         }
+        match (wire.transport, wire.worker_resource_id) {
+            (WorkerAssetTransport::VerifiedPrivateCopy, None)
+            | (
+                WorkerAssetTransport::UnixDescriptor | WorkerAssetTransport::WindowsHandle,
+                Some(1..),
+            ) => {}
+            _ => {
+                return Err(serde::de::Error::custom(
+                    "geometry worker resource ID must be absent for copies and nonzero for direct transport",
+                ));
+            }
+        }
         Ok(Self {
             transport_schema_version: wire.transport_schema_version,
             transport: wire.transport,
@@ -447,6 +461,7 @@ impl<'de> Deserialize<'de> for WorkerAssetManifest {
             asset_capability: wire.asset_capability,
             authorized_byte_length: wire.authorized_byte_length,
             expected_source_hash: wire.expected_source_hash,
+            worker_resource_id: wire.worker_resource_id,
         })
     }
 }
@@ -463,6 +478,30 @@ impl WorkerAssetManifest {
             asset_capability: request.asset_capability().clone(),
             authorized_byte_length: byte_length,
             expected_source_hash: request.expected_source_hash().clone(),
+            worker_resource_id: None,
+        }
+    }
+
+    fn direct(
+        request: &GeometryWorkerRequest,
+        byte_length: u64,
+        transport: WorkerAssetTransport,
+        worker_resource_id: u64,
+    ) -> Self {
+        debug_assert!(matches!(
+            transport,
+            WorkerAssetTransport::UnixDescriptor | WorkerAssetTransport::WindowsHandle
+        ));
+        debug_assert_ne!(worker_resource_id, 0);
+        Self {
+            transport_schema_version: WORKER_ASSET_TRANSPORT_SCHEMA_VERSION,
+            transport,
+            job_id: request.job_id().clone(),
+            correlation_id: request.correlation_id().clone(),
+            asset_capability: request.asset_capability().clone(),
+            authorized_byte_length: byte_length,
+            expected_source_hash: request.expected_source_hash().clone(),
+            worker_resource_id: Some(worker_resource_id),
         }
     }
 
@@ -484,14 +523,14 @@ impl WorkerAssetManifest {
         self.authorized_byte_length
     }
 
+    /// Returns the process-local descriptor or handle identifier for direct transport.
+    #[must_use]
+    pub const fn worker_resource_id(&self) -> Option<u64> {
+        self.worker_resource_id
+    }
+
     /// Validates that this launch manifest belongs to exactly one request.
     pub fn validate_for(&self, request: &GeometryWorkerRequest) -> Result<(), DomainError> {
-        if self.transport != WorkerAssetTransport::VerifiedPrivateCopy {
-            return Err(DomainError::InvalidValue {
-                field: "geometry worker asset transport",
-                reason: "direct descriptor and handle transports are not implemented",
-            });
-        }
         if self.job_id != *request.job_id()
             || self.correlation_id != *request.correlation_id()
             || self.asset_capability != *request.asset_capability()
@@ -509,6 +548,19 @@ impl WorkerAssetManifest {
                 field: "geometry worker asset manifest length",
                 reason: "authorized byte length must be nonzero and within the request quota",
             });
+        }
+        match (self.transport, self.worker_resource_id) {
+            (WorkerAssetTransport::VerifiedPrivateCopy, None)
+            | (
+                WorkerAssetTransport::UnixDescriptor | WorkerAssetTransport::WindowsHandle,
+                Some(1..),
+            ) => {}
+            _ => {
+                return Err(DomainError::InvalidValue {
+                    field: "geometry worker asset resource",
+                    reason: "resource ID must be absent for copies and nonzero for direct transport",
+                });
+            }
         }
         Ok(())
     }
@@ -1355,6 +1407,7 @@ impl GeometryWorkerSupervisor {
         &self,
         request: &GeometryWorkerRequest,
         asset_manifest: WorkerAssetManifest,
+        direct_asset: Option<partprobe_platform::DirectWorkerAsset>,
         cancellation: &AtomicBool,
         working_directory: &Path,
     ) -> GeometryWorkerResponse {
@@ -1380,10 +1433,16 @@ impl GeometryWorkerSupervisor {
         if let Some(directory) = &self.native_library_directory {
             configure_native_library_path(&mut command, directory);
         }
+        if let Some(direct_asset) = direct_asset
+            && direct_asset.configure(&mut command).is_err()
+        {
+            return response_for(request, WorkerTermination::AssetTransportInvalid);
+        }
         let mut child = match command.spawn() {
             Ok(child) => child,
             Err(_) => return response_for(request, WorkerTermination::LaunchFailed),
         };
+        drop(command);
 
         let Some(stdin) = child.stdin.take() else {
             terminate_and_reap(&mut child);
@@ -1510,21 +1569,28 @@ impl GeometryWorkerSupervisor {
         if cancellation.load(Ordering::Acquire) {
             return failed_execution(request, WorkerTermination::Cancelled, None, None);
         }
+        let available_direct_transport = available_direct_worker_transport();
         let (asset_transport, fallback_reason) = match self.asset_transport_policy {
             WorkerAssetTransportPolicy::VerifiedCopyOnly => {
                 (WorkerAssetTransport::VerifiedPrivateCopy, None)
             }
-            WorkerAssetTransportPolicy::PreferDirect => (
-                WorkerAssetTransport::VerifiedPrivateCopy,
-                Some(WorkerAssetFallbackReason::DirectTransportUnavailable),
-            ),
+            WorkerAssetTransportPolicy::PreferDirect => match available_direct_transport {
+                Some(transport) => (transport, None),
+                None => (
+                    WorkerAssetTransport::VerifiedPrivateCopy,
+                    Some(WorkerAssetFallbackReason::DirectTransportUnavailable),
+                ),
+            },
             WorkerAssetTransportPolicy::RequireDirect => {
-                return failed_execution(
-                    request,
-                    WorkerTermination::AssetDirectTransportUnavailable,
-                    None,
-                    None,
-                );
+                let Some(transport) = available_direct_transport else {
+                    return failed_execution(
+                        request,
+                        WorkerTermination::AssetDirectTransportUnavailable,
+                        None,
+                        None,
+                    );
+                };
+                (transport, None)
             }
         };
         let job_directory = match create_job_directory(&self.working_directory) {
@@ -1540,27 +1606,34 @@ impl GeometryWorkerSupervisor {
         };
         let staged_path = job_directory.join(WORKER_INPUT_FILENAME);
         let output_path = job_directory.join(WORKER_OUTPUT_FILENAME);
-        let stage_result = stage_asset(request, &mut grant, &staged_path);
-        if let Err(termination) = stage_result {
-            drop(grant);
-            let cleanup = remove_staged_asset(&staged_path)
-                .and_then(|()| std::fs::remove_dir(&job_directory));
-            return failed_execution(
-                request,
-                if cleanup.is_ok() {
-                    termination
-                } else {
-                    WorkerTermination::WorkspaceCleanupFailed
-                },
-                Some(asset_transport),
-                fallback_reason,
-            );
-        }
-        let asset_manifest =
-            WorkerAssetManifest::verified_private_copy(request, grant.authorized_byte_length());
+        let prepared = prepare_worker_asset(request, &mut grant, asset_transport, &staged_path);
+        let (asset_manifest, direct_asset) = match prepared {
+            Ok(prepared) => prepared,
+            Err(termination) => {
+                drop(grant);
+                let cleanup = remove_staged_asset(&staged_path)
+                    .and_then(|()| std::fs::remove_dir(&job_directory));
+                return failed_execution(
+                    request,
+                    if cleanup.is_ok() {
+                        termination
+                    } else {
+                        WorkerTermination::WorkspaceCleanupFailed
+                    },
+                    Some(asset_transport),
+                    fallback_reason,
+                );
+            }
+        };
         drop(grant);
 
-        let response = self.execute_in(request, asset_manifest, cancellation, &job_directory);
+        let response = self.execute_in(
+            request,
+            asset_manifest,
+            direct_asset,
+            cancellation,
+            &job_directory,
+        );
         let output = reconcile_worker_output(request, &response, &output_path);
         let asset_cleanup = remove_staged_asset(&staged_path);
         let workspace_cleanup = std::fs::remove_dir(&job_directory);
@@ -1594,6 +1667,83 @@ impl GeometryWorkerSupervisor {
         }
         GeometryWorkerExecution::new(response, output, Some(asset_transport), fallback_reason)
     }
+}
+
+fn available_direct_worker_transport() -> Option<WorkerAssetTransport> {
+    if !partprobe_platform::direct_worker_asset_supported() {
+        return None;
+    }
+    #[cfg(unix)]
+    {
+        Some(WorkerAssetTransport::UnixDescriptor)
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
+}
+
+fn prepare_worker_asset(
+    request: &GeometryWorkerRequest,
+    grant: &mut AssetReadGrant,
+    transport: WorkerAssetTransport,
+    staged_path: &Path,
+) -> Result<
+    (
+        WorkerAssetManifest,
+        Option<partprobe_platform::DirectWorkerAsset>,
+    ),
+    WorkerTermination,
+> {
+    match transport {
+        WorkerAssetTransport::VerifiedPrivateCopy => {
+            stage_asset(request, grant, staged_path)?;
+            Ok((
+                WorkerAssetManifest::verified_private_copy(request, grant.authorized_byte_length()),
+                None,
+            ))
+        }
+        WorkerAssetTransport::UnixDescriptor => {
+            verify_direct_asset_grant(request, grant)?;
+            let direct_asset = partprobe_platform::prepare_direct_worker_asset(&grant.source)
+                .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+            let manifest = WorkerAssetManifest::direct(
+                request,
+                grant.authorized_byte_length(),
+                WorkerAssetTransport::UnixDescriptor,
+                direct_asset.resource_id(),
+            );
+            Ok((manifest, Some(direct_asset)))
+        }
+        WorkerAssetTransport::WindowsHandle => Err(WorkerTermination::AssetTransportInvalid),
+    }
+}
+
+fn verify_direct_asset_grant(
+    request: &GeometryWorkerRequest,
+    grant: &mut AssetReadGrant,
+) -> Result<(), WorkerTermination> {
+    if grant.asset_capability() != request.asset_capability() {
+        return Err(WorkerTermination::AssetGrantMismatch);
+    }
+    if grant.authorized_byte_length() > request.quotas().max_input_bytes() {
+        return Err(WorkerTermination::AssetStageFailed);
+    }
+    grant
+        .source
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| WorkerTermination::AssetStageFailed)?;
+    copy_and_verify(
+        request,
+        &mut grant.source,
+        grant.authorized_byte_length,
+        &mut std::io::sink(),
+    )?;
+    grant
+        .source
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| WorkerTermination::AssetStageFailed)?;
+    Ok(())
 }
 
 fn create_job_directory(root: &Path) -> std::io::Result<PathBuf> {
@@ -1823,12 +1973,35 @@ pub fn verify_worker_asset_copy(
     if manifest.transport() != WorkerAssetTransport::VerifiedPrivateCopy {
         return Err(WorkerTermination::AssetTransportInvalid);
     }
+    let source_path = worker_directory.join(WORKER_INPUT_FILENAME);
+    let source = open_final_component_read_only(&source_path)
+        .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+    verify_worker_asset_source(request, manifest, source)
+}
+
+/// Independently verifies one inherited direct descriptor or handle before adapter dispatch.
+pub fn verify_worker_asset_direct(
+    request: &GeometryWorkerRequest,
+    manifest: &WorkerAssetManifest,
+    source: File,
+) -> Result<VerifiedWorkerAsset, WorkerTermination> {
+    if !matches!(
+        manifest.transport(),
+        WorkerAssetTransport::UnixDescriptor | WorkerAssetTransport::WindowsHandle
+    ) {
+        return Err(WorkerTermination::AssetTransportInvalid);
+    }
+    verify_worker_asset_source(request, manifest, source)
+}
+
+fn verify_worker_asset_source(
+    request: &GeometryWorkerRequest,
+    manifest: &WorkerAssetManifest,
+    mut source: File,
+) -> Result<VerifiedWorkerAsset, WorkerTermination> {
     manifest
         .validate_for(request)
         .map_err(|_| WorkerTermination::AssetManifestMismatch)?;
-    let source_path = worker_directory.join(WORKER_INPUT_FILENAME);
-    let mut source = open_final_component_read_only(&source_path)
-        .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
     let metadata = source
         .metadata()
         .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
@@ -1933,11 +2106,11 @@ fn stage_asset(
     Ok(())
 }
 
-fn copy_and_verify(
+fn copy_and_verify<W: Write>(
     request: &GeometryWorkerRequest,
     source: &mut File,
     authorized_byte_length: u64,
-    staged: &mut File,
+    staged: &mut W,
 ) -> Result<(), WorkerTermination> {
     let mut hasher = Sha256::new();
     let mut total = 0_u64;

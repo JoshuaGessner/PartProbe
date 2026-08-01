@@ -69,6 +69,7 @@ fn control_frames_are_versioned_path_free_and_identity_bound() {
     assert!(value.get("path").is_none());
     assert!(value.get("descriptor").is_none());
     assert!(value.get("handle").is_none());
+    assert!(value["asset_manifest"]["worker_resource_id"].is_null());
     let decoded: GeometryWorkerControlMessage =
         serde_json::from_value(value.clone()).expect("execute frame must deserialize");
     let (decoded_request, decoded_manifest) = decoded
@@ -102,7 +103,7 @@ fn control_frames_are_versioned_path_free_and_identity_bound() {
 }
 
 #[test]
-fn asset_manifest_mismatch_and_unimplemented_direct_transport_fail_closed() {
+fn asset_manifest_mismatch_and_direct_resource_shape_fail_closed() {
     let active_request = request();
     let manifest = WorkerAssetManifest::verified_private_copy(&active_request, 42);
     let mut mismatched = serde_json::to_value(&manifest).expect("manifest must serialize");
@@ -113,10 +114,16 @@ fn asset_manifest_mismatch_and_unimplemented_direct_transport_fail_closed() {
 
     let mut direct = serde_json::to_value(&manifest).expect("manifest must serialize");
     direct["transport"] = serde_json::json!("unix_descriptor");
-    let direct: WorkerAssetManifest = serde_json::from_value(direct)
-        .expect("direct transport token is part of the neutral schema");
+    assert!(serde_json::from_value::<WorkerAssetManifest>(direct.clone()).is_err());
+
+    direct["worker_resource_id"] = serde_json::json!(3);
+    let direct: WorkerAssetManifest =
+        serde_json::from_value(direct).expect("direct transport must bind one worker resource");
     assert_eq!(direct.transport(), WorkerAssetTransport::UnixDescriptor);
-    assert!(direct.validate_for(&active_request).is_err());
+    assert_eq!(direct.worker_resource_id(), Some(3));
+    direct
+        .validate_for(&active_request)
+        .expect("matching direct manifest must validate");
 }
 
 #[test]
@@ -232,7 +239,7 @@ fn supervisor_maps_launch_failure_and_precancel_without_path_leakage() {
 }
 
 #[test]
-fn require_direct_transport_fails_closed_without_creating_a_fallback() {
+fn require_direct_transport_never_creates_a_copy_fallback() {
     let source =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
     let mut request_value = serde_json::to_value(request()).expect("request must serialize");
@@ -252,11 +259,26 @@ fn require_direct_transport_fails_closed_without_creating_a_fallback() {
 
     let execution = supervisor.execute_with_grant(&active_request, grant, &AtomicBool::new(false));
 
-    assert_eq!(
-        execution.response().diagnostic_codes()[0].as_str(),
-        "ASSET_DIRECT_TRANSPORT_UNAVAILABLE"
-    );
-    assert!(execution.asset_transport().is_none());
+    #[cfg(unix)]
+    {
+        assert_eq!(
+            execution.response().diagnostic_codes()[0].as_str(),
+            "WORKER_LAUNCH_FAILED"
+        );
+        assert_eq!(
+            execution.asset_transport(),
+            Some(WorkerAssetTransport::UnixDescriptor)
+        );
+    }
+    #[cfg(not(unix))]
+    {
+        assert_eq!(
+            execution.response().diagnostic_codes()[0].as_str(),
+            "ASSET_DIRECT_TRANSPORT_UNAVAILABLE"
+        );
+        assert!(execution.asset_transport().is_none());
+    }
+    assert!(execution.fallback_reason().is_none());
 }
 
 #[test]

@@ -30,6 +30,8 @@ Run security testing only against authorized environments and sanitized/non-cont
 
 Use unit/integration tests for authorization and policy logic; property/fuzz tests for parsers and boundary formats; static/dependency review; signed-package verification; configuration review; backup restore exercises; and independent authorized assessment when risk/contract requires it. Link each test to the threat, profile/configuration, fixture classification, evidence hash, result, owner, and remediation status.
 
+Current TASK-003 Unix evidence launches a real child with one direct source descriptor and a deliberately inheritable sentinel, then proves the source is readable and the sentinel is absent after `exec`. Process tests additionally cover required-direct execution without a staged copy, malformed descriptor rejection, cancellation acknowledgement over direct transport, and continued use of the open grant after unlink. This is descriptor-inheritance evidence only; it does not prove an OS sandbox, no-network policy, Windows HANDLE allowlisting, CPU/memory containment, or parser safety.
+
 NIST SSDF recommends integrating security practices into development and release processes; NIST’s current incident-response guidance emphasizes integration with cybersecurity risk management. These sources guide the test program and do not certify it. [NIST SSDF](https://csrc.nist.gov/pubs/sp/800/218/final), [NIST SP 800-61r3 project](https://csrc.nist.gov/projects/incident-response)
 
 ## Release blockers

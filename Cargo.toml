@@ -8,6 +8,7 @@ members = [
     "crates/geometry-core",
     "crates/geometry-import",
     "crates/geometry-occt-adapter",
+    "crates/platform",
     "crates/security",
     "crates/test-support",
 ]
@@ -27,6 +28,7 @@ partprobe-estimation-engine = { path = "crates/estimation-engine" }
 partprobe-geometry-core = { path = "crates/geometry-core" }
 partprobe-geometry-import = { path = "crates/geometry-import" }
 partprobe-geometry-occt-adapter = { path = "crates/geometry-occt-adapter" }
+partprobe-platform = { path = "crates/platform" }
 partprobe-security = { path = "crates/security" }
 partprobe-test-support = { path = "crates/test-support" }
 rust_decimal = { version = "=1.42.1", default-features = false, features = ["serde-with-str", "std"] }
@@ -36,6 +38,8 @@ sha2 = { version = "=0.11.0", default-features = false }
 cap-std = { version = "=4.0.2", default-features = false }
 cap-fs-ext = { version = "=4.0.2", default-features = false, features = ["std"] }
 libc = { version = "=0.2.189", default-features = false }
+rustix = { version = "=1.1.4", default-features = false, features = ["std"] }
+close_fds = { version = "=0.3.2", default-features = false }
 cc = { version = "=1.4.0", default-features = false }
 
 [workspace.lints.rust]

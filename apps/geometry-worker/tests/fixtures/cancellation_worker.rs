@@ -2,9 +2,12 @@ use std::io::{BufRead, Write};
 use std::time::Duration;
 
 use partprobe_geometry_core::StageStatus;
+#[cfg(unix)]
+use partprobe_geometry_import::verify_worker_asset_direct;
 use partprobe_geometry_import::{
     DiagnosticCode, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerResponse,
-    WorkerCancellationReason, recoverable_termination_response, verify_worker_asset_copy,
+    VerifiedWorkerAsset, WorkerAssetManifest, WorkerAssetTransport, WorkerCancellationReason,
+    WorkerTermination, recoverable_termination_response, verify_worker_asset_copy,
 };
 
 fn main() {
@@ -18,9 +21,7 @@ fn run() -> Result<(), ()> {
     let mut lines = stdin.lock().lines();
     let execute = read_message(&mut lines)?;
     let (request, asset_manifest) = execute.into_execute().ok_or(())?;
-    let worker_directory = std::env::current_dir().map_err(|_| ())?;
-    if let Err(termination) = verify_worker_asset_copy(&request, &asset_manifest, &worker_directory)
-    {
+    if let Err(termination) = acquire_worker_asset(&request, &asset_manifest) {
         let response = recoverable_termination_response(
             request.schema_version(),
             request.job_id().clone(),
@@ -49,6 +50,35 @@ fn run() -> Result<(), ()> {
         diagnostic,
         !request.job_id().as_str().contains("unacknowledged"),
     )
+}
+
+fn acquire_worker_asset(
+    request: &GeometryWorkerRequest,
+    manifest: &WorkerAssetManifest,
+) -> Result<VerifiedWorkerAsset, WorkerTermination> {
+    match manifest.transport() {
+        WorkerAssetTransport::VerifiedPrivateCopy => {
+            let worker_directory =
+                std::env::current_dir().map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+            verify_worker_asset_copy(request, manifest, &worker_directory)
+        }
+        WorkerAssetTransport::UnixDescriptor => {
+            #[cfg(unix)]
+            {
+                let resource_id = manifest
+                    .worker_resource_id()
+                    .ok_or(WorkerTermination::AssetTransportInvalid)?;
+                let source = partprobe_platform::take_inherited_worker_asset(resource_id)
+                    .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+                verify_worker_asset_direct(request, manifest, source)
+            }
+            #[cfg(not(unix))]
+            {
+                Err(WorkerTermination::AssetTransportInvalid)
+            }
+        }
+        WorkerAssetTransport::WindowsHandle => Err(WorkerTermination::AssetTransportInvalid),
+    }
 }
 
 fn read_message(

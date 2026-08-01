@@ -13,15 +13,16 @@ use partprobe_geometry_core::{
 };
 #[cfg(feature = "native-occt")]
 use partprobe_geometry_import::WORKER_OUTPUT_FILENAME;
+#[cfg(all(not(feature = "native-occt"), not(unix)))]
+use partprobe_geometry_import::WorkerAssetFallbackReason;
 use partprobe_geometry_import::{
     AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
     GeometryWorkerSupervisor, ResourceQuotas, SupervisorPolicy, WORKER_INPUT_FILENAME,
-    open_local_source_read_only,
+    WorkerAssetTransport, WorkerAssetTransportPolicy, open_local_source_read_only,
 };
 #[cfg(not(feature = "native-occt"))]
 use partprobe_geometry_import::{
-    GeometryWorkerControlMessage, GeometryWorkerResponse, WorkerAssetFallbackReason,
-    WorkerAssetManifest, WorkerAssetTransport, WorkerAssetTransportPolicy,
+    GeometryWorkerControlMessage, GeometryWorkerResponse, WorkerAssetManifest,
 };
 #[cfg(feature = "native-occt")]
 use partprobe_test_support::geometry_fixtures::GeometryImportFailureExpectation;
@@ -195,7 +196,7 @@ fn supervisor_executes_the_path_free_worker_contract() {
 
 #[cfg(not(feature = "native-occt"))]
 #[test]
-fn preferred_direct_transport_records_the_verified_copy_fallback() {
+fn preferred_direct_transport_selects_the_platform_supported_mode() {
     let job_directory = std::env::temp_dir().join(format!(
         "partprobe-worker-fallback-test-{}",
         std::process::id()
@@ -216,13 +217,69 @@ fn preferred_direct_transport_records_the_verified_copy_fallback() {
     let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
 
     assert_eq!(
-        execution.asset_transport(),
-        Some(WorkerAssetTransport::VerifiedPrivateCopy)
+        execution.response().diagnostic_codes()[0].as_str(),
+        "NATIVE_ADAPTER_UNAVAILABLE"
+    );
+    #[cfg(unix)]
+    {
+        assert_eq!(
+            execution.asset_transport(),
+            Some(WorkerAssetTransport::UnixDescriptor)
+        );
+        assert_eq!(execution.fallback_reason(), None);
+    }
+    #[cfg(not(unix))]
+    {
+        assert_eq!(
+            execution.asset_transport(),
+            Some(WorkerAssetTransport::VerifiedPrivateCopy)
+        );
+        assert_eq!(
+            execution.fallback_reason(),
+            Some(WorkerAssetFallbackReason::DirectTransportUnavailable)
+        );
+    }
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(all(not(feature = "native-occt"), unix))]
+#[test]
+fn required_direct_transport_executes_without_a_staged_copy() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-required-direct-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid")
+    .with_asset_transport_policy(WorkerAssetTransportPolicy::RequireDirect);
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    let request = request();
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "NATIVE_ADAPTER_UNAVAILABLE"
     );
     assert_eq!(
-        execution.fallback_reason(),
-        Some(WorkerAssetFallbackReason::DirectTransportUnavailable)
+        execution.asset_transport(),
+        Some(WorkerAssetTransport::UnixDescriptor)
     );
+    assert_eq!(execution.fallback_reason(), None);
+    assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     assert!(
         std::fs::read_dir(&job_directory)
             .expect("job root must be readable")
@@ -340,9 +397,39 @@ fn worker_recomputes_private_copy_length_and_hash_before_adapter_dispatch() {
     std::fs::remove_dir(worker_directory).expect("worker directory must be removable");
 }
 
+#[cfg(all(not(feature = "native-occt"), unix))]
+#[test]
+fn worker_rejects_an_unavailable_direct_descriptor_before_adapter_dispatch() {
+    let worker_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-direct-descriptor-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&worker_directory).expect("worker directory must be created");
+    let request = request();
+    let manifest = WorkerAssetManifest::verified_private_copy(&request, 1);
+    let message = GeometryWorkerControlMessage::execute(request, manifest);
+    let mut value = serde_json::to_value(message).expect("control message must serialize");
+    value["asset_manifest"]["transport"] = serde_json::json!("unix_descriptor");
+    value["asset_manifest"]["worker_resource_id"] = serde_json::json!(999_999);
+    let message: GeometryWorkerControlMessage =
+        serde_json::from_value(value).expect("direct frame remains structurally valid");
+
+    let response = run_worker_control_message(&worker_directory, &message);
+
+    assert_eq!(response.status(), StageStatus::FailedRecoverable);
+    assert_eq!(
+        response.diagnostic_codes()[0].as_str(),
+        "ASSET_TRANSPORT_INVALID"
+    );
+    std::fs::remove_dir(worker_directory).expect("worker directory must be removable");
+}
+
 #[test]
 fn running_worker_acknowledges_user_cancellation_within_grace() {
     let supervisor = cancellation_fixture_supervisor(2_000);
+    #[cfg(unix)]
+    let supervisor =
+        supervisor.with_asset_transport_policy(WorkerAssetTransportPolicy::RequireDirect);
     let request = cancellation_request("cooperative-user-cancel", 5_000);
     let cancellation = Arc::new(AtomicBool::new(false));
     let cancellation_signal = Arc::clone(&cancellation);
@@ -364,6 +451,11 @@ fn running_worker_acknowledges_user_cancellation_within_grace() {
         "WORKER_CANCELLATION_ACKNOWLEDGED"
     );
     assert!(started.elapsed() < Duration::from_secs(2));
+    #[cfg(unix)]
+    assert_eq!(
+        execution.asset_transport(),
+        Some(WorkerAssetTransport::UnixDescriptor)
+    );
 }
 
 #[test]
@@ -603,6 +695,9 @@ fn open_grant_remains_authoritative_after_its_source_path_is_removed() {
         SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
+    #[cfg(unix)]
+    let supervisor =
+        supervisor.with_asset_transport_policy(WorkerAssetTransportPolicy::RequireDirect);
 
     let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
     let response = execution.response();
@@ -613,6 +708,11 @@ fn open_grant_remains_authoritative_after_its_source_path_is_removed() {
         "NATIVE_ADAPTER_UNAVAILABLE"
     );
     assert!(execution.output().is_none());
+    #[cfg(unix)]
+    assert_eq!(
+        execution.asset_transport(),
+        Some(WorkerAssetTransport::UnixDescriptor)
+    );
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }

@@ -8,6 +8,17 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-01 — TASK-003 Checkpoint 16 Unix direct asset transport
+
+- Advanced the preproduction asset-transport manifest from schema version 1 to 2. Direct manifests now require exactly one nonzero worker resource ID, verified-copy manifests require none, and mixed supervisor/worker versions intentionally fail closed. Request schema 1, control schema 2, fixture schemas, persisted/customer data, calculation rules, and geometry interpretation did not change.
+- Added the narrow `platform` crate. On Unix it atomically duplicates the consumed read-only grant close-on-exec, configures the child so only stdio plus that descriptor survive `exec`, and lets the worker claim the manifest descriptor exactly once while immediately restoring close-on-exec ownership. The parent duplicate is dropped after spawn.
+- Enabled `PreferDirect` and `RequireDirect` to select `unix_descriptor` on Unix. `VerifiedCopyOnly` remains the default everywhere. Windows preferred-direct continues to record `DirectTransportUnavailable` before verified-copy fallback, while Windows required-direct continues to return `ASSET_DIRECT_TRANSPORT_UNAVAILABLE` without a copy or launch; an exact HANDLE-list launcher remains pending.
+- Unified worker verification across copy and direct sources: both validate manifest/request identity, regular-file type, authorized length, input quota, and SHA-256 into immutable bounded bytes before adapter dispatch. Direct mode never creates the staged input. Cancellation acknowledgement/forced termination, response validation, output claiming, and deterministic workspace cleanup remain unchanged.
+- Added an exec-boundary regression with an intentionally inheritable unrelated descriptor and proved it is absent while the intended source remains readable. Process tests cover preferred/required direct execution, malformed descriptor rejection, cooperative cancellation over direct transport, and continued authority of the already-open grant after its source pathname is removed.
+- Added exact Unix-only `close_fds 0.3.2` (MIT) and direct use of the already-locked `rustix 1.1.4`; both are documented with alternatives, maintenance/removal conditions, security implications, and no intended network behavior. The `platform` crate denies unsafe code except two narrowly attributed Unix functions for `pre_exec` and validated raw-descriptor ownership.
+- Local Rust 1.94.1 validation passes formatting, warnings-as-errors Clippy, all 96 default runtime tests, and the compile-fail doctest. Checkpoint 16 post-push Windows/Linux/macOS CI is pending; the prior 93-test Checkpoint 15 remains green in run 30702064048.
+- This checkpoint proves Unix descriptor inheritance selection, not a production sandbox. Windows HANDLE allowlisting, OS network/filesystem/CPU/memory/descendant containment, representative long-transfer cancellation, independent native fixtures, three-OS native builds, packaging/legal approval, durable policy/audit/store adapters, and TASK-003 completion remain open.
+
 ## 2026-08-01 — TASK-003 Checkpoint 15 explicit worker asset transport
 
 - Advanced the preproduction control stream to schema version 2 and added asset-transport manifest schema version 1. The manifest is path-free and binds transport, job, correlation, capability, authorized byte length, and expected SHA-256; mixed/unsupported versions and mismatched identities fail closed.

@@ -1,0 +1,13 @@
+[package]
+name = "partprobe-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[target.'cfg(unix)'.dependencies]
+close_fds.workspace = true
+rustix.workspace = true
+
+[lints.rust]
+unsafe_code = "deny"

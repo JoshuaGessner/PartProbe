@@ -22,6 +22,7 @@ native-occt = [
 partprobe-geometry-core.workspace = true
 partprobe-geometry-import.workspace = true
 partprobe-geometry-occt-adapter = { workspace = true, optional = true }
+partprobe-platform.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
