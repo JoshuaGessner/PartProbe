@@ -17,18 +17,24 @@ import verify_native_step  # noqa: E402
 
 class BuildOcctTests(unittest.TestCase):
     def test_configure_command_contains_the_reviewed_minimal_profile(self) -> None:
+        source = Path("/source")
+        build = Path("/build")
+        install = Path("/install")
         command = build_occt.configure_command(
-            Path("/source"), Path("/build"), Path("/install"), "Ninja"
+            source, build, install, "Ninja"
         )
 
-        self.assertEqual(command[:7], ["cmake", "-S", "/source", "-B", "/build", "-G", "Ninja"])
+        self.assertEqual(
+            command[:7],
+            ["cmake", "-S", str(source), "-B", str(build), "-G", "Ninja"],
+        )
         self.assertIn("-DBUILD_LIBRARY_TYPE=Shared", command)
         self.assertIn("-DBUILD_CPP_STANDARD=C++17", command)
         self.assertIn("-DBUILD_ADDITIONAL_TOOLKITS=TKDESTEP;TKShHealing;TKMesh", command)
         self.assertIn("-DBUILD_MODULE_DataExchange=OFF", command)
         self.assertIn("-DUSE_TBB=OFF", command)
         self.assertIn("-DUSE_FREETYPE=OFF", command)
-        self.assertEqual(command[-1], "-DINSTALL_DIR=/install")
+        self.assertEqual(command[-1], f"-DINSTALL_DIR={install}")
 
     def test_output_paths_reject_source_children_and_nested_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
