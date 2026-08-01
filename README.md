@@ -22,7 +22,7 @@ PartProbe is currently a **pre-alpha engineering foundation**, not an installabl
 | STEP/OCCT | Optional OCCT 8.0 Apple Silicon ABI-v3 spike parses exact verified bytes, measures a synthetic STEP cube, and polls cancellation during STEP transfer | Not a supported product importer; independent accuracy corpus, three-OS native builds, packaging, and legal review remain open |
 | Desktop and storage | UX, design system, persistence contracts, and release workflow are documented | No desktop application, database, save/reopen workflow, installer, or signed release exists |
 
-The default workspace currently has **93 runtime tests** plus a compile-fail doctest passing locally; the prior 88-test baseline passes Windows, Linux, and macOS pending the Checkpoint 15 CI run. Twenty-one focused optional-native adapter/worker tests pass locally on Apple Silicon. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
+The default workspace currently has **93 runtime tests** plus a compile-fail doctest passing locally and on Windows, Linux, and macOS in GitHub Actions run 30702064048. Twenty-one focused optional-native adapter/worker tests pass locally on Apple Silicon. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
 
 ## Product boundary
 

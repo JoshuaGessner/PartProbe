@@ -17,7 +17,7 @@
 - Added tests for control/transport versioning, path-free explicit transport, manifest mismatch, unavailable direct modes, observable fallback reason, same-length hash tampering, length tampering, default worker verification, and cancellation/deadline/forced cleanup through granted assets. Local validation passes 93 default runtime tests, one compile-fail doctest, ten native adapter tests, and eleven native worker process tests.
 - No new dependency or persisted/customer schema was added. The coordinated preproduction control/transport/ABI migration requires rebuilding supervisor, worker, and adapter together; fixture schemas and request schema version 1 did not change.
 - Direct-resource launch remains blocked on a reviewed platform launcher that whitelists exactly stdio plus the intended descriptor/HANDLE and proves an intentionally inheritable unrelated resource is absent. OS sandbox/network denial, CPU/memory/descendant containment, representative native fixtures, three-OS native builds, packaging/legal approval, durable policy/audit/store adapters, and production support remain open. TASK-003 and ADR-0005 remain In Progress/In Review.
-- Commit, push, post-checkpoint GitHub Actions run, and PR mergeability evidence are pending this checkpoint closeout.
+- Implementation commit `f89a4d2` is pushed. GitHub Actions run 30702064048 passes formatting, strict Clippy, all 93 default runtime tests, and the compile-fail documentation test on Windows, Linux, and macOS; PR #2 remains the draft integration surface pending final closeout verification.
 
 ## 2026-07-29 — TASK-003 geometry-worker contract started
 

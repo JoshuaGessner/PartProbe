@@ -60,7 +60,7 @@ TASK-003 currently adds fifty-two default runtime tests: four access/security in
 
 ## Cross-platform evidence
 
-GitHub Actions run 30494955531 passes formatting, strict Clippy, all 88 prior-baseline default runtime tests, and documentation tests on Windows, Linux, and macOS for commit `14d2cac`. Checkpoint 15's 93-test control-schema-v2, explicit verified-copy, manifest-binding, worker-revalidation, and fail-closed direct-policy evidence passes locally and awaits its post-push three-OS run. Existing cross-platform evidence does not prove native OCCT linking, byte-stream parsing, direct descriptor/HANDLE transport, denial of unrelated ambient descriptor/HANDLE inheritance, interruption of native phases without progress support, a deployment-specific authorization policy, durable audit/store adapters, OS sandbox/resource enforcement, retention, or packaging behavior; the 21-test native ABI-v3 evidence is Apple Silicon only.
+GitHub Actions run 30702064048 passes formatting, strict Clippy, all 93 default runtime tests, and the compile-fail documentation test on Windows, Linux, and macOS for Checkpoint 15 implementation commit `f89a4d2`. This covers control schema v2, explicit verified-copy transport, manifest binding, worker revalidation, and fail-closed direct policy. Existing cross-platform evidence does not prove native OCCT linking, byte-stream parsing, direct descriptor/HANDLE transport, denial of unrelated ambient descriptor/HANDLE inheritance, interruption of native phases without progress support, a deployment-specific authorization policy, durable audit/store adapters, OS sandbox/resource enforcement, retention, or packaging behavior; the 21-test native ABI-v3 evidence is Apple Silicon only.
 
 ## Remaining acceptance evidence
 
