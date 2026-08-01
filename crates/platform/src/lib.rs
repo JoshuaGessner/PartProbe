@@ -91,7 +91,14 @@ fn spawn_standard(mut worker: WorkerCommand) -> io::Result<WorkerChild> {
     if let Some(asset) = worker.direct_asset.take() {
         #[cfg(unix)]
         unix::configure(&mut command, asset.descriptor)?;
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            let _ = asset;
+            return Err(io::Error::other(
+                "a Windows direct asset requires the restricted worker launcher",
+            ));
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = asset;
             return Err(direct_transport_unavailable());
@@ -393,13 +400,14 @@ mod windows {
     use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
     use windows_sys::Win32::System::Pipes::CreatePipe;
     use windows_sys::Win32::System::Threading::{
-        CREATE_UNICODE_ENVIRONMENT, CreateEventW, CreateProcessW, DeleteProcThreadAttributeList,
+        CREATE_UNICODE_ENVIRONMENT, CreateProcessW, DeleteProcThreadAttributeList,
         EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess, GetExitCodeProcess, INFINITE,
         InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
         PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-        STARTUPINFOEXW, STARTUPINFOW, SetEvent, TerminateProcess, UpdateProcThreadAttribute,
-        WaitForSingleObject,
+        STARTUPINFOEXW, TerminateProcess, UpdateProcThreadAttribute, WaitForSingleObject,
     };
+    #[cfg(test)]
+    use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent};
 
     use super::{DirectWorkerAsset, WorkerChild, WorkerChildInner, WorkerCommand};
 
