@@ -915,6 +915,7 @@ mod tests {
     use super::*;
 
     const CHILD_ASSET_ID: &str = "PARTPROBE_TEST_DIRECT_ASSET_ID";
+    const CHILD_EXPECTED_CWD: &str = "PARTPROBE_TEST_EXPECTED_CWD";
     const CHILD_SENTINEL_ID: &str = "PARTPROBE_TEST_INHERITABLE_SENTINEL_ID";
 
     #[test]
@@ -952,11 +953,13 @@ mod tests {
             std::io::stdout()
                 .write_all(b"environment-cleared\n")
                 .expect("child stdout must be writable");
+            let expected_cwd = std::env::var_os(CHILD_EXPECTED_CWD)
+                .map(PathBuf::from)
+                .expect("child expected cwd must exist");
             assert_eq!(
                 std::fs::canonicalize(std::env::current_dir().expect("child cwd must resolve"))
                     .expect("child cwd must canonicalize"),
-                std::fs::canonicalize(std::env::temp_dir())
-                    .expect("temp directory must canonicalize")
+                std::fs::canonicalize(expected_cwd).expect("expected cwd must canonicalize")
             );
             std::io::stdout()
                 .write_all(b"cwd-controlled\n")
@@ -979,11 +982,13 @@ mod tests {
         let sentinel_id = sentinel_resource_id(&sentinel);
         let direct = prepare_direct_worker_asset(&source).expect("direct asset must prepare");
         let asset_id = direct.resource_id();
+        let expected_cwd = std::env::temp_dir();
         let mut command =
             WorkerCommand::new(std::env::current_exe().expect("test path must resolve"));
         command
-            .current_dir(std::env::temp_dir())
+            .current_dir(&expected_cwd)
             .env(CHILD_ASSET_ID, asset_id.to_string())
+            .env(CHILD_EXPECTED_CWD, &expected_cwd)
             .env(CHILD_SENTINEL_ID, sentinel_id.to_string())
             .direct_asset(direct);
 
