@@ -110,7 +110,40 @@ fixtures:
       - failed_import_cleanup
     expected: expected/invalid_step_entity_rejection.json
     sha256: b0bb25521620d14798110de10dc78739e18d28cd160a10a16c4163a269ca1157
+  - id: FIX-STEP-003
+    title: Independently authored 12 by 8 by 5 mm STEP rectangular prism
+    path: models/rectangular_prism_12x8x5.step
+    format: step-ap214-faceted-brep
+    representation: exact_brep
+    source: project-authored-manual-iso-10303-21
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_mm
+    declared_units: mm
+    canonical_units_after_confirmation: mm
+    analysis_profile: occt_step_spike_v1
+    algorithm_versions:
+      authoring: manual-step-ap214-faceted-brep-v1
+      kernel: occt-8.0.0-d3056ef80c9668f395da40f5fd7be186cae4501f
+    expected_worker_outcome: provisional_spike_success
+    resource_ceiling:
+      max_input_bytes: 1000000
+      max_output_bytes: 65536
+      max_entities: 100000
+      wall_time_millis: 5000
+    owner: geometry-maintainers
+    recorded_date: 2026-08-01
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, TEST-021, TEST-025]
+    purpose:
+      - independent_step_transfer
+      - declared_unit_resolution
+      - analytic_rectangular_prism_golden
+      - exact_volume_area_centroid_golden
+    expected: expected/rectangular_prism_12x8x5_step.json
+    sha256: a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138
 required_next:
+  - independent_non_project_cad_tool_step
   - 3mf_cube_with_package_units
   - expanded_malformed_and_resource_limit_corpus
   - multi_body_step

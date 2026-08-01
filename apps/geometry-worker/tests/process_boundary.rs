@@ -944,6 +944,62 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
 
 #[cfg(feature = "native-occt")]
 #[test]
+fn supervised_native_worker_measures_the_independently_authored_step_prism() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-independent-native-worker-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let occt_root =
+        PathBuf::from(std::env::var_os("PARTPROBE_OCCT_ROOT").expect("OCCT root must be set"));
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid")
+    .with_native_library_directory(occt_root.join("lib"))
+    .expect("native library directory must be valid");
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/models/rectangular_prism_12x8x5.step");
+    let request = native_request(
+        "a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138",
+        "native-independent-process-job-1",
+        "native-independent-process-correlation-1",
+    );
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
+
+    assert_eq!(response.status(), StageStatus::Succeeded);
+    let output = execution
+        .output()
+        .expect("success must return claimed controlled output");
+    let snapshot = partprobe_geometry_import::decode_provisional_geometry_snapshot(
+        output,
+        request.expected_source_hash(),
+    )
+    .expect("independent worker snapshot must satisfy source-bound schema");
+    assert_eq!(snapshot.surface_area_mm2(), "392");
+    assert_eq!(snapshot.enclosed_volume_mm3(), "480");
+    assert_eq!(snapshot.center_of_mass_mm(), ["6", "4", "2.5"]);
+    assert_eq!(snapshot.solid_body_count(), 1);
+    assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    assert!(!job_directory.join(WORKER_OUTPUT_FILENAME).exists());
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(feature = "native-occt")]
+#[test]
 fn supervised_native_worker_rejects_invalid_step_entity_without_output() {
     let expectation: GeometryImportFailureExpectation = serde_json::from_str(include_str!(
         "../../../fixtures/expected/invalid_step_entity_rejection.json"

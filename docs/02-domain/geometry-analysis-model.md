@@ -59,6 +59,8 @@ TASK-003's OCCT worker output is explicitly a `provisional_spike` schema, not `G
 
 Checkpoint 19 centralizes the pre-existing schema-v1 wire shape in `geometry-core`; it does not change field names, geometry interpretation, decimal behavior, fixture expectations, or persistence. Mixed/older/unsupported evidence remains rejected rather than migrated implicitly. There are still no persisted/customer snapshot records to migrate.
 
+Checkpoint 20 does not change that interpretation or schema. It adds construction provenance for the exact native dependency and exercises the same rules with `FIX-STEP-003`, a manually authored faceted B-rep rectangular prism whose analytic area, volume, and centroid differ from the OCCT-generated cube. This is additional provisional evidence, not acceptance of the snapshot as authoritative geometry.
+
 ## Stage outcome contract
 
 Every geometry stage returns `StageOutcome { status, outputs, warnings, confidence, timing, algorithm_version, diagnostics }`. `status` is `succeeded`, `succeeded_with_warnings`, `needs_user_input`, `failed_recoverable`, or `failed_terminal`. Stages may preserve useful earlier outputs after a downstream failure; no failed/partial output can masquerade as authoritative.

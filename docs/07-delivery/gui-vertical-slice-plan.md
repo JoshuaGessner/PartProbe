@@ -27,7 +27,7 @@ No desktop app, Tauri/Leptos frontend, model-viewer, tessellation contract, dura
 
 ## Current checkpoint status
 
-GUI-1 is **In Progress**. Checkpoint 19 adds the first application-consumable seam: a validated provisional snapshot, an opaque-reference and authorized-source binding decoder, and a local verifier that fingerprints an explicit OCCT 8.0.0 root before strict native checks and worker construction. An independently authored analytic STEP fixture and reproducible construction of OCCT itself remain required before GUI-1 exits.
+GUI-1 is **In Review**. Checkpoint 20 adds fail-closed construction of the exact OCCT 8.0.0 source commit, a recorded CMake/compiler/source-tree manifest, content-addressed native verification, and `FIX-STEP-003`: a manually authored AP214 faceted rectangular prism that does not use OCCT as its generator. The adapter and supervised worker reproduce its analytic 12 × 8 × 5 mm dimensions, 392 mm² area, 480 mm³ volume, and `(6, 4, 2.5)` mm centroid. Formal geometry/security fixture review remains required before GUI-1 exits; this one manual fixture is not a production accuracy corpus.
 
 ## Five-checkpoint path to the first testable GUI
 
@@ -39,7 +39,7 @@ GUI-1 is **In Progress**. Checkpoint 19 adds the first application-consumable se
 | GUI-4 — Analysis and estimate workspace | Import/progress/cancel/error states, unit confirmation, geometry facts/warnings, editable manual estimate inputs/rates, quantity and itemized cost/price trace | An estimator can choose the fixture, review evidence, supply every required input, and obtain a deterministic provisional estimate; unavailable/conflicting values remain visibly blocked |
 | GUI-5 — End-to-end testability | Fixed-fixture desktop smoke test, keyboard-only completion, worker-failure recovery, local-data/ephemeral/provisional labels, and a reproducible developer runbook | One automated host/UI smoke path plus manual acceptance checklist pass without a hidden service or external data transfer |
 
-This is approximately five focused implementation checkpoints from the current foundation. The critical path is native worker reproducibility plus the application-level model-to-estimate composition, not the visual form layout.
+GUI-1 implementation is now ready for review, leaving approximately four focused implementation checkpoints for the facts-and-estimate slice. The critical path moves to application-level model-to-estimate composition, then the secure desktop boundary—not visual form layout alone.
 
 ## Optional 3D review increment
 

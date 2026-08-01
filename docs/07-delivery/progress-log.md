@@ -8,12 +8,20 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-01 — TASK-003 Checkpoint 20 reproducible native construction and independent fixture
+
+- Added `scripts/build_occt.py`, which requires explicit source/build/install paths; validates exact clean OCCT tag `V8_0_0`, commit `d3056ef80c9668f395da40f5fd7be186cae4501f`, and source tree; applies the reviewed minimal shared C++17 Release profile; records platform/CMake/generator/compiler/jobs/options provenance; and then builds, installs, fingerprints, runs strict native Clippy/tests, and hashes the worker. It downloads nothing and performs no destructive cleanup.
+- Added six cross-platform Python tests for construction options, output-path safety, source provenance, build manifests, content-addressed install fingerprints, and wrong-version rejection; the default CI workflow now runs them.
+- Fresh Apple Silicon construction passed with source tree `b3ffb8a91468845b63675057957209032b5806b1`, CMake 4.3.4, Unix Makefiles, AppleClang through `/usr/bin/cc` and `/usr/bin/c++`, and hashes for all 13 directly linked OCCT libraries. Strict native Clippy, 11 adapter tests, 15 supervised worker tests, and worker construction pass against that install.
+- Added `FIX-STEP-003`, a manually authored AP214 faceted B-rep rectangular prism independent of the OCCT fixture generator. The fixture and schema-v2 expected evidence record SHA-256 `a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138`, declared millimetres, 12 × 8 × 5 mm bounds, 392 mm² surface area, 480 mm³ volume, and `(6, 4, 2.5)` mm centroid. Adapter byte-stream and supervised-worker/source-bound snapshot tests reproduce the analytic results within 0.000001.
+- GUI-1 implementation is ready for formal geometry/security fixture review; broader CAD-tool exports, Windows/Linux native construction, packaging/legal approval, and production accuracy remain open. No calculation behavior, geometry interpretation, customer/persisted schema, production format support, or dependency changed.
+
 ## 2026-08-01 — TASK-003 Checkpoint 19 provisional snapshot and GUI-1 native seam
 
 - Centralized the pre-existing `provisional_spike` schema-v1 wire shape in `geometry-core`. Construction and deserialization now validate evidence state, exact-B-rep basis, canonical millimeter units, bounded OCCT/version fields, ABI/count invariants, and canonical six-place decimal text; area and volume cannot be negative.
 - Added a supervisor-side decoder that accepts only the provisional opaque snapshot reference and requires the decoded source hash to equal the authorized source. The optional-native worker now constructs this validated type, and its process test consumes the decoder rather than indexing unvalidated JSON.
 - Added three default tests covering schema round-trip, rejected unsupported/noncanonical evidence, and reference/source-bound decoding. GitHub Actions run 30712929648 passes formatting, strict Clippy, documentation, 102 macOS tests, and 103 Linux/Windows tests at implementation commit `9479505`.
-- Added `scripts/verify_native_step.py`. Given an explicit local OCCT root, it validates version 8.0.0, fingerprints the version header and thirteen directly linked libraries, configures the target loader path, runs strict native-feature Clippy and the 21 optional-native tests, builds the worker, and reports its executable hash/path. The existing Apple Silicon installation passes this flow.
+- Added `scripts/verify_native_step.py`. Given an explicit local OCCT root, it validates version 8.0.0, fingerprints the version header and thirteen directly linked libraries, configures the target loader path, runs the then-current strict optional-native checks, builds the worker, and reports its executable hash/path. The existing Apple Silicon installation passes this flow.
 - Fixed a feature-gating mismatch that produced one native-only dead-code warning; both default and optional-native strict Clippy now pass.
 - The existing schema-v1 fields, geometry interpretation, six-decimal formatting, fixture expectations, and adapter ABI remain unchanged. There are no persisted/customer records to migrate. This verifier does not download/build OCCT or establish distribution, packaging, independent accuracy, or product-format support.
 

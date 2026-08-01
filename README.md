@@ -19,10 +19,10 @@ PartProbe is currently a **pre-alpha engineering foundation**, not an installabl
 | Calculations | Typed money/units, deterministic calculation rules, itemized traces, versioned snapshots, and replay pass Windows/Linux/macOS CI | No complete estimate workflow, shop calibration, or estimator UI |
 | Rates and pricing | Empty-on-install, user-owned rate cards; effective dating, scope resolution, approval state, pricing and rounding policies | No rate-entry UI or durable rate library; PartProbe supplies no production rates |
 | Geometry worker | Bounded control schema v2/transport manifest v2, explicit verified-copy transport, exact Unix descriptor and Windows HANDLE direct allowlisting with unrelated-resource exclusion, worker-side identity/type/hash/length/quota verification, private workspaces, cancellation grace/acknowledgement, forced termination, partial CPU/file/process containment, audit/security seams, and governed derivative handoff | No network/filesystem sandbox, complete cross-platform resource containment, or durable controlled store |
-| STEP/OCCT | Optional OCCT 8.0 Apple Silicon ABI-v3 spike parses exact verified bytes, emits a validated provisional snapshot bound to the authorized source, measures a synthetic STEP cube, and polls cancellation during STEP transfer | Not a supported product importer; independent accuracy corpus, reproducible OCCT builds, three-OS native builds, packaging, and legal review remain open |
+| STEP/OCCT | Optional OCCT 8.0 Apple Silicon ABI-v3 spike parses exact verified bytes, emits a source-bound provisional snapshot, has a fail-closed pinned source-build command, and measures both an OCCT-generated cube and a manually authored analytic prism | Not a supported product importer; formal fixture review, broader accuracy corpus, Windows/Linux native construction, packaging, and legal review remain open |
 | Desktop and storage | UX, design system, persistence contracts, and release workflow are documented | No desktop application, database, save/reopen workflow, installer, or signed release exists |
 
-The default workspace currently has **102 runtime tests on macOS and 103 on Linux/Windows** plus a compile-fail doctest passing in Checkpoint 19 implementation run 30712929648 at `9479505`. Twenty-one focused optional-native adapter/worker tests plus strict native-feature Clippy pass locally on Apple Silicon through `scripts/verify_native_step.py`. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
+The default workspace currently has **102 runtime tests on macOS and 103 on Linux/Windows** plus a compile-fail doctest passing in Checkpoint 19 implementation run 30712929648 at `9479505`. Six native-tooling tests and 26 focused optional-native adapter/worker tests plus strict native-feature Clippy pass locally on Apple Silicon in Checkpoint 20. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
 
 ## Product boundary
 
@@ -36,13 +36,13 @@ The default workspace currently has **102 runtime tests on macOS and 103 on Linu
 
 The current implementation order is:
 
-1. Continue TASK-003 with remaining network/filesystem and target-specific resource containment, representative geometry fixtures, and reproducible native builds.
+1. Review the GUI-1 fixture evidence, start GUI-2 application orchestration, and continue TASK-003 network/filesystem and target-specific resource containment plus Windows/Linux native construction.
 2. Complete TASK-004 STL/3MF mesh import comparison.
 3. Build TASK-005 desktop UX, including guided shop-owned rate setup and model review.
 4. Implement TASK-006 durable SQLite repositories, migrations, backup/restore, and historical replay.
 5. Validate real shop categories, policies, and calibration in TASK-007 before making accuracy claims.
 
-The nearest testable GUI is a narrower internal, provisional, session-only STEP slice: approximately five focused checkpoints for a repeatable native test seam, an application-level model-to-estimate use case, a secure desktop shell, an analysis/estimate workspace, and end-to-end smoke evidence. A 3D viewport adds roughly two or three checkpoints because no tessellation/viewer implementation exists. See the [testable GUI vertical-slice plan](docs/07-delivery/gui-vertical-slice-plan.md). The first usable cross-platform product slice still requires model intake, reviewable measurements, editable assumptions, a guided rate library, transparent estimate/pricing traces, save/reopen, previews, and packaging.
+The nearest testable GUI is a narrower internal, provisional, session-only STEP slice. GUI-1's native seam is implemented and awaiting fixture review; roughly four focused checkpoints remain for the application use case, secure desktop shell, analysis/estimate workspace, and end-to-end smoke evidence. A 3D viewport adds roughly two or three checkpoints because no tessellation/viewer implementation exists. See the [testable GUI vertical-slice plan](docs/07-delivery/gui-vertical-slice-plan.md). The first usable cross-platform product slice still requires model intake, reviewable measurements, editable assumptions, a guided rate library, transparent estimate/pricing traces, save/reopen, previews, and packaging.
 
 ## Documentation
 
@@ -71,6 +71,7 @@ cargo test --workspace --all-targets --locked
 cargo test --workspace --doc --locked
 python3 scripts/check_planning.py
 python3 scripts/hash_fixtures.py
+python3 scripts/tests/test_native_tooling.py
 ```
 
-Native OCCT commands require the separately built pinned dependency described in [TASK-003 validation evidence](docs/06-quality/task-003-validation.md). Commands, current limitations, and the active branch are maintained in [PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Native OCCT commands require an existing checkout of the exact pinned source commit. `scripts/build_occt.py` validates that checkout, records the construction profile, builds/installs it, and calls the native verifier; exact commands and limitations are in [TASK-003 validation evidence](docs/06-quality/task-003-validation.md) and [PROJECT_STATE.md](docs/PROJECT_STATE.md).

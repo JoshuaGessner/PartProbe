@@ -6,6 +6,8 @@ use partprobe_test_support::geometry_fixtures::{
 const CLOSED: &str = include_str!("../../../fixtures/expected/cube_10mm.json");
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");
 const STEP: &str = include_str!("../../../fixtures/expected/cube_10mm_step.json");
+const INDEPENDENT_STEP: &str =
+    include_str!("../../../fixtures/expected/rectangular_prism_12x8x5_step.json");
 const INVALID_STEP: &str =
     include_str!("../../../fixtures/expected/invalid_step_entity_rejection.json");
 
@@ -17,10 +19,13 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         serde_json::from_str(OPEN).expect("open fixture expectation must be valid");
     let step: GeometryFixtureExpectation =
         serde_json::from_str(STEP).expect("STEP fixture expectation must be valid");
+    let independent_step: GeometryFixtureExpectation = serde_json::from_str(INDEPENDENT_STEP)
+        .expect("independently authored STEP fixture expectation must be valid");
 
     assert_eq!(closed.fixture_id(), "FIX-MESH-001");
     assert_eq!(open.fixture_id(), "FIX-MESH-002");
     assert_eq!(step.fixture_id(), "FIX-STEP-001");
+    assert_eq!(independent_step.fixture_id(), "FIX-STEP-003");
     assert_eq!(closed.representation(), RepresentationBasis::Mesh);
     assert!(matches!(
         closed.enclosed_volume_mm3(),
@@ -33,6 +38,14 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert_eq!(step.representation(), RepresentationBasis::ExactBrep);
     assert!(matches!(
         step.enclosed_volume_mm3(),
+        ExpectedEvidence::Available { .. }
+    ));
+    assert_eq!(
+        independent_step.representation(),
+        RepresentationBasis::ExactBrep
+    );
+    assert!(matches!(
+        independent_step.enclosed_volume_mm3(),
         ExpectedEvidence::Available { .. }
     ));
 }

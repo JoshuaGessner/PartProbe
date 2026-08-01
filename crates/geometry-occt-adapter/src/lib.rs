@@ -333,6 +333,25 @@ mod native {
         }
 
         #[test]
+        fn independently_authored_step_prism_matches_analytic_properties() {
+            let bytes = include_bytes!("../../../fixtures/models/rectangular_prism_12x8x5.step");
+            let properties =
+                analyze_step_bytes(bytes).expect("independently authored STEP prism must import");
+
+            assert_eq!(properties.transferred_roots, 1);
+            assert_eq!(properties.solid_body_count, 1);
+            assert!((properties.surface_area_mm2 - 392.0).abs() <= 0.000_001);
+            assert!((properties.enclosed_volume_mm3 - 480.0).abs() <= 0.000_001);
+            for (actual, expected) in properties
+                .center_of_mass_mm
+                .into_iter()
+                .zip([6.0, 4.0, 2.5])
+            {
+                assert!((actual - expected).abs() <= 0.000_001);
+            }
+        }
+
+        #[test]
         fn cancellation_probe_stops_native_analysis_with_a_stable_code() {
             use std::sync::atomic::{AtomicUsize, Ordering};
 

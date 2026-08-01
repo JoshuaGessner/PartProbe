@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-29
+- **Last updated:** 2026-08-01
 - **Related requirement IDs:** GEO-001–GEO-014, FEAT-001–FEAT-021, TEST-021–TEST-039, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** What anonymized customer models can be contributed? Licensing policy for external samples? Artifact-store size budget?
@@ -46,7 +46,9 @@ Version 2 is a preproduction fixture-contract migration with no customer or pers
 
 `FIX-STEP-002` is a small project-authored STEP envelope containing one intentionally invalid entity, SHA-256 `b0bb25521620d14798110de10dc78739e18d28cd160a10a16c4163a269ca1157`. Its separate failure-expectation schema version 1 requires recoverable `STEP_TRANSFER_FAILED`, no snapshot or output file, and removal of the staged input. It carries no geometry measurements or unit claims. This schema is additive and does not migrate or reinterpret schema-v2 successful-geometry expectations; unsupported failure-schema versions are rejected.
 
-Because OCCT generates and reads `FIX-STEP-001`, it proves deterministic project plumbing and analytic measurement reconciliation, not independent translator correctness. `FIX-STEP-002` adds one adversarial transfer/cleanup case, not a comprehensive malformed-input corpus. Release accuracy and containment still need STEP authored by an independent reviewed source plus broader malformed, alternate-schema, assembly, partial-transfer, and resource-limit cases.
+`FIX-STEP-003` is a project-authored ISO 10303-21 AP214 faceted B-rep rectangular prism. It is written directly rather than exported by OCCT, declares millimetres, and has analytic dimensions 12 × 8 × 5 mm, area 392 mm², volume 480 mm³, and centroid `(6, 4, 2.5)` mm. Its SHA-256 is `a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138`. Native adapter and supervised-worker tests reproduce those values within 0.000001, but `reviewed_date` remains unset until geometry and security reviewers accept the authoring/provenance record.
+
+Because OCCT generates and reads `FIX-STEP-001`, it proves deterministic project plumbing and analytic measurement reconciliation, not independent translator correctness. `FIX-STEP-003` removes that same-generator dependency for one simple solid, but it remains a project-authored manual file interpreted by one kernel—not a broad translator or production accuracy corpus. `FIX-STEP-002` adds one adversarial transfer/cleanup case, not a comprehensive malformed-input corpus. Release accuracy and containment still need independently reviewed CAD-tool exports plus broader malformed, alternate-schema, assembly, partial-transfer, and resource-limit cases.
 
 ## Ground truth and tolerances
 

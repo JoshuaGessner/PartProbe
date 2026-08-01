@@ -1,0 +1,95 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('PartProbe independently authored analytic fixture'),'2;1');
+FILE_NAME('rectangular_prism_12x8x5.step','2026-08-01T00:00:00',
+  ('PartProbe geometry maintainers'),('PartProbe'),'Manual ISO 10303-21 authoring',
+  'PartProbe','Fixture use only');
+FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
+ENDSEC;
+DATA;
+#1 = APPLICATION_PROTOCOL_DEFINITION('international standard',
+  'automotive_design',2000,#2);
+#2 = APPLICATION_CONTEXT(
+  'core data for automotive mechanical design processes');
+#3 = SHAPE_DEFINITION_REPRESENTATION(#4,#10);
+#4 = PRODUCT_DEFINITION_SHAPE('','',#5);
+#5 = PRODUCT_DEFINITION('design','',#6,#9);
+#6 = PRODUCT_DEFINITION_FORMATION('','',#7);
+#7 = PRODUCT('PartProbe rectangular prism 12x8x5 mm',
+  'PartProbe rectangular prism 12x8x5 mm','',(#8));
+#8 = PRODUCT_CONTEXT('',#2,'mechanical');
+#9 = PRODUCT_DEFINITION_CONTEXT('part definition',#2,'design');
+#10 = FACETED_BREP_SHAPE_REPRESENTATION('',(#11,#15),#80);
+#11 = AXIS2_PLACEMENT_3D('',#12,#13,#14);
+#12 = CARTESIAN_POINT('',(0.,0.,0.));
+#13 = DIRECTION('',(0.,0.,1.));
+#14 = DIRECTION('',(1.,0.,0.));
+#15 = FACETED_BREP('12x8x5 mm rectangular prism',#16);
+#16 = CLOSED_SHELL('',(#20,#25,#30,#35,#40,#45));
+
+#20 = FACE_SURFACE('',(#21),#23,.T.);
+#21 = FACE_OUTER_BOUND('',#22,.T.);
+#22 = POLY_LOOP('',(#50,#53,#52,#51));
+#23 = PLANE('',#24);
+#24 = AXIS2_PLACEMENT_3D('',#50,#70,#71);
+
+#25 = FACE_SURFACE('',(#26),#28,.T.);
+#26 = FACE_OUTER_BOUND('',#27,.T.);
+#27 = POLY_LOOP('',(#54,#55,#56,#57));
+#28 = PLANE('',#29);
+#29 = AXIS2_PLACEMENT_3D('',#54,#72,#71);
+
+#30 = FACE_SURFACE('',(#31),#33,.T.);
+#31 = FACE_OUTER_BOUND('',#32,.T.);
+#32 = POLY_LOOP('',(#50,#51,#55,#54));
+#33 = PLANE('',#34);
+#34 = AXIS2_PLACEMENT_3D('',#50,#73,#71);
+
+#35 = FACE_SURFACE('',(#36),#38,.T.);
+#36 = FACE_OUTER_BOUND('',#37,.T.);
+#37 = POLY_LOOP('',(#53,#57,#56,#52));
+#38 = PLANE('',#39);
+#39 = AXIS2_PLACEMENT_3D('',#53,#74,#71);
+
+#40 = FACE_SURFACE('',(#41),#43,.T.);
+#41 = FACE_OUTER_BOUND('',#42,.T.);
+#42 = POLY_LOOP('',(#50,#54,#57,#53));
+#43 = PLANE('',#44);
+#44 = AXIS2_PLACEMENT_3D('',#50,#75,#76);
+
+#45 = FACE_SURFACE('',(#46),#48,.T.);
+#46 = FACE_OUTER_BOUND('',#47,.T.);
+#47 = POLY_LOOP('',(#51,#52,#56,#55));
+#48 = PLANE('',#49);
+#49 = AXIS2_PLACEMENT_3D('',#51,#77,#76);
+
+#50 = CARTESIAN_POINT('',(0.,0.,0.));
+#51 = CARTESIAN_POINT('',(12.,0.,0.));
+#52 = CARTESIAN_POINT('',(12.,8.,0.));
+#53 = CARTESIAN_POINT('',(0.,8.,0.));
+#54 = CARTESIAN_POINT('',(0.,0.,5.));
+#55 = CARTESIAN_POINT('',(12.,0.,5.));
+#56 = CARTESIAN_POINT('',(12.,8.,5.));
+#57 = CARTESIAN_POINT('',(0.,8.,5.));
+
+#70 = DIRECTION('',(0.,0.,-1.));
+#71 = DIRECTION('',(1.,0.,0.));
+#72 = DIRECTION('',(0.,0.,1.));
+#73 = DIRECTION('',(0.,-1.,0.));
+#74 = DIRECTION('',(0.,1.,0.));
+#75 = DIRECTION('',(-1.,0.,0.));
+#76 = DIRECTION('',(0.,1.,0.));
+#77 = DIRECTION('',(1.,0.,0.));
+
+#80 = ( GEOMETRIC_REPRESENTATION_CONTEXT(3)
+GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#84)) GLOBAL_UNIT_ASSIGNED_CONTEXT
+((#81,#82,#83)) REPRESENTATION_CONTEXT('PartProbe fixture context',
+  '3D Context with UNIT and UNCERTAINTY') );
+#81 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );
+#82 = ( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) );
+#83 = ( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() );
+#84 = UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#81,
+  'distance_accuracy_value','fixture accuracy');
+#85 = PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#7));
+ENDSEC;
+END-ISO-10303-21;

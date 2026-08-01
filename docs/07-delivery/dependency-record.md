@@ -47,7 +47,7 @@ Reported package licenses are MIT, MIT OR Apache-2.0, Apache-2.0 OR MIT, `memchr
 - The active graph is Rust-only and showed no native linker dependency. It executes Serde derive procedural macros and the `autocfg` build dependency during builds.
 - The selected libraries perform no intended runtime network access. Cargo requires registry/network access only to fetch uncached packages; `Cargo.lock` and `--locked` make resolution reproducible.
 - TASK-003 moves the already-reviewed Serde JSON package into the `geometry-import` runtime graph for bounded local protocol encoding/decoding; this changes its runtime purpose but adds no package or network behavior.
-- The optional native bridge compiles only when `native-occt` is selected, requires an explicit local `PARTPROBE_OCCT_ROOT`, dynamically links shared OCCT libraries, and never downloads native code from `build.rs`.
+- The optional native bridge compiles only when `native-occt` is selected, requires an explicit local `PARTPROBE_OCCT_ROOT`, dynamically links shared OCCT libraries, and never downloads native code from `build.rs`. Developer construction also requires an explicit existing source checkout: `scripts/build_occt.py` validates the exact commit/tag/clean tree, applies fixed CMake options, records compiler/generator/source-tree provenance, and invokes content-addressed verification without downloading or deleting anything.
 - SHA-256 is computed incrementally while copying into a create-new worker-local file. Default `sha2` allocation/OID features are disabled; CPU feature detection may select a supported backend and falls back to portable software.
 - Local source opening is read-only and rejects a linked final component with `O_NOFOLLOW` on Unix or `FILE_FLAG_OPEN_REPARSE_POINT` plus a reparse-point attribute check on Windows. The Windows open also requests identification-only security quality of service. This uses safe standard-library APIs and no network access or project `unsafe`; parent-component authorization and containment remain application-service work.
 - `LocalAssetRoot` deliberately opts into ambient authority only while opening an application-selected root, then performs relative capability-based lookups. Syntactic traversal and absolute paths are rejected before resolution; `cap-std` prevents parent symlinks from escaping the open root; `cap-fs-ext` rejects a linked final component. A root is not an authorization decision: actor, project, classification, record-state, audit, and root-selection policy remain application/security-service responsibilities.
@@ -63,7 +63,7 @@ Reported package licenses are MIT, MIT OR Apache-2.0, Apache-2.0 OR MIT, `memchr
 
 | Candidate | Exact source/build | Local evidence | Remaining gate |
 |---|---|---|---|
-| Open CASCADE Technology | 8.0.0; official tag `V8_0_0`; commit `d3056ef80c9668f395da40f5fd7be186cae4501f`; C++17 shared Release libraries; PCH/TBB/FreeType off; requested `TKDESTEP`, `TKShHealing`, `TKMesh` | Apple Silicon source configure/build/install passes; optional C ABI link and sanitized missing-file failure pass | Legal approval; cross-platform resolved inventory and license hashes; three-OS reproducible build/package fingerprints; notices/source/relink instructions; advisories/SBOM; signed artifacts |
+| Open CASCADE Technology | 8.0.0; official tag `V8_0_0`; commit `d3056ef80c9668f395da40f5fd7be186cae4501f`; tree `b3ffb8a91468845b63675057957209032b5806b1`; C++17 shared Release libraries; PCH/TBB/FreeType off; requested `TKDESTEP`, `TKShHealing`, `TKMesh` | Fail-closed Apple Silicon source construction passes from a fresh root and records CMake 4.3.4, Unix Makefiles, AppleClang compiler paths, options, and artifact hashes; strict native checks plus generated and manually authored analytic STEP measurements pass | Legal approval; Windows/Linux construction; cross-platform resolved inventory and license hashes; three-OS package fingerprints; notices/source/relink instructions; advisories/SBOM; signed artifacts |
 
 The Apple Silicon build resolved 23 OCCT shared libraries: `TKernel`, `TKMath`, `TKG2d`, `TKG3d`, `TKGeomBase`, `TKBRep`, `TKGeomAlgo`, `TKTopAlgo`, `TKPrim`, `TKBO`, `TKShHealing`, `TKMesh`, `TKHLR`, `TKService`, `TKCDF`, `TKLCAF`, `TKCAF`, `TKV3d`, `TKVCAF`, `TKXCAF`, `TKDE`, `TKXSBase`, and `TKDESTEP`. This is observed spike evidence, not yet a cross-platform package manifest; each target artifact still needs a generated fingerprint and dynamic-link audit.
 
@@ -74,4 +74,6 @@ cargo tree --workspace --all-targets --edges normal,build
 cargo metadata --format-version 1 --locked
 cargo test --workspace --all-targets --locked
 python3 scripts/verify_native_step.py --occt-root /approved/local/occt-install
+python3 scripts/tests/test_native_tooling.py
+python3 scripts/build_occt.py --source /approved/local/occt-source --build /private/tmp/partprobe-occt-build --install /private/tmp/partprobe-occt-install
 ```
