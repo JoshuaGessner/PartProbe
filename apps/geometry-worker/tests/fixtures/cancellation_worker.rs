@@ -46,8 +46,12 @@ fn run() -> Result<(), ()> {
     }
 
     if request.job_id().as_str().contains("resource-cpu") {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
         loop {
-            std::hint::spin_loop();
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            std::hint::black_box(state);
         }
     }
 
