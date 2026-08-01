@@ -5,7 +5,9 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
+use std::process::ExitStatus;
+#[cfg(not(windows))]
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 /// Operating-system resource ceilings requested before a worker begins executing.
 ///
@@ -152,6 +154,7 @@ impl WorkerCommand {
     }
 }
 
+#[cfg(not(windows))]
 fn spawn_standard(mut worker: WorkerCommand) -> io::Result<WorkerChild> {
     let mut command = Command::new(worker.program);
     command
@@ -188,6 +191,7 @@ fn spawn_standard(mut worker: WorkerCommand) -> io::Result<WorkerChild> {
 
 /// Owned input pipe for a supervised worker.
 pub enum WorkerStdin {
+    #[cfg(not(windows))]
     Standard(ChildStdin),
     #[cfg(windows)]
     Restricted(File),
@@ -196,6 +200,7 @@ pub enum WorkerStdin {
 impl Write for WorkerStdin {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         match self {
+            #[cfg(not(windows))]
             Self::Standard(stdin) => stdin.write(buffer),
             #[cfg(windows)]
             Self::Restricted(stdin) => stdin.write(buffer),
@@ -204,6 +209,7 @@ impl Write for WorkerStdin {
 
     fn flush(&mut self) -> io::Result<()> {
         match self {
+            #[cfg(not(windows))]
             Self::Standard(stdin) => stdin.flush(),
             #[cfg(windows)]
             Self::Restricted(stdin) => stdin.flush(),
@@ -213,6 +219,7 @@ impl Write for WorkerStdin {
 
 /// Owned output pipe for a supervised worker.
 pub enum WorkerStdout {
+    #[cfg(not(windows))]
     Standard(ChildStdout),
     #[cfg(windows)]
     Restricted(File),
@@ -221,6 +228,7 @@ pub enum WorkerStdout {
 impl Read for WorkerStdout {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
         match self {
+            #[cfg(not(windows))]
             Self::Standard(stdout) => stdout.read(buffer),
             #[cfg(windows)]
             Self::Restricted(stdout) => stdout.read(buffer),
@@ -234,12 +242,14 @@ pub struct WorkerChild {
 }
 
 enum WorkerChildInner {
+    #[cfg(not(windows))]
     Standard(Child),
     #[cfg(windows)]
     Restricted(windows::RestrictedChild),
 }
 
 impl WorkerChild {
+    #[cfg(not(windows))]
     fn standard(child: Child) -> Self {
         Self {
             inner: WorkerChildInner::Standard(child),
@@ -249,6 +259,7 @@ impl WorkerChild {
     /// Takes the single writer for worker stdin.
     pub fn take_stdin(&mut self) -> Option<WorkerStdin> {
         match &mut self.inner {
+            #[cfg(not(windows))]
             WorkerChildInner::Standard(child) => child.stdin.take().map(WorkerStdin::Standard),
             #[cfg(windows)]
             WorkerChildInner::Restricted(child) => child.stdin.take().map(WorkerStdin::Restricted),
@@ -258,6 +269,7 @@ impl WorkerChild {
     /// Takes the single reader for worker stdout.
     pub fn take_stdout(&mut self) -> Option<WorkerStdout> {
         match &mut self.inner {
+            #[cfg(not(windows))]
             WorkerChildInner::Standard(child) => child.stdout.take().map(WorkerStdout::Standard),
             #[cfg(windows)]
             WorkerChildInner::Restricted(child) => {
@@ -269,6 +281,7 @@ impl WorkerChild {
     /// Returns the exit status when available without blocking.
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match &mut self.inner {
+            #[cfg(not(windows))]
             WorkerChildInner::Standard(child) => child.try_wait(),
             #[cfg(windows)]
             WorkerChildInner::Restricted(child) => child.try_wait(),
@@ -278,6 +291,7 @@ impl WorkerChild {
     /// Requests immediate process termination.
     pub fn kill(&mut self) -> io::Result<()> {
         match &mut self.inner {
+            #[cfg(not(windows))]
             WorkerChildInner::Standard(child) => {
                 #[cfg(unix)]
                 return unix::kill_process_group(child);
@@ -292,6 +306,7 @@ impl WorkerChild {
     /// Waits for and reaps the worker process.
     pub fn wait(&mut self) -> io::Result<ExitStatus> {
         match &mut self.inner {
+            #[cfg(not(windows))]
             WorkerChildInner::Standard(child) => child.wait(),
             #[cfg(windows)]
             WorkerChildInner::Restricted(child) => child.wait(),
