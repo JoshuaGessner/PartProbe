@@ -35,6 +35,18 @@ fn request() -> GeometryWorkerRequest {
     .expect("request must be valid")
 }
 
+#[cfg(any(unix, windows))]
+fn expected_direct_transport() -> WorkerAssetTransport {
+    #[cfg(unix)]
+    {
+        WorkerAssetTransport::UnixDescriptor
+    }
+    #[cfg(windows)]
+    {
+        WorkerAssetTransport::WindowsHandle
+    }
+}
+
 #[test]
 fn request_is_path_free_and_versioned() {
     let value = serde_json::to_value(request()).expect("request must serialize");
@@ -259,7 +271,7 @@ fn require_direct_transport_never_creates_a_copy_fallback() {
 
     let execution = supervisor.execute_with_grant(&active_request, grant, &AtomicBool::new(false));
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     {
         assert_eq!(
             execution.response().diagnostic_codes()[0].as_str(),
@@ -267,10 +279,10 @@ fn require_direct_transport_never_creates_a_copy_fallback() {
         );
         assert_eq!(
             execution.asset_transport(),
-            Some(WorkerAssetTransport::UnixDescriptor)
+            Some(expected_direct_transport())
         );
     }
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     {
         assert_eq!(
             execution.response().diagnostic_codes()[0].as_str(),

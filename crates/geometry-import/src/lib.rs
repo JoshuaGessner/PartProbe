@@ -5,7 +5,6 @@ use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::thread;
@@ -1423,34 +1422,25 @@ impl GeometryWorkerSupervisor {
             _ => return response_for(request, WorkerTermination::QuotaExceeded),
         };
 
-        let mut command = Command::new(&self.executable);
-        command
-            .env_clear()
-            .current_dir(working_directory)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+        let mut command = partprobe_platform::WorkerCommand::new(&self.executable);
+        command.current_dir(working_directory);
         if let Some(directory) = &self.native_library_directory {
             configure_native_library_path(&mut command, directory);
         }
-        if let Some(direct_asset) = direct_asset
-            && direct_asset.configure(&mut command).is_err()
-        {
-            return response_for(request, WorkerTermination::AssetTransportInvalid);
+        if let Some(direct_asset) = direct_asset {
+            command.direct_asset(direct_asset);
         }
         let mut child = match command.spawn() {
             Ok(child) => child,
             Err(_) => return response_for(request, WorkerTermination::LaunchFailed),
         };
-        drop(command);
-
-        let Some(stdin) = child.stdin.take() else {
+        let Some(stdin) = child.take_stdin() else {
             terminate_and_reap(&mut child);
             return response_for(request, WorkerTermination::ProtocolIo);
         };
         let (control_tx, control_writer) = spawn_control_writer(stdin, request_frame);
 
-        let Some(stdout) = child.stdout.take() else {
+        let Some(stdout) = child.take_stdout() else {
             terminate_and_reap(&mut child);
             close_control_writer(control_tx, control_writer);
             return response_for(request, WorkerTermination::ProtocolIo);
@@ -1677,7 +1667,11 @@ fn available_direct_worker_transport() -> Option<WorkerAssetTransport> {
     {
         Some(WorkerAssetTransport::UnixDescriptor)
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        Some(WorkerAssetTransport::WindowsHandle)
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         None
     }
@@ -1704,18 +1698,43 @@ fn prepare_worker_asset(
             ))
         }
         WorkerAssetTransport::UnixDescriptor => {
-            verify_direct_asset_grant(request, grant)?;
-            let direct_asset = partprobe_platform::prepare_direct_worker_asset(&grant.source)
-                .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
-            let manifest = WorkerAssetManifest::direct(
-                request,
-                grant.authorized_byte_length(),
-                WorkerAssetTransport::UnixDescriptor,
-                direct_asset.resource_id(),
-            );
-            Ok((manifest, Some(direct_asset)))
+            #[cfg(unix)]
+            {
+                verify_direct_asset_grant(request, grant)?;
+                let direct_asset = partprobe_platform::prepare_direct_worker_asset(&grant.source)
+                    .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+                let manifest = WorkerAssetManifest::direct(
+                    request,
+                    grant.authorized_byte_length(),
+                    WorkerAssetTransport::UnixDescriptor,
+                    direct_asset.resource_id(),
+                );
+                Ok((manifest, Some(direct_asset)))
+            }
+            #[cfg(not(unix))]
+            {
+                Err(WorkerTermination::AssetTransportInvalid)
+            }
         }
-        WorkerAssetTransport::WindowsHandle => Err(WorkerTermination::AssetTransportInvalid),
+        WorkerAssetTransport::WindowsHandle => {
+            #[cfg(windows)]
+            {
+                verify_direct_asset_grant(request, grant)?;
+                let direct_asset = partprobe_platform::prepare_direct_worker_asset(&grant.source)
+                    .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+                let manifest = WorkerAssetManifest::direct(
+                    request,
+                    grant.authorized_byte_length(),
+                    WorkerAssetTransport::WindowsHandle,
+                    direct_asset.resource_id(),
+                );
+                Ok((manifest, Some(direct_asset)))
+            }
+            #[cfg(not(windows))]
+            {
+                Err(WorkerTermination::AssetTransportInvalid)
+            }
+        }
     }
 }
 
@@ -1913,7 +1932,7 @@ fn serialize_control_frame(
 }
 
 fn spawn_control_writer(
-    mut stdin: std::process::ChildStdin,
+    mut stdin: partprobe_platform::WorkerStdin,
     request_frame: Vec<u8>,
 ) -> (
     mpsc::Sender<ControlWriterCommand>,
@@ -1950,12 +1969,15 @@ fn close_control_writer(
     matches!(writer.join(), Ok(Ok(())))
 }
 
-fn terminate_and_reap(child: &mut std::process::Child) {
+fn terminate_and_reap(child: &mut partprobe_platform::WorkerChild) {
     let _ = child.kill();
     let _ = child.wait();
 }
 
-fn configure_native_library_path(command: &mut Command, directory: &Path) {
+fn configure_native_library_path(
+    command: &mut partprobe_platform::WorkerCommand,
+    directory: &Path,
+) {
     #[cfg(target_os = "macos")]
     command.env("DYLD_LIBRARY_PATH", directory);
     #[cfg(all(unix, not(target_os = "macos")))]

@@ -13,7 +13,7 @@ use partprobe_geometry_core::{
 };
 #[cfg(feature = "native-occt")]
 use partprobe_geometry_import::WORKER_OUTPUT_FILENAME;
-#[cfg(all(not(feature = "native-occt"), not(unix)))]
+#[cfg(all(not(feature = "native-occt"), not(any(unix, windows))))]
 use partprobe_geometry_import::WorkerAssetFallbackReason;
 use partprobe_geometry_import::{
     AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
@@ -47,6 +47,30 @@ fn request() -> GeometryWorkerRequest {
         ResourceQuotas::new(1_000_000, 1_000_000, 100_000, 5_000).expect("quotas must be valid"),
     )
     .expect("request must be valid")
+}
+
+#[cfg(any(unix, windows))]
+fn expected_direct_transport() -> WorkerAssetTransport {
+    #[cfg(unix)]
+    {
+        WorkerAssetTransport::UnixDescriptor
+    }
+    #[cfg(windows)]
+    {
+        WorkerAssetTransport::WindowsHandle
+    }
+}
+
+#[cfg(any(unix, windows))]
+fn direct_transport_token() -> &'static str {
+    #[cfg(unix)]
+    {
+        "unix_descriptor"
+    }
+    #[cfg(windows)]
+    {
+        "windows_handle"
+    }
 }
 
 fn cancellation_request(job_id: &str, wall_time_millis: u64) -> GeometryWorkerRequest {
@@ -220,15 +244,15 @@ fn preferred_direct_transport_selects_the_platform_supported_mode() {
         execution.response().diagnostic_codes()[0].as_str(),
         "NATIVE_ADAPTER_UNAVAILABLE"
     );
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     {
         assert_eq!(
             execution.asset_transport(),
-            Some(WorkerAssetTransport::UnixDescriptor)
+            Some(expected_direct_transport())
         );
         assert_eq!(execution.fallback_reason(), None);
     }
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     {
         assert_eq!(
             execution.asset_transport(),
@@ -248,7 +272,7 @@ fn preferred_direct_transport_selects_the_platform_supported_mode() {
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
 
-#[cfg(all(not(feature = "native-occt"), unix))]
+#[cfg(all(not(feature = "native-occt"), any(unix, windows)))]
 #[test]
 fn required_direct_transport_executes_without_a_staged_copy() {
     let job_directory = std::env::temp_dir().join(format!(
@@ -276,7 +300,7 @@ fn required_direct_transport_executes_without_a_staged_copy() {
     );
     assert_eq!(
         execution.asset_transport(),
-        Some(WorkerAssetTransport::UnixDescriptor)
+        Some(expected_direct_transport())
     );
     assert_eq!(execution.fallback_reason(), None);
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
@@ -397,9 +421,9 @@ fn worker_recomputes_private_copy_length_and_hash_before_adapter_dispatch() {
     std::fs::remove_dir(worker_directory).expect("worker directory must be removable");
 }
 
-#[cfg(all(not(feature = "native-occt"), unix))]
+#[cfg(all(not(feature = "native-occt"), any(unix, windows)))]
 #[test]
-fn worker_rejects_an_unavailable_direct_descriptor_before_adapter_dispatch() {
+fn worker_rejects_an_unavailable_direct_resource_before_adapter_dispatch() {
     let worker_directory = std::env::temp_dir().join(format!(
         "partprobe-worker-direct-descriptor-test-{}",
         std::process::id()
@@ -409,7 +433,7 @@ fn worker_rejects_an_unavailable_direct_descriptor_before_adapter_dispatch() {
     let manifest = WorkerAssetManifest::verified_private_copy(&request, 1);
     let message = GeometryWorkerControlMessage::execute(request, manifest);
     let mut value = serde_json::to_value(message).expect("control message must serialize");
-    value["asset_manifest"]["transport"] = serde_json::json!("unix_descriptor");
+    value["asset_manifest"]["transport"] = serde_json::json!(direct_transport_token());
     value["asset_manifest"]["worker_resource_id"] = serde_json::json!(999_999);
     let message: GeometryWorkerControlMessage =
         serde_json::from_value(value).expect("direct frame remains structurally valid");
@@ -427,7 +451,7 @@ fn worker_rejects_an_unavailable_direct_descriptor_before_adapter_dispatch() {
 #[test]
 fn running_worker_acknowledges_user_cancellation_within_grace() {
     let supervisor = cancellation_fixture_supervisor(2_000);
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     let supervisor =
         supervisor.with_asset_transport_policy(WorkerAssetTransportPolicy::RequireDirect);
     let request = cancellation_request("cooperative-user-cancel", 5_000);
@@ -451,10 +475,10 @@ fn running_worker_acknowledges_user_cancellation_within_grace() {
         "WORKER_CANCELLATION_ACKNOWLEDGED"
     );
     assert!(started.elapsed() < Duration::from_secs(2));
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     assert_eq!(
         execution.asset_transport(),
-        Some(WorkerAssetTransport::UnixDescriptor)
+        Some(expected_direct_transport())
     );
 }
 
@@ -695,7 +719,7 @@ fn open_grant_remains_authoritative_after_its_source_path_is_removed() {
         SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     let supervisor =
         supervisor.with_asset_transport_policy(WorkerAssetTransportPolicy::RequireDirect);
 
@@ -708,10 +732,10 @@ fn open_grant_remains_authoritative_after_its_source_path_is_removed() {
         "NATIVE_ADAPTER_UNAVAILABLE"
     );
     assert!(execution.output().is_none());
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     assert_eq!(
         execution.asset_transport(),
-        Some(WorkerAssetTransport::UnixDescriptor)
+        Some(expected_direct_transport())
     );
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");

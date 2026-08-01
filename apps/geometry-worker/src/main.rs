@@ -11,7 +11,7 @@ use std::fs::OpenOptions;
 use partprobe_geometry_core::StageStatus;
 #[cfg(feature = "native-occt")]
 use partprobe_geometry_core::{GeometryStage, GeometryStageReport};
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use partprobe_geometry_import::verify_worker_asset_direct;
 use partprobe_geometry_import::{
     DiagnosticCode, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerResponse,
@@ -90,7 +90,21 @@ fn acquire_worker_asset(
                 Err(WorkerTermination::AssetTransportInvalid)
             }
         }
-        WorkerAssetTransport::WindowsHandle => Err(WorkerTermination::AssetTransportInvalid),
+        WorkerAssetTransport::WindowsHandle => {
+            #[cfg(windows)]
+            {
+                let resource_id = manifest
+                    .worker_resource_id()
+                    .ok_or(WorkerTermination::AssetTransportInvalid)?;
+                let source = partprobe_platform::take_inherited_worker_asset(resource_id)
+                    .map_err(|_| WorkerTermination::AssetTransportInvalid)?;
+                verify_worker_asset_direct(request, manifest, source)
+            }
+            #[cfg(not(windows))]
+            {
+                Err(WorkerTermination::AssetTransportInvalid)
+            }
+        }
     }
 }
 
