@@ -575,9 +575,9 @@ mod windows {
     use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
-        JOB_OBJECT_LIMIT_JOB_MEMORY, JOB_OBJECT_LIMIT_JOB_TIME, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, TerminateJobObject,
+        JOB_OBJECT_LIMIT_JOB_MEMORY, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOB_OBJECT_LIMIT_PROCESS_TIME, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
     };
     use windows_sys::Win32::System::Pipes::CreatePipe;
     use windows_sys::Win32::System::Threading::{
@@ -905,11 +905,11 @@ mod windows {
         let mut information = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
         information.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_ACTIVE_PROCESS
             | JOB_OBJECT_LIMIT_JOB_MEMORY
-            | JOB_OBJECT_LIMIT_JOB_TIME
+            | JOB_OBJECT_LIMIT_PROCESS_TIME
             | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
         information.BasicLimitInformation.ActiveProcessLimit = 1;
-        information.BasicLimitInformation.PerJobUserTimeLimit =
-            i64::try_from(cpu_100ns).map_err(|_| {
+        information.BasicLimitInformation.PerProcessUserTimeLimit = i64::try_from(cpu_100ns)
+            .map_err(|_| {
                 io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "worker CPU limit is out of range",
