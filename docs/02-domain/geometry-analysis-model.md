@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-29
+- **Last updated:** 2026-08-01
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, GEO-001–GEO-014, DATA-011–DATA-018, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Canonical tolerance policy? Required retention period for derivatives? First-slice maximum input size?
@@ -55,7 +55,9 @@ PartRevision
 - **Mass:** `volume × selected density`; density, material condition and source must be explicit. Missing density produces no mass.
 - **Removed volume:** `stock volume − part volume` only if the approved stock envelope encloses the part in the recorded coordinate frame. A negative result is a validation error, not a signed manufacturing fact.
 
-TASK-003's OCCT worker output is explicitly a `provisional_spike` schema, not `GeometryAnalysisSnapshot` authority. When a validated response carries an opaque snapshot reference, the supervisor claims its output as bounded immutable bytes, computes and exposes SHA-256 and length evidence, binds that evidence to the reference, and removes the worker-visible pathname; response status remains authoritative about whether the artifact is successful, partial, or failed, and no persistence or approval follows automatically. The `occt-step-spike` 1.0.0 profile retains native `f64` values inside the adapter, rejects non-finite or negative area/volume, and serializes display/test evidence using fixed six-decimal formatting with trailing zeros removed. The snapshot records `decimal_scale: 6`; the analytic fixture uses absolute tolerance `0.000001`. This temporary rule prevents platform-noise strings such as `599.9999999999999` from masquerading as meaningful precision. Production measurement policy still requires dimension-specific tolerance, derivation/version evidence, and an accepted snapshot schema.
+TASK-003's OCCT worker output is explicitly a `provisional_spike` schema, not `GeometryAnalysisSnapshot` authority. When a validated response carries the provisional opaque reference, the supervisor claims its output as bounded immutable bytes, computes and exposes SHA-256 and length evidence, binds that evidence to the reference, and removes the worker-visible pathname. The decoder then validates the complete schema and requires its source hash to match the authorized source before returning typed evidence; response status remains authoritative about whether the artifact is successful, partial, or failed, and no persistence or approval follows automatically. The `occt-step-spike` 1.0.0 profile retains native `f64` values inside the adapter, rejects non-finite or negative area/volume, and serializes display/test evidence using fixed six-decimal canonical strings with trailing zeros removed. The snapshot records `decimal_scale: 6`; the analytic fixture uses absolute tolerance `0.000001`. This temporary rule prevents platform-noise strings such as `599.9999999999999` from masquerading as meaningful precision. Production measurement policy still requires dimension-specific tolerance, derivation/version evidence, and an accepted snapshot schema.
+
+Checkpoint 19 centralizes the pre-existing schema-v1 wire shape in `geometry-core`; it does not change field names, geometry interpretation, decimal behavior, fixture expectations, or persistence. Mixed/older/unsupported evidence remains rejected rather than migrated implicitly. There are still no persisted/customer snapshot records to migrate.
 
 ## Stage outcome contract
 

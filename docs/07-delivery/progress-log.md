@@ -8,6 +8,15 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-01 — TASK-003 Checkpoint 19 provisional snapshot and GUI-1 native seam
+
+- Centralized the pre-existing `provisional_spike` schema-v1 wire shape in `geometry-core`. Construction and deserialization now validate evidence state, exact-B-rep basis, canonical millimeter units, bounded OCCT/version fields, ABI/count invariants, and canonical six-place decimal text; area and volume cannot be negative.
+- Added a supervisor-side decoder that accepts only the provisional opaque snapshot reference and requires the decoded source hash to equal the authorized source. The optional-native worker now constructs this validated type, and its process test consumes the decoder rather than indexing unvalidated JSON.
+- Added three default tests covering schema round-trip, rejected unsupported/noncanonical evidence, and reference/source-bound decoding. The macOS workspace baseline is now 102 runtime tests; Linux/Windows retain one additional hard-memory regression for 103. Exact-head three-OS evidence is pending this checkpoint's CI run.
+- Added `scripts/verify_native_step.py`. Given an explicit local OCCT root, it validates version 8.0.0, fingerprints the version header and thirteen directly linked libraries, configures the target loader path, runs strict native-feature Clippy and the 21 optional-native tests, builds the worker, and reports its executable hash/path. The existing Apple Silicon installation passes this flow.
+- Fixed a feature-gating mismatch that produced one native-only dead-code warning; both default and optional-native strict Clippy now pass.
+- The existing schema-v1 fields, geometry interpretation, six-decimal formatting, fixture expectations, and adapter ABI remain unchanged. There are no persisted/customer records to migrate. This verifier does not download/build OCCT or establish distribution, packaging, independent accuracy, or product-format support.
+
 ## 2026-08-01 — Documentation and GUI-readiness reconciliation
 
 - Audited the canonical project state, README, requirements matrix, architecture/security boundaries, delivery plan, validation evidence, changelog, and agent rules against the implemented Checkpoint 18 workspace and the prior branch-head three-OS run 30707058682.

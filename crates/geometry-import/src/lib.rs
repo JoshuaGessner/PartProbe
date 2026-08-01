@@ -14,8 +14,8 @@ use std::time::{Duration, Instant};
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::ambient_authority;
 use partprobe_domain::{AssetRootId, DomainError, SchemaVersion};
-pub use partprobe_geometry_core::Sha256Digest;
 use partprobe_geometry_core::{AnalysisProfile, GeometryStage, GeometryStageReport, StageStatus};
+pub use partprobe_geometry_core::{ProvisionalGeometrySnapshot, Sha256Digest};
 use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -27,6 +27,8 @@ pub const WORKER_OUTPUT_FILENAME: &str = "partprobe-output.json";
 pub const WORKER_CONTROL_SCHEMA_VERSION: u16 = 2;
 /// Current schema for the process-launch asset transport manifest.
 pub const WORKER_ASSET_TRANSPORT_SCHEMA_VERSION: u16 = 2;
+/// Opaque reference used only by the current developer-only native snapshot schema.
+pub const PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE: &str = "geometry-snapshot-v1";
 
 static JOB_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -1172,6 +1174,31 @@ impl ControlledWorkerOutput {
     pub const fn bytes(&self) -> &[u8] {
         &self.bytes
     }
+}
+
+/// Decodes the current provisional native snapshot and binds it to the expected source.
+pub fn decode_provisional_geometry_snapshot(
+    output: &ControlledWorkerOutput,
+    expected_source_hash: &Sha256Digest,
+) -> Result<ProvisionalGeometrySnapshot, DomainError> {
+    if output.snapshot_reference().as_str() != PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE {
+        return Err(DomainError::InvalidValue {
+            field: "provisional geometry snapshot",
+            reason: "snapshot reference does not identify the provisional geometry schema",
+        });
+    }
+    let snapshot: ProvisionalGeometrySnapshot =
+        serde_json::from_slice(output.bytes()).map_err(|_| DomainError::InvalidValue {
+            field: "provisional geometry snapshot",
+            reason: "bytes must satisfy the versioned provisional geometry schema",
+        })?;
+    if snapshot.source_hash() != expected_source_hash {
+        return Err(DomainError::InvalidValue {
+            field: "provisional geometry snapshot",
+            reason: "snapshot source hash must match the authorized source",
+        });
+    }
+    Ok(snapshot)
 }
 
 /// One supervised execution with an optional pathless controlled output.

@@ -61,7 +61,7 @@ fn expected_direct_transport() -> WorkerAssetTransport {
     }
 }
 
-#[cfg(any(unix, windows))]
+#[cfg(all(not(feature = "native-occt"), any(unix, windows)))]
 fn direct_transport_token() -> &'static str {
     #[cfg(unix)]
     {
@@ -921,15 +921,15 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
     );
     assert!(output.byte_length() > 0);
     assert_eq!(output.content_hash().as_str().len(), 64);
-    let snapshot: serde_json::Value =
-        serde_json::from_slice(output.bytes()).expect("worker snapshot must be valid JSON");
-    assert_eq!(snapshot["evidence_state"], "provisional_spike");
-    assert_eq!(snapshot["surface_area_mm2"], "600");
-    assert_eq!(snapshot["enclosed_volume_mm3"], "1000");
-    assert_eq!(
-        snapshot["center_of_mass_mm"],
-        serde_json::json!(["5", "5", "5"])
-    );
+    let snapshot = partprobe_geometry_import::decode_provisional_geometry_snapshot(
+        output,
+        request.expected_source_hash(),
+    )
+    .expect("worker snapshot must satisfy the provisional schema and source binding");
+    assert_eq!(snapshot.surface_area_mm2(), "600");
+    assert_eq!(snapshot.enclosed_volume_mm3(), "1000");
+    assert_eq!(snapshot.center_of_mass_mm(), ["5", "5", "5"]);
+    assert_eq!(snapshot.solid_body_count(), 1);
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     assert!(!job_directory.join(WORKER_OUTPUT_FILENAME).exists());
     assert!(

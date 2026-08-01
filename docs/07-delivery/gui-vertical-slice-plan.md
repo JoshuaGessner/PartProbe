@@ -25,6 +25,10 @@ This boundary does not complete TASK-003, TASK-005, TASK-006, M1, M2, or any pro
 
 No desktop app, Tauri/Leptos frontend, model-viewer, tessellation contract, durable repository, complete estimate-workflow application service, report renderer, supported production importer, or packaged native worker exists yet. Default feature-off builds intentionally report `NATIVE_ADAPTER_UNAVAILABLE`.
 
+## Current checkpoint status
+
+GUI-1 is **In Progress**. Checkpoint 19 adds the first application-consumable seam: a validated provisional snapshot, an opaque-reference and authorized-source binding decoder, and a local verifier that fingerprints an explicit OCCT 8.0.0 root before strict native checks and worker construction. An independently authored analytic STEP fixture and reproducible construction of OCCT itself remain required before GUI-1 exits.
+
 ## Five-checkpoint path to the first testable GUI
 
 | Checkpoint | Deliverable | Exit evidence |

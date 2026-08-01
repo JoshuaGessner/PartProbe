@@ -1,4 +1,4 @@
-//! Minimal isolated worker host; native geometry adapters are not configured yet.
+//! Minimal isolated worker host with an optional developer-only native geometry adapter.
 
 use std::io::{Read, Write};
 use std::process::ExitCode;
@@ -20,8 +20,6 @@ use partprobe_geometry_import::{
 };
 #[cfg(feature = "native-occt")]
 use partprobe_geometry_import::{SnapshotReference, WORKER_OUTPUT_FILENAME};
-#[cfg(feature = "native-occt")]
-use serde::Serialize;
 
 const MAX_CONTROL_MESSAGE_BYTES: usize = 1_048_576;
 const CANCELLATION_NONE: u8 = 0;
@@ -204,24 +202,6 @@ fn build_response(
 }
 
 #[cfg(feature = "native-occt")]
-#[derive(Serialize)]
-struct NativeSpikeSnapshot<'a> {
-    schema_version: u16,
-    evidence_state: &'static str,
-    source_hash: &'a str,
-    representation: &'static str,
-    canonical_units: &'static str,
-    occt_version: &'static str,
-    adapter_abi_version: u32,
-    decimal_scale: u32,
-    transferred_roots: u64,
-    solid_body_count: u64,
-    surface_area_mm2: String,
-    enclosed_volume_mm3: String,
-    center_of_mass_mm: [String; 3],
-}
-
-#[cfg(feature = "native-occt")]
 fn build_response(
     request: &GeometryWorkerRequest,
     asset: &VerifiedWorkerAsset,
@@ -255,23 +235,17 @@ fn build_response(
     if let Some(response) = cancellation_response(request, cancellation)? {
         return Ok(response);
     }
-    let snapshot = NativeSpikeSnapshot {
-        schema_version: 1,
-        evidence_state: "provisional_spike",
-        source_hash: request.expected_source_hash().as_str(),
-        representation: "exact_brep",
-        canonical_units: "millimeter",
-        occt_version: "8.0.0",
-        adapter_abi_version: partprobe_geometry_occt_adapter::linked_abi_version(),
-        decimal_scale: 6,
-        transferred_roots: properties.transferred_roots,
-        solid_body_count: properties.solid_body_count,
-        surface_area_mm2: format_provisional_measurement(properties.surface_area_mm2),
-        enclosed_volume_mm3: format_provisional_measurement(properties.enclosed_volume_mm3),
-        center_of_mass_mm: properties
-            .center_of_mass_mm
-            .map(format_provisional_measurement),
-    };
+    let snapshot = partprobe_geometry_core::ProvisionalGeometrySnapshot::new(
+        request.expected_source_hash().clone(),
+        "8.0.0",
+        partprobe_geometry_occt_adapter::linked_abi_version(),
+        properties.transferred_roots,
+        properties.solid_body_count,
+        provisional_decimal(properties.surface_area_mm2)?,
+        provisional_decimal(properties.enclosed_volume_mm3)?,
+        provisional_centroid(properties.center_of_mass_mm)?,
+    )
+    .map_err(|_| ())?;
     let snapshot_bytes = serde_json::to_vec(&snapshot).map_err(|_| ())?;
     if u64::try_from(snapshot_bytes.len()).map_err(|_| ())? > request.quotas().max_output_bytes() {
         return failed_response(request, "OUTPUT_QUOTA_EXCEEDED");
@@ -309,7 +283,12 @@ fn build_response(
         request.correlation_id().clone(),
         StageStatus::Succeeded,
         stage_reports,
-        Some(SnapshotReference::new("geometry-snapshot-v1").map_err(|_| ())?),
+        Some(
+            SnapshotReference::new(
+                partprobe_geometry_import::PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE,
+            )
+            .map_err(|_| ())?,
+        ),
         Vec::new(),
     )
     .map_err(|_| ())
@@ -329,6 +308,25 @@ fn format_provisional_measurement(value: f64) -> String {
         value.push('0');
     }
     value
+}
+
+#[cfg(feature = "native-occt")]
+fn provisional_decimal(
+    value: f64,
+) -> Result<partprobe_geometry_core::ProvisionalGeometryDecimal, ()> {
+    partprobe_geometry_core::ProvisionalGeometryDecimal::new(format_provisional_measurement(value))
+        .map_err(|_| ())
+}
+
+#[cfg(feature = "native-occt")]
+fn provisional_centroid(
+    values: [f64; 3],
+) -> Result<[partprobe_geometry_core::ProvisionalGeometryDecimal; 3], ()> {
+    Ok([
+        provisional_decimal(values[0])?,
+        provisional_decimal(values[1])?,
+        provisional_decimal(values[2])?,
+    ])
 }
 
 #[cfg(feature = "native-occt")]

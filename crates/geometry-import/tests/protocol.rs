@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
@@ -6,13 +7,15 @@ use partprobe_geometry_core::{
     AnalysisProfile, AnalysisProfileId, GeometryStage, Sha256Digest, StageStatus,
 };
 use partprobe_geometry_import::{
-    AssetCapability, CorrelationId, GeometryJobId, GeometryWorkerControlMessage,
-    GeometryWorkerRequest, GeometryWorkerSupervisor, LocalAssetRoot, ResourceQuotas,
-    SupervisorPolicy, WORKER_ASSET_TRANSPORT_SCHEMA_VERSION, WORKER_CONTROL_SCHEMA_VERSION,
-    WorkerAssetManifest, WorkerAssetTransport, WorkerAssetTransportPolicy,
-    WorkerCancellationReason, WorkerTermination, open_local_source_read_only,
+    AssetCapability, ControlledWorkerOutput, CorrelationId, GeometryJobId,
+    GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerSupervisor, LocalAssetRoot,
+    ResourceQuotas, SnapshotReference, SupervisorPolicy, WORKER_ASSET_TRANSPORT_SCHEMA_VERSION,
+    WORKER_CONTROL_SCHEMA_VERSION, WorkerAssetManifest, WorkerAssetTransport,
+    WorkerAssetTransportPolicy, WorkerCancellationReason, WorkerTermination,
+    decode_provisional_geometry_snapshot, open_local_source_read_only,
     recoverable_termination_response,
 };
+use sha2::{Digest, Sha256};
 
 fn request() -> GeometryWorkerRequest {
     GeometryWorkerRequest::new(
@@ -33,6 +36,50 @@ fn request() -> GeometryWorkerRequest {
         ResourceQuotas::new(1_000_000, 2_000_000, 100_000, 30_000).expect("quotas must be valid"),
     )
     .expect("request must be valid")
+}
+
+#[test]
+fn provisional_snapshot_decoder_binds_schema_reference_and_source_hash() {
+    let source_hash = Sha256Digest::new("a".repeat(64)).expect("source hash must be valid");
+    let bytes = serde_json::to_vec(&serde_json::json!({
+        "schema_version": 1,
+        "evidence_state": "provisional_spike",
+        "source_hash": source_hash.as_str(),
+        "representation": "exact_brep",
+        "canonical_units": "millimeter",
+        "occt_version": "8.0.0",
+        "adapter_abi_version": 3,
+        "decimal_scale": 6,
+        "transferred_roots": 1,
+        "solid_body_count": 1,
+        "surface_area_mm2": "600",
+        "enclosed_volume_mm3": "1000",
+        "center_of_mass_mm": ["5", "5", "5"]
+    }))
+    .expect("snapshot fixture must serialize")
+    .into_boxed_slice();
+    let mut hash = String::with_capacity(64);
+    for byte in Sha256::digest(&bytes) {
+        write!(&mut hash, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    let content_hash = Sha256Digest::new(hash).expect("content hash must be valid");
+    let output = ControlledWorkerOutput::from_claimed_parts(
+        SnapshotReference::new("geometry-snapshot-v1").expect("reference must be valid"),
+        content_hash,
+        bytes,
+    )
+    .expect("claimed output must be valid");
+
+    let decoded = decode_provisional_geometry_snapshot(&output, &source_hash)
+        .expect("schema and source binding must pass");
+    assert_eq!(decoded.enclosed_volume_mm3(), "1000");
+    assert!(
+        decode_provisional_geometry_snapshot(
+            &output,
+            &Sha256Digest::new("b".repeat(64)).expect("alternate hash must be valid")
+        )
+        .is_err()
+    );
 }
 
 #[cfg(any(unix, windows))]

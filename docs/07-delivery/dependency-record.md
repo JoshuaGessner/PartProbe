@@ -73,4 +73,5 @@ The Apple Silicon build resolved 23 OCCT shared libraries: `TKernel`, `TKMath`, 
 cargo tree --workspace --all-targets --edges normal,build
 cargo metadata --format-version 1 --locked
 cargo test --workspace --all-targets --locked
+python3 scripts/verify_native_step.py --occt-root /approved/local/occt-install
 ```

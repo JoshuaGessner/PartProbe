@@ -29,6 +29,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - Optional OCCT 8.0.0 ABI-v3 Apple Silicon byte-stream parsing with provisional synthetic STEP measurements and cancellation polling; default builds remain native-feature-off.
 - Partial worker resource containment: Unix CPU/file/core/process-group controls, Linux memory limits, and suspended Windows Job CPU/memory/one-process/tree-kill controls.
 - A canonical testable-GUI plan separating the five-checkpoint internal STEP/session-only slice, optional viewport increment, cross-platform alpha, and release acceptance.
+- A validated schema for the existing provisional native geometry evidence, a decoder binding claimed output to its reference and authorized source, and a native-root fingerprint/strict-check/worker-build entry point for GUI-1.
 
 ### Security
 

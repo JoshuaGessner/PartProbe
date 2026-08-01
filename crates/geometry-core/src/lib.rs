@@ -188,6 +188,297 @@ pub enum ModelLengthUnit {
     Unknown,
 }
 
+/// Current schema for the bounded developer-only native geometry evidence.
+pub const PROVISIONAL_GEOMETRY_SNAPSHOT_SCHEMA_VERSION: u16 = 1;
+/// Fixed display/test decimal scale used by the current provisional native spike.
+pub const PROVISIONAL_GEOMETRY_DECIMAL_SCALE: u32 = 6;
+
+/// Canonical decimal text retained by the provisional geometry evidence schema.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct ProvisionalGeometryDecimal(String);
+
+impl ProvisionalGeometryDecimal {
+    /// Validates a non-exponent decimal with at most the provisional six-place scale.
+    pub fn new(value: impl Into<String>) -> Result<Self, DomainError> {
+        let value = value.into();
+        if !is_canonical_provisional_decimal(&value) {
+            return Err(DomainError::InvalidValue {
+                field: "provisional geometry decimal",
+                reason: "must be canonical decimal text with at most six fractional places",
+            });
+        }
+        Ok(Self(value))
+    }
+
+    /// Returns the exact canonical decimal text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    #[must_use]
+    const fn is_negative(&self) -> bool {
+        self.0.as_bytes()[0] == b'-'
+    }
+}
+
+impl<'de> Deserialize<'de> for ProvisionalGeometryDecimal {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
+    }
+}
+
+fn is_canonical_provisional_decimal(value: &str) -> bool {
+    if value.is_empty() || value.len() > 64 || value == "-0" {
+        return false;
+    }
+    let unsigned = value.strip_prefix('-').unwrap_or(value);
+    let mut parts = unsigned.split('.');
+    let integer = parts.next().unwrap_or_default();
+    let fraction = parts.next();
+    if parts.next().is_some()
+        || integer.is_empty()
+        || !integer.bytes().all(|byte| byte.is_ascii_digit())
+        || (integer.len() > 1 && integer.starts_with('0'))
+    {
+        return false;
+    }
+    fraction.is_none_or(|digits| {
+        !digits.is_empty()
+            && digits.len() <= PROVISIONAL_GEOMETRY_DECIMAL_SCALE as usize
+            && digits.bytes().all(|byte| byte.is_ascii_digit())
+            && !digits.ends_with('0')
+    })
+}
+
+/// Validated developer-only snapshot emitted by the current optional native STEP spike.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ProvisionalGeometrySnapshot {
+    schema_version: u16,
+    evidence_state: String,
+    source_hash: Sha256Digest,
+    representation: RepresentationBasis,
+    canonical_units: ModelLengthUnit,
+    occt_version: String,
+    adapter_abi_version: u32,
+    decimal_scale: u32,
+    transferred_roots: u64,
+    solid_body_count: u64,
+    surface_area_mm2: ProvisionalGeometryDecimal,
+    enclosed_volume_mm3: ProvisionalGeometryDecimal,
+    center_of_mass_mm: [ProvisionalGeometryDecimal; 3],
+}
+
+#[derive(Deserialize)]
+struct ProvisionalGeometrySnapshotWire {
+    schema_version: u16,
+    evidence_state: String,
+    source_hash: Sha256Digest,
+    representation: RepresentationBasis,
+    canonical_units: ModelLengthUnit,
+    occt_version: String,
+    adapter_abi_version: u32,
+    decimal_scale: u32,
+    transferred_roots: u64,
+    solid_body_count: u64,
+    surface_area_mm2: ProvisionalGeometryDecimal,
+    enclosed_volume_mm3: ProvisionalGeometryDecimal,
+    center_of_mass_mm: [ProvisionalGeometryDecimal; 3],
+}
+
+fn validate_provisional_schema(wire: &ProvisionalGeometrySnapshotWire) -> Result<(), DomainError> {
+    if wire.schema_version != PROVISIONAL_GEOMETRY_SNAPSHOT_SCHEMA_VERSION
+        || wire.evidence_state != "provisional_spike"
+        || wire.representation != RepresentationBasis::ExactBrep
+        || wire.canonical_units != ModelLengthUnit::Millimeter
+        || wire.decimal_scale != PROVISIONAL_GEOMETRY_DECIMAL_SCALE
+    {
+        return Err(DomainError::InvalidValue {
+            field: "provisional geometry snapshot",
+            reason: "schema, evidence state, representation, units, or decimal scale is unsupported",
+        });
+    }
+    Ok(())
+}
+
+fn validate_provisional_engine(wire: &ProvisionalGeometrySnapshotWire) -> Result<(), DomainError> {
+    if wire.occt_version.is_empty()
+        || wire.occt_version.len() > 64
+        || !wire
+            .occt_version
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+        || wire.adapter_abi_version == 0
+    {
+        return Err(DomainError::InvalidValue {
+            field: "provisional geometry snapshot",
+            reason: "engine version or adapter ABI is invalid",
+        });
+    }
+    Ok(())
+}
+
+fn validate_provisional_results(wire: &ProvisionalGeometrySnapshotWire) -> Result<(), DomainError> {
+    if wire.transferred_roots == 0
+        || wire.solid_body_count == 0
+        || wire.surface_area_mm2.is_negative()
+        || wire.enclosed_volume_mm3.is_negative()
+    {
+        return Err(DomainError::InvalidValue {
+            field: "provisional geometry snapshot",
+            reason: "root/body counts must be positive and area/volume must be non-negative",
+        });
+    }
+    Ok(())
+}
+
+impl<'de> Deserialize<'de> for ProvisionalGeometrySnapshot {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = ProvisionalGeometrySnapshotWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
+impl ProvisionalGeometrySnapshot {
+    /// Creates the fixed-basis provisional snapshot used by the native developer seam.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        source_hash: Sha256Digest,
+        occt_version: impl Into<String>,
+        adapter_abi_version: u32,
+        transferred_roots: u64,
+        solid_body_count: u64,
+        surface_area_mm2: ProvisionalGeometryDecimal,
+        enclosed_volume_mm3: ProvisionalGeometryDecimal,
+        center_of_mass_mm: [ProvisionalGeometryDecimal; 3],
+    ) -> Result<Self, DomainError> {
+        Self::from_wire(ProvisionalGeometrySnapshotWire {
+            schema_version: PROVISIONAL_GEOMETRY_SNAPSHOT_SCHEMA_VERSION,
+            evidence_state: "provisional_spike".to_owned(),
+            source_hash,
+            representation: RepresentationBasis::ExactBrep,
+            canonical_units: ModelLengthUnit::Millimeter,
+            occt_version: occt_version.into(),
+            adapter_abi_version,
+            decimal_scale: PROVISIONAL_GEOMETRY_DECIMAL_SCALE,
+            transferred_roots,
+            solid_body_count,
+            surface_area_mm2,
+            enclosed_volume_mm3,
+            center_of_mass_mm,
+        })
+    }
+
+    fn from_wire(wire: ProvisionalGeometrySnapshotWire) -> Result<Self, DomainError> {
+        validate_provisional_schema(&wire)?;
+        validate_provisional_engine(&wire)?;
+        validate_provisional_results(&wire)?;
+        Ok(Self {
+            schema_version: wire.schema_version,
+            evidence_state: wire.evidence_state,
+            source_hash: wire.source_hash,
+            representation: wire.representation,
+            canonical_units: wire.canonical_units,
+            occt_version: wire.occt_version,
+            adapter_abi_version: wire.adapter_abi_version,
+            decimal_scale: wire.decimal_scale,
+            transferred_roots: wire.transferred_roots,
+            solid_body_count: wire.solid_body_count,
+            surface_area_mm2: wire.surface_area_mm2,
+            enclosed_volume_mm3: wire.enclosed_volume_mm3,
+            center_of_mass_mm: wire.center_of_mass_mm,
+        })
+    }
+
+    /// Returns the provisional wire-schema version.
+    #[must_use]
+    pub const fn schema_version(&self) -> u16 {
+        self.schema_version
+    }
+
+    /// Returns the explicit non-authoritative evidence state.
+    #[must_use]
+    pub fn evidence_state(&self) -> &str {
+        &self.evidence_state
+    }
+
+    /// Returns the source digest that the snapshot interprets.
+    #[must_use]
+    pub const fn source_hash(&self) -> &Sha256Digest {
+        &self.source_hash
+    }
+
+    /// Returns the representation basis of the provisional measurements.
+    #[must_use]
+    pub const fn representation(&self) -> RepresentationBasis {
+        self.representation
+    }
+
+    /// Returns the canonical length unit used by the provisional measurements.
+    #[must_use]
+    pub const fn canonical_units(&self) -> ModelLengthUnit {
+        self.canonical_units
+    }
+
+    /// Returns the recorded OCCT version.
+    #[must_use]
+    pub fn occt_version(&self) -> &str {
+        &self.occt_version
+    }
+
+    /// Returns the linked native adapter ABI version.
+    #[must_use]
+    pub const fn adapter_abi_version(&self) -> u32 {
+        self.adapter_abi_version
+    }
+
+    /// Returns the declared canonical decimal scale.
+    #[must_use]
+    pub const fn decimal_scale(&self) -> u32 {
+        self.decimal_scale
+    }
+
+    /// Returns the number of STEP roots transferred by the spike.
+    #[must_use]
+    pub const fn transferred_roots(&self) -> u64 {
+        self.transferred_roots
+    }
+
+    /// Returns the exact provisional surface-area text in square millimeters.
+    #[must_use]
+    pub fn surface_area_mm2(&self) -> &str {
+        self.surface_area_mm2.as_str()
+    }
+
+    /// Returns the exact provisional enclosed-volume text in cubic millimeters.
+    #[must_use]
+    pub fn enclosed_volume_mm3(&self) -> &str {
+        self.enclosed_volume_mm3.as_str()
+    }
+
+    /// Returns the exact provisional centroid text in millimeters.
+    #[must_use]
+    pub fn center_of_mass_mm(&self) -> [&str; 3] {
+        self.center_of_mass_mm
+            .each_ref()
+            .map(|value| value.as_str())
+    }
+
+    /// Returns the number of exact solid bodies reported by the spike.
+    #[must_use]
+    pub const fn solid_body_count(&self) -> u64 {
+        self.solid_body_count
+    }
+}
+
 /// Evidence used to resolve source geometry units.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
