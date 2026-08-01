@@ -103,9 +103,33 @@ fn cancellation_fixture_supervisor_in(
     GeometryWorkerSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_partprobe-cancellation-worker-fixture")),
         working_directory,
-        SupervisorPolicy::new(65_536, 5, grace_millis).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, grace_millis, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
+}
+
+fn resource_fixture_supervisor(
+    max_memory_bytes: u64,
+    max_cpu_millis: u64,
+) -> GeometryWorkerSupervisor {
+    GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-cancellation-worker-fixture")),
+        std::env::temp_dir(),
+        SupervisorPolicy::new(65_536, 5, 100, max_memory_bytes, max_cpu_millis)
+            .expect("resource policy must be valid"),
+    )
+    .expect("resource supervisor must be valid")
+}
+
+fn execute_resource_fixture(
+    job_id: &str,
+    supervisor: &GeometryWorkerSupervisor,
+    cancellation: &AtomicBool,
+) -> partprobe_geometry_import::GeometryWorkerExecution {
+    let request = cancellation_request(job_id, 5_000);
+    let grant = cancellation_asset_grant(&request);
+    supervisor.execute_with_grant(&request, grant, cancellation)
 }
 
 fn asset_grant(request: &GeometryWorkerRequest, source: &Path) -> AssetReadGrant {
@@ -185,7 +209,8 @@ fn supervisor_executes_the_path_free_worker_contract() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
 
@@ -229,7 +254,8 @@ fn preferred_direct_transport_selects_the_platform_supported_mode() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
     .with_asset_transport_policy(WorkerAssetTransportPolicy::PreferDirect);
@@ -283,7 +309,8 @@ fn required_direct_transport_executes_without_a_staged_copy() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
     .with_asset_transport_policy(WorkerAssetTransportPolicy::RequireDirect);
@@ -321,7 +348,8 @@ fn supervisor_rejects_hash_mismatch_before_worker_launch() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from("worker-must-not-launch"),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -583,6 +611,106 @@ fn uncooperative_deadline_is_force_terminated_after_grace() {
 }
 
 #[test]
+fn worker_cpu_time_is_hard_limited_before_the_wall_deadline() {
+    let supervisor = resource_fixture_supervisor(512 * 1024 * 1024, 100);
+    let started = Instant::now();
+
+    let execution = execute_resource_fixture(
+        &format!("resource-cpu-{}", std::process::id()),
+        &supervisor,
+        &AtomicBool::new(false),
+    );
+
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::FailedRecoverable
+    );
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "WORKER_EXIT"
+    );
+    assert!(started.elapsed() < Duration::from_secs(3));
+}
+
+#[cfg(any(target_os = "linux", windows))]
+#[test]
+fn worker_address_space_is_hard_limited_without_exhausting_the_supervisor() {
+    let supervisor = resource_fixture_supervisor(192 * 1024 * 1024, 60_000);
+    let started = Instant::now();
+
+    let execution = execute_resource_fixture(
+        &format!("resource-memory-{}", std::process::id()),
+        &supervisor,
+        &AtomicBool::new(false),
+    );
+
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::FailedRecoverable
+    );
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "WORKER_EXIT"
+    );
+    assert!(started.elapsed() < Duration::from_secs(3));
+}
+
+#[cfg(unix)]
+#[test]
+fn worker_regular_file_output_is_hard_limited_and_cleaned() {
+    let supervisor = resource_fixture_supervisor(512 * 1024 * 1024, 60_000);
+
+    let execution = execute_resource_fixture(
+        &format!("resource-output-{}", std::process::id()),
+        &supervisor,
+        &AtomicBool::new(false),
+    );
+
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::FailedRecoverable
+    );
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "WORKER_EXIT"
+    );
+    assert!(execution.output().is_none());
+}
+
+#[test]
+fn forced_termination_contains_normal_worker_descendants() {
+    let job_id = format!("resource-descendant-{}", std::process::id());
+    let marker = std::env::temp_dir().join(format!("partprobe-{job_id}-marker"));
+    if marker.exists() {
+        std::fs::remove_file(&marker).expect("stale resource marker must be removable");
+    }
+    let supervisor = resource_fixture_supervisor(512 * 1024 * 1024, 60_000);
+    let cancellation = Arc::new(AtomicBool::new(false));
+    let cancellation_signal = Arc::clone(&cancellation);
+    let signal = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(50));
+        cancellation_signal.store(true, Ordering::Release);
+    });
+
+    let execution = execute_resource_fixture(&job_id, &supervisor, &cancellation);
+    signal.join().expect("cancellation signal must complete");
+    std::thread::sleep(Duration::from_millis(900));
+
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::FailedRecoverable
+    );
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "WORKER_CANCEL_FORCE_TERMINATED"
+    );
+    assert!(
+        !marker.exists(),
+        "terminated descendants must not emit a marker"
+    );
+}
+
+#[test]
 fn private_job_namespace_preserves_a_preexisting_parent_file() {
     let job_directory = std::env::temp_dir().join(format!(
         "partprobe-worker-conflict-test-{}",
@@ -595,7 +723,8 @@ fn private_job_namespace_preserves_a_preexisting_parent_file() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from("worker-must-not-launch"),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
     let source =
@@ -630,7 +759,8 @@ fn supervisor_rejects_a_grant_bound_to_another_capability() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from("worker-must-not-launch"),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
     let source =
@@ -678,7 +808,8 @@ fn supervisor_rejects_source_length_drift_after_grant_creation() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from("worker-must-not-launch"),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
 
@@ -716,7 +847,8 @@ fn open_grant_remains_authoritative_after_its_source_path_is_removed() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
     #[cfg(any(unix, windows))]
@@ -754,7 +886,8 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
     .with_native_library_directory(occt_root.join("lib"))
@@ -830,7 +963,8 @@ fn supervised_native_worker_rejects_invalid_step_entity_without_output() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
         job_directory.clone(),
-        SupervisorPolicy::new(65_536, 5, 250).expect("policy must be valid"),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
     .with_native_library_directory(occt_root.join("lib"))

@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
@@ -959,6 +960,8 @@ pub struct SupervisorPolicy {
     max_protocol_bytes: usize,
     poll_interval_millis: u64,
     cancellation_grace_millis: u64,
+    max_worker_memory_bytes: NonZeroU64,
+    max_worker_cpu_millis: NonZeroU64,
 }
 
 impl SupervisorPolicy {
@@ -967,7 +970,21 @@ impl SupervisorPolicy {
         max_protocol_bytes: usize,
         poll_interval_millis: u64,
         cancellation_grace_millis: u64,
+        max_worker_memory_bytes: u64,
+        max_worker_cpu_millis: u64,
     ) -> Result<Self, DomainError> {
+        let Some(max_worker_memory_bytes) = NonZeroU64::new(max_worker_memory_bytes) else {
+            return Err(DomainError::InvalidValue {
+                field: "geometry supervisor policy",
+                reason: "worker memory limit must be greater than zero",
+            });
+        };
+        let Some(max_worker_cpu_millis) = NonZeroU64::new(max_worker_cpu_millis) else {
+            return Err(DomainError::InvalidValue {
+                field: "geometry supervisor policy",
+                reason: "worker CPU limit must be greater than zero",
+            });
+        };
         if max_protocol_bytes == 0 || poll_interval_millis == 0 || cancellation_grace_millis == 0 {
             return Err(DomainError::InvalidValue {
                 field: "geometry supervisor policy",
@@ -978,6 +995,8 @@ impl SupervisorPolicy {
             max_protocol_bytes,
             poll_interval_millis,
             cancellation_grace_millis,
+            max_worker_memory_bytes,
+            max_worker_cpu_millis,
         })
     }
 
@@ -997,6 +1016,18 @@ impl SupervisorPolicy {
     #[must_use]
     pub const fn cancellation_grace_millis(self) -> u64 {
         self.cancellation_grace_millis
+    }
+
+    /// Returns the hard per-worker memory ceiling configured by the deployment.
+    #[must_use]
+    pub const fn max_worker_memory_bytes(self) -> u64 {
+        self.max_worker_memory_bytes.get()
+    }
+
+    /// Returns the hard per-worker CPU-time ceiling configured by the deployment.
+    #[must_use]
+    pub const fn max_worker_cpu_millis(self) -> u64 {
+        self.max_worker_cpu_millis.get()
     }
 }
 
@@ -1422,7 +1453,19 @@ impl GeometryWorkerSupervisor {
             _ => return response_for(request, WorkerTermination::QuotaExceeded),
         };
 
-        let mut command = partprobe_platform::WorkerCommand::new(&self.executable);
+        let resource_limits = partprobe_platform::WorkerResourceLimits::new(
+            self.policy.max_worker_memory_bytes,
+            NonZeroU64::new(
+                request
+                    .quotas()
+                    .wall_time_millis()
+                    .min(self.policy.max_worker_cpu_millis()),
+            )
+            .expect("validated worker CPU limits must be nonzero"),
+            NonZeroU64::new(request.quotas().max_output_bytes())
+                .expect("validated request output limit must be nonzero"),
+        );
+        let mut command = partprobe_platform::WorkerCommand::new(&self.executable, resource_limits);
         command.current_dir(working_directory);
         if let Some(directory) = &self.native_library_directory {
             configure_native_library_path(&mut command, directory);

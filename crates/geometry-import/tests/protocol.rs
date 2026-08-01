@@ -140,8 +140,10 @@ fn asset_manifest_mismatch_and_direct_resource_shape_fail_closed() {
 
 #[test]
 fn supervisor_policy_requires_an_explicit_nonzero_cancellation_grace() {
-    assert!(SupervisorPolicy::new(4_096, 1, 50).is_ok());
-    assert!(SupervisorPolicy::new(4_096, 1, 0).is_err());
+    assert!(SupervisorPolicy::new(4_096, 1, 50, 512 * 1024 * 1024, 60_000).is_ok());
+    assert!(SupervisorPolicy::new(4_096, 1, 0, 512 * 1024 * 1024, 60_000).is_err());
+    assert!(SupervisorPolicy::new(4_096, 1, 50, 0, 60_000).is_err());
+    assert!(SupervisorPolicy::new(4_096, 1, 50, 512 * 1024 * 1024, 0).is_err());
 }
 
 #[test]
@@ -218,7 +220,8 @@ fn supervisor_maps_launch_failure_and_precancel_without_path_leakage() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from("__partprobe_worker_does_not_exist__"),
         std::env::temp_dir(),
-        SupervisorPolicy::new(4_096, 1, 50).expect("policy must be valid"),
+        SupervisorPolicy::new(4_096, 1, 50, 512 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid");
 
@@ -264,7 +267,8 @@ fn require_direct_transport_never_creates_a_copy_fallback() {
     let supervisor = GeometryWorkerSupervisor::new(
         PathBuf::from("__partprobe_worker_must_not_launch__"),
         std::env::temp_dir(),
-        SupervisorPolicy::new(4_096, 1, 50).expect("policy must be valid"),
+        SupervisorPolicy::new(4_096, 1, 50, 512 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
     .with_asset_transport_policy(WorkerAssetTransportPolicy::RequireDirect);

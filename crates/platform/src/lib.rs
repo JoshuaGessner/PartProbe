@@ -3,8 +3,82 @@
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
+
+/// Operating-system resource ceilings requested before a worker begins executing.
+///
+/// CPU time is hard-limited on Unix and Windows. Memory is hard-limited on Linux and Windows;
+/// current macOS releases expose no supported hard per-process memory primitive through
+/// `setrlimit`. Regular-file size is hard-limited on Unix and remains supervisor-validated after
+/// exit on Windows.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorkerResourceLimits {
+    max_memory_bytes: NonZeroU64,
+    max_cpu_millis: NonZeroU64,
+    max_file_bytes: NonZeroU64,
+}
+
+impl WorkerResourceLimits {
+    /// Creates a validated resource profile for one worker process.
+    #[must_use]
+    pub const fn new(
+        max_memory_bytes: NonZeroU64,
+        max_cpu_millis: NonZeroU64,
+        max_file_bytes: NonZeroU64,
+    ) -> Self {
+        Self {
+            max_memory_bytes,
+            max_cpu_millis,
+            max_file_bytes,
+        }
+    }
+
+    #[cfg_attr(
+        target_os = "macos",
+        allow(
+            dead_code,
+            reason = "macOS has no supported hard rlimit memory ceiling"
+        )
+    )]
+    const fn max_memory_bytes(self) -> u64 {
+        self.max_memory_bytes.get()
+    }
+
+    const fn max_cpu_millis(self) -> u64 {
+        self.max_cpu_millis.get()
+    }
+
+    #[cfg_attr(
+        windows,
+        allow(
+            dead_code,
+            reason = "Windows Jobs expose no hard file-write byte ceiling"
+        )
+    )]
+    const fn max_file_bytes(self) -> u64 {
+        self.max_file_bytes.get()
+    }
+}
+
+/// Returns whether this target applies the requested worker memory ceiling as a hard OS limit.
+#[must_use]
+pub const fn hard_worker_memory_limit_supported() -> bool {
+    cfg!(any(target_os = "linux", windows))
+}
+
+/// Returns whether this target applies the requested regular-file ceiling as a hard OS limit.
+#[must_use]
+pub const fn hard_worker_file_limit_supported() -> bool {
+    cfg!(unix)
+}
+
+/// Returns whether this target prevents a worker from creating processes outside its owned tree.
+#[must_use]
+pub const fn hostile_worker_descendant_containment_supported() -> bool {
+    cfg!(windows)
+}
 
 /// A prepared direct worker asset kept alive until the child is spawned.
 #[derive(Debug)]
@@ -34,16 +108,18 @@ pub struct WorkerCommand {
     current_directory: Option<PathBuf>,
     environment: Vec<(OsString, OsString)>,
     direct_asset: Option<DirectWorkerAsset>,
+    resource_limits: WorkerResourceLimits,
 }
 
 impl WorkerCommand {
     /// Creates a path-explicit worker command with no inherited environment.
-    pub fn new(program: impl AsRef<OsStr>) -> Self {
+    pub fn new(program: impl AsRef<OsStr>, resource_limits: WorkerResourceLimits) -> Self {
         Self {
             program: PathBuf::from(program.as_ref()),
             current_directory: None,
             environment: Vec::new(),
             direct_asset: None,
+            resource_limits,
         }
     }
 
@@ -70,9 +146,8 @@ impl WorkerCommand {
     /// Spawns the worker with piped stdin/stdout and null stderr.
     pub fn spawn(self) -> io::Result<WorkerChild> {
         #[cfg(windows)]
-        if self.direct_asset.is_some() {
-            return windows::spawn_direct(self);
-        }
+        return windows::spawn_restricted(self);
+        #[cfg(not(windows))]
         spawn_standard(self)
     }
 }
@@ -88,9 +163,13 @@ fn spawn_standard(mut worker: WorkerCommand) -> io::Result<WorkerChild> {
     if let Some(directory) = worker.current_directory {
         command.current_dir(directory);
     }
+    #[cfg(unix)]
+    {
+        let descriptor = worker.direct_asset.take().map(|asset| asset.descriptor);
+        unix::configure(&mut command, descriptor, worker.resource_limits)?;
+    }
+    #[cfg(not(unix))]
     if let Some(asset) = worker.direct_asset.take() {
-        #[cfg(unix)]
-        unix::configure(&mut command, asset.descriptor)?;
         #[cfg(windows)]
         {
             let _ = asset;
@@ -199,7 +278,12 @@ impl WorkerChild {
     /// Requests immediate process termination.
     pub fn kill(&mut self) -> io::Result<()> {
         match &mut self.inner {
-            WorkerChildInner::Standard(child) => child.kill(),
+            WorkerChildInner::Standard(child) => {
+                #[cfg(unix)]
+                return unix::kill_process_group(child);
+                #[cfg(not(unix))]
+                child.kill()
+            }
             #[cfg(windows)]
             WorkerChildInner::Restricted(child) => child.kill(),
         }
@@ -272,12 +356,12 @@ mod unix {
     use std::io;
     use std::os::fd::{AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
     use std::os::unix::process::CommandExt;
-    use std::process::Command;
+    use std::process::{Child, Command};
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use rustix::io::{FdFlags, fcntl_dupfd_cloexec, fcntl_getfd, fcntl_setfd};
 
-    use super::DirectWorkerAsset;
+    use super::{DirectWorkerAsset, WorkerResourceLimits};
 
     const FIRST_NON_STDIO_DESCRIPTOR: RawFd = 3;
     static WORKER_ASSET_TAKEN: AtomicBool = AtomicBool::new(false);
@@ -301,21 +385,97 @@ mod unix {
         unsafe_code,
         reason = "pre_exec is the stable Unix hook for changing descriptor inheritance after fork"
     )]
-    pub(super) fn configure(command: &mut Command, descriptor: OwnedFd) -> io::Result<()> {
-        let descriptor_id = descriptor.as_raw_fd();
-        // SAFETY: The callback performs only fcntl operations and close_fds' documented
-        // async-signal-safe CLOEXEC sweep. It does not allocate, lock, log, or resolve paths.
+    pub(super) fn configure(
+        command: &mut Command,
+        descriptor: Option<OwnedFd>,
+        limits: WorkerResourceLimits,
+    ) -> io::Result<()> {
+        let descriptor_id = descriptor.as_ref().map(AsRawFd::as_raw_fd);
+        let cpu_seconds = limits.max_cpu_millis().div_ceil(1_000);
+        #[cfg(not(target_os = "macos"))]
+        let address_space_bytes =
+            libc::rlim_t::try_from(limits.max_memory_bytes()).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "worker memory limit is out of range",
+                )
+            })?;
+        let file_bytes = libc::rlim_t::try_from(limits.max_file_bytes()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "worker file limit is out of range",
+            )
+        })?;
+        let cpu_seconds = libc::rlim_t::try_from(cpu_seconds).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "worker CPU limit is out of range",
+            )
+        })?;
+        // SAFETY: The callback performs only async-signal-safe setrlimit, setpgid, fcntl, and
+        // close_fds operations over prevalidated POD values. It does not allocate, lock, log, or
+        // resolve paths after fork.
         unsafe {
             command.pre_exec(move || {
-                fcntl_setfd(&descriptor, FdFlags::empty()).map_err(io::Error::from)?;
-                close_fds::set_fds_cloexec(
-                    FIRST_NON_STDIO_DESCRIPTOR,
-                    std::slice::from_ref(&descriptor_id),
-                );
+                let cpu_limit = libc::rlimit {
+                    rlim_cur: cpu_seconds,
+                    rlim_max: cpu_seconds,
+                };
+                #[cfg(not(target_os = "macos"))]
+                let memory_limit = libc::rlimit {
+                    rlim_cur: address_space_bytes,
+                    rlim_max: address_space_bytes,
+                };
+                let file_limit = libc::rlimit {
+                    rlim_cur: file_bytes,
+                    rlim_max: file_bytes,
+                };
+                let core_limit = libc::rlimit {
+                    rlim_cur: 0,
+                    rlim_max: 0,
+                };
+                if libc::setrlimit(libc::RLIMIT_CPU, &cpu_limit) != 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                #[cfg(not(target_os = "macos"))]
+                if libc::setrlimit(libc::RLIMIT_AS, &memory_limit) != 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                if libc::setrlimit(libc::RLIMIT_FSIZE, &file_limit) != 0
+                    || libc::setrlimit(libc::RLIMIT_CORE, &core_limit) != 0
+                    || libc::setpgid(0, 0) != 0
+                {
+                    return Err(io::Error::last_os_error());
+                }
+                if let Some(descriptor) = descriptor.as_ref() {
+                    fcntl_setfd(descriptor, FdFlags::empty()).map_err(io::Error::from)?;
+                }
+                let preserved = descriptor_id.as_slice();
+                close_fds::set_fds_cloexec(FIRST_NON_STDIO_DESCRIPTOR, preserved);
                 Ok(())
             });
         }
         Ok(())
+    }
+
+    #[allow(
+        unsafe_code,
+        reason = "kill with a negative PID is the POSIX primitive for terminating a worker group"
+    )]
+    pub(super) fn kill_process_group(child: &mut Child) -> io::Result<()> {
+        let process_id = i32::try_from(child.id()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "worker process ID is out of range",
+            )
+        })?;
+        // SAFETY: The worker created its own process group before exec; a negative PID targets
+        // that group, and the supervisor follows termination by reaping the group leader.
+        if unsafe { libc::kill(-process_id, libc::SIGKILL) } == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
 
     #[allow(
@@ -398,24 +558,34 @@ mod windows {
         INVALID_HANDLE_VALUE, SetHandleInformation, WAIT_OBJECT_0, WAIT_TIMEOUT,
     };
     use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
+        JOB_OBJECT_LIMIT_JOB_MEMORY, JOB_OBJECT_LIMIT_JOB_TIME, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, TerminateJobObject,
+    };
     use windows_sys::Win32::System::Pipes::CreatePipe;
     use windows_sys::Win32::System::Threading::{
-        CREATE_UNICODE_ENVIRONMENT, CreateProcessW, DeleteProcThreadAttributeList,
-        EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess, GetExitCodeProcess, INFINITE,
-        InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
-        PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-        STARTUPINFOEXW, TerminateProcess, UpdateProcThreadAttribute, WaitForSingleObject,
+        CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
+        DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess,
+        GetExitCodeProcess, INFINITE, InitializeProcThreadAttributeList,
+        LPPROC_THREAD_ATTRIBUTE_LIST, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION,
+        ResumeThread, STARTF_USESTDHANDLES, STARTUPINFOEXW, TerminateProcess,
+        UpdateProcThreadAttribute, WaitForSingleObject,
     };
     #[cfg(test)]
     use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent};
 
-    use super::{DirectWorkerAsset, WorkerChild, WorkerChildInner, WorkerCommand};
+    use super::{
+        DirectWorkerAsset, WorkerChild, WorkerChildInner, WorkerCommand, WorkerResourceLimits,
+    };
 
     static WORKER_ASSET_TAKEN: AtomicBool = AtomicBool::new(false);
     static DIRECT_LAUNCH: Mutex<()> = Mutex::new(());
 
     pub(super) struct RestrictedChild {
         process: OwnedHandle,
+        job: OwnedHandle,
         pub(super) stdin: Option<File>,
         pub(super) stdout: Option<File>,
         status: Option<ExitStatus>,
@@ -436,7 +606,7 @@ mod windows {
         }
 
         pub(super) fn kill(&mut self) -> io::Result<()> {
-            terminate_process(&self.process)
+            terminate_job(&self.job)
         }
 
         pub(super) fn wait(&mut self) -> io::Result<ExitStatus> {
@@ -503,31 +673,38 @@ mod windows {
         }))
     }
 
-    pub(super) fn spawn_direct(worker: WorkerCommand) -> io::Result<WorkerChild> {
+    pub(super) fn spawn_restricted(worker: WorkerCommand) -> io::Result<WorkerChild> {
         let WorkerCommand {
             program,
             current_directory,
             environment,
             direct_asset,
+            resource_limits,
         } = worker;
-        let asset = direct_asset.ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "direct worker asset is missing",
+        let _standard_launch_guard = if direct_asset.is_none() {
+            Some(
+                DIRECT_LAUNCH
+                    .lock()
+                    .map_err(|_| io::Error::other("the Windows worker launch lock is poisoned"))?,
             )
-        })?;
+        } else {
+            None
+        };
+        let job = create_job(resource_limits)?;
         let (child_stdin, parent_stdin) = create_pipe()?;
         clear_inheritance(&parent_stdin)?;
         let (parent_stdout, child_stdout) = create_pipe()?;
         clear_inheritance(&parent_stdout)?;
         let null_stderr = OpenOptions::new().write(true).open("NUL")?;
         let child_stderr = duplicate_inheritable(&null_stderr)?;
-        let handles = [
+        let mut handles = vec![
             raw_handle(&child_stdin),
             raw_handle(&child_stdout),
             raw_handle(&child_stderr),
-            raw_handle(&asset.handle),
         ];
+        if let Some(asset) = direct_asset.as_ref() {
+            handles.push(raw_handle(&asset.handle));
+        }
         let attributes = AttributeList::new(&handles)?;
         let program_wide = wide_null_terminated(program.as_os_str(), "worker executable")?;
         let mut command_line = quoted_program_command_line(&program_wide)?;
@@ -560,16 +737,22 @@ mod windows {
         )?;
         let process = owned_created_handle(process_information.hProcess);
         let thread = owned_created_handle(process_information.hThread);
+        if let Err(error) = assign_and_resume(&job, &process, &thread) {
+            let _ = terminate_process(&process);
+            let _ = wait_for_process(&process, INFINITE);
+            return Err(error);
+        }
         drop(thread);
         drop(attributes);
         drop(child_stdin);
         drop(child_stdout);
         drop(child_stderr);
-        drop(asset);
+        drop(direct_asset);
 
         Ok(WorkerChild {
             inner: WorkerChildInner::Restricted(RestrictedChild {
                 process,
+                job,
                 stdin: Some(File::from(parent_stdin)),
                 stdout: Some(File::from(parent_stdout)),
                 status: None,
@@ -658,7 +841,7 @@ mod windows {
                 null(),
                 null(),
                 1,
-                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
                 environment.as_ptr().cast(),
                 current_directory,
                 std::ptr::from_ref(&startup.StartupInfo),
@@ -685,6 +868,78 @@ mod windows {
             return Err(io::Error::last_os_error());
         }
         Ok((owned_created_handle(read), owned_created_handle(write)))
+    }
+
+    #[allow(
+        unsafe_code,
+        reason = "Win32 Job Objects provide pre-resume worker resource containment"
+    )]
+    fn create_job(limits: WorkerResourceLimits) -> io::Result<OwnedHandle> {
+        // SAFETY: Null security/name pointers request an unnamed job with default security.
+        let raw_job = unsafe { CreateJobObjectW(null(), null()) };
+        if raw_job.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+        let job = owned_created_handle(raw_job);
+        let cpu_100ns = limits.max_cpu_millis().checked_mul(10_000).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "worker CPU limit is out of range",
+            )
+        })?;
+        let mut information = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        information.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+            | JOB_OBJECT_LIMIT_JOB_MEMORY
+            | JOB_OBJECT_LIMIT_JOB_TIME
+            | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        information.BasicLimitInformation.ActiveProcessLimit = 1;
+        information.BasicLimitInformation.PerJobUserTimeLimit =
+            i64::try_from(cpu_100ns).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "worker CPU limit is out of range",
+                )
+            })?;
+        information.JobMemoryLimit = usize::try_from(limits.max_memory_bytes()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "worker memory limit is out of range",
+            )
+        })?;
+        // SAFETY: information is initialized and its exact byte size is supplied for this class.
+        if unsafe {
+            SetInformationJobObject(
+                raw_handle(&job),
+                JobObjectExtendedLimitInformation,
+                std::ptr::from_ref(&information).cast(),
+                u32::try_from(size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>())
+                    .expect("job information size must fit u32"),
+            )
+        } == 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(job)
+    }
+
+    #[allow(
+        unsafe_code,
+        reason = "the suspended worker must join its configured Job Object before first execution"
+    )]
+    fn assign_and_resume(
+        job: &OwnedHandle,
+        process: &OwnedHandle,
+        thread: &OwnedHandle,
+    ) -> io::Result<()> {
+        // SAFETY: Both handles are live and the process is still suspended.
+        if unsafe { AssignProcessToJobObject(raw_handle(job), raw_handle(process)) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: thread is the suspended primary thread returned by CreateProcessW.
+        if unsafe { ResumeThread(raw_handle(thread)) } == u32::MAX {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
     }
 
     #[allow(
@@ -755,6 +1010,19 @@ mod windows {
     fn terminate_process(process: &OwnedHandle) -> io::Result<()> {
         // SAFETY: process is a live owned process HANDLE; the supervisor always follows with wait.
         if unsafe { TerminateProcess(raw_handle(process), 1) } == 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+
+    #[allow(
+        unsafe_code,
+        reason = "TerminateJobObject is the Windows hard-stop primitive for the worker tree"
+    )]
+    fn terminate_job(job: &OwnedHandle) -> io::Result<()> {
+        // SAFETY: job is a live owned Job HANDLE; the supervisor follows with a process wait.
+        if unsafe { TerminateJobObject(raw_handle(job), 1) } == 0 {
             Err(io::Error::last_os_error())
         } else {
             Ok(())
@@ -983,8 +1251,15 @@ mod tests {
         let direct = prepare_direct_worker_asset(&source).expect("direct asset must prepare");
         let asset_id = direct.resource_id();
         let expected_cwd = std::env::temp_dir();
-        let mut command =
-            WorkerCommand::new(std::env::current_exe().expect("test path must resolve"));
+        let limits = WorkerResourceLimits::new(
+            NonZeroU64::new(2 * 1024 * 1024 * 1024).expect("limit must be nonzero"),
+            NonZeroU64::new(60_000).expect("limit must be nonzero"),
+            NonZeroU64::new(1024 * 1024).expect("limit must be nonzero"),
+        );
+        let mut command = WorkerCommand::new(
+            std::env::current_exe().expect("test path must resolve"),
+            limits,
+        );
         command
             .current_dir(&expected_cwd)
             .env(CHILD_ASSET_ID, asset_id.to_string())

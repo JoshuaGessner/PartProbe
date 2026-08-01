@@ -8,6 +8,16 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-01 — TASK-003 Checkpoint 18 worker resource launch profile
+
+- Added mandatory host-side CPU, memory-request, and regular-file ceilings to every `WorkerCommand`; supervisor policy now requires explicit nonzero deployment CPU and memory bounds, and the effective CPU ceiling is the lower of that policy and the request wall deadline. No control/request/transport/fixture/persisted schema, calculation rule, or geometry interpretation changed.
+- Unix installs limits in the async-signal-safe pre-exec boundary: whole-second `RLIMIT_CPU`, `RLIMIT_FSIZE`, `RLIMIT_CORE=0`, and a dedicated process group. Forced termination kills the group before reaping the leader. Linux also installs `RLIMIT_AS`; current macOS rejects its address-space/data/RSS rlimit variants, so hard macOS memory containment remains explicit and unsupported rather than silently claimed.
+- Windows now routes verified-copy and direct launches through the same exact-HANDLE launcher. It creates a Job Object with job CPU time, committed-memory, active-process count one, and kill-on-close limits; creates the worker suspended; assigns it to the Job; and only then resumes its primary thread. Setup failure terminates/reaps without exposing a pre-assignment execution race, and forced termination targets the Job tree.
+- Added deterministic fixture modes for CPU spin, sustained committed allocation, oversized regular-file output, and a delayed descendant marker. Tests prove hard CPU termination before the wall deadline, Linux/Windows memory termination without exhausting the supervisor, Unix file-size termination and cleanup, and normal descendant cleanup on Unix/Windows. Existing verified-copy/direct, cancellation, exact resource inheritance, and worker lifecycle tests remain green.
+- Added no package/version. The already-locked `libc 0.2.189` is now referenced directly by `platform` on Unix for resource/process-group syscalls, and existing `windows-sys 0.61.2` enables only the additional JobObjects feature group. Unsafe code remains denied by default and each pre-exec/Win32 boundary is individually attributed.
+- Local Rust 1.94.1 validation passes formatting, warnings-as-errors Clippy, all 99 default macOS runtime tests, the compile-fail doctest, the 137-file planning validator, and diff checks. Linux/Windows run one additional hard-memory regression; three-OS CI validation is pending.
+- This checkpoint is not a complete sandbox. Network denial, filesystem confinement, aggregate-output quotas, hostile process-group escape prevention on Unix, hard macOS memory enforcement, native-kernel resource corpus evidence, packaging, and deployment approval remain TASK-003 blockers.
+
 ## 2026-08-01 — TASK-003 Checkpoint 17 Windows direct HANDLE transport
 
 - Enabled `windows_handle` for `PreferDirect` and `RequireDirect` on Windows while retaining explicit `verified_private_copy` as the default everywhere and `unix_descriptor` on Unix. Control schema 2, asset-transport manifest schema 2, request/fixture schemas, persisted/customer data, calculation rules, and geometry interpretation did not change.

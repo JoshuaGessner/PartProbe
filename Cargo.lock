@@ -498,6 +498,7 @@ name = "partprobe-platform"
 version = "0.1.0"
 dependencies = [
  "close_fds",
+ "libc",
  "rustix",
  "windows-sys 0.61.2",
 ]

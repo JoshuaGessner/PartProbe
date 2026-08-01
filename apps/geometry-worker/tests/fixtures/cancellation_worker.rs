@@ -11,6 +11,14 @@ use partprobe_geometry_import::{
 };
 
 fn main() {
+    let mut arguments = std::env::args_os();
+    let _program = arguments.next();
+    if arguments.next().as_deref() == Some(std::ffi::OsStr::new("--resource-descendant")) {
+        let marker = arguments.next().expect("descendant marker path must exist");
+        std::thread::sleep(Duration::from_millis(750));
+        let _ = std::fs::write(marker, b"escaped");
+        return;
+    }
     if run().is_err() {
         std::process::exit(64);
     }
@@ -37,6 +45,40 @@ fn run() -> Result<(), ()> {
         return Err(());
     }
 
+    if request.job_id().as_str().contains("resource-cpu") {
+        loop {
+            std::hint::spin_loop();
+        }
+    }
+
+    if request.job_id().as_str().contains("resource-memory") {
+        let mut allocations = Vec::new();
+        loop {
+            let mut allocation = vec![0_u8; 8 * 1024 * 1024].into_boxed_slice();
+            for offset in (0..allocation.len()).step_by(4_096) {
+                allocation[offset] = 1;
+            }
+            allocations.push(allocation);
+        }
+    }
+
+    if request.job_id().as_str().contains("resource-output") {
+        let output = vec![b'x'; 2 * 1024 * 1024];
+        std::fs::write(partprobe_geometry_import::WORKER_OUTPUT_FILENAME, output)
+            .map_err(|_| ())?;
+        return Err(());
+    }
+
+    if request.job_id().as_str().contains("resource-descendant") {
+        let marker = resource_marker_path(&request);
+        let _child = std::process::Command::new(std::env::current_exe().map_err(|_| ())?)
+            .arg("--resource-descendant")
+            .arg(marker)
+            .spawn();
+        std::thread::sleep(Duration::from_secs(5));
+        return Err(());
+    }
+
     let cancellation = read_message(&mut lines)?;
     let reason = cancellation
         .cancellation_reason_for(&request)
@@ -50,6 +92,10 @@ fn run() -> Result<(), ()> {
         diagnostic,
         !request.job_id().as_str().contains("unacknowledged"),
     )
+}
+
+fn resource_marker_path(request: &GeometryWorkerRequest) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("partprobe-{}-marker", request.job_id().as_str()))
 }
 
 fn acquire_worker_asset(
