@@ -1,6 +1,6 @@
 # GUI-2 Application-Service Validation Evidence
 
-> **Status:** In Review
+> **Status:** Complete
 > **Last updated:** 2026-08-01
 > **Related requirements:** REQ-F-003–REQ-F-005, REQ-F-007–REQ-F-009, REQ-F-014; REQ-NF-003–REQ-NF-006, REQ-NF-010, REQ-NF-017, REQ-NF-020; TEST-002, TEST-003, TEST-006, TEST-014, TEST-021, TEST-030
 > **Related ADRs:** ADR-0001, ADR-0002, ADR-0005, ADR-0007, ADR-0008
@@ -42,7 +42,7 @@ cargo test -p partprobe-application --locked
 cargo clippy -p partprobe-application --all-targets --locked -- -D warnings
 ```
 
-Repository-wide formatting, strict Clippy, 106 default macOS runtime tests, the compile-fail doctest, 139-document planning validation, fixture hashes, six native-tooling tests, and diff checks pass locally. Three-OS exact-head CI remains the closeout requirement.
+Repository-wide formatting, strict Clippy, 106 default macOS runtime tests, the compile-fail doctest, 139-document planning validation, fixture hashes, six native-tooling tests, and diff checks pass locally. GitHub Actions run 30717609229 passes formatting, native tooling, all targets, and documentation on Windows, Linux, and macOS at implementation commit `ecbb0be`.
 
 ## Boundaries and remaining work
 
