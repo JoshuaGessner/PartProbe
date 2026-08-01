@@ -32,6 +32,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - A validated schema for the existing provisional native geometry evidence, a decoder binding claimed output to its reference and authorized source, and a native-root fingerprint/strict-check/worker-build entry point for GUI-1.
 - Fail-closed OCCT 8.0.0 source construction with exact commit/tag/clean-tree checks, fixed minimal CMake options, a compiler/generator/source-tree manifest, native artifact fingerprints, and focused Python tooling tests.
 - `FIX-STEP-003`, a manually authored AP214 faceted 12 × 8 × 5 mm rectangular prism with governed hash and analytic area/volume/centroid evidence through both the native adapter and supervised worker.
+- GUI-2 headless draft-estimate orchestration: governed source authorization, a concrete supervised-geometry adapter, explicit provisional-evidence review and manual inputs, pinned rate/policy resolution, deterministic itemized results, replay trace, and focused missing/conflict/recalculation tests.
 
 ### Security
 

@@ -8,8 +8,14 @@ publish = false
 [dependencies]
 partprobe-document-storage.workspace = true
 partprobe-domain.workspace = true
+partprobe-estimation-engine.workspace = true
+partprobe-geometry-core.workspace = true
 partprobe-geometry-import.workspace = true
 partprobe-security.workspace = true
+rust_decimal.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true

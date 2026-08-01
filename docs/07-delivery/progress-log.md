@@ -8,6 +8,15 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-01 — GUI-2 session-only draft-estimate application service
+
+- Added `DraftEstimateApplication`, which composes the existing authorization/audit boundary with a `GeometryAnalysisPort`; its concrete `GeometryWorkerSupervisor` implementation consumes the pathless read grant, accepts only successful controlled output, and decodes the source-bound provisional snapshot.
+- Added an ephemeral `DraftEstimateSession` that requires explicit canonical-unit/warning review, complete stock/density/quantity/time/material/operation/base/risk inputs, a pinned rate card/effective date/ordered scope context, and a pinned pricing policy. Missing prerequisites and rates remain `Unavailable`; rate ambiguity and invalid deterministic inputs remain `Blocked`.
+- Composed CALC-001/003/005/007/008/010–015/018 exclusively through `estimation-engine`. The result retains geometry/source/worker evidence, complete manual inputs, five immutable selected rate traces, the pricing policy, rule IDs, every material/time/cost intermediate, total internal cost, and rounded selling price. No UI formula, persistence schema, calculation rule, geometry interpretation, worker protocol, adapter ABI, production rate, or third-party dependency was added.
+- Added four headless integration tests. They prove denial prevents analysis, an unconfigured session has no numeric default, empty and conflicting rate cards preserve unavailable/blocked states, zero delivery blocks, repeated evaluation is equal, synthetic EX-01 reconciles to material 100/operation 260/total 520/price 702, and editing setup hours from three to four produces setup 100/total 545/price 735.75 with trace retention.
+- Repository-wide formatting, strict workspace Clippy, 106 default macOS runtime tests, the compile-fail doctest, 139-document planning validation, fixture hashes, six native-tooling tests, and diff checks pass locally. Exact-head three-OS closeout is still being recorded; [GUI-2 validation](../06-quality/gui-2-validation.md) defines the limits and evidence.
+- GUI-3 is the next code checkpoint. GUI-1 formal fixture review remains open in parallel, and the session-only service does not satisfy desktop, persistence, shop-calibration, production-import, or release acceptance.
+
 ## 2026-08-01 — TASK-003 Checkpoint 20 reproducible native construction and independent fixture
 
 - Added `scripts/build_occt.py`, which requires explicit source/build/install paths; validates exact clean OCCT tag `V8_0_0`, commit `d3056ef80c9668f395da40f5fd7be186cae4501f`, and source tree; applies the reviewed minimal shared C++17 Release profile; records platform/CMake/generator/compiler/jobs/options provenance; and then builds, installs, fingerprints, runs strict native Clippy/tests, and hashes the worker. It downloads nothing and performs no destructive cleanup.

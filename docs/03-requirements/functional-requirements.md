@@ -1,7 +1,7 @@
 # Functional Requirements
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** REQ-F-001–REQ-F-065
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -14,11 +14,11 @@
 | REQ-F-002 | The system shall import STEP, STL, and 3MF in the first vertical slice, preserve source bytes/hash, detect format, and record parser/version diagnostics. | TEST-003 format corpus | Draft |
 | REQ-F-003 | The system shall extract or request model units, require confirmation when ambiguous, preserve scale decisions, and block authoritative downstream results when unresolved. | TEST-003 unit fixtures | Draft |
 | REQ-F-004 | The system shall expose versioned geometry facts, validity/watertightness, warnings, confidence reasons, and review state. | TEST-003 geometry golden tests | Draft |
-| REQ-F-005 | The system shall calculate material mass and propose editable stock alternatives with allowances, removed volume, evidence, cost, and confidence. | TEST-002 calculation + TEST-003 geometry | Draft |
+| REQ-F-005 | The system shall calculate material mass and propose editable stock alternatives with allowances, removed volume, evidence, cost, and confidence. | TEST-002 calculation + TEST-003 geometry; partial GUI-2 stock/mass/removed-volume composition | Draft |
 | REQ-F-006 | The system shall propose editable process class, setup count/orientations, routing operations, machines, and alternatives without presenting them as production truth. | TEST-005 runtime/routing fixtures | Draft |
-| REQ-F-007 | The system shall estimate cutting and non-cutting time using an identified method and versioned feeds/speeds/rate inputs. | TEST-005 runtime golden tests | Draft |
-| REQ-F-008 | The system shall estimate itemized internal costs, explicit risk, and independently calculated quantity scenarios using deterministic traceable calculations; missing or ambiguous applicable rates shall yield `Unavailable` or `Blocked`, never zero. | TEST-001/002/014 calculation and rate-resolution tests | Draft |
-| REQ-F-009 | The system shall apply a pinned versioned pricing and rounding policy while visibly distinguishing cost, risk, markup, margin, thresholds, unrounded value, rounded value, and selling price. | TEST-002 pricing/rounding examples | Draft |
+| REQ-F-007 | The system shall estimate cutting and non-cutting time using an identified method and versioned feeds/speeds/rate inputs. | TEST-005 runtime golden tests; partial GUI-2 explicit cycle-time/rate composition | Draft |
+| REQ-F-008 | The system shall estimate itemized internal costs, explicit risk, and independently calculated quantity scenarios using deterministic traceable calculations; missing or ambiguous applicable rates shall yield `Unavailable` or `Blocked`, never zero. | TEST-001/002/014 calculation and rate-resolution tests; GUI-2 headless draft-service evidence | Draft |
+| REQ-F-009 | The system shall apply a pinned versioned pricing and rounding policy while visibly distinguishing cost, risk, markup, margin, thresholds, unrounded value, rounded value, and selling price. | TEST-002 pricing/rounding examples; GUI-2 pinned policy/result trace | Draft |
 | REQ-F-010 | The system shall permit correction of every generated assumption or selected rate and preserve original/new values, actor, time, reason, authorization, and source versions. | TEST-006/014 override/re-analysis tests | Draft |
 | REQ-F-011 | The system shall generate internal estimate and customer quote previews from the same approved revision without exposing configured internal-only details. | TEST-009 report golden tests | Draft |
 | REQ-F-012 | The system shall record actuals, compare category-level variance against immutable original estimates, and require approval before updating defaults. | TEST-010 calibration workflow | Draft |

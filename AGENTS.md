@@ -53,6 +53,8 @@ These rules are mandatory for every person or agent changing this repository.
 41. Desktop code must use typed application services for authorization, CAD analysis, calculation, and persistence. The UI must not parse CAD, execute authoritative estimate rules, bypass audit/policy boundaries, or convert missing/conflicting inputs to zero.
 42. Describe the geometry worker as partially OS-contained, not sandboxed, until target-specific network denial, filesystem confinement, resource enforcement, and descendant controls have approved evidence on every supported target.
 43. A session-only developer GUI must visibly label provisional analysis and ephemeral state and cannot satisfy save/reopen, persistence, importer-support, milestone, or release acceptance criteria.
+44. Desktop adapters must consume `DraftEstimateApplication` and `DraftEstimateResult` for the GUI-2 path; do not duplicate estimate formulas, rate selection, missing-state handling, or pricing logic in commands, view models, or components.
+45. A GUI-2 draft result is available only after explicit unit/warning review, complete manual inputs, a pinned rate-card/effective-date/scope context, and a pinned pricing policy. Preserve `Unavailable` and `Blocked` states through every adapter.
 
 ## Documentation protocol
 

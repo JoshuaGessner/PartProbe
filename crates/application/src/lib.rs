@@ -1,5 +1,15 @@
 //! Headless application services that coordinate policy, audit, and pure engines.
 
+mod draft_estimate;
+
+pub use draft_estimate::{
+    AnalyzedGeometryEvidence, DraftBaseCostInputs, DraftEstimateApplication,
+    DraftEstimateApplicationError, DraftEstimateInputs, DraftEstimateResult, DraftEstimateSession,
+    DraftEstimateTrace, DraftGeometryReview, DraftMaterialCostInputs, DraftOperationCostInputs,
+    DraftQuantityInputs, DraftRateContext, DraftResolvedRates, DraftStockInputs, DraftTimeInputs,
+    GeometryAnalysisFailure, GeometryAnalysisPort,
+};
+
 use std::path::Path;
 
 use partprobe_document_storage::{

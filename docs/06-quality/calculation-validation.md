@@ -1,7 +1,7 @@
 # Calculation Validation
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-01
 > **Related requirements:** REQ-F-005–REQ-F-010, REQ-F-040–REQ-F-065; REQ-NF-003, REQ-NF-015–REQ-NF-021; CALC-001–CALC-035; TEST-001, TEST-002, TEST-040–TEST-099
 > **Related ADRs:** ADR-0007, ADR-0009–ADR-0014
 > **Open questions:** Approved rounding and shop policies
@@ -31,3 +31,5 @@ Every golden fixture stores raw inputs, expected intermediate nodes, unrounded a
 [TASK-001 validation](task-001-validation.md) provides executable local and three-OS evidence for CALC-001, CALC-003, CALC-005, CALC-016, CALC-017, typed graph rejection, and canonical serialization.
 
 [TASK-002 validation](task-002-validation.md) provides local and Windows/Linux/macOS executable evidence for empty production rate cards; user-owned scoped/effective/approved rate entries; deterministic unavailable/blocked/selected resolution; versioned pricing and rounding; CALC-007–CALC-018 foundations; synthetic EX-01/03/12 exact traces; and pinned rate replay. These synthetic fixtures prove deterministic software behavior, not estimate accuracy or shop-policy validity. TASK-007 real-shop calibration remains pending.
+
+[GUI-2 validation](gui-2-validation.md) provides local headless application-service evidence that explicit reviewed geometry/manual inputs compose CALC-001/003/005/007/008/010–015/018 without UI-owned formulas; missing rates remain unavailable, conflicting rates block, identical evaluation replays exactly, and an edited setup input deterministically changes the trace and downstream totals. It reuses synthetic TASK-002 rates and does not establish production accuracy or shop-policy validity.

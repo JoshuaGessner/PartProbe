@@ -416,8 +416,12 @@ version = "0.1.0"
 dependencies = [
  "partprobe-document-storage",
  "partprobe-domain",
+ "partprobe-estimation-engine",
+ "partprobe-geometry-core",
  "partprobe-geometry-import",
  "partprobe-security",
+ "rust_decimal",
+ "serde_json",
 ]
 
 [[package]]
