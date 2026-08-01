@@ -18,11 +18,11 @@ PartProbe is currently a **pre-alpha engineering foundation**, not an installabl
 |---|---|---|
 | Calculations | Typed money/units, deterministic calculation rules, itemized traces, versioned snapshots, and replay pass Windows/Linux/macOS CI | No complete estimate workflow, shop calibration, or estimator UI |
 | Rates and pricing | Empty-on-install, user-owned rate cards; effective dating, scope resolution, approval state, pricing and rounding policies | No rate-entry UI or durable rate library; PartProbe supplies no production rates |
-| Geometry worker | Bounded control schema v2/transport manifest v2, explicit verified-copy transport, Unix direct descriptor allowlisting with unrelated-descriptor exclusion, worker-side identity/type/hash/length/quota verification, private workspaces, cancellation grace/acknowledgement, forced termination, audit/security seams, and governed derivative handoff | No production OS sandbox/resource enforcement, Windows direct HANDLE transport, or durable controlled store |
+| Geometry worker | Bounded control schema v2/transport manifest v2, explicit verified-copy transport, exact Unix descriptor and Windows HANDLE direct allowlisting with unrelated-resource exclusion, worker-side identity/type/hash/length/quota verification, private workspaces, cancellation grace/acknowledgement, forced termination, audit/security seams, and governed derivative handoff | No production OS sandbox/resource enforcement or durable controlled store |
 | STEP/OCCT | Optional OCCT 8.0 Apple Silicon ABI-v3 spike parses exact verified bytes, measures a synthetic STEP cube, and polls cancellation during STEP transfer | Not a supported product importer; independent accuracy corpus, three-OS native builds, packaging, and legal review remain open |
 | Desktop and storage | UX, design system, persistence contracts, and release workflow are documented | No desktop application, database, save/reopen workflow, installer, or signed release exists |
 
-The default workspace currently has **96 runtime tests** plus a compile-fail doctest passing locally and on Windows, Linux, and macOS in GitHub Actions run 30703657530. Twenty-one focused optional-native adapter/worker tests pass locally on Apple Silicon. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
+The default workspace currently has **96 runtime tests** plus a compile-fail doctest passing locally and on Windows, Linux, and macOS in GitHub Actions run 30705141810. Twenty-one focused optional-native adapter/worker tests pass locally on Apple Silicon. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
 
 ## Product boundary
 
@@ -36,7 +36,7 @@ The default workspace currently has **96 runtime tests** plus a compile-fail doc
 
 The current implementation order is:
 
-1. Finish TASK-003 whitelist-capable Windows HANDLE transport, OS containment/resource controls, representative geometry fixtures, and reproducible native builds.
+1. Continue TASK-003 with OS containment/resource controls, representative geometry fixtures, and reproducible native builds.
 2. Complete TASK-004 STL/3MF mesh import comparison.
 3. Build TASK-005 desktop UX, including guided shop-owned rate setup and model review.
 4. Implement TASK-006 durable SQLite repositories, migrations, backup/restore, and historical replay.
