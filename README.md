@@ -22,7 +22,7 @@ PartProbe is currently a **pre-alpha engineering foundation**, not an installabl
 | STEP/OCCT | Optional OCCT 8.0 Apple Silicon ABI-v3 spike parses exact verified bytes, emits a source-bound provisional snapshot, has a fail-closed pinned source-build command, and measures both an OCCT-generated cube and a manually authored analytic prism | Not a supported product importer; formal fixture review, broader accuracy corpus, Windows/Linux native construction, packaging, and legal review remain open |
 | Desktop and storage | UX, design system, persistence contracts, and release workflow are documented | No desktop application, database, save/reopen workflow, installer, or signed release exists |
 
-The default workspace currently has **102 runtime tests on macOS and 103 on Linux/Windows** plus a compile-fail doctest passing in Checkpoint 19 implementation run 30712929648 at `9479505`. Six native-tooling tests and 26 focused optional-native adapter/worker tests plus strict native-feature Clippy pass locally on Apple Silicon in Checkpoint 20. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
+The default workspace currently has **102 runtime tests on macOS and 103 on Linux/Windows** plus a compile-fail doctest and six native-tooling tests passing in Checkpoint 20 run 30716328418 at `52f7fc0`. Twenty-six focused optional-native adapter/worker tests plus strict native-feature Clippy pass locally on Apple Silicon. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
 
 ## Product boundary
 
