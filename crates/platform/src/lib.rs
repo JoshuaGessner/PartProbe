@@ -677,11 +677,11 @@ mod windows {
         reason = "CreatePipe returns two new owned HANDLE values through output pointers"
     )]
     fn create_pipe() -> io::Result<(OwnedHandle, OwnedHandle)> {
-        let mut attributes = inheritable_security_attributes();
+        let attributes = inheritable_security_attributes();
         let mut read = null_mut();
         let mut write = null_mut();
         // SAFETY: Output pointers and SECURITY_ATTRIBUTES are initialized and valid for the call.
-        if unsafe { CreatePipe(&mut read, &mut write, &mut attributes, 0) } == 0 {
+        if unsafe { CreatePipe(&mut read, &mut write, &attributes, 0) } == 0 {
             return Err(io::Error::last_os_error());
         }
         Ok((owned_created_handle(read), owned_created_handle(write)))
@@ -868,9 +868,9 @@ mod windows {
         reason = "test-only inheritable event proves an unrelated HANDLE is excluded"
     )]
     pub(super) fn prepare_inheritable_sentinel() -> io::Result<OwnedHandle> {
-        let mut attributes = inheritable_security_attributes();
+        let attributes = inheritable_security_attributes();
         // SAFETY: SECURITY_ATTRIBUTES is initialized; the unnamed event is returned uniquely owned.
-        let event = unsafe { CreateEventW(&mut attributes, 1, 0, null()) };
+        let event = unsafe { CreateEventW(&attributes, 1, 0, null()) };
         if event.is_null() {
             Err(io::Error::last_os_error())
         } else {
