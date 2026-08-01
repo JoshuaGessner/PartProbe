@@ -920,6 +920,9 @@ mod tests {
     #[test]
     fn direct_asset_allowlists_the_source_and_excludes_an_inheritable_sentinel() {
         if let Some(asset_id) = std::env::var_os(CHILD_ASSET_ID) {
+            std::io::stdout()
+                .write_all(b"child-started\n")
+                .expect("child stdout must be writable");
             let asset_id = asset_id
                 .to_string_lossy()
                 .parse::<u64>()
@@ -930,19 +933,34 @@ mod tests {
                 .expect("child sentinel resource ID must parse");
             let mut asset = take_inherited_worker_asset(asset_id)
                 .expect("allowlisted asset resource must be inherited");
+            std::io::stdout()
+                .write_all(b"asset-claimed\n")
+                .expect("child stdout must be writable");
             let mut contents = String::new();
             asset
                 .read_to_string(&mut contents)
                 .expect("allowlisted asset must be readable");
             assert!(contents.contains("partprobe-platform"));
+            std::io::stdout()
+                .write_all(b"asset-read\n")
+                .expect("child stdout must be writable");
             assert!(inherited_sentinel_is_absent(sentinel_id));
+            std::io::stdout()
+                .write_all(b"sentinel-absent\n")
+                .expect("child stdout must be writable");
             assert!(std::env::var_os("PATH").is_none());
+            std::io::stdout()
+                .write_all(b"environment-cleared\n")
+                .expect("child stdout must be writable");
             assert_eq!(
                 std::fs::canonicalize(std::env::current_dir().expect("child cwd must resolve"))
                     .expect("child cwd must canonicalize"),
                 std::fs::canonicalize(std::env::temp_dir())
                     .expect("temp directory must canonicalize")
             );
+            std::io::stdout()
+                .write_all(b"cwd-controlled\n")
+                .expect("child stdout must be writable");
             let mut control = String::new();
             std::io::stdin()
                 .read_to_string(&mut control)
@@ -983,7 +1001,11 @@ mod tests {
             .expect("probe stdout must drain");
         let status = child.wait().expect("probe child must be reaped");
 
-        assert!(status.success(), "probe child must verify the resource set");
+        assert!(
+            status.success(),
+            "probe child must verify the resource set; stdout: {}",
+            String::from_utf8_lossy(&output)
+        );
         assert!(
             output
                 .windows(b"partprobe-ready".len())
