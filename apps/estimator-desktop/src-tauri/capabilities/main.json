@@ -8,6 +8,8 @@
     "allow-desktop-contract",
     "allow-select-model-source",
     "allow-analyze-model-source",
+    "allow-cancel-model-analysis",
+    "allow-evaluate-draft-estimate",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

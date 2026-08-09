@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 
 use partprobe_desktop_contract::{
-    AnalyzeModelSourceRequest, DesktopContract, EVENT_MODEL_SOURCE_SELECTED, HostCommandError,
-    ModelAnalysisResult, ModelSourceSelectedEvent, ModelSourceSelection,
+    AnalysisCancellationAcknowledgement, AnalyzeModelSourceRequest, CancelModelAnalysisRequest,
+    DesktopContract, DraftEstimateEvaluation, EVENT_MODEL_SOURCE_SELECTED,
+    EvaluateDraftEstimateRequest, HostCommandError, ModelAnalysisResult, ModelSourceSelectedEvent,
+    ModelSourceSelection,
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
@@ -58,6 +60,28 @@ async fn analyze_model_source(
     .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-TASK"))?
 }
 
+#[tauri::command]
+fn cancel_model_analysis(
+    app: tauri::AppHandle,
+    request: CancelModelAnalysisRequest,
+) -> Result<AnalysisCancellationAcknowledgement, HostCommandError> {
+    app.state::<DesktopSessionState>()
+        .cancel_model_analysis(&request)
+}
+
+#[tauri::command]
+async fn evaluate_draft_estimate(
+    app: tauri::AppHandle,
+    request: EvaluateDraftEstimateRequest,
+) -> Result<DraftEstimateEvaluation, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<DesktopSessionState>()
+            .evaluate_draft_estimate(&request)
+    })
+    .await
+    .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ESTIMATE-TASK"))?
+}
+
 fn desktop_path(selected: FilePath) -> Result<PathBuf, HostCommandError> {
     match selected {
         FilePath::Path(path) => Ok(path),
@@ -87,7 +111,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             desktop_contract,
             select_model_source,
-            analyze_model_source
+            analyze_model_source,
+            cancel_model_analysis,
+            evaluate_draft_estimate
         ])
         .run(tauri::generate_context!())
         .expect("PartProbe desktop host failed");

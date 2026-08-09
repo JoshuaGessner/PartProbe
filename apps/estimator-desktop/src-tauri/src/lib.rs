@@ -1,14 +1,18 @@
 #![forbid(unsafe_code)]
 
-use std::{path::PathBuf, sync::Mutex};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use partprobe_desktop_contract::{
-    AnalysisStatus, HostCommandError, ModelAnalysisResult, ModelSourceFormat,
-    PersistenceAvailability, SelectedModelSource,
+    AnalysisCancellationAcknowledgement, AnalysisStatus, CancelModelAnalysisRequest,
+    DraftEstimateEvaluation, EvaluateDraftEstimateRequest, HostCommandError, ModelAnalysisResult,
+    ModelSourceFormat, PersistenceAvailability, SelectedModelSource,
 };
 use partprobe_geometry_import::GeometryWorkerSupervisor;
 
 mod analysis;
+mod estimate;
 
 use analysis::DesktopAnalysisAdapter;
 
@@ -18,6 +22,7 @@ pub struct DesktopSessionState {
     next_analysis_number: Mutex<u64>,
     selected_source: Mutex<Option<RetainedModelSource>>,
     analysis_session: Mutex<Option<RetainedAnalysisSession>>,
+    active_analysis: Mutex<Option<ActiveAnalysis>>,
     analysis_adapter: Option<DesktopAnalysisAdapter<GeometryWorkerSupervisor>>,
 }
 
@@ -28,6 +33,7 @@ impl Default for DesktopSessionState {
             next_analysis_number: Mutex::new(1),
             selected_source: Mutex::new(None),
             analysis_session: Mutex::new(None),
+            active_analysis: Mutex::new(None),
             analysis_adapter: None,
         }
     }
@@ -48,6 +54,14 @@ impl DesktopSessionState {
         &self,
         path: PathBuf,
     ) -> Result<SelectedModelSource, HostCommandError> {
+        if let Some(active) = self
+            .active_analysis
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-ACTIVE"))?
+            .as_ref()
+        {
+            active.cancellation.store(true, Ordering::Release);
+        }
         let display_name = path
             .file_name()
             .filter(|name| !name.is_empty())
@@ -121,7 +135,26 @@ impl DesktopSessionState {
             *next_number = next_number.checked_add(1).unwrap_or(1);
             number
         };
-        let (session, result) = adapter.analyze(selection_id, &selected.path, analysis_number)?;
+        let cancellation = Arc::new(AtomicBool::new(false));
+        {
+            let mut active = self
+                .active_analysis
+                .lock()
+                .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-ACTIVE"))?;
+            if active.is_some() {
+                return Err(HostCommandError::analysis_in_progress(
+                    "GUI4-ANALYSIS-ALREADY-RUNNING",
+                ));
+            }
+            *active = Some(ActiveAnalysis {
+                selection_id: selection_id.to_owned(),
+                analysis_number,
+                cancellation: Arc::clone(&cancellation),
+            });
+        }
+        let outcome = adapter.analyze(selection_id, &selected.path, analysis_number, &cancellation);
+        self.finish_analysis(analysis_number)?;
+        let (session, result) = outcome?;
 
         let current_selection = self
             .selected_source
@@ -140,22 +173,86 @@ impl DesktopSessionState {
             .lock()
             .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-STATE"))? =
             Some(RetainedAnalysisSession {
-                _selection_id: selection_id.to_owned(),
-                _analysis_id: result.analysis_id.clone(),
-                _session: session,
+                selection_id: selection_id.to_owned(),
+                analysis_id: result.analysis_id.clone(),
+                session,
             });
         Ok(result)
+    }
+
+    pub fn cancel_model_analysis(
+        &self,
+        request: &CancelModelAnalysisRequest,
+    ) -> Result<AnalysisCancellationAcknowledgement, HostCommandError> {
+        let active = self
+            .active_analysis
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-ACTIVE"))?;
+        let cancellation_requested = active
+            .as_ref()
+            .filter(|active| active.selection_id == request.selection_id)
+            .is_some_and(|active| {
+                active.cancellation.store(true, Ordering::Release);
+                true
+            });
+        Ok(AnalysisCancellationAcknowledgement {
+            selection_id: request.selection_id.clone(),
+            cancellation_requested,
+        })
+    }
+
+    pub fn evaluate_draft_estimate(
+        &self,
+        request: &EvaluateDraftEstimateRequest,
+    ) -> Result<DraftEstimateEvaluation, HostCommandError> {
+        let current_selection = self
+            .selected_source
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ESTIMATE-SELECTION"))?;
+        if current_selection
+            .as_ref()
+            .is_none_or(|selected| selected.selection_id != request.selection_id)
+        {
+            return Err(HostCommandError::stale_selection(
+                "GUI4-ESTIMATE-STALE-SELECTION",
+            ));
+        }
+        // Keep the selection guard until the retained session is locked so source
+        // replacement cannot race a valid evaluation onto the superseded session.
+        let mut retained = self
+            .analysis_session
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ESTIMATE-SESSION"))?;
+        let retained = retained
+            .as_mut()
+            .filter(|retained| {
+                retained.selection_id == request.selection_id
+                    && retained.analysis_id == request.analysis_id
+            })
+            .ok_or_else(|| HostCommandError::stale_selection("GUI4-ESTIMATE-STALE-ANALYSIS"))?;
+        estimate::evaluate_draft_estimate(&mut retained.session, request)
+    }
+
+    fn finish_analysis(&self, analysis_number: u64) -> Result<(), HostCommandError> {
+        let mut active = self
+            .active_analysis
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-ACTIVE"))?;
+        if active
+            .as_ref()
+            .is_some_and(|active| active.analysis_number == analysis_number)
+        {
+            *active = None;
+        }
+        Ok(())
     }
 
     #[cfg(test)]
     fn retained_analysis_identity(&self) -> Option<(String, String)> {
         self.analysis_session.lock().ok().and_then(|retained| {
             retained.as_ref().map(|retained| {
-                let _ = retained._session.geometry();
-                (
-                    retained._selection_id.clone(),
-                    retained._analysis_id.clone(),
-                )
+                let _ = retained.session.geometry();
+                (retained.selection_id.clone(), retained.analysis_id.clone())
             })
         })
     }
@@ -169,9 +266,16 @@ struct RetainedModelSource {
 
 #[derive(Clone, Debug)]
 struct RetainedAnalysisSession {
-    _selection_id: String,
-    _analysis_id: String,
-    _session: partprobe_application::DraftEstimateSession,
+    selection_id: String,
+    analysis_id: String,
+    session: partprobe_application::DraftEstimateSession,
+}
+
+#[derive(Clone, Debug)]
+struct ActiveAnalysis {
+    selection_id: String,
+    analysis_number: u64,
+    cancellation: Arc<AtomicBool>,
 }
 
 #[cfg(feature = "desktop-host")]
@@ -261,7 +365,9 @@ mod tests {
             permissions,
             BTreeSet::from([
                 "allow-analyze-model-source",
+                "allow-cancel-model-analysis",
                 "allow-desktop-contract",
+                "allow-evaluate-draft-estimate",
                 "allow-select-model-source",
                 "core:event:allow-listen",
                 "core:event:allow-unlisten",
@@ -316,6 +422,16 @@ mod tests {
         assert!(RUNTIME.contains("spawn_blocking"));
         assert!(!RUNTIME.contains("source_path:"));
         assert!(!RUNTIME.contains("request: PathBuf"));
+    }
+
+    #[test]
+    fn estimate_evaluation_and_cancellation_stay_in_typed_native_commands() {
+        assert!(RUNTIME.contains("async fn evaluate_draft_estimate"));
+        assert!(RUNTIME.contains("EvaluateDraftEstimateRequest"));
+        assert!(RUNTIME.contains("fn cancel_model_analysis"));
+        assert!(RUNTIME.contains("CancelModelAnalysisRequest"));
+        assert!(!RUNTIME.contains("apply_pricing_policy"));
+        assert!(!RUNTIME.contains("resolve_rate"));
     }
 
     fn quoted_values_in_rust_slice(source: &str, anchor: &str) -> BTreeSet<String> {
@@ -378,5 +494,32 @@ mod tests {
             partprobe_desktop_contract::HostErrorCode::AnalysisUnavailable
         );
         assert!(state.retained_analysis_identity().is_none());
+    }
+
+    #[test]
+    fn cancellation_is_token_bound_and_signals_only_the_matching_active_analysis() {
+        let state = DesktopSessionState::default();
+        let cancellation = Arc::new(AtomicBool::new(false));
+        *state.active_analysis.lock().expect("active state") = Some(ActiveAnalysis {
+            selection_id: "selection-1".to_owned(),
+            analysis_number: 7,
+            cancellation: Arc::clone(&cancellation),
+        });
+
+        let stale = state
+            .cancel_model_analysis(&CancelModelAnalysisRequest {
+                selection_id: "selection-stale".to_owned(),
+            })
+            .expect("stale cancellation is an explicit no-op");
+        assert!(!stale.cancellation_requested);
+        assert!(!cancellation.load(Ordering::Acquire));
+
+        let matching = state
+            .cancel_model_analysis(&CancelModelAnalysisRequest {
+                selection_id: "selection-1".to_owned(),
+            })
+            .expect("matching cancellation must be acknowledged");
+        assert!(matching.cancellation_requested);
+        assert!(cancellation.load(Ordering::Acquire));
     }
 }

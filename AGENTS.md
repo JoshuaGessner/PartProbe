@@ -63,6 +63,9 @@ These rules are mandatory for every person or agent changing this repository.
 51. For GUI-4 intake, derive the source hash only after application-service authorization and audit, from the same already-open bounded grant later consumed by the worker. The desktop host must not pre-read CAD to manufacture a trusted request hash.
 52. GUI-4 desktop analysis commands accept only opaque native session tokens. Invoke `DraftEstimateApplication` off the UI thread, retain `DraftEstimateSession` in native session state, and expose only path-free provisional DTOs; never send a source path, CAD bytes, or application/domain authority into the WebView.
 53. The developer STEP worker, workspace, and native-library paths must be explicit deployment configuration. Missing or invalid configuration remains visibly `Unavailable`; do not fall back to in-process parsing, ambient executable discovery, numeric defaults, or a falsely successful result.
+54. GUI-4 contract v3 exposes exactly five application commands: contract discovery, source selection, analysis, analysis cancellation, and draft-estimate evaluation. Keep every command in the shared contract, Tauri manifest, exact permission, window capability, and host regression evidence.
+55. Analysis cancellation is selection-token-bound and cooperative, with the supervisor's existing bounded forced cleanup as fallback. A new source may request cancellation, but it must not silently replace an active native session or present cleanup as complete before the worker path returns.
+56. GUI-4 rates and pricing are explicit, confirmed, session-only developer inputs. Build typed rate governance and pricing-policy values in the native adapter, invoke only `DraftEstimateSession::evaluate`, and never present those ephemeral approvals as a durable shop library, production default, approved quote, or saved record.
 
 ## Documentation protocol
 

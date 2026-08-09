@@ -32,7 +32,7 @@ use partprobe_security::{
     ProtectedOperation, SecurityPolicyId, SecurityPolicyRef, SecurityPolicyVersion,
 };
 
-const DEVELOPER_ACTOR_ID: &str = "local-developer-session";
+pub(crate) const DEVELOPER_ACTOR_ID: &str = "local-developer-session";
 const DEVELOPER_PROJECT_ID: &str = "gui-4-developer-slice";
 const DEVELOPER_CLASSIFICATION_ID: &str = "local-test-data";
 const DEVELOPER_RECORD_STATE_ID: &str = "ephemeral-draft";
@@ -143,6 +143,7 @@ where
         selection_id: &str,
         source_path: &Path,
         analysis_number: u64,
+        cancellation: &AtomicBool,
     ) -> Result<(DraftEstimateSession, ModelAnalysisResult), HostCommandError> {
         if !source_path.is_absolute() {
             return Err(HostCommandError::invalid_selection(
@@ -168,7 +169,7 @@ where
                 &root,
                 &template,
                 relative_path,
-                &AtomicBool::new(false),
+                cancellation,
             )
             .map_err(map_application_error)?;
         let result = analysis_result(selection_id, &ids.analysis_id, &session);
@@ -263,7 +264,7 @@ fn asset_subject(ids: &AnalysisIdentifiers) -> Result<AssetReadSubject, HostComm
     ))
 }
 
-fn trusted_recorded_at() -> Result<RecordedAt, HostCommandError> {
+pub(crate) fn trusted_recorded_at() -> Result<RecordedAt, HostCommandError> {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| internal_contract_error())?
@@ -428,6 +429,10 @@ mod tests {
     use partprobe_application::{
         AnalyzedGeometryEvidence, GeometryAnalysisFailure, GeometryAnalysisPort,
     };
+    use partprobe_desktop_contract::{
+        DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateEvaluationState,
+        DraftEstimateInputFields, EvaluateDraftEstimateRequest, GeometryReviewInput,
+    };
     use partprobe_geometry_core::{GeometryStageReport, ProvisionalGeometryDecimal, StageStatus};
     use partprobe_geometry_import::{
         AssetReadGrant, GeometryWorkerRequest, ProvisionalGeometrySnapshot, Sha256Digest,
@@ -489,8 +494,8 @@ mod tests {
         let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/models/rectangular_prism_12x8x5.step");
 
-        let (session, result) = adapter
-            .analyze("selection-1", &source, 1)
+        let (mut session, result) = adapter
+            .analyze("selection-1", &source, 1, &AtomicBool::new(false))
             .expect("authorized fixture must produce provisional evidence");
 
         assert_eq!(adapter.audit_event_count(), 1);
@@ -505,6 +510,18 @@ mod tests {
         let serialized = serde_json::to_string(&result).expect("result must serialize");
         assert!(!serialized.contains(source.to_string_lossy().as_ref()));
         assert!(!serialized.contains("fixtures/models"));
+
+        let evaluation =
+            crate::estimate::evaluate_draft_estimate(&mut session, &estimate_request())
+                .expect("complete explicit developer inputs must evaluate");
+        assert_eq!(evaluation.state, DraftEstimateEvaluationState::Available);
+        assert_eq!(
+            evaluation
+                .result
+                .expect("available result")
+                .rounded_selling_price,
+            "702"
+        );
     }
 
     #[test]
@@ -512,7 +529,12 @@ mod tests {
         let adapter = DesktopAnalysisAdapter::new(StaticAnalyzer::default());
 
         let error = adapter
-            .analyze("selection-1", Path::new("relative.step"), 1)
+            .analyze(
+                "selection-1",
+                Path::new("relative.step"),
+                1,
+                &AtomicBool::new(false),
+            )
             .expect_err("relative ambient path must be rejected");
 
         assert_eq!(
@@ -541,5 +563,67 @@ mod tests {
 
     fn decimal(value: &str) -> ProvisionalGeometryDecimal {
         ProvisionalGeometryDecimal::new(value).expect("fixture decimal must be valid")
+    }
+
+    fn estimate_request() -> EvaluateDraftEstimateRequest {
+        EvaluateDraftEstimateRequest {
+            selection_id: "selection-1".to_owned(),
+            analysis_id: "analysis-1".to_owned(),
+            review: GeometryReviewInput {
+                canonical_units_reviewed: true,
+                warnings_reviewed: true,
+            },
+            inputs: DraftEstimateInputFields {
+                stock_volume_mm3: "1480".to_owned(),
+                density_kg_per_mm3: "0.00000785".to_owned(),
+                deliver_quantity: "1".to_owned(),
+                planned_spares: "0".to_owned(),
+                destructive_samples: "0".to_owned(),
+                setup_hours: "3".to_owned(),
+                programming_hours: "2".to_owned(),
+                cutting_hours_per_item: "0.42".to_owned(),
+                non_cutting_hours_per_item: "0.18".to_owned(),
+                load_unload_hours_per_item: "0".to_owned(),
+                in_cycle_inspection_hours_per_item: "0".to_owned(),
+                quality_inspection_hours: "1".to_owned(),
+                purchased_material: "90".to_owned(),
+                cut_charge: "5".to_owned(),
+                material_certificate: "0".to_owned(),
+                inbound_freight: "5".to_owned(),
+                approved_remnant_credit: "0".to_owned(),
+                prove_out: "20".to_owned(),
+                tooling: "25".to_owned(),
+                consumables: "10".to_owned(),
+                fixture: "20".to_owned(),
+                outside_processing: "0".to_owned(),
+                operation_freight: "5".to_owned(),
+                nonrecurring_engineering: "50".to_owned(),
+                administration: "25".to_owned(),
+                overhead: "50".to_owned(),
+                accepted_risk_impact: "35".to_owned(),
+                expected_rework: "0".to_owned(),
+            },
+            rates: DeveloperRateInputFields {
+                confirmed_for_session: true,
+                rate_card_id: "developer-card".to_owned(),
+                rate_card_version: "1".to_owned(),
+                effective_on: "2026-08-09".to_owned(),
+                currency: "USD".to_owned(),
+                setup_labor_per_hour: "25".to_owned(),
+                programming_per_hour: "30".to_owned(),
+                run_labor_per_hour: "20".to_owned(),
+                machine_per_hour: "40".to_owned(),
+                quality_inspection_per_hour: "9".to_owned(),
+            },
+            pricing: DeveloperPricingInputFields {
+                confirmed_for_session: true,
+                pricing_policy_id: "developer-pricing".to_owned(),
+                pricing_policy_version: "1".to_owned(),
+                markup_rate: "0.35".to_owned(),
+                optional_price_floor: String::new(),
+                optional_minimum_order: String::new(),
+                rounding_decimal_places: "2".to_owned(),
+            },
+        }
     }
 }

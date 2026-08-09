@@ -2854,6 +2854,7 @@ dependencies = [
  "partprobe-geometry-core",
  "partprobe-geometry-import",
  "partprobe-security",
+ "rust_decimal",
  "serde_json",
  "tauri",
  "tauri-build",

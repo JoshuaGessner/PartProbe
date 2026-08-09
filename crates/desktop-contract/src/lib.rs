@@ -2,15 +2,19 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const DESKTOP_CONTRACT_VERSION: u16 = 2;
+pub const DESKTOP_CONTRACT_VERSION: u16 = 3;
 pub const COMMAND_DESKTOP_CONTRACT: &str = "desktop_contract";
 pub const COMMAND_SELECT_MODEL_SOURCE: &str = "select_model_source";
 pub const COMMAND_ANALYZE_MODEL_SOURCE: &str = "analyze_model_source";
+pub const COMMAND_CANCEL_MODEL_ANALYSIS: &str = "cancel_model_analysis";
+pub const COMMAND_EVALUATE_DRAFT_ESTIMATE: &str = "evaluate_draft_estimate";
 pub const EVENT_MODEL_SOURCE_SELECTED: &str = "partprobe:model-source-selected";
-pub const APPLICATION_COMMANDS: [&str; 3] = [
+pub const APPLICATION_COMMANDS: [&str; 5] = [
     COMMAND_DESKTOP_CONTRACT,
     COMMAND_SELECT_MODEL_SOURCE,
     COMMAND_ANALYZE_MODEL_SOURCE,
+    COMMAND_CANCEL_MODEL_ANALYSIS,
+    COMMAND_EVALUATE_DRAFT_ESTIMATE,
 ];
 pub const APPLICATION_EVENTS: [&str; 1] = [EVENT_MODEL_SOURCE_SELECTED];
 
@@ -94,6 +98,179 @@ pub enum AnalysisStatus {
 #[serde(rename_all = "snake_case")]
 pub struct AnalyzeModelSourceRequest {
     pub selection_id: String,
+}
+
+/// Token-bound cancellation request; no source authority crosses the bridge.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct CancelModelAnalysisRequest {
+    pub selection_id: String,
+}
+
+/// Explicit acknowledgement of whether a matching active analysis was signalled.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AnalysisCancellationAcknowledgement {
+    pub selection_id: String,
+    pub cancellation_requested: bool,
+}
+
+/// Complete, exact-text, session-only request for the GUI-4 deterministic estimate path.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct EvaluateDraftEstimateRequest {
+    pub selection_id: String,
+    pub analysis_id: String,
+    pub review: GeometryReviewInput,
+    pub inputs: DraftEstimateInputFields,
+    pub rates: DeveloperRateInputFields,
+    pub pricing: DeveloperPricingInputFields,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct GeometryReviewInput {
+    pub canonical_units_reviewed: bool,
+    pub warnings_reviewed: bool,
+}
+
+/// Exact decimal and whole-number text parsed only by the trusted native adapter.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DraftEstimateInputFields {
+    pub stock_volume_mm3: String,
+    pub density_kg_per_mm3: String,
+    pub deliver_quantity: String,
+    pub planned_spares: String,
+    pub destructive_samples: String,
+    pub setup_hours: String,
+    pub programming_hours: String,
+    pub cutting_hours_per_item: String,
+    pub non_cutting_hours_per_item: String,
+    pub load_unload_hours_per_item: String,
+    pub in_cycle_inspection_hours_per_item: String,
+    pub quality_inspection_hours: String,
+    pub purchased_material: String,
+    pub cut_charge: String,
+    pub material_certificate: String,
+    pub inbound_freight: String,
+    pub approved_remnant_credit: String,
+    pub prove_out: String,
+    pub tooling: String,
+    pub consumables: String,
+    pub fixture: String,
+    pub outside_processing: String,
+    pub operation_freight: String,
+    pub nonrecurring_engineering: String,
+    pub administration: String,
+    pub overhead: String,
+    pub accepted_risk_impact: String,
+    pub expected_rework: String,
+}
+
+/// Five required organization-scope hourly rates supplied and confirmed for this session only.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DeveloperRateInputFields {
+    pub confirmed_for_session: bool,
+    pub rate_card_id: String,
+    pub rate_card_version: String,
+    pub effective_on: String,
+    pub currency: String,
+    pub setup_labor_per_hour: String,
+    pub programming_per_hour: String,
+    pub run_labor_per_hour: String,
+    pub machine_per_hour: String,
+    pub quality_inspection_per_hour: String,
+}
+
+/// Explicit session pricing policy; it is never installed as a production default.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DeveloperPricingInputFields {
+    pub confirmed_for_session: bool,
+    pub pricing_policy_id: String,
+    pub pricing_policy_version: String,
+    pub markup_rate: String,
+    pub optional_price_floor: String,
+    pub optional_minimum_order: String,
+    pub rounding_decimal_places: String,
+}
+
+/// Explicit value state and safe deterministic trace returned from the application session.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DraftEstimateEvaluation {
+    pub selection_id: String,
+    pub analysis_id: String,
+    pub state: DraftEstimateEvaluationState,
+    pub reason: Option<String>,
+    pub result: Option<Box<DraftEstimateResultSummary>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DraftEstimateEvaluationState {
+    Unavailable,
+    Blocked,
+    Available,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DraftEstimateResultSummary {
+    pub currency: String,
+    pub net_part_volume_mm3: String,
+    pub part_mass_kg: String,
+    pub stock_mass_kg: String,
+    pub removed_volume_mm3: String,
+    pub removed_volume_warnings: Vec<String>,
+    pub make_quantity: u64,
+    pub material_cost: String,
+    pub setup_cost: String,
+    pub programming_cost: String,
+    pub cycle_hours_per_item: String,
+    pub run_cost: String,
+    pub quality_inspection_cost: String,
+    pub operation_cost: String,
+    pub base_internal_cost: String,
+    pub risk_reserve: String,
+    pub total_internal_cost: String,
+    pub formula_price: String,
+    pub governed_price: String,
+    pub rounded_selling_price: String,
+    pub floor_applied: bool,
+    pub minimum_order_applied: bool,
+    pub input_trace: DraftEstimateInputFields,
+    pub resolved_rates: Vec<ResolvedRateSummary>,
+    pub pricing_policy: PricingPolicySummary,
+    pub calculation_rule_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ResolvedRateSummary {
+    pub category: String,
+    pub entry_id: String,
+    pub amount_per_hour: String,
+    pub card_id: String,
+    pub card_version: u32,
+    pub effective_on: String,
+    pub scope_rank: usize,
+    pub selector_id: String,
+    pub selector_version: String,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PricingPolicySummary {
+    pub policy_id: String,
+    pub policy_version: u32,
+    pub method: String,
+    pub method_rate: String,
+    pub rounding_decimal_places: u32,
+    pub rounding_mode: String,
 }
 
 /// Session-only provisional analysis returned by the native application adapter.
@@ -244,6 +421,25 @@ impl HostCommandError {
             diagnostic_id: diagnostic_id.into(),
         }
     }
+
+    #[must_use]
+    pub fn analysis_in_progress(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::AnalysisInProgress,
+            message: "A provisional analysis is already running for this session.".to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn invalid_estimate_input(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::InvalidEstimateInput,
+            message: "One or more required estimate values are missing or invalid. Review every field and confirmation."
+                .to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -255,6 +451,8 @@ pub enum HostErrorCode {
     StaleSelection,
     AnalysisUnavailable,
     AnalysisFailed,
+    AnalysisInProgress,
+    InvalidEstimateInput,
 }
 
 #[cfg(test)]

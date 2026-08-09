@@ -8,7 +8,7 @@ The desktop composition root is split into three Rust boundaries:
 - this directory owns the Leptos 0.8 CSR presentation and design-system foundations;
 - `src-tauri` owns the Tauri 2 host, native dialog, retained source path, capability file, and production CSP.
 
-The current shell can choose one local `.step` or `.stp` file and, when an external pinned developer worker is explicitly configured, request provisional geometry facts through `DraftEstimateApplication`. The native host retains the selected path and complete `DraftEstimateSession` only for the running process. The WebView receives a session token, leaf filename, hashes, sanitized stage codes, and provisional measurements; it never receives the path or CAD bytes. Estimate review/input/rate/policy forms and cancellation are not implemented, so selling price remains unavailable. No data is saved or uploaded.
+The current shell can choose one local `.step` or `.stp` file and, when an external pinned developer worker is explicitly configured, request provisional geometry facts through `DraftEstimateApplication`. The native host retains the selected path and complete `DraftEstimateSession` only for the running process. The WebView receives a session token, leaf filename, hashes, sanitized stage codes, and provisional measurements; it never receives the path or CAD bytes. After analysis, the workflow requires explicit unit/warning review, every manual estimate value, five confirmed session-only rates, and a confirmed versioned pricing policy before the native application session can return a deterministic selling price and trace. Analysis can be cancelled cooperatively. No values are prefilled as production defaults, and no data, rate approval, or estimate is saved or uploaded.
 
 ## Pinned developer tools
 
@@ -64,6 +64,8 @@ PARTPROBE_OCCT_ROOT=/approved/local/occt-install \
 ```
 
 The host validates that the worker executable, workspace, and OCCT `lib` directory exist. Missing configuration does not trigger ambient discovery or in-process parsing; selection remains available and analysis returns a path-free `AnalysisUnavailable` result. The current request limits are 64 MiB input, 1 MiB output, 2,000,000 entities, 30 seconds wall/CPU, 2 GiB worker memory, 1 MiB protocol frames, 10 ms polling, and 250 ms cancellation grace. These are internal developer-profile bounds, not production performance or support commitments.
+
+The estimate form is intentionally empty for shop-owned numeric values. Enter `0` explicitly when zero is the intended value. Its confirmations create only ephemeral developer-session rate governance and pricing context; the displayed result is not saved, approved, or a customer quote. Choosing a different source requests cancellation of an active analysis and waits for bounded worker cleanup before another analysis may start.
 
 For a macOS smoke-test bundle:
 
