@@ -6,10 +6,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use partprobe_application::{
     AnalyzedGeometryEvidence, AssetReadSubject, DraftBaseCostInputs, DraftEstimateApplication,
-    DraftEstimateApplicationError, DraftEstimateInputs, DraftGeometryReview,
-    DraftMaterialCostInputs, DraftOperationCostInputs, DraftQuantityInputs, DraftRateContext,
-    DraftStockInputs, DraftTimeInputs, GeometryAnalysisFailure, GeometryAnalysisPort,
-    LocalAssetReadService,
+    DraftEstimateApplicationError, DraftEstimateInputs, DraftGeometryRequestTemplate,
+    DraftGeometryReview, DraftMaterialCostInputs, DraftOperationCostInputs, DraftQuantityInputs,
+    DraftRateContext, DraftStockInputs, DraftTimeInputs, GeometryAnalysisFailure,
+    GeometryAnalysisPort, LocalAssetReadService,
 };
 use partprobe_domain::{
     ActorId, AssetRootId, CurrencyCode, DataClassificationId, DensityKilogramsPerCubicMillimeter,
@@ -34,6 +34,8 @@ use rust_decimal::Decimal;
 const TASK_002_FIXTURE: &str =
     include_str!("../../estimation-engine/tests/fixtures/task_002/golden_estimates.json");
 const SOURCE_HASH: &str = "1111111111111111111111111111111111111111111111111111111111111111";
+const SYNTHETIC_SOURCE_HASH: &str =
+    "72806c44cd993f89a56810474fac5ae65710a5d72232f095b5f959b6d84f20e4";
 const OUTPUT_HASH: &str = "2222222222222222222222222222222222222222222222222222222222222222";
 
 static TEST_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -41,6 +43,7 @@ static TEST_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 #[derive(Clone, Debug)]
 struct StaticAnalyzer {
     calls: Rc<Cell<u64>>,
+    expected_source_hash: &'static str,
     evidence: AnalyzedGeometryEvidence,
 }
 
@@ -51,7 +54,10 @@ impl GeometryAnalysisPort for StaticAnalyzer {
         grant: AssetReadGrant,
         _cancellation: &AtomicBool,
     ) -> Result<AnalyzedGeometryEvidence, GeometryAnalysisFailure> {
-        assert_eq!(request.expected_source_hash().as_str(), SOURCE_HASH);
+        assert_eq!(
+            request.expected_source_hash().as_str(),
+            self.expected_source_hash
+        );
         assert_eq!(grant.asset_capability(), request.asset_capability());
         self.calls.set(self.calls.get() + 1);
         Ok(self.evidence.clone())
@@ -94,6 +100,7 @@ fn authorized_analysis_starts_ephemeral_session_with_no_numeric_defaults() {
         LocalAssetReadService::new(AllowPolicy, RecordingAudit::default()),
         StaticAnalyzer {
             calls: Rc::clone(&calls),
+            expected_source_hash: SOURCE_HASH,
             evidence: geometry_evidence(),
         },
     );
@@ -123,6 +130,42 @@ fn authorized_analysis_starts_ephemeral_session_with_no_numeric_defaults() {
 }
 
 #[test]
+fn authorized_source_is_fingerprinted_before_the_pathless_worker_request_is_built() {
+    let test_directory = create_test_root("fingerprint");
+    let root = local_root(&test_directory, "root-fingerprint");
+    let calls = Rc::new(Cell::new(0));
+    let application = DraftEstimateApplication::new(
+        LocalAssetReadService::new(AllowPolicy, RecordingAudit::default()),
+        StaticAnalyzer {
+            calls: Rc::clone(&calls),
+            expected_source_hash: SYNTHETIC_SOURCE_HASH,
+            evidence: geometry_evidence_for(SYNTHETIC_SOURCE_HASH),
+        },
+    );
+
+    let session = application
+        .start_session_from_unfingerprinted_source(
+            subject(),
+            &root,
+            &request_template(),
+            Path::new("part.step"),
+            &AtomicBool::new(false),
+        )
+        .expect("authorized source must produce a pathless analyzed session");
+
+    assert_eq!(calls.get(), 1);
+    assert_eq!(application.asset_reads().audit().events.borrow().len(), 1);
+    assert_eq!(
+        session.geometry().snapshot.source_hash().as_str(),
+        SYNTHETIC_SOURCE_HASH
+    );
+    assert!(matches!(session.evaluate(), ValueState::Unavailable { .. }));
+    drop(session);
+    drop(root);
+    remove_test_root(&test_directory);
+}
+
+#[test]
 fn denied_source_never_reaches_geometry_analysis() {
     let test_directory = create_test_root("deny");
     let root = local_root(&test_directory, "root-deny");
@@ -138,6 +181,7 @@ fn denied_source_never_reaches_geometry_analysis() {
         ),
         StaticAnalyzer {
             calls: Rc::clone(&calls),
+            expected_source_hash: SOURCE_HASH,
             evidence: geometry_evidence(),
         },
     );
@@ -147,6 +191,45 @@ fn denied_source_never_reaches_geometry_analysis() {
         &root,
         &request(),
         Path::new("part.step"),
+        &AtomicBool::new(false),
+    );
+
+    assert!(matches!(
+        result,
+        Err(DraftEstimateApplicationError::AssetRead(_))
+    ));
+    assert_eq!(calls.get(), 0);
+    assert_eq!(application.asset_reads().audit().events.borrow().len(), 1);
+    drop(root);
+    remove_test_root(&test_directory);
+}
+
+#[test]
+fn denied_unfingerprinted_source_is_not_opened_or_hashed() {
+    let test_directory = create_test_root("deny-fingerprint");
+    let root = local_root(&test_directory, "root-deny-fingerprint");
+    let calls = Rc::new(Cell::new(0));
+    let application = DraftEstimateApplication::new(
+        LocalAssetReadService::new(
+            DenyAllAuthorizationPolicy::new(
+                policy_ref(),
+                AuthorizationReasonCode::new("POLICY_NOT_CONFIGURED")
+                    .expect("reason must be valid"),
+            ),
+            RecordingAudit::default(),
+        ),
+        StaticAnalyzer {
+            calls: Rc::clone(&calls),
+            expected_source_hash: SYNTHETIC_SOURCE_HASH,
+            evidence: geometry_evidence_for(SYNTHETIC_SOURCE_HASH),
+        },
+    );
+
+    let result = application.start_session_from_unfingerprinted_source(
+        subject(),
+        &root,
+        &request_template(),
+        Path::new("missing.step"),
         &AtomicBool::new(false),
     );
 
@@ -254,6 +337,7 @@ fn configured_session() -> partprobe_application::DraftEstimateSession {
         LocalAssetReadService::new(AllowPolicy, RecordingAudit::default()),
         StaticAnalyzer {
             calls: Rc::new(Cell::new(0)),
+            expected_source_hash: SOURCE_HASH,
             evidence: geometry_evidence(),
         },
     );
@@ -321,8 +405,12 @@ fn explicit_inputs() -> DraftEstimateInputs {
 }
 
 fn geometry_evidence() -> AnalyzedGeometryEvidence {
+    geometry_evidence_for(SOURCE_HASH)
+}
+
+fn geometry_evidence_for(source_hash: &str) -> AnalyzedGeometryEvidence {
     let snapshot = ProvisionalGeometrySnapshot::new(
-        digest(SOURCE_HASH),
+        digest(source_hash),
         "8.0.0",
         1,
         1,
@@ -364,6 +452,22 @@ fn request() -> GeometryWorkerRequest {
         ResourceQuotas::new(1_000_000, 1_000_000, 10_000, 5_000).expect("quotas must be valid"),
     )
     .expect("request must be valid")
+}
+
+fn request_template() -> DraftGeometryRequestTemplate {
+    DraftGeometryRequestTemplate::new(
+        SchemaVersion::new(1).expect("schema version must be valid"),
+        GeometryJobId::new("gui-4-job").expect("job ID must be valid"),
+        CorrelationId::new("gui-4-correlation").expect("correlation must be valid"),
+        AssetCapability::new("gui-4-capability").expect("capability must be valid"),
+        vec![GeometryStage::BasicProperties],
+        AnalysisProfile {
+            id: AnalysisProfileId::new("gui-4-profile").expect("profile must be valid"),
+            version: RuleVersion::new(1, 0, 0),
+        },
+        ResourceQuotas::new(1_000_000, 1_000_000, 10_000, 5_000).expect("quotas must be valid"),
+    )
+    .expect("request template must be valid")
 }
 
 fn rate_card_and_policy() -> (RateCard, PricingPolicy) {

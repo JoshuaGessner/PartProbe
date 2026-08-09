@@ -26,6 +26,8 @@ The UI is an untrusted presentation and interaction layer even though it ships l
 
 GUI-3 instantiates the outer two layers without claiming the rest of the product. `apps/estimator-desktop` owns the Leptos CSR presentation; its `src-tauri` package owns the native host/session path; and `crates/desktop-contract` owns the versioned, framework-neutral command/event DTO. The current host is not yet connected to `DraftEstimateApplication`, the geometry worker, repositories, or viewer. It can select one local STEP source and report only a safe session summary.
 
+GUI-4 request preparation begins inside `DraftEstimateApplication`, not the desktop host. A path-free request template carries job/correlation/capability/stage/profile/quota intent without claiming a source digest. The application first authorizes and audits the selected relative source, fingerprints the same bounded already-open grant, builds the source-bound request, rewinds the grant, and passes it to the geometry port. The worker still independently checks identity, type, length, quota, and digest. Desktop integration may invoke this use case but may not pre-read the path or substitute its own hash.
+
 ## Runtime responsibilities
 
 | Layer | Responsibilities | Must not do |

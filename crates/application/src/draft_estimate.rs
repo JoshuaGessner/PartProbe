@@ -15,9 +15,10 @@ use partprobe_estimation_engine::{
 };
 use partprobe_geometry_core::{GeometryStageReport, StageStatus};
 use partprobe_geometry_import::{
-    AssetReadGrant, GeometryWorkerRequest, GeometryWorkerSupervisor, LocalAssetRoot,
-    ProvisionalGeometrySnapshot, Sha256Digest, SnapshotReference, WorkerAssetFallbackReason,
-    WorkerAssetTransport, decode_provisional_geometry_snapshot,
+    AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
+    GeometryWorkerSupervisor, LocalAssetRoot, ProvisionalGeometrySnapshot, ResourceQuotas,
+    Sha256Digest, SnapshotReference, WorkerAssetFallbackReason, WorkerAssetTransport,
+    decode_provisional_geometry_snapshot,
 };
 use partprobe_security::{AuthorizationAuditSink, AuthorizationPolicy};
 use rust_decimal::Decimal;
@@ -49,6 +50,69 @@ pub trait GeometryAnalysisPort {
         grant: AssetReadGrant,
         cancellation: &AtomicBool,
     ) -> Result<AnalyzedGeometryEvidence, GeometryAnalysisFailure>;
+}
+
+/// Validated path-free worker request fields whose source hash is derived only after authorization.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DraftGeometryRequestTemplate {
+    template: GeometryWorkerRequest,
+}
+
+impl DraftGeometryRequestTemplate {
+    /// Validates every worker-request field while retaining a private placeholder digest.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        schema_version: partprobe_domain::SchemaVersion,
+        job_id: GeometryJobId,
+        correlation_id: CorrelationId,
+        asset_capability: AssetCapability,
+        stages: Vec<partprobe_geometry_core::GeometryStage>,
+        analysis_profile: partprobe_geometry_core::AnalysisProfile,
+        quotas: ResourceQuotas,
+    ) -> Result<Self, DomainError> {
+        let placeholder_hash =
+            Sha256Digest::new("0000000000000000000000000000000000000000000000000000000000000000")?;
+        Ok(Self {
+            template: GeometryWorkerRequest::new(
+                schema_version,
+                job_id,
+                correlation_id,
+                asset_capability,
+                placeholder_hash,
+                stages,
+                analysis_profile,
+                quotas,
+            )?,
+        })
+    }
+
+    fn with_source_hash(
+        &self,
+        source_hash: Sha256Digest,
+    ) -> Result<GeometryWorkerRequest, DomainError> {
+        GeometryWorkerRequest::new(
+            self.template.schema_version(),
+            self.template.job_id().clone(),
+            self.template.correlation_id().clone(),
+            self.template.asset_capability().clone(),
+            source_hash,
+            self.template.stages().to_vec(),
+            self.template.analysis_profile().clone(),
+            self.template.quotas(),
+        )
+    }
+
+    /// Returns the opaque source capability bound to the eventual worker request.
+    #[must_use]
+    pub const fn asset_capability(&self) -> &AssetCapability {
+        self.template.asset_capability()
+    }
+
+    /// Returns the maximum authorized source size used by fingerprinting and worker validation.
+    #[must_use]
+    pub const fn max_input_bytes(&self) -> u64 {
+        self.template.quotas().max_input_bytes()
+    }
 }
 
 impl GeometryAnalysisPort for GeometryWorkerSupervisor {
@@ -444,6 +508,40 @@ where
         Ok(DraftEstimateSession::new(geometry))
     }
 
+    /// Authorizes and audits a selected source before deriving the request's source fingerprint.
+    ///
+    /// The same already-open grant is rewound and consumed by the geometry port. Neither a raw
+    /// path nor unaudited file read is required in the desktop adapter.
+    pub fn start_session_from_unfingerprinted_source(
+        &self,
+        subject: AssetReadSubject,
+        root: &LocalAssetRoot,
+        request_template: &DraftGeometryRequestTemplate,
+        relative_path: &Path,
+        cancellation: &AtomicBool,
+    ) -> Result<DraftEstimateSession, DraftEstimateApplicationError> {
+        let mut grant = self
+            .asset_reads
+            .authorize_and_open(
+                subject,
+                root,
+                request_template.asset_capability().clone(),
+                relative_path,
+            )
+            .map_err(DraftEstimateApplicationError::AssetRead)?;
+        let source_hash = grant
+            .fingerprint_sha256(request_template.max_input_bytes())
+            .map_err(|_| DraftEstimateApplicationError::SourceFingerprint)?;
+        let request = request_template
+            .with_source_hash(source_hash)
+            .map_err(|_| DraftEstimateApplicationError::SourceFingerprint)?;
+        let geometry = self
+            .geometry_analysis
+            .analyze(&request, grant, cancellation)
+            .map_err(DraftEstimateApplicationError::GeometryAnalysis)?;
+        Ok(DraftEstimateSession::new(geometry))
+    }
+
     /// Returns the governed asset-read service for audit verification and adapter composition.
     #[must_use]
     pub const fn asset_reads(&self) -> &LocalAssetReadService<P, A> {
@@ -456,6 +554,8 @@ where
 pub enum DraftEstimateApplicationError {
     /// Authorization, audit, or containment rejected source access.
     AssetRead(AssetReadServiceError),
+    /// Authorized source bytes could not produce the bounded request fingerprint.
+    SourceFingerprint,
     /// Geometry analysis did not yield validated provisional evidence.
     GeometryAnalysis(GeometryAnalysisFailure),
 }

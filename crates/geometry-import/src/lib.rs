@@ -1073,6 +1073,93 @@ impl AssetReadGrant {
     pub const fn authorized_byte_length(&self) -> u64 {
         self.authorized_byte_length
     }
+
+    /// Computes a bounded SHA-256 fingerprint from the already-open authorized source.
+    ///
+    /// The source is rewound before and after fingerprinting so the same one-use grant can be
+    /// passed directly to the geometry supervisor. The worker still independently verifies the
+    /// exact length and digest before parsing.
+    pub fn fingerprint_sha256(
+        &mut self,
+        max_input_bytes: u64,
+    ) -> Result<Sha256Digest, DomainError> {
+        if max_input_bytes == 0 || self.authorized_byte_length > max_input_bytes {
+            return Err(DomainError::InvalidValue {
+                field: "geometry asset fingerprint",
+                reason: "authorized source exceeds the nonzero fingerprint limit",
+            });
+        }
+
+        self.source
+            .seek(SeekFrom::Start(0))
+            .map_err(|_| DomainError::InvalidValue {
+                field: "geometry asset fingerprint",
+                reason: "authorized source could not be rewound",
+            })?;
+
+        let fingerprint = fingerprint_open_source(
+            &mut self.source,
+            self.authorized_byte_length,
+            max_input_bytes,
+        );
+        let rewind = self.source.seek(SeekFrom::Start(0));
+        if rewind.is_err() {
+            return Err(DomainError::InvalidValue {
+                field: "geometry asset fingerprint",
+                reason: "authorized source could not be rewound after fingerprinting",
+            });
+        }
+        fingerprint
+    }
+}
+
+fn fingerprint_open_source(
+    source: &mut File,
+    authorized_byte_length: u64,
+    max_input_bytes: u64,
+) -> Result<Sha256Digest, DomainError> {
+    let mut hasher = Sha256::new();
+    let mut total = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = source
+            .read(&mut buffer)
+            .map_err(|_| DomainError::InvalidValue {
+                field: "geometry asset fingerprint",
+                reason: "authorized source could not be read",
+            })?;
+        if read == 0 {
+            break;
+        }
+        total = total
+            .checked_add(u64::try_from(read).map_err(|_| DomainError::InvalidValue {
+                field: "geometry asset fingerprint",
+                reason: "authorized source length overflowed",
+            })?)
+            .ok_or(DomainError::InvalidValue {
+                field: "geometry asset fingerprint",
+                reason: "authorized source length overflowed",
+            })?;
+        if total > max_input_bytes {
+            return Err(DomainError::InvalidValue {
+                field: "geometry asset fingerprint",
+                reason: "authorized source exceeds the fingerprint limit",
+            });
+        }
+        hasher.update(&buffer[..read]);
+    }
+    if total != authorized_byte_length {
+        return Err(DomainError::InvalidValue {
+            field: "geometry asset fingerprint",
+            reason: "authorized source length changed during fingerprinting",
+        });
+    }
+
+    let mut digest = String::with_capacity(64);
+    for byte in hasher.finalize() {
+        write!(&mut digest, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    Sha256Digest::new(digest)
 }
 
 /// Immutable worker-owned bytes verified against one launch manifest and request.
@@ -2318,6 +2405,39 @@ mod tests {
         );
 
         drop(output);
+        std::fs::remove_dir(job_directory).expect("empty private job directory must be removed");
+    }
+
+    #[test]
+    fn authorized_grant_fingerprint_is_bounded_and_rewinds_the_source() {
+        let job_directory =
+            create_job_directory(&std::env::temp_dir()).expect("private job directory must exist");
+        let source_path = job_directory.join("fingerprint.step");
+        std::fs::write(&source_path, b"synthetic-step-source")
+            .expect("test source must be written");
+        let source = File::open(&source_path).expect("test source must open");
+        let capability =
+            AssetCapability::new("fingerprint-capability").expect("capability must be valid");
+        let mut grant = AssetReadGrant::new(capability, source).expect("grant must be valid");
+
+        let digest = grant
+            .fingerprint_sha256(1_024)
+            .expect("bounded source must fingerprint");
+
+        assert_eq!(
+            digest.as_str(),
+            "72806c44cd993f89a56810474fac5ae65710a5d72232f095b5f959b6d84f20e4"
+        );
+        let mut bytes = Vec::new();
+        grant
+            .source
+            .read_to_end(&mut bytes)
+            .expect("grant must be rewound for its consumer");
+        assert_eq!(bytes, b"synthetic-step-source");
+        assert!(grant.fingerprint_sha256(1).is_err());
+
+        drop(grant);
+        std::fs::remove_file(source_path).expect("test source must be removed");
         std::fs::remove_dir(job_directory).expect("empty private job directory must be removed");
     }
 }

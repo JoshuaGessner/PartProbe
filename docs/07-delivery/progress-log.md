@@ -8,6 +8,15 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-09 — GUI-4 governed source fingerprint and request preparation
+
+- Consolidated the completed TASK-002/TASK-003/GUI-2/GUI-3 history by fast-forwarding local `main` from `e9ef023` to `b59f0ce`, pushing the exact commit to remote `main`, proving both task branches were ancestors, and deleting those obsolete branch references locally and remotely. Run 31327747010 passes macOS and Ubuntu; Windows passes the desktop lint targets but fails the existing CPU-containment test because its 5-second wall deadline occurred before the runner accumulated the configured 100 ms user-CPU ceiling. The focused test-only deadline fix awaits approval.
+- Added `AssetReadGrant::fingerprint_sha256`, which reads only the already-open authorized source, enforces the request's maximum input size and captured length, produces a typed SHA-256 digest, and rewinds the same grant for worker consumption. The worker retains its independent length/hash verification, so this does not weaken the process boundary.
+- Added `DraftGeometryRequestTemplate` and `DraftEstimateApplication::start_session_from_unfingerprinted_source`. The application now authorizes and appends the decision audit before fingerprinting, creates the path-free source-bound worker request inside the typed service, and hands the same grant to the geometry port. The Tauri host need not read CAD or invent a trusted hash.
+- Added three focused regressions: bounded grant fingerprinting and rewind, an authorized source producing the expected pathless request hash/session, and denial preventing missing-source open/fingerprint/analysis while still recording the decision. No calculation formula, geometry interpretation, worker protocol/schema, adapter ABI, production rate, persisted record, or dependency changed.
+- Full local closeout passes formatting, strict workspace Clippy, 122 runtime tests, one compile-fail doctest, six native-tooling tests, 141-document planning validation, fixture hashes, and diff checks.
+- GUI-4 remains In Progress. The next slice configures the supervised worker and ephemeral session in the native adapter, adds safe workspace DTOs/commands, and renders review/manual-input/rate/result states in Leptos; see [GUI-4 validation](../06-quality/gui-4-validation.md).
+
 ## 2026-08-09 — GUI-3 restrictive desktop shell and native source selection
 
 - Added a reversible Tauri 2.11.5 host and Leptos 0.8.20 CSR frontend under `apps/estimator-desktop`, plus a framework-neutral `desktop-contract` crate. The contract exposes exactly `desktop_contract` and `select_model_source` commands and one `partprobe:model-source-selected` event; a build-time Tauri app manifest and the checked-in main capability restrict access to that exact surface.

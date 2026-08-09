@@ -5,9 +5,9 @@ mod draft_estimate;
 pub use draft_estimate::{
     AnalyzedGeometryEvidence, DraftBaseCostInputs, DraftEstimateApplication,
     DraftEstimateApplicationError, DraftEstimateInputs, DraftEstimateResult, DraftEstimateSession,
-    DraftEstimateTrace, DraftGeometryReview, DraftMaterialCostInputs, DraftOperationCostInputs,
-    DraftQuantityInputs, DraftRateContext, DraftResolvedRates, DraftStockInputs, DraftTimeInputs,
-    GeometryAnalysisFailure, GeometryAnalysisPort,
+    DraftEstimateTrace, DraftGeometryRequestTemplate, DraftGeometryReview, DraftMaterialCostInputs,
+    DraftOperationCostInputs, DraftQuantityInputs, DraftRateContext, DraftResolvedRates,
+    DraftStockInputs, DraftTimeInputs, GeometryAnalysisFailure, GeometryAnalysisPort,
 };
 
 use std::path::Path;

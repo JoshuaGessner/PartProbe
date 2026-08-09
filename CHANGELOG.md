@@ -34,6 +34,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - `FIX-STEP-003`, a manually authored AP214 faceted 12 × 8 × 5 mm rectangular prism with governed hash and analytic area/volume/centroid evidence through both the native adapter and supervised worker.
 - GUI-2 headless draft-estimate orchestration: governed source authorization, a concrete supervised-geometry adapter, explicit provisional-evidence review and manual inputs, pinned rate/policy resolution, deterministic itemized results, replay trace, and focused missing/conflict/recalculation tests.
 - GUI-3 restrictive Tauri 2/Leptos developer shell with a versioned framework-neutral desktop contract, asynchronous host-owned STEP picker, native-only raw path retention, leaf-name-only frontend summary, exact command/capability/CSP regression tests, deliberate design-system foundations, unsigned Apple-Silicon bundle evidence, and a developer runbook.
+- GUI-4 intake foundation: an application-owned request template now authorizes and audits the selected source before deriving a bounded SHA-256 fingerprint from the same already-open grant subsequently consumed and independently verified by the geometry worker.
 
 ### Security
 
