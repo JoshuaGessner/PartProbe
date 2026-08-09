@@ -1,16 +1,16 @@
 # GUI-4 Analysis and Estimate Workspace Validation
 
-> **Status:** In Progress
+> **Status:** Complete for the bounded workspace checkpoint
 > **Last updated:** 2026-08-09
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-004, REQ-NF-005, REQ-NF-017; SEC-003, SEC-004; TEST-003, TEST-011, TEST-014, TEST-021, TEST-030
 > **Related ADRs:** ADR-0001, ADR-0002, ADR-0005, ADR-0007, ADR-0008
-> **Open questions:** Native worker packaging, durable authorization/audit policy, configured end-to-end test environment
+> **Open questions:** Native worker packaging and durable authorization/audit policy
 > **Dependencies:** GUI-1 evidence, GUI-2 application service, GUI-3 shell
 > **Supersedes:** None
 
 ## Implemented scope
 
-GUI-4 is not complete. Its first blocking application seam is implemented: `DraftGeometryRequestTemplate` carries validated path-free job, correlation, capability, stages, profile, and quota intent without falsely claiming a source hash. `DraftEstimateApplication::start_session_from_unfingerprinted_source` authorizes and audits the selected relative source, obtains one already-open grant, fingerprints its bytes within the request's maximum-input quota, constructs the source-bound worker request, and passes the rewound same grant to the configured geometry port.
+GUI-4 is complete for its bounded, session-only workspace checkpoint. `DraftGeometryRequestTemplate` carries validated path-free job, correlation, capability, stages, profile, and quota intent without falsely claiming a source hash. `DraftEstimateApplication::start_session_from_unfingerprinted_source` authorizes and audits the selected relative source, obtains one already-open grant, fingerprints its bytes within the request's maximum-input quota, constructs the source-bound worker request, and passes the rewound same grant to the configured geometry port.
 
 `AssetReadGrant::fingerprint_sha256` checks the captured file length, enforces the nonzero maximum input size, computes typed SHA-256, and rewinds the open handle before return. This fingerprint is not accepted as worker truth: the existing supervisor/worker transport independently rechecks regular-file identity, length, quota, and hash before parsing.
 
@@ -35,8 +35,8 @@ cargo test -p partprobe-desktop-contract -p partprobe-estimator-desktop-ui --all
 cargo test -p partprobe-estimator-desktop --features desktop-host --all-targets --locked
 ```
 
-The local macOS default workspace passes 134 runtime tests. The GUI-4 focused contract/native-host/UI set passes 26 tests, strict workspace/native-host/WASM Clippy pass, and the offline release frontend bundle plus an initial semantic/visual preview pass without browser diagnostics. GitHub Actions run 31336768681 passes formatting, six native-tooling tests, all three lint surfaces, all-target tests, and doctests on macOS, Ubuntu, and Windows at contract-v3 implementation commit `2868212`. No pinned OCCT installation was present in this session, so the configured desktop-to-native-worker-to-estimate success path and live post-analysis form remain GUI-5 smoke prerequisites; existing optional-native adapter/supervisor tests remain the native execution evidence.
+The local macOS default workspace passes 137 runtime tests. GUI-5's focused contract/native-host/UI set passes 29 tests plus one explicit configured-native test ignored by default. Strict workspace/native-host/WASM Clippy and the offline release frontend bundle pass. GitHub Actions run 31336768681 remains the latest complete three-OS default matrix at contract-v3 implementation commit `2868212`. GUI-5 then supplied exact pinned OCCT construction, one passing opt-in real-worker host smoke, and actual-app keyboard/semantic/cancellation/failure/recovery evidence; see [GUI-5 validation](gui-5-validation.md).
 
-## Remaining acceptance evidence
+## Acceptance conclusion and remaining product evidence
 
-GUI-4's bounded implementation scope is complete, but the requirement remains In Progress until GUI-5 runs the full configured native fixture workflow, observes cooperative cancellation and worker-failure recovery, and completes keyboard/accessibility checks. No calculation formula or geometry interpretation changed; the existing `rust_decimal` workspace package is now a direct desktop-host dependency for exact parsing, but no new package/version, worker protocol/schema, native ABI, persisted/customer schema, production rate, durable approval, or support claim was introduced.
+GUI-4 is complete only for the deliberately bounded workspace checkpoint because GUI-5 ran the full configured native fixture workflow, exercised live cooperative cancellation and malformed-worker recovery, completed the estimate by keyboard, inspected semantic labels/roles/results, and verified review confirmations reset on re-analysis. Full TEST-012 assistive-technology/contrast/scaling/HiDPI evidence, durable rate/persistence workflows, packaged native construction, supported importer validation, and release acceptance remain open. No calculation formula or geometry interpretation changed; the existing `rust_decimal` workspace package remains the direct desktop-host exact parser, and no new package/version, worker protocol/schema, native ABI, persisted/customer schema, production rate, durable approval, or support claim was introduced.

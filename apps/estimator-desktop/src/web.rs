@@ -9,7 +9,9 @@ use partprobe_desktop_contract::{
 };
 use wasm_bindgen::prelude::*;
 
-use crate::{AnalysisPanelState, DraftEstimatePanelState, ModelPanelState};
+use crate::{
+    AnalysisPanelState, DraftEstimatePanelState, GeometryReviewConfirmation, ModelPanelState,
+};
 
 #[wasm_bindgen(inline_js = r#"
 export async function invokePartProbe(command, args) {
@@ -38,8 +40,7 @@ struct EvaluateDraftEstimateArgs {
 
 #[derive(Clone, Debug, Default)]
 struct DeveloperEstimateForm {
-    canonical_units_reviewed: bool,
-    warnings_reviewed: bool,
+    geometry_review: GeometryReviewConfirmation,
     stock_volume_mm3: String,
     density_kg_per_mm3: String,
     deliver_quantity: String,
@@ -105,8 +106,8 @@ impl DeveloperEstimateForm {
             selection_id,
             analysis_id,
             review: GeometryReviewInput {
-                canonical_units_reviewed: self.canonical_units_reviewed,
-                warnings_reviewed: self.warnings_reviewed,
+                canonical_units_reviewed: self.geometry_review.canonical_units_reviewed,
+                warnings_reviewed: self.geometry_review.warnings_reviewed,
             },
             inputs: DraftEstimateInputFields {
                 stock_volume_mm3: self.stock_volume_mm3.clone(),
@@ -226,7 +227,7 @@ fn App() -> impl IntoView {
                         .unwrap_or_else(|_| {
                             HostCommandError::analysis_failed("GUI4-ANALYSIS-INVOKE")
                         });
-                    set_analysis_state.set(AnalysisPanelState::Failed(error));
+                    set_analysis_state.set(AnalysisPanelState::from_host_error(error));
                 }
             }
         });
@@ -438,6 +439,13 @@ fn AnalysisEvidence(state: ReadSignal<AnalysisPanelState>) -> impl IntoView {
             </section>
         }
         .into_any(),
+        AnalysisPanelState::Cancelled => view! {
+            <section class="analysis-progress" role="status">
+                <p class="blocked-title">"Analysis cancelled"</p>
+                <p>"The selected source remains available. Retry analysis when you are ready."</p>
+            </section>
+        }
+        .into_any(),
         AnalysisPanelState::NotStarted => ().into_any(),
     }
 }
@@ -449,6 +457,10 @@ fn EstimateWorkspace(
     set_estimate_state: WriteSignal<DraftEstimatePanelState>,
 ) -> impl IntoView {
     let form = RwSignal::new(DeveloperEstimateForm::new());
+    Effect::new(move |_| {
+        let _ = analysis_state.get();
+        form.update(|form| form.geometry_review.clear());
+    });
     let submit = move |event: leptos::ev::SubmitEvent| {
         event.prevent_default();
         let Some((selection_id, analysis_id)) = (match analysis_state.get_untracked() {
@@ -517,14 +529,14 @@ fn EstimateWorkspace(
                             <ReviewCheckbox
                                 form
                                 label="I reviewed the canonical millimeter interpretation."
-                                read=|form| form.canonical_units_reviewed
-                                write=|form, value| form.canonical_units_reviewed = value
+                                read=|form| form.geometry_review.canonical_units_reviewed
+                                write=|form, value| form.geometry_review.canonical_units_reviewed = value
                             />
                             <ReviewCheckbox
                                 form
                                 label="I reviewed the complete warning set, including an empty set."
-                                read=|form| form.warnings_reviewed
-                                write=|form, value| form.warnings_reviewed = value
+                                read=|form| form.geometry_review.warnings_reviewed
+                                write=|form, value| form.geometry_review.warnings_reviewed = value
                             />
                         </fieldset>
 

@@ -1,9 +1,24 @@
 #![forbid(unsafe_code)]
 
 use partprobe_desktop_contract::{
-    DraftEstimateEvaluation, HostCommandError, ModelAnalysisResult, ModelSourceSelection,
-    SelectedModelSource,
+    DraftEstimateEvaluation, HostCommandError, HostErrorCode, ModelAnalysisResult,
+    ModelSourceSelection, SelectedModelSource,
 };
+
+#[cfg(any(target_arch = "wasm32", test))]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct GeometryReviewConfirmation {
+    pub canonical_units_reviewed: bool,
+    pub warnings_reviewed: bool,
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+impl GeometryReviewConfirmation {
+    pub const fn clear(&mut self) {
+        self.canonical_units_reviewed = false;
+        self.warnings_reviewed = false;
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum ModelPanelState {
@@ -57,6 +72,7 @@ pub enum AnalysisPanelState {
     NotStarted,
     Running,
     Cancelling,
+    Cancelled,
     Available(Box<ModelAnalysisResult>),
     Failed(HostCommandError),
 }
@@ -68,6 +84,7 @@ impl AnalysisPanelState {
             Self::NotStarted => "Provisional analysis not started",
             Self::Running => "Analyzing in the isolated worker",
             Self::Cancelling => "Requesting analysis cancellation",
+            Self::Cancelled => "Provisional analysis cancelled",
             Self::Available(_) => "Provisional geometry available",
             Self::Failed(_) => "Provisional analysis failed safely",
         }
@@ -85,8 +102,20 @@ impl AnalysisPanelState {
             Self::Cancelling => {
                 "The native host has signalled the active worker and is waiting for bounded cleanup."
             }
+            Self::Cancelled => {
+                "The selected source remains available. Retry analysis when you are ready."
+            }
             Self::Available(result) => &result.estimate.reason,
             Self::Failed(error) => &error.message,
+        }
+    }
+
+    #[must_use]
+    pub fn from_host_error(error: HostCommandError) -> Self {
+        if error.code == HostErrorCode::AnalysisCancelled {
+            Self::Cancelled
+        } else {
+            Self::Failed(error)
         }
     }
 }
@@ -204,6 +233,17 @@ mod tests {
     }
 
     #[test]
+    fn cancelled_host_result_is_not_presented_as_an_analysis_failure() {
+        let state = AnalysisPanelState::from_host_error(HostCommandError::analysis_cancelled(
+            "GUI4-ANALYSIS-CANCELLED-TEST",
+        ));
+
+        assert_eq!(state, AnalysisPanelState::Cancelled);
+        assert!(state.status_heading().contains("cancelled"));
+        assert!(state.status_detail().contains("Retry"));
+    }
+
+    #[test]
     fn rejected_estimate_inputs_never_imply_a_numeric_result() {
         let state = DraftEstimatePanelState::Failed(HostCommandError::invalid_estimate_input(
             "GUI4-ESTIMATE-TEST",
@@ -211,5 +251,17 @@ mod tests {
 
         assert!(state.status_heading().contains("unavailable"));
         assert!(state.status_detail().contains("missing or invalid"));
+    }
+
+    #[test]
+    fn geometry_review_confirmation_is_explicitly_revision_bound() {
+        let mut review = GeometryReviewConfirmation {
+            canonical_units_reviewed: true,
+            warnings_reviewed: true,
+        };
+
+        review.clear();
+
+        assert_eq!(review, GeometryReviewConfirmation::default());
     }
 }

@@ -1,6 +1,6 @@
 # PartProbe desktop developer shell
 
-> **Status:** GUI-4 developer checkpoint; unsigned, session-only, and not a supported product package.
+> **Status:** GUI-5 internal developer checkpoint; unsigned, session-only, and not a supported product package.
 
 The desktop composition root is split into three Rust boundaries:
 
@@ -51,7 +51,16 @@ Run the unsigned shell from the repository root after the frontend exists. Witho
 cargo run -p partprobe-estimator-desktop --features desktop-host --locked
 ```
 
-To enable the provisional STEP analysis command, first build the external worker against the separately constructed pinned OCCT 8.0.0 root, create a dedicated empty worker workspace, and supply all three paths explicitly:
+To construct the exact reviewed native root from an existing clean official source checkout, run the repository builder. The builder downloads nothing, requires OCCT tag `V8_0_0` at commit `d3056ef80c9668f395da40f5fd7be186cae4501f`, rejects a dirty/wrong source tree, records build/install fingerprints, and runs the native verification suite:
+
+```sh
+python3 scripts/build_occt.py \
+  --source /approved/local/occt-source \
+  --build /private/tmp/partprobe-occt-build \
+  --install /private/tmp/partprobe-occt-install
+```
+
+To enable the provisional STEP analysis command, build the external worker against that root, create a dedicated empty worker workspace, and supply all three paths explicitly:
 
 ```sh
 PARTPROBE_OCCT_ROOT=/approved/local/occt-install \
@@ -63,16 +72,32 @@ PARTPROBE_OCCT_ROOT=/approved/local/occt-install \
   cargo run -p partprobe-estimator-desktop --features desktop-host --locked
 ```
 
+Cargo feature variants share the same `target/debug/partprobe-geometry-worker` path. A later ordinary feature-off workspace build can intentionally replace the native executable with the unavailable stub. Run the `native-occt` worker build immediately before the smoke/launch commands, or copy the verified native executable to a dedicated explicit path and set `PARTPROBE_GEOMETRY_WORKER` to that copy. A feature-off replacement fails safely with `GUI4-ANALYSIS-WORKER`; it is not evidence that OCCT construction failed.
+
+Run the opt-in GUI-5 host smoke before manual acceptance. It is deliberately ignored by ordinary CI and fails closed unless every native path is explicit:
+
+```sh
+PARTPROBE_GEOMETRY_WORKER="$PWD/target/debug/partprobe-geometry-worker" \
+PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
+PARTPROBE_OCCT_ROOT=/private/tmp/partprobe-occt-install \
+  cargo test -p partprobe-estimator-desktop --features desktop-host \
+    gui5_configured_worker_runs_real_step_through_retained_estimate_session \
+    --locked -- --ignored --nocapture
+```
+
 The host validates that the worker executable, workspace, and OCCT `lib` directory exist. Missing configuration does not trigger ambient discovery or in-process parsing; selection remains available and analysis returns a path-free `AnalysisUnavailable` result. The current request limits are 64 MiB input, 1 MiB output, 2,000,000 entities, 30 seconds wall/CPU, 2 GiB worker memory, 1 MiB protocol frames, 10 ms polling, and 250 ms cancellation grace. These are internal developer-profile bounds, not production performance or support commitments.
 
-The estimate form is intentionally empty for shop-owned numeric values. Enter `0` explicitly when zero is the intended value. Its confirmations create only ephemeral developer-session rate governance and pricing context; the displayed result is not saved, approved, or a customer quote. Choosing a different source requests cancellation of an active analysis and waits for bounded worker cleanup before another analysis may start.
+The estimate form is intentionally empty for shop-owned numeric values. Enter `0` explicitly when zero is the intended value. Its confirmations create only ephemeral developer-session rate governance and pricing context; the displayed result is not saved, approved, or a customer quote. Choosing a different source requests cancellation of active work and waits for bounded worker cleanup before another analysis may start. A cancelled analysis is shown distinctly from a failure. Canonical-unit and warning confirmations are analysis-revision-bound and reset whenever analysis state changes; manual/rate/policy text may remain in the process only as draft convenience.
 
 For a macOS smoke-test bundle:
 
 ```sh
 cd apps/estimator-desktop
 cargo tauri build --debug --features desktop-host --bundles app --no-sign
-open ../../target/debug/bundle/macos/PartProbe.app
+PARTPROBE_GEOMETRY_WORKER="$PWD/../../target/debug/partprobe-geometry-worker" \
+PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
+PARTPROBE_OCCT_ROOT=/private/tmp/partprobe-occt-install \
+  ../../target/debug/bundle/macos/PartProbe.app/Contents/MacOS/partprobe-estimator-desktop
 ```
 
-The `.app` is a disposable local test artifact. It is not signed, notarized, installed, supported, or evidence for Windows/Linux packaging.
+Launching the bundle executable, rather than Finder or `open`, is intentional for this developer checkpoint because the three explicit environment paths must reach the host process. The `.app` is a disposable local test artifact. It is not signed, notarized, installed, supported, or evidence for Windows/Linux packaging. The completed Apple-Silicon checklist and exact limitations are recorded in [GUI-5 validation](../../docs/06-quality/gui-5-validation.md).

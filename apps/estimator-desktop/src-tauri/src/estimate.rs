@@ -5,6 +5,8 @@ use partprobe_application::{
     DraftMaterialCostInputs, DraftOperationCostInputs, DraftQuantityInputs, DraftRateContext,
     DraftStockInputs, DraftTimeInputs,
 };
+#[cfg(test)]
+use partprobe_desktop_contract::GeometryReviewInput;
 use partprobe_desktop_contract::{
     DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateEvaluation,
     DraftEstimateEvaluationState, DraftEstimateInputFields, DraftEstimateResultSummary,
@@ -419,6 +421,72 @@ fn money_text(value: &Money) -> String {
 
 fn invalid_input(diagnostic_id: &'static str) -> HostCommandError {
     HostCommandError::invalid_estimate_input(diagnostic_id)
+}
+
+#[cfg(test)]
+pub(crate) fn complete_test_request(
+    selection_id: &str,
+    analysis_id: &str,
+) -> EvaluateDraftEstimateRequest {
+    EvaluateDraftEstimateRequest {
+        selection_id: selection_id.to_owned(),
+        analysis_id: analysis_id.to_owned(),
+        review: GeometryReviewInput {
+            canonical_units_reviewed: true,
+            warnings_reviewed: true,
+        },
+        inputs: DraftEstimateInputFields {
+            stock_volume_mm3: "1480".to_owned(),
+            density_kg_per_mm3: "0.00000785".to_owned(),
+            deliver_quantity: "1".to_owned(),
+            planned_spares: "0".to_owned(),
+            destructive_samples: "0".to_owned(),
+            setup_hours: "3".to_owned(),
+            programming_hours: "2".to_owned(),
+            cutting_hours_per_item: "0.42".to_owned(),
+            non_cutting_hours_per_item: "0.18".to_owned(),
+            load_unload_hours_per_item: "0".to_owned(),
+            in_cycle_inspection_hours_per_item: "0".to_owned(),
+            quality_inspection_hours: "1".to_owned(),
+            purchased_material: "90".to_owned(),
+            cut_charge: "5".to_owned(),
+            material_certificate: "0".to_owned(),
+            inbound_freight: "5".to_owned(),
+            approved_remnant_credit: "0".to_owned(),
+            prove_out: "20".to_owned(),
+            tooling: "25".to_owned(),
+            consumables: "10".to_owned(),
+            fixture: "20".to_owned(),
+            outside_processing: "0".to_owned(),
+            operation_freight: "5".to_owned(),
+            nonrecurring_engineering: "50".to_owned(),
+            administration: "25".to_owned(),
+            overhead: "50".to_owned(),
+            accepted_risk_impact: "35".to_owned(),
+            expected_rework: "0".to_owned(),
+        },
+        rates: DeveloperRateInputFields {
+            confirmed_for_session: true,
+            rate_card_id: "developer-card".to_owned(),
+            rate_card_version: "1".to_owned(),
+            effective_on: "2026-08-09".to_owned(),
+            currency: "USD".to_owned(),
+            setup_labor_per_hour: "25".to_owned(),
+            programming_per_hour: "30".to_owned(),
+            run_labor_per_hour: "20".to_owned(),
+            machine_per_hour: "40".to_owned(),
+            quality_inspection_per_hour: "9".to_owned(),
+        },
+        pricing: DeveloperPricingInputFields {
+            confirmed_for_session: true,
+            pricing_policy_id: "developer-pricing".to_owned(),
+            pricing_policy_version: "1".to_owned(),
+            markup_rate: "0.35".to_owned(),
+            optional_price_floor: String::new(),
+            optional_minimum_order: String::new(),
+            rounding_decimal_places: "2".to_owned(),
+        },
+    }
 }
 
 #[cfg(test)]

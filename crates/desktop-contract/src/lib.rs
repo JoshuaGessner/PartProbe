@@ -432,6 +432,16 @@ impl HostCommandError {
     }
 
     #[must_use]
+    pub fn analysis_cancelled(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::AnalysisCancelled,
+            message: "The provisional geometry analysis was cancelled. The selected source remains available for retry."
+                .to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
     pub fn invalid_estimate_input(diagnostic_id: impl Into<String>) -> Self {
         Self {
             code: HostErrorCode::InvalidEstimateInput,
@@ -452,6 +462,7 @@ pub enum HostErrorCode {
     AnalysisUnavailable,
     AnalysisFailed,
     AnalysisInProgress,
+    AnalysisCancelled,
     InvalidEstimateInput,
 }
 
@@ -485,6 +496,19 @@ mod tests {
         );
         assert_eq!(ModelSourceFormat::from_extension("stl"), None);
         assert_eq!(ModelSourceFormat::from_extension(""), None);
+    }
+
+    #[test]
+    fn cancellation_is_a_distinct_retryable_host_result() {
+        let error = HostCommandError::analysis_cancelled("GUI4-ANALYSIS-CANCELLED-TEST");
+
+        assert_eq!(error.code, HostErrorCode::AnalysisCancelled);
+        assert!(error.message.contains("cancelled"));
+        assert!(error.message.contains("retry"));
+        assert_eq!(
+            serde_json::to_value(error).expect("host error must serialize")["code"],
+            "analysis_cancelled"
+        );
     }
 
     #[test]

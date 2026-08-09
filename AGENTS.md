@@ -66,6 +66,8 @@ These rules are mandatory for every person or agent changing this repository.
 54. GUI-4 contract v3 exposes exactly five application commands: contract discovery, source selection, analysis, analysis cancellation, and draft-estimate evaluation. Keep every command in the shared contract, Tauri manifest, exact permission, window capability, and host regression evidence.
 55. Analysis cancellation is selection-token-bound and cooperative, with the supervisor's existing bounded forced cleanup as fallback. A new source may request cancellation, but it must not silently replace an active native session or present cleanup as complete before the worker path returns.
 56. GUI-4 rates and pricing are explicit, confirmed, session-only developer inputs. Build typed rate governance and pricing-policy values in the native adapter, invoke only `DraftEstimateSession::evaluate`, and never present those ephemeral approvals as a durable shop library, production default, approved quote, or saved record.
+57. Canonical-unit and warning-review confirmations are bound to the current analysis revision. Clear them whenever source or analysis state changes; never carry a review decision into re-analysis. Present user-requested cancellation distinctly from worker failure and keep retry state explicit.
+58. The GUI-5 real-worker smoke is an opt-in native test requiring explicit worker, workspace, and OCCT-root paths. Keep it ignored in ordinary CI unless that job constructs the exact pinned native runtime; never promote feature-off or synthetic-port results into configured-native evidence.
 
 ## Documentation protocol
 

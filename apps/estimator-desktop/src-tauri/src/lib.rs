@@ -522,4 +522,48 @@ mod tests {
         assert!(matching.cancellation_requested);
         assert!(cancellation.load(Ordering::Acquire));
     }
+
+    #[cfg(feature = "desktop-host")]
+    #[test]
+    #[ignore = "requires the pinned OCCT root and native worker environment"]
+    fn gui5_configured_worker_runs_real_step_through_retained_estimate_session() {
+        let adapter = crate::analysis::DesktopAnalysisConfiguration::from_environment()
+            .and_then(crate::analysis::DesktopAnalysisConfiguration::build_adapter)
+            .expect("GUI-5 requires explicit valid worker/workspace/OCCT configuration");
+        let state = DesktopSessionState::with_analysis_adapter(adapter);
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/models/rectangular_prism_12x8x5.step")
+            .canonicalize()
+            .expect("GUI-5 STEP fixture must exist");
+        let source = state
+            .retain_selected_path(fixture.clone())
+            .expect("fixture must be retained behind an opaque selection token");
+
+        let analysis = state
+            .analyze_selected_source(&source.selection_id)
+            .expect("configured worker must analyze the real STEP fixture");
+
+        assert_eq!(analysis.geometry.surface_area_mm2, "392");
+        assert_eq!(analysis.geometry.enclosed_volume_mm3, "480");
+        assert_eq!(analysis.geometry.center_of_mass_mm, ["6", "4", "2.5"]);
+        let request =
+            crate::estimate::complete_test_request(&source.selection_id, &analysis.analysis_id);
+        let evaluation = state
+            .evaluate_draft_estimate(&request)
+            .expect("complete inputs must evaluate through the retained native session");
+        assert_eq!(
+            evaluation.state,
+            partprobe_desktop_contract::DraftEstimateEvaluationState::Available
+        );
+        assert_eq!(
+            evaluation
+                .result
+                .expect("available result must contain a trace")
+                .rounded_selling_price,
+            "702"
+        );
+        let serialized = serde_json::to_string(&analysis).expect("analysis must serialize");
+        assert!(!serialized.contains(fixture.to_string_lossy().as_ref()));
+        assert!(!serialized.contains("fixtures/models"));
+    }
 }
