@@ -3,26 +3,47 @@
 use std::{path::PathBuf, sync::Mutex};
 
 use partprobe_desktop_contract::{
-    AnalysisStatus, HostCommandError, ModelSourceFormat, PersistenceAvailability,
-    SelectedModelSource,
+    AnalysisStatus, HostCommandError, ModelAnalysisResult, ModelSourceFormat,
+    PersistenceAvailability, SelectedModelSource,
 };
+use partprobe_geometry_import::GeometryWorkerSupervisor;
+
+mod analysis;
+
+use analysis::DesktopAnalysisAdapter;
 
 #[derive(Debug)]
 pub struct DesktopSessionState {
     next_selection_number: Mutex<u64>,
+    next_analysis_number: Mutex<u64>,
     selected_source: Mutex<Option<RetainedModelSource>>,
+    analysis_session: Mutex<Option<RetainedAnalysisSession>>,
+    analysis_adapter: Option<DesktopAnalysisAdapter<GeometryWorkerSupervisor>>,
 }
 
 impl Default for DesktopSessionState {
     fn default() -> Self {
         Self {
             next_selection_number: Mutex::new(1),
+            next_analysis_number: Mutex::new(1),
             selected_source: Mutex::new(None),
+            analysis_session: Mutex::new(None),
+            analysis_adapter: None,
         }
     }
 }
 
 impl DesktopSessionState {
+    #[cfg(feature = "desktop-host")]
+    fn with_analysis_adapter(
+        analysis_adapter: DesktopAnalysisAdapter<GeometryWorkerSupervisor>,
+    ) -> Self {
+        Self {
+            analysis_adapter: Some(analysis_adapter),
+            ..Self::default()
+        }
+    }
+
     pub fn retain_selected_path(
         &self,
         path: PathBuf,
@@ -59,6 +80,10 @@ impl DesktopSessionState {
             .lock()
             .map_err(|_| HostCommandError::host_state_unavailable("GUI3-SELECTION-STATE"))? =
             Some(retained);
+        *self
+            .analysis_session
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-STATE"))? = None;
 
         Ok(summary)
     }
@@ -72,12 +97,81 @@ impl DesktopSessionState {
             .filter(|source| source.selection_id == selection_id)
             .map(|source| source.path)
     }
+
+    pub fn analyze_selected_source(
+        &self,
+        selection_id: &str,
+    ) -> Result<ModelAnalysisResult, HostCommandError> {
+        let selected = self
+            .selected_source
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-SELECTION"))?
+            .clone()
+            .filter(|source| source.selection_id == selection_id)
+            .ok_or_else(|| HostCommandError::stale_selection("GUI4-ANALYSIS-STALE-SELECTION"))?;
+        let adapter = self.analysis_adapter.as_ref().ok_or_else(|| {
+            HostCommandError::analysis_unavailable("GUI4-ANALYSIS-NOT-CONFIGURED")
+        })?;
+        let analysis_number = {
+            let mut next_number = self
+                .next_analysis_number
+                .lock()
+                .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-COUNTER"))?;
+            let number = *next_number;
+            *next_number = next_number.checked_add(1).unwrap_or(1);
+            number
+        };
+        let (session, result) = adapter.analyze(selection_id, &selected.path, analysis_number)?;
+
+        let current_selection = self
+            .selected_source
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-SELECTION"))?;
+        if current_selection
+            .as_ref()
+            .is_none_or(|current| current.selection_id != selection_id)
+        {
+            return Err(HostCommandError::stale_selection(
+                "GUI4-ANALYSIS-REPLACED-SELECTION",
+            ));
+        }
+        *self
+            .analysis_session
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-STATE"))? =
+            Some(RetainedAnalysisSession {
+                _selection_id: selection_id.to_owned(),
+                _analysis_id: result.analysis_id.clone(),
+                _session: session,
+            });
+        Ok(result)
+    }
+
+    #[cfg(test)]
+    fn retained_analysis_identity(&self) -> Option<(String, String)> {
+        self.analysis_session.lock().ok().and_then(|retained| {
+            retained.as_ref().map(|retained| {
+                let _ = retained._session.geometry();
+                (
+                    retained._selection_id.clone(),
+                    retained._analysis_id.clone(),
+                )
+            })
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
 struct RetainedModelSource {
     selection_id: String,
     path: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+struct RetainedAnalysisSession {
+    _selection_id: String,
+    _analysis_id: String,
+    _session: partprobe_application::DraftEstimateSession,
 }
 
 #[cfg(feature = "desktop-host")]
@@ -166,6 +260,7 @@ mod tests {
         assert_eq!(
             permissions,
             BTreeSet::from([
+                "allow-analyze-model-source",
                 "allow-desktop-contract",
                 "allow-select-model-source",
                 "core:event:allow-listen",
@@ -214,6 +309,15 @@ mod tests {
         assert!(!RUNTIME.contains("blocking_pick_file"));
     }
 
+    #[test]
+    fn geometry_analysis_is_async_and_accepts_only_the_path_free_contract_request() {
+        assert!(RUNTIME.contains("async fn analyze_model_source"));
+        assert!(RUNTIME.contains("AnalyzeModelSourceRequest"));
+        assert!(RUNTIME.contains("spawn_blocking"));
+        assert!(!RUNTIME.contains("source_path:"));
+        assert!(!RUNTIME.contains("request: PathBuf"));
+    }
+
     fn quoted_values_in_rust_slice(source: &str, anchor: &str) -> BTreeSet<String> {
         quoted_values_in_section(source, anchor, "];", false)
     }
@@ -249,5 +353,30 @@ mod tests {
 
         assert_eq!(state.retained_path(&first.selection_id), None);
         assert_eq!(state.retained_path(&second.selection_id), Some(second_path));
+    }
+
+    #[test]
+    fn analysis_requires_the_current_selection_and_explicit_worker_configuration() {
+        let state = DesktopSessionState::default();
+        let source = state
+            .retain_selected_path(std::env::temp_dir().join("fixture.step"))
+            .expect("STEP selection must be retained");
+
+        let stale = state
+            .analyze_selected_source("selection-stale")
+            .expect_err("stale selection must fail before configuration lookup");
+        assert_eq!(
+            stale.code,
+            partprobe_desktop_contract::HostErrorCode::StaleSelection
+        );
+
+        let unavailable = state
+            .analyze_selected_source(&source.selection_id)
+            .expect_err("unconfigured developer worker must stay unavailable");
+        assert_eq!(
+            unavailable.code,
+            partprobe_desktop_contract::HostErrorCode::AnalysisUnavailable
+        );
+        assert!(state.retained_analysis_identity().is_none());
     }
 }

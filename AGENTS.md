@@ -61,6 +61,8 @@ These rules are mandatory for every person or agent changing this repository.
 49. The production desktop baseline uses bundled local content, a restrictive CSP, native window decorations, and no frontend shell, HTTP, filesystem, opener, updater, upload, or dialog permission. Development-only localhost serving does not authorize a production network capability.
 50. Keep the desktop host responsive while native dialogs and application jobs are active. Do not call blocking dialog APIs from a Tauri command; cancellation must preserve the last accepted session state unless the user explicitly clears it.
 51. For GUI-4 intake, derive the source hash only after application-service authorization and audit, from the same already-open bounded grant later consumed by the worker. The desktop host must not pre-read CAD to manufacture a trusted request hash.
+52. GUI-4 desktop analysis commands accept only opaque native session tokens. Invoke `DraftEstimateApplication` off the UI thread, retain `DraftEstimateSession` in native session state, and expose only path-free provisional DTOs; never send a source path, CAD bytes, or application/domain authority into the WebView.
+53. The developer STEP worker, workspace, and native-library paths must be explicit deployment configuration. Missing or invalid configuration remains visibly `Unavailable`; do not fall back to in-process parsing, ambient executable discovery, numeric defaults, or a falsely successful result.
 
 ## Documentation protocol
 

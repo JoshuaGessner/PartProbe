@@ -7,6 +7,7 @@
   "permissions": [
     "allow-desktop-contract",
     "allow-select-model-source",
+    "allow-analyze-model-source",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

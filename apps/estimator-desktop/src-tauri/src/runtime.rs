@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 
 use partprobe_desktop_contract::{
-    DesktopContract, EVENT_MODEL_SOURCE_SELECTED, HostCommandError, ModelSourceSelectedEvent,
-    ModelSourceSelection,
+    AnalyzeModelSourceRequest, DesktopContract, EVENT_MODEL_SOURCE_SELECTED, HostCommandError,
+    ModelAnalysisResult, ModelSourceSelectedEvent, ModelSourceSelection,
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
 use crate::DesktopSessionState;
+use crate::analysis::DesktopAnalysisConfiguration;
 
 #[tauri::command]
 fn desktop_contract() -> DesktopContract {
@@ -44,6 +45,19 @@ async fn select_model_source(
     Ok(ModelSourceSelection::Selected { source })
 }
 
+#[tauri::command]
+async fn analyze_model_source(
+    app: tauri::AppHandle,
+    request: AnalyzeModelSourceRequest,
+) -> Result<ModelAnalysisResult, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<DesktopSessionState>()
+            .analyze_selected_source(&request.selection_id)
+    })
+    .await
+    .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-TASK"))?
+}
+
 fn desktop_path(selected: FilePath) -> Result<PathBuf, HostCommandError> {
     match selected {
         FilePath::Path(path) => Ok(path),
@@ -54,9 +68,15 @@ fn desktop_path(selected: FilePath) -> Result<PathBuf, HostCommandError> {
 }
 
 pub fn run() {
+    let session_state = DesktopAnalysisConfiguration::from_environment()
+        .and_then(DesktopAnalysisConfiguration::build_adapter)
+        .map_or_else(
+            |_| DesktopSessionState::default(),
+            DesktopSessionState::with_analysis_adapter,
+        );
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(DesktopSessionState::default())
+        .manage(session_state)
         .setup(|app| {
             let window = app
                 .get_webview_window("main")
@@ -66,7 +86,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             desktop_contract,
-            select_model_source
+            select_model_source,
+            analyze_model_source
         ])
         .run(tauri::generate_context!())
         .expect("PartProbe desktop host failed");

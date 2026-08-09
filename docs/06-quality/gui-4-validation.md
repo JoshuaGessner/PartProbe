@@ -4,7 +4,7 @@
 > **Last updated:** 2026-08-09
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-004, REQ-NF-005, REQ-NF-017; SEC-003, SEC-004; TEST-003, TEST-011, TEST-014, TEST-021, TEST-030
 > **Related ADRs:** ADR-0001, ADR-0002, ADR-0005, ADR-0007, ADR-0008
-> **Open questions:** Native worker configuration/packaging, desktop cancellation ownership, developer-session authorization policy, complete safe workspace DTO
+> **Open questions:** Native worker packaging, desktop cancellation ownership, durable authorization/audit policy, complete estimate-input/result DTO
 > **Dependencies:** GUI-1 evidence, GUI-2 application service, GUI-3 shell
 > **Supersedes:** None
 
@@ -14,20 +14,28 @@ GUI-4 is not complete. Its first blocking application seam is implemented: `Draf
 
 `AssetReadGrant::fingerprint_sha256` checks the captured file length, enforces the nonzero maximum input size, computes typed SHA-256, and rewinds the open handle before return. This fingerprint is not accepted as worker truth: the existing supervisor/worker transport independently rechecks regular-file identity, length, quota, and hash before parsing.
 
+The second slice connects that seam to desktop contract v2. `analyze_model_source` accepts only an opaque selection token and runs blocking application/worker work outside the UI task. The native adapter requires explicit `PARTPROBE_GEOMETRY_WORKER`, `PARTPROBE_GEOMETRY_WORKSPACE`, and `PARTPROBE_OCCT_ROOT` configuration; missing or invalid paths remain `AnalysisUnavailable`. A narrow developer-session policy and append-only in-memory audit govern the selected local root, the application service constructs the request and session, and native state retains the complete `DraftEstimateSession`. The WebView receives only the selection/analysis IDs, hashes, stage names/status/warning codes, provisional canonical-millimeter exact-B-rep facts, engine/ABI evidence, and an explicit `Unavailable` estimate reason.
+
+The Leptos workspace now renders not-started, running, safe failure, and provisional-evidence states. It labels all work session-only and provisional, keeps review/rate/price states unavailable, and does not contain CAD parsing, hashing, rate resolution, pricing, or estimate formulas.
+
 ## Focused evidence
 
 - A bounded synthetic source fingerprints to its known SHA-256 value, and reading the grant immediately afterward returns the complete original bytes from offset zero.
 - An allowed application request appends one authorization audit event, produces the expected path-free request digest at the analysis port, and returns a provisional session that remains `Unavailable` before review/manual/rate/policy input.
 - A denied request names a nonexistent relative source yet returns the policy failure, records one decision event, and performs no analysis. This proves policy/audit precede filesystem resolution and fingerprinting.
+- A positive desktop adapter test analyzes the independently authored rectangular-prism fixture through a deterministic `GeometryAnalysisPort`, records one authorization event, retains a session whose estimate is still `Unavailable`, returns 392 mm² / 480 mm³ / `(6, 4, 2.5)` mm path-free facts, and proves serialized output contains no source path.
+- Host tests prove stale tokens fail before analysis, missing worker configuration remains unavailable, the Tauri manifest/capability expose exactly the three intended commands, analysis uses a background task, and the WebView request carries no `PathBuf`. Contract/UI tests preserve provisional and failure language without implying an estimate.
 
 Focused command:
 
 ```sh
 cargo test -p partprobe-geometry-import -p partprobe-application --locked
+cargo test -p partprobe-desktop-contract -p partprobe-estimator-desktop-ui --all-targets --locked
+cargo test -p partprobe-estimator-desktop --features desktop-host --all-targets --locked
 ```
 
-Repository-wide formatting, warnings-as-errors Clippy, 122 local macOS runtime tests, one compile-fail doctest, six native-tooling tests, 141-document planning validation, fixture hashes, and diff checks pass. Main run 31331776813 validates commit `63d0cae` on macOS, Ubuntu, and Windows, including the GUI-4 intake regressions and the Windows CPU fixture. That fixture now has a 30-second test-only observation window without changing the hard 100 ms CPU limit, production behavior, or expected `WORKER_EXIT`.
+The local macOS default workspace passes 128 runtime tests. The GUI-4 focused contract/native-host/UI set passes 20 tests, strict native-host and WASM Clippy pass, and the offline release frontend bundle plus a 1280 × 900 semantic/visual preview pass without browser diagnostics. Main run 31331776813 is the latest pushed three-OS evidence and predates this continuation. No pinned OCCT installation was present in this session, so the actual configured desktop-to-native-worker success path remains a GUI-5 smoke prerequisite; existing optional-native adapter/supervisor tests remain the native execution evidence.
 
 ## Remaining GUI-4 exit work
 
-The Tauri runtime still exposes no analysis command and retains no `DraftEstimateSession`. It needs an explicit developer-session authorization/audit adapter, supervised-worker/native-library configuration, async execution and cancellation, safe geometry/review/input/rate/result DTOs, Leptos forms, and deterministic result rendering. No GUI can yet analyze the selected STEP model or produce an estimate. No calculation behavior, geometry interpretation, worker protocol/schema, native ABI, persisted/customer schema, production rate, dependency, or support claim changed in this slice.
+GUI-4 still needs cancellation and explicit canonical-unit/warning review, complete manual stock/material/time/cost/quantity inputs, pinned rate-card/effective-date/ordered-scope context, pinned pricing policy, safe result/trace DTOs, and the corresponding Leptos forms. The code can now analyze a selected STEP source only when the external developer worker and pinned OCCT paths are configured; it still cannot produce an estimate. No calculation behavior, geometry interpretation, worker protocol/schema, native ABI, persisted/customer schema, production rate, third-party dependency, or support claim changed in this slice.

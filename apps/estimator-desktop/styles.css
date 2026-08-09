@@ -177,31 +177,57 @@ h2 {
   line-height: 1.55;
 }
 
-.primary-action {
+.primary-action,
+.secondary-action {
   min-height: 36px;
   padding: 8px 16px;
   border: 1px solid var(--action-primary);
   border-radius: 2px;
-  color: #06121d;
-  background: var(--action-primary);
   font-weight: 650;
   cursor: pointer;
 }
 
-.primary-action:hover:not(:disabled) {
+.primary-action {
+  color: #06121d;
+  background: var(--action-primary);
+}
+
+.secondary-action {
+  color: var(--action-focus);
+  background: transparent;
+}
+
+.primary-action:hover:not(:disabled),
+.secondary-action:hover:not(:disabled) {
   border-color: var(--action-hover);
+}
+
+.primary-action:hover:not(:disabled) {
   background: var(--action-hover);
 }
 
 .primary-action:focus-visible,
+.secondary-action:focus-visible,
 .skip-link:focus-visible {
   outline: 3px solid var(--action-focus);
   outline-offset: 3px;
 }
 
-.primary-action:disabled {
-  cursor: wait;
+.primary-action:disabled,
+.secondary-action:disabled {
+  cursor: not-allowed;
   opacity: 0.58;
+}
+
+.analyze-action {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.analyze-action:disabled {
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+  background: transparent;
 }
 
 .source-summary,
@@ -250,6 +276,59 @@ dd {
 .blocked-state .blocked-title {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.analysis-evidence,
+.analysis-progress,
+.analysis-error {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(7, 13, 20, 0.62);
+}
+
+.analysis-evidence-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.analysis-evidence h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.geometry-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--border-subtle);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.geometry-facts div {
+  min-width: 0;
+  padding: 10px;
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.evidence-note,
+.analysis-progress p,
+.analysis-error p {
+  margin: 12px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.analysis-error {
+  border-left: 2px solid var(--danger);
+}
+
+.diagnostic-id {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
 }
 
 @media (max-width: 860px) {

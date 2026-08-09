@@ -2813,6 +2813,7 @@ name = "partprobe-desktop-contract"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2847,7 +2848,12 @@ dependencies = [
 name = "partprobe-estimator-desktop"
 version = "0.1.0"
 dependencies = [
+ "partprobe-application",
  "partprobe-desktop-contract",
+ "partprobe-domain",
+ "partprobe-geometry-core",
+ "partprobe-geometry-import",
+ "partprobe-security",
  "serde_json",
  "tauri",
  "tauri-build",
@@ -2860,6 +2866,7 @@ version = "0.1.0"
 dependencies = [
  "leptos",
  "partprobe-desktop-contract",
+ "serde",
  "serde-wasm-bindgen",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -1,6 +1,6 @@
 # PartProbe desktop developer shell
 
-> **Status:** GUI-3 developer checkpoint; unsigned, session-only, and not a supported product package.
+> **Status:** GUI-4 developer checkpoint; unsigned, session-only, and not a supported product package.
 
 The desktop composition root is split into three Rust boundaries:
 
@@ -8,7 +8,7 @@ The desktop composition root is split into three Rust boundaries:
 - this directory owns the Leptos 0.8 CSR presentation and design-system foundations;
 - `src-tauri` owns the Tauri 2 host, native dialog, retained source path, capability file, and production CSP.
 
-The current shell can choose one local `.step` or `.stp` file. It does not read, analyze, estimate, save, or upload that model. The native host retains the path only for the running process and returns a session token plus the leaf filename to the webview. GUI-4 will adapt that retained selection to `DraftEstimateApplication`; it must not move geometry or estimate authority into the UI.
+The current shell can choose one local `.step` or `.stp` file and, when an external pinned developer worker is explicitly configured, request provisional geometry facts through `DraftEstimateApplication`. The native host retains the selected path and complete `DraftEstimateSession` only for the running process. The WebView receives a session token, leaf filename, hashes, sanitized stage codes, and provisional measurements; it never receives the path or CAD bytes. Estimate review/input/rate/policy forms and cancellation are not implemented, so selling price remains unavailable. No data is saved or uploaded.
 
 ## Pinned developer tools
 
@@ -32,7 +32,8 @@ cargo install tauri-cli --version 2.11.4 --locked
 From the repository root:
 
 ```sh
-cargo test -p partprobe-desktop-contract -p partprobe-estimator-desktop-ui -p partprobe-estimator-desktop --locked
+cargo test -p partprobe-desktop-contract -p partprobe-estimator-desktop-ui --all-targets --locked
+cargo test -p partprobe-estimator-desktop --features desktop-host --all-targets --locked
 cargo clippy -p partprobe-estimator-desktop-ui --target wasm32-unknown-unknown --locked -- -D warnings
 cargo clippy -p partprobe-estimator-desktop --features desktop-host --all-targets --locked -- -D warnings
 ```
@@ -44,11 +45,25 @@ cd apps/estimator-desktop
 trunk build --release --locked true --offline true
 ```
 
-Run the unsigned shell from the repository root after the frontend exists:
+Run the unsigned shell from the repository root after the frontend exists. Without the explicit worker configuration below, source selection works and analysis fails closed as unavailable:
 
 ```sh
 cargo run -p partprobe-estimator-desktop --features desktop-host --locked
 ```
+
+To enable the provisional STEP analysis command, first build the external worker against the separately constructed pinned OCCT 8.0.0 root, create a dedicated empty worker workspace, and supply all three paths explicitly:
+
+```sh
+PARTPROBE_OCCT_ROOT=/approved/local/occt-install \
+  cargo build -p partprobe-geometry-worker --features native-occt --locked
+mkdir -p /private/tmp/partprobe-gui-worker
+PARTPROBE_GEOMETRY_WORKER="$PWD/target/debug/partprobe-geometry-worker" \
+PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
+PARTPROBE_OCCT_ROOT=/approved/local/occt-install \
+  cargo run -p partprobe-estimator-desktop --features desktop-host --locked
+```
+
+The host validates that the worker executable, workspace, and OCCT `lib` directory exist. Missing configuration does not trigger ambient discovery or in-process parsing; selection remains available and analysis returns a path-free `AnalysisUnavailable` result. The current request limits are 64 MiB input, 1 MiB output, 2,000,000 entities, 30 seconds wall/CPU, 2 GiB worker memory, 1 MiB protocol frames, 10 ms polling, and 250 ms cancellation grace. These are internal developer-profile bounds, not production performance or support commitments.
 
 For a macOS smoke-test bundle:
 

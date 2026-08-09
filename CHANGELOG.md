@@ -35,6 +35,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - GUI-2 headless draft-estimate orchestration: governed source authorization, a concrete supervised-geometry adapter, explicit provisional-evidence review and manual inputs, pinned rate/policy resolution, deterministic itemized results, replay trace, and focused missing/conflict/recalculation tests.
 - GUI-3 restrictive Tauri 2/Leptos developer shell with a versioned framework-neutral desktop contract, asynchronous host-owned STEP picker, native-only raw path retention, leaf-name-only frontend summary, exact command/capability/CSP regression tests, deliberate design-system foundations, unsigned Apple-Silicon bundle evidence, and a developer runbook.
 - GUI-4 intake foundation: an application-owned request template now authorizes and audits the selected source before deriving a bounded SHA-256 fingerprint from the same already-open grant subsequently consumed and independently verified by the geometry worker.
+- GUI-4 native analysis workspace: desktop contract v2 adds a token-only asynchronous analysis command, explicit fail-closed worker/workspace/OCCT configuration, developer-session authorization and in-memory audit, native `DraftEstimateSession` retention, path-free provisional exact-B-rep evidence, and deliberately unavailable estimate states in the Leptos workspace.
 
 ### Security
 

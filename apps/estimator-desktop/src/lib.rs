@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
-use partprobe_desktop_contract::{ModelSourceSelection, SelectedModelSource};
+use partprobe_desktop_contract::{
+    HostCommandError, ModelAnalysisResult, ModelSourceSelection, SelectedModelSource,
+};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum ModelPanelState {
@@ -36,6 +38,49 @@ impl ModelPanelState {
     pub fn apply_selection(&mut self, selection: ModelSourceSelection) {
         if let ModelSourceSelection::Selected { source } = selection {
             *self = Self::Selected(source);
+        }
+    }
+
+    #[must_use]
+    pub const fn selected_source(&self) -> Option<&SelectedModelSource> {
+        match self {
+            Self::Selected(source) => Some(source),
+            Self::Empty | Self::Failed => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum AnalysisPanelState {
+    #[default]
+    NotStarted,
+    Running,
+    Available(Box<ModelAnalysisResult>),
+    Failed(HostCommandError),
+}
+
+impl AnalysisPanelState {
+    #[must_use]
+    pub const fn status_heading(&self) -> &'static str {
+        match self {
+            Self::NotStarted => "Provisional analysis not started",
+            Self::Running => "Analyzing in the isolated worker",
+            Self::Available(_) => "Provisional geometry available",
+            Self::Failed(_) => "Provisional analysis failed safely",
+        }
+    }
+
+    #[must_use]
+    pub fn status_detail(&self) -> &str {
+        match self {
+            Self::NotStarted => {
+                "Analysis requires a locally configured developer worker and does not save results."
+            }
+            Self::Running => {
+                "The native application service is authorizing, hashing, and analyzing the selected source."
+            }
+            Self::Available(result) => &result.estimate.reason,
+            Self::Failed(error) => &error.message,
         }
     }
 }
@@ -95,5 +140,14 @@ mod tests {
         state.apply_selection(ModelSourceSelection::Cancelled);
 
         assert_eq!(state, ModelPanelState::Selected(source));
+    }
+
+    #[test]
+    fn analysis_failure_remains_explicit_and_recoverable() {
+        let state =
+            AnalysisPanelState::Failed(HostCommandError::analysis_failed("GUI4-ANALYSIS-TEST"));
+
+        assert!(state.status_heading().contains("failed safely"));
+        assert!(state.status_detail().contains("remains available"));
     }
 }

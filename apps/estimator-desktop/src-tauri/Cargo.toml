@@ -10,7 +10,12 @@ default = []
 desktop-host = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-dialog"]
 
 [dependencies]
+partprobe-application.workspace = true
 partprobe-desktop-contract.workspace = true
+partprobe-domain.workspace = true
+partprobe-geometry-core.workspace = true
+partprobe-geometry-import.workspace = true
+partprobe-security.workspace = true
 serde_json.workspace = true
 tauri = { workspace = true, optional = true }
 tauri-plugin-dialog = { workspace = true, optional = true }
