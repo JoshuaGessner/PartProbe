@@ -35,7 +35,7 @@ cargo test -p partprobe-desktop-contract -p partprobe-estimator-desktop-ui --all
 cargo test -p partprobe-estimator-desktop --features desktop-host --all-targets --locked
 ```
 
-The local macOS default workspace passes 134 runtime tests. The GUI-4 focused contract/native-host/UI set passes 26 tests, strict workspace/native-host/WASM Clippy pass, and the offline release frontend bundle plus an initial semantic/visual preview pass without browser diagnostics. GitHub Actions run 31334097970 remains the latest complete three-OS evidence for the preceding analysis checkpoint; fresh contract-v3 CI is pending. No pinned OCCT installation was present in this session, so the configured desktop-to-native-worker-to-estimate success path and live post-analysis form remain GUI-5 smoke prerequisites; existing optional-native adapter/supervisor tests remain the native execution evidence.
+The local macOS default workspace passes 134 runtime tests. The GUI-4 focused contract/native-host/UI set passes 26 tests, strict workspace/native-host/WASM Clippy pass, and the offline release frontend bundle plus an initial semantic/visual preview pass without browser diagnostics. GitHub Actions run 31336768681 passes formatting, six native-tooling tests, all three lint surfaces, all-target tests, and doctests on macOS, Ubuntu, and Windows at contract-v3 implementation commit `2868212`. No pinned OCCT installation was present in this session, so the configured desktop-to-native-worker-to-estimate success path and live post-analysis form remain GUI-5 smoke prerequisites; existing optional-native adapter/supervisor tests remain the native execution evidence.
 
 ## Remaining acceptance evidence
 
