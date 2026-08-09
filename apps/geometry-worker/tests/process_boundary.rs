@@ -127,7 +127,16 @@ fn execute_resource_fixture(
     supervisor: &GeometryWorkerSupervisor,
     cancellation: &AtomicBool,
 ) -> partprobe_geometry_import::GeometryWorkerExecution {
-    let request = cancellation_request(job_id, 5_000);
+    execute_resource_fixture_with_wall_deadline(job_id, supervisor, cancellation, 5_000)
+}
+
+fn execute_resource_fixture_with_wall_deadline(
+    job_id: &str,
+    supervisor: &GeometryWorkerSupervisor,
+    cancellation: &AtomicBool,
+    wall_time_millis: u64,
+) -> partprobe_geometry_import::GeometryWorkerExecution {
+    let request = cancellation_request(job_id, wall_time_millis);
     let grant = cancellation_asset_grant(&request);
     supervisor.execute_with_grant(&request, grant, cancellation)
 }
@@ -614,10 +623,11 @@ fn uncooperative_deadline_is_force_terminated_after_grace() {
 fn worker_cpu_time_is_hard_limited_before_the_wall_deadline() {
     let supervisor = resource_fixture_supervisor(512 * 1024 * 1024, 100);
 
-    let execution = execute_resource_fixture(
+    let execution = execute_resource_fixture_with_wall_deadline(
         &format!("resource-cpu-{}", std::process::id()),
         &supervisor,
         &AtomicBool::new(false),
+        30_000,
     );
 
     assert_eq!(

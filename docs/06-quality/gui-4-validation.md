@@ -26,7 +26,7 @@ Focused command:
 cargo test -p partprobe-geometry-import -p partprobe-application --locked
 ```
 
-Repository-wide formatting, warnings-as-errors Clippy, 122 local macOS runtime tests, one compile-fail doctest, six native-tooling tests, 141-document planning validation, fixture hashes, and diff checks pass. Consolidated-main run 31327747010 predates this GUI-4 change and passes macOS/Ubuntu; its Windows job has one separate CPU-containment fixture timing failure under investigation.
+Repository-wide formatting, warnings-as-errors Clippy, 122 local macOS runtime tests, one compile-fail doctest, six native-tooling tests, 141-document planning validation, fixture hashes, and diff checks pass. Consolidated-main run 31327747010 predates this GUI-4 change and passes macOS/Ubuntu; its Windows CPU fixture reached the former 5-second wall deadline before accumulating the 100 ms user-CPU ceiling. The approved test-only fix increases that fixture deadline to 30 seconds without changing the hard CPU limit, production behavior, or expected `WORKER_EXIT`; replacement evidence is pending.
 
 ## Remaining GUI-4 exit work
 
