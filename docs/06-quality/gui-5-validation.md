@@ -46,6 +46,8 @@ PARTPROBE_OCCT_ROOT=/private/tmp/partprobe-occt-install \
 
 Result: one configured native smoke test passed in 0.24 seconds on the final closeout run. Ordinary desktop-host execution passes 17 tests and reports this test ignored unless the developer opts in. The focused contract/UI/native-host set totals 29 passing tests plus that one ignored smoke.
 
+GitHub Actions run 31340568277 passes formatting, six native-tooling tests, strict workspace/native-host/WASM lint, all-target tests, and doctests on macOS, Ubuntu, and Windows at GUI-5 implementation commit `40c20a2`. The native OCCT smoke remains explicit Apple-Silicon local evidence and is not run by that feature-off default matrix.
+
 ## Actual application checklist
 
 An unsigned debug `PartProbe.app` was built from the current bundled frontend and launched by its executable with the same three explicit native environment paths. The manual checklist passed:
