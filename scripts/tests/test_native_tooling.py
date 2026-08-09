@@ -12,6 +12,7 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
 import build_occt  # noqa: E402
+import assemble_native_runtime  # noqa: E402
 import verify_native_step  # noqa: E402
 
 
@@ -52,7 +53,12 @@ class BuildOcctTests(unittest.TestCase):
 
     def test_source_validation_requires_commit_tag_and_clean_tree(self) -> None:
         responses = iter(
-            [build_occt.EXPECTED_OCCT_COMMIT, "", "V8_0_0", "tree-digest"]
+            [
+                build_occt.EXPECTED_OCCT_COMMIT,
+                "",
+                "V8_0_0",
+                build_occt.EXPECTED_OCCT_TREE,
+            ]
         )
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
@@ -62,7 +68,10 @@ class BuildOcctTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     build_occt.validate_source(source),
-                    (build_occt.EXPECTED_OCCT_COMMIT, "tree-digest"),
+                    (
+                        build_occt.EXPECTED_OCCT_COMMIT,
+                        build_occt.EXPECTED_OCCT_TREE,
+                    ),
                 )
 
     def test_manifest_records_selected_generator_and_compilers(self) -> None:
@@ -120,6 +129,148 @@ class VerifyNativeStepTests(unittest.TestCase):
             self.create_install(root, "7.9.3")
             with self.assertRaises(ValueError):
                 verify_native_step.inspect_occt(root)
+
+
+class AssembleNativeRuntimeTests(unittest.TestCase):
+    def create_inputs(self, root: Path) -> tuple[Path, Path, Path]:
+        system, machine = assemble_native_runtime.host_identity()
+        install = root / "install"
+        include = install / "include" / "opencascade"
+        libraries = install / "lib"
+        include.mkdir(parents=True)
+        libraries.mkdir()
+        (include / "Standard_Version.hxx").write_text(
+            '#define OCC_VERSION_COMPLETE "8.0.0"\n', encoding="utf-8"
+        )
+        if system == "windows":
+            runtime_libraries = install / "bin"
+            runtime_libraries.mkdir()
+            for name in verify_native_step.REQUIRED_LIBRARIES:
+                content = name.encode("ascii")
+                (libraries / f"{name}.lib").write_bytes(content)
+                (runtime_libraries / f"{name}.dll").write_bytes(content)
+            (runtime_libraries / "TKDE.dll").write_bytes(b"transitive-runtime")
+        else:
+            suffix = ".dylib" if system == "darwin" else ".so"
+            for name in verify_native_step.REQUIRED_LIBRARIES:
+                (libraries / f"lib{name}{suffix}").write_bytes(name.encode("ascii"))
+            (libraries / f"libTKDE{suffix}").write_bytes(b"transitive-runtime")
+
+        worker = root / (
+            "partprobe-geometry-worker.exe"
+            if system == "windows"
+            else "partprobe-geometry-worker"
+        )
+        worker.write_bytes(b"verified-native-worker")
+        if system != "windows":
+            worker.chmod(0o755)
+        build_manifest = root / "partprobe-occt-build-manifest.json"
+        build_manifest.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "occt_version": verify_native_step.EXPECTED_OCCT_VERSION,
+                    "occt_commit": verify_native_step.EXPECTED_OCCT_COMMIT,
+                    "occt_tree": verify_native_step.EXPECTED_OCCT_TREE,
+                    "platform": system,
+                    "machine": machine,
+                    "build_type": "Release",
+                    "library_type": "Shared",
+                }
+            ),
+            encoding="utf-8",
+        )
+        return install, worker, build_manifest
+
+    def test_runtime_is_assembled_and_verified_without_absolute_source_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install, worker, build_manifest = self.create_inputs(root)
+            output = root / "runtime"
+
+            manifest = assemble_native_runtime.assemble_runtime(
+                install, worker, build_manifest, output
+            )
+            verified = assemble_native_runtime.verify_runtime(output)
+
+            self.assertEqual(verified, manifest)
+            self.assertEqual(
+                manifest["configuration"]["PARTPROBE_GEOMETRY_WORKER"],
+                f"bin/{worker.name}",
+            )
+            self.assertEqual(manifest["configuration"]["PARTPROBE_OCCT_ROOT"], ".")
+            self.assertIn("TKDE", manifest["libraries"])
+            serialized = json.dumps(manifest)
+            self.assertNotIn(str(root), serialized)
+            self.assertTrue((output / "bin" / worker.name).is_file())
+
+    def test_runtime_verification_detects_worker_tampering(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install, worker, build_manifest = self.create_inputs(root)
+            output = root / "runtime"
+            assemble_native_runtime.assemble_runtime(
+                install, worker, build_manifest, output
+            )
+
+            (output / "bin" / worker.name).write_bytes(b"replaced-worker")
+
+            with self.assertRaises(ValueError):
+                assemble_native_runtime.verify_runtime(output)
+
+    def test_runtime_assembly_never_overwrites_existing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install, worker, build_manifest = self.create_inputs(root)
+            output = root / "runtime"
+            output.mkdir()
+
+            with self.assertRaises(ValueError):
+                assemble_native_runtime.assemble_runtime(
+                    install, worker, build_manifest, output
+                )
+
+    def test_runtime_manifest_rejects_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install, worker, build_manifest = self.create_inputs(root)
+            output = root / "runtime"
+            assemble_native_runtime.assemble_runtime(
+                install, worker, build_manifest, output
+            )
+            manifest_path = output / assemble_native_runtime.MANIFEST_NAME
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["configuration"]["PARTPROBE_GEOMETRY_WORKER"] = (
+                "/unreviewed/worker"
+            )
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaises(ValueError):
+                assemble_native_runtime.verify_runtime(output)
+
+            manifest["worker"]["path"] = "../partprobe-geometry-worker"
+            manifest["configuration"]["PARTPROBE_GEOMETRY_WORKER"] = manifest[
+                "worker"
+            ]["path"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaises(ValueError):
+                assemble_native_runtime.verify_runtime(output)
+
+    def test_windows_runtime_library_comes_from_bin(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binaries = root / "bin"
+            binaries.mkdir()
+            expected = binaries / "TKernel.dll"
+            expected.write_bytes(b"runtime")
+
+            self.assertEqual(
+                assemble_native_runtime.runtime_library_sources(
+                    root, "TKernel", "windows"
+                ),
+                [expected],
+            )
 
 
 if __name__ == "__main__":

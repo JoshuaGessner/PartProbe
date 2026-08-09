@@ -60,26 +60,33 @@ python3 scripts/build_occt.py \
   --install /private/tmp/partprobe-occt-install
 ```
 
-To enable the provisional STEP analysis command, build the external worker against that root, create a dedicated empty worker workspace, and supply all three paths explicitly:
+To enable the provisional STEP analysis command, build the external worker against that root. Then assemble a separate developer runtime from the worker, the OCCT install, and the construction manifest. The assembler copies the worker plus the complete OCCT runtime closure into one new directory, records only relative launch paths, fingerprints every regular file and safe local symlink, verifies the copied root, and refuses to overwrite an existing output:
 
 ```sh
 PARTPROBE_OCCT_ROOT=/approved/local/occt-install \
   cargo build -p partprobe-geometry-worker --features native-occt --locked
+python3 scripts/assemble_native_runtime.py assemble \
+  --occt-root /approved/local/occt-install \
+  --worker "$PWD/target/debug/partprobe-geometry-worker" \
+  --build-manifest /approved/local/occt-build/partprobe-occt-build-manifest.json \
+  --output /approved/local/partprobe-native-runtime
+python3 scripts/assemble_native_runtime.py verify \
+  --runtime-root /approved/local/partprobe-native-runtime
 mkdir -p /private/tmp/partprobe-gui-worker
-PARTPROBE_GEOMETRY_WORKER="$PWD/target/debug/partprobe-geometry-worker" \
+PARTPROBE_GEOMETRY_WORKER=/approved/local/partprobe-native-runtime/bin/partprobe-geometry-worker \
 PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
-PARTPROBE_OCCT_ROOT=/approved/local/occt-install \
+PARTPROBE_OCCT_ROOT=/approved/local/partprobe-native-runtime \
   cargo run -p partprobe-estimator-desktop --features desktop-host --locked
 ```
 
-Cargo feature variants share the same `target/debug/partprobe-geometry-worker` path. A later ordinary feature-off workspace build can intentionally replace the native executable with the unavailable stub. Run the `native-occt` worker build immediately before the smoke/launch commands, or copy the verified native executable to a dedicated explicit path and set `PARTPROBE_GEOMETRY_WORKER` to that copy. A feature-off replacement fails safely with `GUI4-ANALYSIS-WORKER`; it is not evidence that OCCT construction failed.
+Cargo feature variants share the same `target/debug/partprobe-geometry-worker` path. A later ordinary feature-off workspace build can intentionally replace the native executable with the unavailable stub. The assembled runtime is the preferred developer path because it retains the verified native executable independently of later Cargo builds and includes transitive OCCT libraries such as `TKDE`, `TKXCAF`, and `TKService`, not only the thirteen libraries linked directly by the worker. The runtime manifest is content-addressed evidence, not a signature or tamper-proof installation; run `verify` before use. A feature-off replacement of the Cargo output fails safely with `GUI4-ANALYSIS-WORKER`; it is not evidence that OCCT construction failed.
 
 Run the opt-in GUI-5 host smoke before manual acceptance. It is deliberately ignored by ordinary CI and fails closed unless every native path is explicit:
 
 ```sh
-PARTPROBE_GEOMETRY_WORKER="$PWD/target/debug/partprobe-geometry-worker" \
+PARTPROBE_GEOMETRY_WORKER=/approved/local/partprobe-native-runtime/bin/partprobe-geometry-worker \
 PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
-PARTPROBE_OCCT_ROOT=/private/tmp/partprobe-occt-install \
+PARTPROBE_OCCT_ROOT=/approved/local/partprobe-native-runtime \
   cargo test -p partprobe-estimator-desktop --features desktop-host \
     gui5_configured_worker_runs_real_step_through_retained_estimate_session \
     --locked -- --ignored --nocapture
@@ -94,10 +101,10 @@ For a macOS smoke-test bundle:
 ```sh
 cd apps/estimator-desktop
 cargo tauri build --debug --features desktop-host --bundles app --no-sign
-PARTPROBE_GEOMETRY_WORKER="$PWD/../../target/debug/partprobe-geometry-worker" \
+PARTPROBE_GEOMETRY_WORKER=/approved/local/partprobe-native-runtime/bin/partprobe-geometry-worker \
 PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
-PARTPROBE_OCCT_ROOT=/private/tmp/partprobe-occt-install \
+PARTPROBE_OCCT_ROOT=/approved/local/partprobe-native-runtime \
   ../../target/debug/bundle/macos/PartProbe.app/Contents/MacOS/partprobe-estimator-desktop
 ```
 
-Launching the bundle executable, rather than Finder or `open`, is intentional for this developer checkpoint because the three explicit environment paths must reach the host process. The `.app` is a disposable local test artifact. It is not signed, notarized, installed, supported, or evidence for Windows/Linux packaging. The completed Apple-Silicon checklist and exact limitations are recorded in [GUI-5 validation](../../docs/06-quality/gui-5-validation.md).
+Launching the bundle executable, rather than Finder or `open`, is intentional for this developer checkpoint because the three explicit environment paths must reach the host process. The runtime directory is likewise not embedded in the `.app`, signed, notarized, installed, immutable, or approved for redistribution. Windows and Linux still need native construction and runtime assembly/launch evidence. The completed Apple-Silicon GUI checklist is recorded in [GUI-5 validation](../../docs/06-quality/gui-5-validation.md), and native-runtime evidence is recorded in [TASK-003 validation](../../docs/06-quality/task-003-validation.md).

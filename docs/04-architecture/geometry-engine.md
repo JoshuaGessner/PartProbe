@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-08-01
+- **Last updated:** 2026-08-09
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, REQ-NF-011–REQ-NF-014, GEO-001–GEO-014, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Target-specific sandbox/resource enforcement? Canonical tolerance defaults? Which exact fixtures establish release tolerances?
@@ -12,7 +12,7 @@
 
 ## Architecture
 
-The target geometry engine is a UI-independent application service backed by an isolated, partially OS-contained `geometry-worker`. The future desktop process submits a content-addressed asset and job options; it receives a versioned `GeometryAnalysisSnapshot` plus a derived display mesh. The UI never links directly to a geometry kernel, and the kernel never writes quote data. The current spike has no desktop client or display-mesh output and is not an operating-system sandbox.
+The target geometry engine is a UI-independent application service backed by an isolated, partially OS-contained `geometry-worker`. The desktop process submits a content-addressed asset and job options; it receives provisional geometry evidence through a typed application service. The UI never links directly to a geometry kernel, and the kernel never writes quote data. The current GUI-5 client is session-only, has no display-mesh output, and the worker is not an operating-system sandbox.
 
 ```text
 desktop UI ── application service ── job store / snapshot repository
@@ -24,6 +24,12 @@ desktop UI ── application service ── job store / snapshot repository
                                       │
                          versioned results / controlled derivative store
 ```
+
+## Developer native runtime boundary
+
+The Apple-Silicon developer path may assemble the exact native worker, the pinned OCCT version header, the complete installed `TK*` shared-library closure, and the OCCT construction manifest into one explicit runtime root. `scripts/assemble_native_runtime.py` accepts only explicit worker, install, construction-manifest, and new output paths. Its schema-v1 manifest records the pinned source policy, host OS/architecture, install fingerprint, relative launch configuration, and the size/hash of every regular file plus the local target of every retained library symlink. Verification rejects traversal, absolute artifact paths, missing, changed, repeated, extra, or escaping artifacts. Assembly validates the copied root before atomically publishing it and never overwrites an existing output.
+
+This runtime root removes the mutable shared-Cargo-output hazard and gives developers a repeatable local launch unit. It is not an application installer, security signature, immutable store, SBOM, legal approval, or redistribution package. The worker path, runtime root, and external controlled workspace remain explicit configuration; there is no ambient discovery. Equivalent native construction, closure capture, verification, and launch evidence are still required on Windows and Linux before cross-platform packaging claims.
 
 ## Pipeline and contracts
 

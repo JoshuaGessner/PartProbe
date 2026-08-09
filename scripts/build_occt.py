@@ -11,7 +11,11 @@ import platform
 import subprocess
 import sys
 
-from verify_native_step import EXPECTED_OCCT_COMMIT, EXPECTED_OCCT_VERSION
+from verify_native_step import (
+    EXPECTED_OCCT_COMMIT,
+    EXPECTED_OCCT_TREE,
+    EXPECTED_OCCT_VERSION,
+)
 
 
 TOP_LEVEL_MODULES = (
@@ -135,6 +139,8 @@ def validate_source(source: Path) -> tuple[str, str]:
     if tag != "V8_0_0":
         raise ValueError(f"expected exact tag V8_0_0, found {tag}")
     tree = run_capture(["git", "-C", str(source), "rev-parse", "HEAD^{tree}"])
+    if tree != EXPECTED_OCCT_TREE:
+        raise ValueError(f"expected OCCT tree {EXPECTED_OCCT_TREE}, found {tree}")
     return commit, tree
 
 

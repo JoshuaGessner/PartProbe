@@ -68,6 +68,7 @@ These rules are mandatory for every person or agent changing this repository.
 56. GUI-4 rates and pricing are explicit, confirmed, session-only developer inputs. Build typed rate governance and pricing-policy values in the native adapter, invoke only `DraftEstimateSession::evaluate`, and never present those ephemeral approvals as a durable shop library, production default, approved quote, or saved record.
 57. Canonical-unit and warning-review confirmations are bound to the current analysis revision. Clear them whenever source or analysis state changes; never carry a review decision into re-analysis. Present user-requested cancellation distinctly from worker failure and keep retry state explicit.
 58. The GUI-5 real-worker smoke is an opt-in native test requiring explicit worker, workspace, and OCCT-root paths. Keep it ignored in ordinary CI unless that job constructs the exact pinned native runtime; never promote feature-off or synthetic-port results into configured-native evidence.
+59. Developer native runtimes must be assembled only from explicit pinned inputs into a new output, include the complete target OCCT shared-library closure, verify relative-path manifests and every copied artifact before use, reject overwrite/ambient discovery/unmanifested files, and remain labeled internal until legal, signing, containment, and three-OS package evidence pass.
 
 ## Documentation protocol
 

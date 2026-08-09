@@ -1,7 +1,7 @@
 # Deployment Models
 
 > **Status:** Draft  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-08-09
 > **Related requirement IDs:** REQ-NF-001, REQ-NF-002, SEC-001–SEC-010  
 > **Related architecture decision IDs:** ADR-0001, ADR-0005, ADR-0006  
 > **Open questions:** Target networks, air-gap/offline needs, identity source, backup target, update process, and supported operating systems  
@@ -23,6 +23,10 @@
 ## Profile-selection guardrail
 
 Choose the profile from actual data classification, contract terms, users, network, and operational policy—not customer industry alone. A product profile does not confer CMMC, DFARS, NIST, ITAR, EAR, or AS9100 compliance. Obtain contractual/security/export advice before placing controlled technical data in any boundary.
+
+## Developer runtime is not a deployment profile
+
+The content-addressed native runtime assembled for the Apple-Silicon GUI-5/TASK-003 checkpoint is a local engineering artifact. It keeps the verified worker and its full OCCT shared-library closure together and requires an external explicit worker workspace, but it does not provide installation, signing, OS sandboxing, identity, authorization repositories, durable audit, backup, update, or controlled-data operations. Do not treat its successful local verification as Standalone, Team/LAN, or controlled-data deployment acceptance.
 
 ## Common deployment invariants
 
