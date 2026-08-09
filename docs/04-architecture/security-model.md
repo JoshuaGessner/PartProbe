@@ -1,7 +1,7 @@
 # Security Model
 
 > **Status:** Draft  
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirement IDs:** REQ-NF-002, REQ-NF-005, REQ-NF-007, REQ-NF-009, REQ-NF-015–REQ-NF-019, SEC-001–SEC-014  
 > **Related architecture decision IDs:** ADR-0001, ADR-0005, ADR-0006, ADR-0012–ADR-0014  
 > **Open questions:** Cryptographic/key-management provider, identity/MFA, supported classifications, threat model, and incident owner  
@@ -54,6 +54,10 @@ Architecture/configuration version; threat model; authorization tests; audit/exp
 
 ## Current implementation boundary
 
-The headless `security` and `application` crates now define versioned allow/deny decisions, an explicit deny-all baseline, content-minimized authorization context, an append-only audit port, and a local geometry-asset read service that fails closed when decision audit cannot be appended. The open directory capability is bound to a stable root ID, so policy evaluation and filesystem containment use the same root identity. The narrow `platform` crate implements Unix descriptor and Windows HANDLE duplication, exact child-resource allowlisting, one-shot worker claim, the standard/direct child lifecycle, and the partial resource controls listed above behind focused unsafe review; this is not an OS sandbox. No role catalog, project-membership repository, classification policy, identity provider, durable audit store, deployment-specific allow policy, network/filesystem sandbox, hard macOS memory control, hostile Unix descendant containment, or aggregate-output enforcement is implemented; those remain required adapters and approval evidence rather than inferred defaults.
+The headless `security` and `application` crates now define versioned allow/deny decisions, an explicit deny-all baseline, content-minimized authorization context, an append-only audit port, and a local geometry-asset read service that fails closed when decision audit cannot be appended. The open directory capability is bound to a stable root ID, so policy evaluation and filesystem containment use the same root identity. The narrow `platform` crate implements Unix descriptor and Windows HANDLE duplication, exact child-resource allowlisting, one-shot worker claim, the standard/direct child lifecycle, and the partial resource controls listed above behind focused unsafe review; this is not an OS sandbox.
+
+GUI-3 adds a separate desktop boundary. Its checked-in main-window capability contains only two project command permissions plus event listen/unlisten; its app manifest lists exactly the same commands. The production CSP admits packaged local content and Tauri IPC only, and the frontend has no dialog, filesystem, HTTP, shell, opener, updater, upload, or remote-content permission. The native host opens the dialog asynchronously, retains the selected path only in session memory, and serializes only an opaque token plus leaf name and explicit provisional/ephemeral states. These are configuration and regression-test controls, not proof of OS-level network denial or a complete application authorization boundary.
+
+No role catalog, project-membership repository, classification policy, identity provider, durable audit store, deployment-specific allow policy, network/filesystem sandbox, hard macOS memory control, hostile Unix descendant containment, or aggregate-output enforcement is implemented; those remain required adapters and approval evidence rather than inferred defaults.
 
 References: [permissions matrix](../03-requirements/permissions-matrix.md), [defense-data research](../01-research/defense-data-handling.md), [security testing](../06-quality/security-testing.md).

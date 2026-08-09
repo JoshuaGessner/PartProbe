@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -33,8 +33,10 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - Fail-closed OCCT 8.0.0 source construction with exact commit/tag/clean-tree checks, fixed minimal CMake options, a compiler/generator/source-tree manifest, native artifact fingerprints, and focused Python tooling tests.
 - `FIX-STEP-003`, a manually authored AP214 faceted 12 × 8 × 5 mm rectangular prism with governed hash and analytic area/volume/centroid evidence through both the native adapter and supervised worker.
 - GUI-2 headless draft-estimate orchestration: governed source authorization, a concrete supervised-geometry adapter, explicit provisional-evidence review and manual inputs, pinned rate/policy resolution, deterministic itemized results, replay trace, and focused missing/conflict/recalculation tests.
+- GUI-3 restrictive Tauri 2/Leptos developer shell with a versioned framework-neutral desktop contract, asynchronous host-owned STEP picker, native-only raw path retention, leaf-name-only frontend summary, exact command/capability/CSP regression tests, deliberate design-system foundations, unsigned Apple-Silicon bundle evidence, and a developer runbook.
 
 ### Security
 
 - Established local-first, no-external-upload-by-default policy for technical and quote data.
 - Added deny-by-default authorization/audit seams, capability-root containment, exact child-resource allowlists, and explicit documentation that partial worker controls are not an OS sandbox.
+- Added exact desktop application-command and main-window capability allowlists, packaged-local-content CSPs, prototype freezing, pathless bridge DTOs, and no frontend shell/network/filesystem/opener/updater/upload/dialog permission.

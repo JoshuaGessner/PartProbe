@@ -1,7 +1,7 @@
 # UX Requirements
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-08-09
 > **Related requirements:** UX-001–UX-012, UX-021–UX-045; REQ-NF-006, REQ-NF-022
 > **Related ADRs:** ADR-0001, ADR-0003, ADR-0009–ADR-0014
 > **Open questions:** OQ-028 and platform assistive-technology matrix
@@ -48,3 +48,7 @@
 | UX-043 | Missing/stale/low-confidence advanced data shall never look like a valid zero or neutral score and shall provide a clear refresh/confirmation path. |
 | UX-044 | Every chart, heatmap, overlay, range, and comparison shall have an accessible text/table equivalent and keyboard-navigable linkage. |
 | UX-045 | Approval view shall summarize price/margin, opportunity cost, delivery feasibility, requirement coverage, risk, uncertainty, unresolved assumptions, and approvals without replacing reviewer judgment. |
+
+## Current partial evidence
+
+GUI-3 provides bounded Apple-Silicon evidence for UX-003 and UX-007–UX-009 only: the shell uses semantic headings, description lists, a skip link, a named native button and named state region; keyboard focus is visible; Return opens the asynchronous native picker; Escape cancels without destroying the accepted selection; and provisional/unavailable/session-only states are stated in text. This does not complete any UX requirement. The full estimating flow, undo/redo, screen readers, contrast measurement, scaling/HiDPI matrix, error recovery, announcements, dense grids, viewer linkage, reports, and three-OS evidence remain pending.

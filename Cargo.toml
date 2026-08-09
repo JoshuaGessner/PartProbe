@@ -1,7 +1,10 @@
 [workspace]
 members = [
+    "apps/estimator-desktop",
+    "apps/estimator-desktop/src-tauri",
     "apps/geometry-worker",
     "crates/application",
+    "crates/desktop-contract",
     "crates/document-storage",
     "crates/domain",
     "crates/estimation-engine",
@@ -22,6 +25,7 @@ rust-version = "1.94"
 [workspace.dependencies]
 partprobe-geometry-worker = { path = "apps/geometry-worker" }
 partprobe-application = { path = "crates/application" }
+partprobe-desktop-contract = { path = "crates/desktop-contract" }
 partprobe-document-storage = { path = "crates/document-storage" }
 partprobe-domain = { path = "crates/domain" }
 partprobe-estimation-engine = { path = "crates/estimation-engine" }
@@ -42,6 +46,13 @@ rustix = { version = "=1.1.4", default-features = false, features = ["std"] }
 close_fds = { version = "=0.3.2", default-features = false }
 cc = { version = "=1.4.0", default-features = false }
 windows-sys = { version = "=0.61.2", default-features = false }
+leptos = { version = "=0.8.20", default-features = false, features = ["csr"] }
+serde-wasm-bindgen = "=0.6.5"
+tauri = { version = "=2.11.5", default-features = false, features = ["wry"] }
+tauri-build = "=2.6.3"
+tauri-plugin-dialog = "=2.7.2"
+wasm-bindgen = "=0.2.127"
+wasm-bindgen-futures = "=0.4.77"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

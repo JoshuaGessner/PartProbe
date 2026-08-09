@@ -1,7 +1,7 @@
 # Security Requirements
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-08-09
 > **Related requirements:** SEC-001–SEC-014; REQ-NF-002, REQ-NF-005, REQ-NF-007, REQ-NF-009, REQ-NF-017, REQ-NF-019  
 > **Related ADRs:** ADR-0001, ADR-0005, ADR-0006, ADR-0012–ADR-0014  
 > **Open questions:** OQ-021–OQ-024, OQ-026, OQ-029  
@@ -24,3 +24,7 @@
 | SEC-012 | Correction/learning data shall use least-privilege access, purpose limitation, retention policy, cohort thresholds, and safeguards against exposing individual/customer-sensitive behavior. |
 | SEC-013 | Marketplace, CAM, ERP, QMS, scheduling, and vendor integrations shall not transmit controlled files or derived technical data without an approved integration-specific data-flow and authorization policy. |
 | SEC-014 | Capacity, backlog, availability, supplier performance, bid scoring, and opportunity-cost data shall be treated as commercially sensitive and excluded from customer reports and diagnostics by default. |
+
+## Current partial evidence
+
+GUI-3 provides bounded configuration/test evidence for SEC-001 and SEC-002: the main webview is limited to an exact two-command application manifest, an exact capability with those commands plus event listen/unlisten, and local-content CSPs; no frontend network, shell, filesystem, dialog, opener, updater, upload, or remote-content permission is granted. Raw selected paths remain in native session state and only a leaf display name crosses the bridge. This does not complete SEC-001 because OS-level egress tests, navigation interception, future adapter review, signed packages, and three-OS evidence remain pending; it does not complete SEC-002 because full logging/metrics/support-bundle behavior is not implemented or tested.

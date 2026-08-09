@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-08-09
 - **Related requirement IDs:** REQ-NF-001, REQ-NF-004, REQ-NF-005, REQ-NF-007, SEC-001 through SEC-006, UX-001 through UX-010
 - **Related architecture decision IDs:** ADR-0001, ADR-0003, ADR-0005, ADR-0006
 - **Open questions:** Final OS support matrix; GPU integration ownership; whether Linux packages include both AppImage and native packages; team-mode authentication boundary.
@@ -23,6 +23,8 @@ GPU model viewer / overlay                   repositories / SQLite / local files
 ```
 
 The UI is an untrusted presentation and interaction layer even though it ships locally. It displays view models, validates immediate input for feedback, emits typed user intents, and renders returned results. Only the application facade authorizes operations; only the domain/calculation layer produces authoritative money, units, confidence, or audit values.
+
+GUI-3 instantiates the outer two layers without claiming the rest of the product. `apps/estimator-desktop` owns the Leptos CSR presentation; its `src-tauri` package owns the native host/session path; and `crates/desktop-contract` owns the versioned, framework-neutral command/event DTO. The current host is not yet connected to `DraftEstimateApplication`, the geometry worker, repositories, or viewer. It can select one local STEP source and report only a safe session summary.
 
 ## Runtime responsibilities
 
@@ -77,3 +79,5 @@ Tauri documents Windows installers, macOS bundles/DMGs, Linux packages, and code
 ## Verification plan
 
 Run unit/application tests without the desktop host. Add host contract tests for every command/capability, automated WebDriver smoke tests for core UI flows (Tauri documents the WebDriver support route at [desktop tests](https://v2.tauri.app/develop/tests/webdriver/)), and manual platform accessibility checks. The framework spike exit criteria in the UI evaluation are the gate before committing to production UI construction.
+
+GUI-3 provides the first bounded evidence: exact command-manifest/capability/CSP tests, native-session path-redaction tests, non-blocking-picker source regression, pure UI-state tests, strict native/WASM lint, offline frontend bundling, and an unsigned Apple-Silicon semantic/keyboard/select/cancel smoke pass. It does not satisfy the required automated end-to-end, screen-reader, three-OS, signed-package, viewer, PDF, or update evidence.

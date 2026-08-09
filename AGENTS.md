@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -55,6 +55,11 @@ These rules are mandatory for every person or agent changing this repository.
 43. A session-only developer GUI must visibly label provisional analysis and ephemeral state and cannot satisfy save/reopen, persistence, importer-support, milestone, or release acceptance criteria.
 44. Desktop adapters must consume `DraftEstimateApplication` and `DraftEstimateResult` for the GUI-2 path; do not duplicate estimate formulas, rate selection, missing-state handling, or pricing logic in commands, view models, or components.
 45. A GUI-2 draft result is available only after explicit unit/warning review, complete manual inputs, a pinned rate-card/effective-date/scope context, and a pinned pricing policy. Preserve `Unavailable` and `Blocked` states through every adapter.
+46. `crates/desktop-contract` is the source of truth for desktop command names, event names, and pathless bridge DTOs. The Leptos frontend and Tauri host must consume it rather than duplicate strings or schemas.
+47. Native file dialogs and source paths are host-owned. Never send a raw path, directory name, file bytes, CAD content, or geometry content into the webview; use a session-bound opaque selection ID and the minimum reviewed display metadata.
+48. Every registered Tauri application command must appear in `AppManifest::commands`, an exact application permission, the intended window capability, and a host-contract regression test. Do not grant `default` permission sets when narrower permissions exist.
+49. The production desktop baseline uses bundled local content, a restrictive CSP, native window decorations, and no frontend shell, HTTP, filesystem, opener, updater, upload, or dialog permission. Development-only localhost serving does not authorize a production network capability.
+50. Keep the desktop host responsive while native dialogs and application jobs are active. Do not call blocking dialog APIs from a Tauri command; cancellation must preserve the last accepted session state unless the user explicitly clears it.
 
 ## Documentation protocol
 

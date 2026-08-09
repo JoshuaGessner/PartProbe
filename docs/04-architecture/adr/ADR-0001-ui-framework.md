@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-08-09
 - **Related requirement IDs:** REQ-NF-001, REQ-NF-004, REQ-NF-005, REQ-NF-007, SEC-001, UX-001 through UX-010
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Does the selected webview/viewer adapter satisfy accessibility and performance spike criteria across all supported OS versions?
@@ -49,3 +49,9 @@ Negative: the frontend includes web technologies and depends on system webviews;
 ## Validation and reversal
 
 Run the bounded spike in the [UI evaluation](../../01-research/rust-ui-evaluation.md). Accept this ADR only after three-OS build/install, keyboard/screen-reader smoke tests, restricted capability tests, rendering-selection latency, and print/PDF preview tests pass. If the DOM/webview approach fails its accessibility or viewer integration exit criteria, reassess Slint or Iced with the same test suite; do not switch based on a demo alone.
+
+## Current GUI-3 evidence
+
+The bounded GUI-3 checkpoint implements the proposed composition on Apple Silicon with exact Tauri 2.11.5 and Leptos 0.8.20 dependencies. It proves a local CSR bundle, native decorations, asynchronous native STEP selection, a framework-neutral versioned command/event contract, leaf-name-only frontend disclosure, a restrictive CSP, and an exact main-window capability/app-command allowlist. Thirteen focused tests plus strict native/WASM lint pass, and an unsigned local bundle passed semantic, keyboard-focus, select, and cancel smoke checks. See [GUI-3 validation](../../06-quality/gui-3-validation.md).
+
+This evidence is deliberately insufficient to accept ADR-0001. Windows/Linux build and launch, screen-reader testing, dense-table behavior, viewer integration and latency, PDF/print, signed installers, updater/offline policy, and automated three-OS end-to-end tests remain open. The implementation remains reversible and the ADR remains In Review.

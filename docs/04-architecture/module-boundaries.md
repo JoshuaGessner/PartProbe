@@ -1,7 +1,7 @@
 # Module Boundaries
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirements:** REQ-NF-001, REQ-NF-004, REQ-NF-010, REQ-NF-015–REQ-NF-021  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** Exact crate split after dependency-cycle spike  
@@ -34,6 +34,7 @@
 | `crates/import-export` | versioned external DTOs | application, domain |
 | `crates/reporting` | internal/customer render models | application, domain |
 | `crates/platform` | filesystem/process/dialog abstractions | OS APIs only |
+| `crates/desktop-contract` | versioned framework-neutral desktop command/event names and safe DTOs | Serde only; no Tauri, Leptos, filesystem, geometry, or calculation authority |
 | `crates/model-viewer` | render scene/picking/overlays | geometry-core, wgpu adapter |
 | `crates/ui-components` | design-system components | UI framework, application DTOs |
 | `crates/test-support` | builders/golden harnesses | public test APIs |
@@ -44,3 +45,5 @@
 No UI crate may execute SQL or receive raw kernel pointers. Advanced-analysis crates do not own approval, scheduling, purchasing, supplier transmission, or rule activation. Integration adapters depend inward on versioned ports and may not leak vendor DTOs into the domain. Dependency direction is enforced with workspace policy tests and review.
 
 TASK-003 instantiates narrow `security`, `application`, `document-storage`, and `platform` slices for local geometry-asset reads and governed derivative handoff. `security` owns policy/audit contracts and depends only on domain identities. `document-storage` owns immutable blob, manifest, policy-reference, integrity, and controlled-store port types without selecting a filesystem or database. `application` coordinates policy, audit, `geometry-import`, and the storage port; `geometry-import` remains unaware of actors, roles, classification rules, audit persistence, or durable storage. `geometry-import` owns the neutral verified-copy/direct policy and manifest; `platform` owns the audited Unix descriptor and Windows HANDLE duplication, exact inheritance allowlists, one-shot claim, and standard/direct child lifecycle. Raw resources and Win32 process details do not enter domain or application APIs. This preserves inward dependency direction while deployment-specific policy and persistence adapters remain unimplemented.
+
+GUI-3 instantiates `crates/desktop-contract` and `apps/estimator-desktop`. The frontend depends on the safe contract and owns only presentation/session display state. The Tauri host depends on the same contract and retains the raw selected path in native-only session state behind an opaque token. GUI-4 must adapt that token/native authority to `DraftEstimateApplication` and translate its typed result; it may not add formulas, rate selection, missing-state coercion, CAD parsing, or persistence behavior to the UI or host command layer.

@@ -1,14 +1,14 @@
 # Test Strategy
 
 > **Status:** In Review
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirements:** All; TEST-001–TEST-099
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** Hardware/performance and accuracy thresholds
 > **Dependencies:** Executable workspace and fixtures
 > **Supersedes:** None
 
-Current executable evidence: [TASK-001 validation](task-001-validation.md) covers TEST-001; [TASK-002 validation](task-002-validation.md) provides partial TEST-002/014 evidence; [TASK-003 validation](task-003-validation.md) provides partial TEST-003/008/011/019/021/023/030 evidence; and [GUI-2 validation](gui-2-validation.md) provides partial TEST-002/003/006/014/021/030 application-composition evidence. Requirements remain incomplete until their full acceptance suites, target evidence, and approvals pass.
+Current executable evidence: [TASK-001 validation](task-001-validation.md) covers TEST-001; [TASK-002 validation](task-002-validation.md) provides partial TEST-002/014 evidence; [TASK-003 validation](task-003-validation.md) provides partial TEST-003/008/011/019/021/023/030 evidence; [GUI-2 validation](gui-2-validation.md) provides partial TEST-002/003/006/014/021/030 application-composition evidence; and [GUI-3 validation](gui-3-validation.md) provides partial TEST-008/011/012 desktop-shell evidence. Requirements remain incomplete until their full acceptance suites, target evidence, and approvals pass.
 
 | ID | Layer | Core evidence |
 |---|---|---|

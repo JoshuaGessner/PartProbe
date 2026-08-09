@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">PartProbe application icon</title>
+  <rect width="512" height="512" rx="88" fill="#0b1016"/>
+  <path d="M128 112h152c72 0 120 42 120 108 0 67-48 109-120 109h-64v71h-88V112Zm88 75v68h57c25 0 39-12 39-34 0-22-14-34-39-34h-57Z" fill="#edf4fb"/>
+  <path d="M352 329h48v71h-48z" fill="#4b9bd8"/>
+  <path d="M376 284v45" stroke="#4b9bd8" stroke-width="18"/>
+</svg>

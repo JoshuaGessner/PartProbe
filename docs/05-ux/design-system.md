@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-08-09
 - **Related requirement IDs:** UX-001 through UX-010, REQ-NF-004
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Validate contrast tokens on calibrated shop-floor displays; choose icon license and font distribution strategy.
@@ -52,3 +52,7 @@ Show money in fixed-precision formatted currency and units beside every dimensio
 ## Themes and density
 
 Dark and light themes map every semantic token; neither is a color inversion. Compact is default for expert workstation use; comfortable increases row/panel spacing, not just text zoom. OS text scaling and browser zoom remain supported. Theme and density are user preferences, and a quote never relies on a personal preference to communicate meaning.
+
+## Current GUI-3 implementation boundary
+
+GUI-3 establishes only the shell foundation: project-owned CSS variables, quiet graphite surfaces, restrained blue focus/action treatment, sharp borders, native window chrome, semantic status text, tabular numerals, a skip link, visible focus, reduced-motion handling, and forced-color fallbacks. It intentionally uses no remote font or default-looking widget library. Light theme, density switching, reusable component crates, measured token contrast, resizable panes, tables, inspector, menus, and viewport styling remain design-system work and are not implied complete by this first screen.

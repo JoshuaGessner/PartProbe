@@ -1,12 +1,21 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-09 — GUI-3 restrictive desktop shell and native source selection
+
+- Added a reversible Tauri 2.11.5 host and Leptos 0.8.20 CSR frontend under `apps/estimator-desktop`, plus a framework-neutral `desktop-contract` crate. The contract exposes exactly `desktop_contract` and `select_model_source` commands and one `partprobe:model-source-selected` event; a build-time Tauri app manifest and the checked-in main capability restrict access to that exact surface.
+- Added asynchronous native STEP selection. The host retains the selected `PathBuf` only in native session memory behind an opaque token; the serialized result contains only a leaf display name, format, `NotStarted` analysis state, and `SessionOnly` persistence state. Unsupported files fail safely, and cancelling a subsequent picker preserves the current selection.
+- Added packaged-local-content CSPs, native window decorations, prototype freezing, no remote URL, and no frontend dialog/filesystem/http/shell/opener/updater/upload permission. The Leptos screen uses semantic headings, a skip link, native button behavior, visible focus, reduced-motion and forced-color accommodations, and explicit developer-alpha/provisional/ephemeral/unavailable language.
+- Added 13 focused contract, host-boundary, and UI-state tests. Exact tests cover the command/event schema, path redaction, token-bound native lookup, unsupported input, exact app manifest/capability/CSP, non-blocking picker source, empty cancel, selection-preserving cancel, and no implied analysis/persistence. Repository-wide formatting, strict workspace/native-host/WASM Clippy, 119 macOS runtime tests, one doctest, six native-tooling tests, 140-document planning validation, fixture hashes, offline release frontend bundling, and diff checks pass locally.
+- Built and launched an unsigned Apple-Silicon `.app` locally. Manual semantic and keyboard smoke verified the named headings/status/button, visible focus, responsive native picker, selection of synthetic `FIX-STEP-001`, leaf-name-only rendering, Return-to-open, Escape-to-cancel, and explicit not-analyzed/session-only states. This is local developer evidence, not signed packaging, three-OS support, or release acceptance.
+- GUI-4 is next: adapt the shell to the existing `DraftEstimateApplication`, show analysis/review/input/rate/result states without duplicating authoritative logic, and keep raw source authority native. GUI-1 fixture review, worker containment, durable persistence, 3D viewing, full TASK-005 acceptance, and production support remain open; see [GUI-3 validation](../06-quality/gui-3-validation.md).
 
 ## 2026-08-01 — GUI-2 session-only draft-estimate application service
 

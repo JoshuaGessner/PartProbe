@@ -1,18 +1,18 @@
 # Dependency Policy and Candidates
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-23  
+> **Last updated:** 2026-08-09
 > **Related requirements:** REQ-NF-001, REQ-NF-005, REQ-NF-010  
 > **Related ADRs:** ADR-0001–ADR-0007  
 > **Open questions:** Final versions, license compatibility, vendor terms  
 > **Dependencies:** Spike evidence  
 > **Supersedes:** None
 
-TASK-001 added three exact, reversible Rust dependencies after the documented spike review: `rust_decimal 1.42.1`, `serde 1.0.229`, and `serde_json 1.0.151`. Their selected features, active transitive graph, licenses, build/runtime behavior, ownership, and removal paths are recorded in [the dependency record](dependency-record.md). All other families below remain candidates—not approvals:
+TASK-001 added three exact, reversible Rust dependencies after the documented spike review: `rust_decimal 1.42.1`, `serde 1.0.229`, and `serde_json 1.0.151`. TASK-003 added the bounded worker dependencies recorded below. GUI-3 now adds exact, reversible Tauri/Leptos/WASM dependencies for the developer shell; this records bounded spike use, not ADR acceptance or production approval. Selected features, active transitive graph, licenses, build/runtime behavior, ownership, and removal paths are recorded in [the dependency record](dependency-record.md). Families not marked as added remain candidates—not approvals:
 
 | Candidate | Purpose | Maintenance/license/security review |
 |---|---|---|
-| Tauri 2 + Leptos | Desktop shell and CSR UI | ADR-0001 spike; WebView/runtime policy; verify licenses/releases |
+| Tauri 2.11.5 + Leptos 0.8.20 | Added for GUI-3's feature-gated desktop host and CSR developer shell | Exact versions/features and reversal/security notes recorded; ADR-0001, three-OS packages, advisory/SBOM/legal approval, accessibility, viewer, and PDF gates remain open |
 | wgpu | Cross-platform 3D rendering | ADR-0003 version/backend/platform/adapter proof; direct/transitive/native-backend licenses, advisories/owner, build and package provenance |
 | Open CASCADE Technology | Exact STEP/B-rep worker | ADR-0002/0005 license, ABI, packaging, CVE and sandbox review |
 | Mesh/3MF/STL crates or libraries | Mesh intake/validation | Corpus quality, maintenance, format fidelity, license review |

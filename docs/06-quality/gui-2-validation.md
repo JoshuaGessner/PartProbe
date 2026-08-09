@@ -1,7 +1,7 @@
 # GUI-2 Application-Service Validation Evidence
 
 > **Status:** Complete
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirements:** REQ-F-003–REQ-F-005, REQ-F-007–REQ-F-009, REQ-F-014; REQ-NF-003–REQ-NF-006, REQ-NF-010, REQ-NF-017, REQ-NF-020; TEST-002, TEST-003, TEST-006, TEST-014, TEST-021, TEST-030
 > **Related ADRs:** ADR-0001, ADR-0002, ADR-0005, ADR-0007, ADR-0008
 > **Open questions:** None for the session-only service; production unit-resolution, persistence, shop calibration, and desktop acceptance remain outside GUI-2
@@ -51,4 +51,4 @@ Repository-wide formatting, strict Clippy, 106 default macOS runtime tests, the 
 - GUI-2 changes no calculation rule or pricing behavior. It composes already documented rules and reuses the synthetic TASK-002 rate/pricing fixture; this is software reconciliation evidence, not shop accuracy or valid production pricing.
 - The session is deliberately memory-only. Setters replace unapproved session inputs and are not the governed override/audit workflow required by REQ-F-010. Save/reopen, approval, replay persistence, migrations, and historical audit remain TASK-006 work.
 - No third-party package was added. The application crate now directly depends on existing workspace crates `estimation-engine` and `geometry-core`, plus the already-pinned workspace decimal library, because it owns orchestration and typed result composition.
-- GUI-3 must expose this service through a restrictive typed desktop command boundary. GUI-4 must display provisional/ephemeral labels and preserve `Unavailable`/`Blocked` states without reimplementing calculations.
+- GUI-3 now supplies the restrictive typed desktop shell but deliberately does not expose this service. GUI-4 must add the native application adapter, display provisional/ephemeral labels, and preserve `Unavailable`/`Blocked` states without reimplementing calculations.

@@ -36,6 +36,17 @@ jobs:
       - name: Select pinned Rust toolchain
         run: rustup default 1.94.1
 
+      - name: Install pinned WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Refresh Linux package index for desktop build
+        if: runner.os == 'Linux'
+        run: sudo apt-get update
+
+      - name: Install Linux desktop build prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get install --yes libgtk-3-dev libwebkit2gtk-4.1-dev
+
       - name: Fetch locked dependencies
         run: cargo fetch --locked
 
@@ -47,6 +58,12 @@ jobs:
 
       - name: Lint
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Lint Leptos WASM frontend
+        run: cargo clippy -p partprobe-estimator-desktop-ui --target wasm32-unknown-unknown --locked -- -D warnings
+
+      - name: Lint Tauri desktop host
+        run: cargo clippy -p partprobe-estimator-desktop --features desktop-host --all-targets --locked -- -D warnings
 
       - name: Test all targets
         run: cargo test --workspace --all-targets --locked

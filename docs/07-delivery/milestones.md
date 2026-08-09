@@ -1,7 +1,7 @@
 # Milestones
 
 > **Status:** In Review
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -16,13 +16,13 @@ Exit: navigable documentation, stable requirement IDs, research/ADRs ready for r
 
 Exit: interviews complete; private fixture/data governance agreed; UI, geometry, worker, persistence, and calculation spikes measured; TASK-002 synthetic calculation mechanics plus TASK-007 real rate-category/pricing-policy calibration reviewed; ADR-0001–0014 accepted/rejected or explicitly deferred; route/capacity/uncertainty/PMI/CAM/availability data sources assessed; baseline accuracy and performance budgets set.
 
-Status: **In Progress.** Calculation/rate mechanics and a substantial worker/geometry spike now have executable evidence. Interviews, shop calibration, UI and persistence spikes, representative private-fixture governance, ADR closure, supported-platform native packaging, and accuracy/performance budgets remain open.
+Status: **In Progress.** Calculation/rate mechanics, a substantial worker/geometry spike, and GUI-3's bounded Apple-Silicon Tauri/Leptos shell/security subset now have executable evidence. Interviews, shop calibration, the remaining UI/accessibility/viewer/PDF spike, persistence spike, representative private-fixture governance, ADR closure, supported-platform native packaging, and accuracy/performance budgets remain open.
 
 ## M1 Foundation
 
 Exit: Cargo workspace; domain/units/money/provenance; migrations/repositories; worker protocol; initial import/measurement corpus; application shell/design system; cross-platform CI; future-safe identifiers/snapshots for route sets, requirements, revisions, availability, and correction events without implementing advanced engines.
 
-Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. TASK-003 supplies kernel-neutral geometry contracts, an isolated control-schema-v2 worker, explicit verified-copy transport, exact Unix descriptor and Windows HANDLE direct-resource allowlisting with unrelated-resource exclusion, worker-side revalidation, controlled intake/output seams, cancellation behavior, and provisional Apple Silicon OCCT ABI-v3 byte-stream evidence. Production importer accuracy/containment/packaging, UI, persistence, mesh support, and remaining foundation components are pending.
+Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. TASK-003 supplies kernel-neutral geometry contracts, an isolated control-schema-v2 worker, explicit verified-copy transport, exact Unix descriptor and Windows HANDLE direct-resource allowlisting with unrelated-resource exclusion, worker-side revalidation, controlled intake/output seams, cancellation behavior, and provisional Apple Silicon OCCT ABI-v3 byte-stream evidence. GUI-3 supplies an unsigned local desktop shell, native picker, typed pathless bridge, and initial design/security boundary. Production importer accuracy/containment/packaging, connected estimate UI, full accessibility, persistence, mesh support, and remaining foundation components are pending.
 
 ## M2 Vertical slice
 

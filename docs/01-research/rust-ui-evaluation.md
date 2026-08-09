@@ -2,8 +2,8 @@
 
 ## Metadata
 
-- **Status:** Draft
-- **Last updated:** 2026-07-22
+- **Status:** In Review
+- **Last updated:** 2026-08-09
 - **Related requirement IDs:** REQ-NF-001, REQ-NF-004, REQ-NF-007, UX-001 through UX-010
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Can the chosen webview meet the target keyboard and screen-reader acceptance suite on all three desktop platforms? Which GPU surface ownership approach is most stable with the model viewer?
@@ -64,6 +64,10 @@ Timebox this to **10 engineering days** before framework lock:
 6. Produce installers and verify code-signing/update policy, including offline/no-update mode. Tauri documents platform distribution and signing targets ([Tauri distribution guide](https://v2.tauri.app/distribute/)).
 
 **Exit criteria:** all workflows function without mouse-only steps; no uncontrolled filesystem/network capability; 3D selection stays under 100 ms p95 for a representative model; and at least one automated end-to-end test per target OS passes. If the viewer cannot coexist reliably, retain Tauri for the shell and use a separate native viewer process/window behind the model-viewer interface.
+
+### GUI-3 evidence completed
+
+GUI-3 covers only the first shell/security subset of this spike: an unsigned Apple-Silicon Tauri/Leptos bundle builds and launches; its native picker is asynchronous; raw paths remain native; the frontend receives a leaf-name-only typed summary; and exact tests constrain application commands, window capability, CSP, and picker behavior. A manual local pass covered semantic structure, visible keyboard focus, select, and cancel. Dense-table editing, screen readers, Windows/Linux launch, `wgpu`, PDF/print, installers/signing, and automated end-to-end coverage are still untested, so the recommendation remains In Review rather than adopted for production.
 
 ## Risks and mitigations
 

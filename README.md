@@ -1,7 +1,7 @@
 # PartProbe
 
 > **Status:** In Review
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-09
 > **Related requirements:** REQ-F-001–REQ-F-065; REQ-NF-001–REQ-NF-022
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -20,9 +20,9 @@ PartProbe is currently a **pre-alpha engineering foundation**, not an installabl
 | Rates and pricing | Empty-on-install, user-owned rate cards; effective dating, scope resolution, approval state, pricing and rounding policies | No rate-entry UI or durable rate library; PartProbe supplies no production rates |
 | Geometry worker | Bounded control schema v2/transport manifest v2, explicit verified-copy transport, exact Unix descriptor and Windows HANDLE direct allowlisting with unrelated-resource exclusion, worker-side identity/type/hash/length/quota verification, private workspaces, cancellation grace/acknowledgement, forced termination, partial CPU/file/process containment, audit/security seams, and governed derivative handoff | No network/filesystem sandbox, complete cross-platform resource containment, or durable controlled store |
 | STEP/OCCT | Optional OCCT 8.0 Apple Silicon ABI-v3 spike parses exact verified bytes, emits a source-bound provisional snapshot, has a fail-closed pinned source-build command, and measures both an OCCT-generated cube and a manually authored analytic prism | Not a supported product importer; formal fixture review, broader accuracy corpus, Windows/Linux native construction, packaging, and legal review remain open |
-| Desktop and storage | UX, design system, persistence contracts, release workflow, and the GUI-2 headless application use case are implemented/documented | No desktop shell, database, save/reopen workflow, installer, or signed release exists |
+| Desktop and storage | GUI-2 supplies the headless application use case; GUI-3 supplies a restrictive Tauri/Leptos developer shell, native STEP picker, typed pathless bridge, and unsigned Apple-Silicon bundle | Shell is not connected to analysis/estimating; no database, save/reopen workflow, supported installer, signed release, or three-OS launch evidence exists |
 
-GUI-2 raises the default workspace baseline to **106 runtime tests on macOS and 107 on Linux/Windows** plus a compile-fail doctest and six native-tooling tests. Windows/Linux/macOS run 30717609229 passes at implementation commit `ecbb0be`. Twenty-six focused optional-native adapter/worker tests plus strict native-feature Clippy pass locally on Apple Silicon. These results validate foundations and partial containment contracts; they do not establish production estimating accuracy or release readiness.
+The local macOS default workspace now passes **119 runtime tests** plus one compile-fail doctest and six native-tooling tests; GUI-3 also passes strict native/WASM lint, an offline frontend build, and a freshly rebuilt unsigned `.app`. The last committed cross-platform baseline is run 30717745005 at documentation commit `7c2eab9`; GUI-3's three-OS CI evidence is pending this change's push. Twenty-six focused optional-native adapter/worker tests plus strict native-feature Clippy pass locally on Apple Silicon. These results validate foundations and bounded developer contracts; they do not establish production estimating accuracy or release readiness.
 
 ## Product boundary
 
@@ -36,13 +36,13 @@ GUI-2 raises the default workspace baseline to **106 runtime tests on macOS and 
 
 The current implementation order is:
 
-1. Review the GUI-1 fixture and GUI-2 application-service evidence, build GUI-3's restrictive desktop shell, and continue TASK-003 network/filesystem and target-specific resource containment plus Windows/Linux native construction.
+1. Review the GUI-1 fixture evidence, connect GUI-4's analysis/estimate workspace to the completed GUI-2 service and GUI-3 shell, and continue TASK-003 network/filesystem and target-specific resource containment plus Windows/Linux native construction.
 2. Complete TASK-004 STL/3MF mesh import comparison.
 3. Build TASK-005 desktop UX, including guided shop-owned rate setup and model review.
 4. Implement TASK-006 durable SQLite repositories, migrations, backup/restore, and historical replay.
 5. Validate real shop categories, policies, and calibration in TASK-007 before making accuracy claims.
 
-The nearest testable GUI is a narrower internal, provisional, session-only STEP slice. GUI-1's native seam awaits fixture review and GUI-2's headless model-to-estimate service is implemented; roughly three focused checkpoints remain for the secure desktop shell, analysis/estimate workspace, and end-to-end smoke evidence. A 3D viewport adds roughly two or three checkpoints because no tessellation/viewer implementation exists. See the [testable GUI vertical-slice plan](docs/07-delivery/gui-vertical-slice-plan.md). The first usable cross-platform product slice still requires model intake, reviewable measurements, editable assumptions, a guided rate library, transparent estimate/pricing traces, save/reopen, previews, and packaging.
+The nearest testable GUI is a narrower internal, provisional, session-only STEP slice. GUI-1's native seam awaits fixture review; GUI-2's headless model-to-estimate service and GUI-3's restrictive desktop shell are implemented. Roughly two focused checkpoints remain for the analysis/estimate workspace and end-to-end smoke/accessibility evidence. A 3D viewport adds roughly two or three checkpoints because no tessellation/viewer implementation exists. See the [testable GUI vertical-slice plan](docs/07-delivery/gui-vertical-slice-plan.md) and [desktop developer runbook](apps/estimator-desktop/README.md). The first usable cross-platform product slice still requires model intake, reviewable measurements, editable assumptions, a guided rate library, transparent estimate/pricing traces, save/reopen, previews, and packaging.
 
 ## Documentation
 
@@ -54,6 +54,7 @@ Start with:
 - [Initial release plan](docs/07-delivery/release-plan.md)
 - [Testable GUI vertical-slice plan](docs/07-delivery/gui-vertical-slice-plan.md)
 - [TASK-003 validation evidence](docs/06-quality/task-003-validation.md)
+- [GUI-3 validation evidence](docs/06-quality/gui-3-validation.md)
 - [Agent rules](AGENTS.md)
 
 ## Security posture
