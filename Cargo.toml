@@ -11,6 +11,7 @@ members = [
     "crates/geometry-core",
     "crates/geometry-import",
     "crates/geometry-occt-adapter",
+    "crates/native-runtime",
     "crates/platform",
     "crates/security",
     "crates/test-support",
@@ -32,6 +33,7 @@ partprobe-estimation-engine = { path = "crates/estimation-engine" }
 partprobe-geometry-core = { path = "crates/geometry-core" }
 partprobe-geometry-import = { path = "crates/geometry-import" }
 partprobe-geometry-occt-adapter = { path = "crates/geometry-occt-adapter" }
+partprobe-native-runtime = { path = "crates/native-runtime" }
 partprobe-platform = { path = "crates/platform" }
 partprobe-security = { path = "crates/security" }
 partprobe-test-support = { path = "crates/test-support" }

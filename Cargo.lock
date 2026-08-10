@@ -2853,6 +2853,7 @@ dependencies = [
  "partprobe-domain",
  "partprobe-geometry-core",
  "partprobe-geometry-import",
+ "partprobe-native-runtime",
  "partprobe-security",
  "rust_decimal",
  "serde_json",
@@ -2916,6 +2917,15 @@ dependencies = [
  "partprobe-test-support",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "partprobe-native-runtime"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]

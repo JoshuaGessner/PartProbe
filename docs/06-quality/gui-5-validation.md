@@ -24,11 +24,11 @@ The validation host was Apple Silicon (`arm64`) on macOS 26.5.2. The exact offic
 
 The construction command downloaded nothing and passed strict optional-native adapter/worker Clippy, 11 adapter tests, 15 supervised-worker tests, worker construction, install fingerprinting, and OCCT 8.0.0 verification. Source, build, install, worker workspace, and unsigned bundle remain local disposable developer artifacts and are not product packaging.
 
-The native-feature and ordinary feature-off worker builds share the same Cargo output path. The subsequent TASK-003 runtime checkpoint now assembles the verified worker, construction provenance, version header, and all 23 observed OCCT library families into a separate content-verified developer root. This is the preferred follow-on smoke/launch path because later Cargo builds cannot replace it. Closeout still confirmed that a feature-off replacement fails safely instead of silently parsing or reporting success.
+The native-feature and ordinary feature-off worker builds share the same Cargo output path. The subsequent TASK-003 runtime checkpoints now assemble the verified worker, construction provenance, version header, and all 23 observed OCCT library families into a separate content-verified developer root, then repeat those checks inside the desktop host before deriving its launch paths. This is the preferred follow-on smoke/launch path because later Cargo builds cannot replace it and independent worker/library overrides are no longer accepted. Closeout still confirmed that a feature-off replacement fails safely instead of silently parsing or reporting success.
 
 ## Automated configured-host smoke
 
-`gui5_configured_worker_runs_real_step_through_retained_estimate_session` is an ignored, `desktop-host`-gated test so ordinary CI and machines without OCCT continue to fail closed. It runs only when all three explicit native paths are supplied. The test sends `FIX-STEP-003` through the real configured supervisor/OCCT worker, retains the native draft session, submits the complete synthetic golden request, and asserts:
+`gui5_configured_worker_runs_real_step_through_retained_estimate_session` is an ignored, `desktop-host`-gated test so ordinary CI and machines without OCCT continue to fail closed. It runs only when the explicit native-runtime root and external workspace are supplied and the runtime passes in-host verification. The test sends `FIX-STEP-003` through the real configured supervisor/OCCT worker, retains the native draft session, submits the complete synthetic golden request, and asserts:
 
 - 392 mm² surface area, 480 mm³ volume, and `(6, 4, 2.5)` mm centroid;
 - one solid body and OCCT 8.0.0 evidence;
@@ -36,21 +36,20 @@ The native-feature and ordinary feature-off worker builds share the same Cargo o
 - path redaction across the presentation result.
 
 ```sh
-PARTPROBE_GEOMETRY_WORKER=/approved/local/partprobe-native-runtime/bin/partprobe-geometry-worker \
+PARTPROBE_NATIVE_RUNTIME=/approved/local/partprobe-native-runtime \
 PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
-PARTPROBE_OCCT_ROOT=/approved/local/partprobe-native-runtime \
   cargo test -p partprobe-estimator-desktop --features desktop-host \
     gui5_configured_worker_runs_real_step_through_retained_estimate_session \
     --locked -- --ignored --nocapture
 ```
 
-Result: one configured native smoke test passed against the original construction root during GUI-5 closeout and again against the separately assembled runtime during the next TASK-003 checkpoint. Ordinary desktop-host execution passes 17 tests and reports this test ignored unless the developer opts in. The focused contract/UI/native-host set totals 29 passing tests plus that one ignored smoke.
+Result: one configured native smoke test passed against the original construction root during GUI-5 closeout, against the separately assembled runtime during the next TASK-003 checkpoint, and in 0.68 seconds after desktop startup enforcement was added. Ordinary desktop-host execution passes 17 tests and reports this test ignored unless the developer opts in. Five portable runtime-verifier tests independently cover the valid path, worker tampering plus extra files, traversal/unreviewed configuration, wrong copied build provenance, and wrong-host rejection. The focused contract/UI/native-host set remains 29 passing tests plus that one ignored smoke; the verifier coverage is counted separately in the workspace suite.
 
 GitHub Actions run 31340568277 passes formatting, six native-tooling tests, strict workspace/native-host/WASM lint, all-target tests, and doctests on macOS, Ubuntu, and Windows at GUI-5 implementation commit `40c20a2`. The native OCCT smoke remains explicit Apple-Silicon local evidence and is not run by that feature-off default matrix.
 
 ## Actual application checklist
 
-An unsigned debug `PartProbe.app` was built from the current bundled frontend and launched by its executable with the same three explicit native environment paths. The manual checklist passed:
+An unsigned debug `PartProbe.app` was built from the current bundled frontend and launched by its executable with the then-current three explicit native environment paths. The manual checklist passed. Host-side runtime enforcement was added afterward and validated through the automated real-worker path; the actual bundle checklist must be repeated with the two-variable runtime/workspace configuration before release evidence can rely on that newer composition:
 
 - keyboard focus reached the skip link, native model picker, Analyze action, every reviewed estimate field, both review confirmations, five rate inputs and confirmation, pricing inputs and confirmation, Calculate action, and the result trace;
 - Return opened the native picker, selected `rectangular_prism_12x8x5.step`, invoked analysis, and submitted the estimate without a pointer-only dependency;

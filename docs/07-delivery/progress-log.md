@@ -8,6 +8,13 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-09 — TASK-003 desktop startup verification
+
+- Added platform-neutral `crates/native-runtime` and made it the sole source of desktop worker/native-library launch paths. The host now accepts only `PARTPROBE_NATIVE_RUNTIME` plus the external `PARTPROBE_GEOMETRY_WORKSPACE`; it validates the schema-v1 manifest before supervisor construction and does not accept independent worker or OCCT-root overrides.
+- The verifier checks the exact OCCT 8.0.0 commit/tree, runtime kind/support state, host OS/architecture, strict relative configuration, file sizes and SHA-256 values, safe same-directory symlinks, executable state, the thirteen-library install fingerprint, complete declared artifact closure, copied construction provenance, and absence of extra or special files. Failures collapse to the sanitized `GUI5-NATIVE-RUNTIME-VERIFY` unavailable diagnostic; this is startup integrity evidence, not signing, immutability, or post-verification mutation protection.
+- Added five verifier regressions for the valid path, changed worker plus extra file, traversal/unreviewed configuration, wrong build provenance, and wrong host. Strict crate Clippy and desktop-host tests pass. The opt-in GUI-5 smoke also passes in 0.68 seconds against the existing 49 MiB, 23-family Apple-Silicon runtime using only the runtime-root/workspace configuration.
+- No calculation formula, estimate result, geometry interpretation, worker protocol/ABI, persisted schema, third-party version, external transfer, compliance claim, or supported-importer claim changed.
+
 ## 2026-08-09 — TASK-003 verified developer-runtime assembly
 
 - Added `scripts/assemble_native_runtime.py` with explicit `assemble` and `verify` operations. It accepts only an exact worker, OCCT install, construction manifest, and new output; validates the pinned OCCT version/commit/tree plus host/build provenance; refuses existing/overlapping/root/home outputs; publishes only after staged verification; and performs no download or ambient discovery.

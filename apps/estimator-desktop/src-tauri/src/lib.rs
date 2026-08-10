@@ -525,11 +525,11 @@ mod tests {
 
     #[cfg(feature = "desktop-host")]
     #[test]
-    #[ignore = "requires the pinned OCCT root and native worker environment"]
+    #[ignore = "requires a verified pinned native runtime and worker workspace"]
     fn gui5_configured_worker_runs_real_step_through_retained_estimate_session() {
         let adapter = crate::analysis::DesktopAnalysisConfiguration::from_environment()
             .and_then(crate::analysis::DesktopAnalysisConfiguration::build_adapter)
-            .expect("GUI-5 requires explicit valid worker/workspace/OCCT configuration");
+            .expect("GUI-5 requires verified native-runtime/workspace configuration");
         let state = DesktopSessionState::with_analysis_adapter(adapter);
         let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/models/rectangular_prism_12x8x5.step")

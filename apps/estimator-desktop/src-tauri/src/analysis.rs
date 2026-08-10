@@ -26,6 +26,8 @@ use partprobe_geometry_import::{
 };
 #[cfg(feature = "desktop-host")]
 use partprobe_geometry_import::{GeometryWorkerSupervisor, SupervisorPolicy};
+#[cfg(feature = "desktop-host")]
+use partprobe_native_runtime::VerifiedNativeRuntime;
 use partprobe_security::{
     AuditAppendError, AuditCorrelationId, AuthorizationAuditEvent, AuthorizationAuditSink,
     AuthorizationContext, AuthorizationDecision, AuthorizationPolicy, AuthorizationReasonCode,
@@ -52,14 +54,14 @@ pub struct DesktopAnalysisConfiguration {
 #[cfg(feature = "desktop-host")]
 impl DesktopAnalysisConfiguration {
     pub fn from_environment() -> Result<Self, HostCommandError> {
-        let worker_executable = required_path("PARTPROBE_GEOMETRY_WORKER")?;
+        let runtime_root = required_path("PARTPROBE_NATIVE_RUNTIME")?;
         let worker_workspace = required_path("PARTPROBE_GEOMETRY_WORKSPACE")?;
-        let occt_root = required_path("PARTPROBE_OCCT_ROOT")?;
-        let native_library_directory = occt_root.join("lib");
+        let runtime = VerifiedNativeRuntime::verify(runtime_root)
+            .map_err(|_| HostCommandError::analysis_unavailable("GUI5-NATIVE-RUNTIME-VERIFY"))?;
         Self::new(
-            worker_executable,
+            runtime.worker_executable().to_path_buf(),
             worker_workspace,
-            native_library_directory,
+            runtime.native_library_directory().to_path_buf(),
         )
     }
 
