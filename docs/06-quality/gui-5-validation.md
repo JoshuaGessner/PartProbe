@@ -51,7 +51,7 @@ Follow-on GitHub Actions run 31346159820 passes the current eleven-tooling-test 
 
 ## Actual application checklist
 
-An unsigned debug `PartProbe.app` was built from the current bundled frontend and launched by its executable with the then-current three explicit native environment paths. The manual checklist passed. Host-side runtime enforcement was added afterward and validated through the automated real-worker path; the actual bundle checklist must be repeated with the two-variable runtime/workspace configuration before release evidence can rely on that newer composition:
+An unsigned debug `PartProbe.app` was originally built and launched with three explicit native environment paths. After host-side runtime enforcement, the current bundle was rebuilt and the complete success path was repeated with only `PARTPROBE_NATIVE_RUNTIME` and `PARTPROBE_GEOMETRY_WORKSPACE`. Both checklists passed; the current composition repeat specifically confirmed native selection, in-host runtime verification, real OCCT analysis, complete explicit review/input/rate/pricing submission, the semantic result trace, path redaction, and clean application exit:
 
 - keyboard focus reached the skip link, native model picker, Analyze action, every reviewed estimate field, both review confirmations, five rate inputs and confirmation, pricing inputs and confirmation, Calculate action, and the result trace;
 - Return opened the native picker, selected `rectangular_prism_12x8x5.step`, invoked analysis, and submitted the estimate without a pointer-only dependency;
@@ -61,6 +61,8 @@ An unsigned debug `PartProbe.app` was built from the current bundled frontend an
 - the accessibility tree exposed semantic headings, status regions, labels and units for every input, native checkbox/button roles, and the result description list;
 - developer-alpha, provisional, session-only, not-saved, unapproved, and not-a-customer-quote boundaries remained visible;
 - only the selected leaf filename and opaque native session authority appeared; no absolute source path appeared in the UI or safe diagnostics.
+
+The current-composition repeat displayed the same 392 mm², 480 mm³, `(6, 4, 2.5)` mm, one-solid, zero-warning OCCT 8.0.0 evidence and reconciled to material USD 100, operation USD 260, base internal USD 485, risk reserve USD 35, total internal USD 520, and rounded selling price USD 702. It used the rebuilt unsigned `.app` and the separately assembled 49 MiB runtime; it does not add signing, persistence, supported-importer, or Windows/Linux native evidence.
 
 ## Cancellation, failure, and recovery
 
