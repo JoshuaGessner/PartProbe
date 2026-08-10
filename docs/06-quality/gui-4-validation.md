@@ -35,7 +35,7 @@ cargo test -p partprobe-desktop-contract -p partprobe-estimator-desktop-ui --all
 cargo test -p partprobe-estimator-desktop --features desktop-host --all-targets --locked
 ```
 
-The local macOS default workspace passes 137 runtime tests. GUI-5's focused contract/native-host/UI set passes 29 tests plus one explicit configured-native test ignored by default. Strict workspace/native-host/WASM Clippy and the offline release frontend bundle pass. GitHub Actions run 31340568277 passes formatting, six native-tooling tests, all three lint surfaces, all-target tests, and doctests on macOS, Ubuntu, and Windows at GUI-5 implementation commit `40c20a2`. GUI-5 also supplied exact pinned OCCT construction, one passing opt-in real-worker host smoke, and actual-app keyboard/semantic/cancellation/failure/recovery evidence; see [GUI-5 validation](gui-5-validation.md).
+The local macOS default workspace now passes 142 runtime tests. GUI-5's focused contract/native-host/UI set passes 29 tests plus one explicit configured-native test ignored by default. Strict workspace/native-host/WASM Clippy and the offline release frontend bundle pass. GitHub Actions run 31346159820 passes formatting, eleven native-tooling tests, all three lint surfaces, all-target tests, and doctests on macOS, Ubuntu, and Windows at startup-verifier implementation commit `86e00b5`. GUI-5 also supplied exact pinned OCCT construction, one passing opt-in real-worker host smoke, and actual-app keyboard/semantic/cancellation/failure/recovery evidence; see [GUI-5 validation](gui-5-validation.md).
 
 ## Acceptance conclusion and remaining product evidence
 

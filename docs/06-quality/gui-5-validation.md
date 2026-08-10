@@ -47,6 +47,8 @@ Result: one configured native smoke test passed against the original constructio
 
 GitHub Actions run 31340568277 passes formatting, six native-tooling tests, strict workspace/native-host/WASM lint, all-target tests, and doctests on macOS, Ubuntu, and Windows at GUI-5 implementation commit `40c20a2`. The native OCCT smoke remains explicit Apple-Silicon local evidence and is not run by that feature-off default matrix.
 
+Follow-on GitHub Actions run 31346159820 passes the current eleven-tooling-test and 142-runtime-test matrix plus all lint/doctest gates on macOS, Ubuntu, and Windows at startup-verifier implementation commit `86e00b5`. It validates the portable verifier logic but still does not construct or launch OCCT on Windows/Linux.
+
 ## Actual application checklist
 
 An unsigned debug `PartProbe.app` was built from the current bundled frontend and launched by its executable with the then-current three explicit native environment paths. The manual checklist passed. Host-side runtime enforcement was added afterward and validated through the automated real-worker path; the actual bundle checklist must be repeated with the two-variable runtime/workspace configuration before release evidence can rely on that newer composition:
