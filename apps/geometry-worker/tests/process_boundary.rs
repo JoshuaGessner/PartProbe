@@ -725,6 +725,51 @@ fn aggregate_workspace_output_is_supervised_terminated_and_cleaned() {
     std::fs::remove_dir(job_root).expect("empty dedicated worker root must be removed");
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_parser_boundary_denies_network_socket_creation() {
+    let supervisor = resource_fixture_supervisor(512 * 1024 * 1024, 60_000);
+
+    let execution = execute_resource_fixture(
+        &format!("resource-network-denial-{}", std::process::id()),
+        &supervisor,
+        &AtomicBool::new(false),
+    );
+
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::FailedRecoverable
+    );
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "WORKER_NETWORK_DENIED"
+    );
+    assert!(execution.output().is_none());
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_parser_boundary_denies_descendant_creation() {
+    let supervisor = resource_fixture_supervisor(512 * 1024 * 1024, 60_000);
+
+    let execution = execute_resource_fixture(
+        &format!("resource-descendant-denial-{}", std::process::id()),
+        &supervisor,
+        &AtomicBool::new(false),
+    );
+
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::FailedRecoverable
+    );
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "WORKER_DESCENDANT_DENIED"
+    );
+    assert!(execution.output().is_none());
+}
+
+#[cfg(not(target_os = "linux"))]
 #[test]
 fn forced_termination_contains_normal_worker_descendants() {
     let job_id = format!("resource-descendant-{}", std::process::id());

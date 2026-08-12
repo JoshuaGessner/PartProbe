@@ -256,6 +256,10 @@ fn supervisor_failures_become_sanitized_recoverable_results() {
             WorkerTermination::WorkspaceInspectionFailed,
             "WORKSPACE_INSPECTION_FAILED",
         ),
+        (
+            WorkerTermination::ParserContainmentFailed,
+            "WORKER_CONTAINMENT_FAILED",
+        ),
     ] {
         let response = recoverable_termination_response(
             SchemaVersion::new(1).expect("schema version must be valid"),

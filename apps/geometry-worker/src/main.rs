@@ -38,6 +38,15 @@ fn run() -> Result<(), ()> {
     let mut stdin = std::io::stdin();
     let message = read_control_message(&mut stdin)?.ok_or(())?;
     let (request, asset_manifest) = message.into_execute().ok_or(())?;
+    let parser_containment = match partprobe_platform::prepare_worker_parser_containment() {
+        Ok(containment) => containment,
+        Err(_) => {
+            return write_termination_response(
+                &request,
+                WorkerTermination::ParserContainmentFailed,
+            );
+        }
+    };
     let cancellation = Arc::new(AtomicU8::new(CANCELLATION_NONE));
     let cancellation_reader = Arc::clone(&cancellation);
     let control_request = request.clone();
@@ -48,17 +57,27 @@ fn run() -> Result<(), ()> {
     let asset = match acquire_worker_asset(&request, &asset_manifest) {
         Ok(asset) => asset,
         Err(termination) => {
-            let response = recoverable_termination_response(
-                request.schema_version(),
-                request.job_id().clone(),
-                request.correlation_id().clone(),
-                termination,
-            );
-            let response_bytes = serde_json::to_vec(&response).map_err(|_| ())?;
-            return std::io::stdout().write_all(&response_bytes).map_err(|_| ());
+            return write_termination_response(&request, termination);
         }
     };
+    if parser_containment.enforce().is_err() {
+        return write_termination_response(&request, WorkerTermination::ParserContainmentFailed);
+    }
     let response = build_response(&request, &asset, &cancellation)?;
+    let response_bytes = serde_json::to_vec(&response).map_err(|_| ())?;
+    std::io::stdout().write_all(&response_bytes).map_err(|_| ())
+}
+
+fn write_termination_response(
+    request: &GeometryWorkerRequest,
+    termination: WorkerTermination,
+) -> Result<(), ()> {
+    let response = recoverable_termination_response(
+        request.schema_version(),
+        request.job_id().clone(),
+        request.correlation_id().clone(),
+        termination,
+    );
     let response_bytes = serde_json::to_vec(&response).map_err(|_| ())?;
     std::io::stdout().write_all(&response_bytes).map_err(|_| ())
 }

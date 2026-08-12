@@ -29,15 +29,60 @@ fn run() -> Result<(), ()> {
     let mut lines = stdin.lock().lines();
     let execute = read_message(&mut lines)?;
     let (request, asset_manifest) = execute.into_execute().ok_or(())?;
+    let parser_containment = match partprobe_platform::prepare_worker_parser_containment() {
+        Ok(containment) => containment,
+        Err(_) => {
+            return write_termination_response(
+                &request,
+                WorkerTermination::ParserContainmentFailed,
+            );
+        }
+    };
     if let Err(termination) = acquire_worker_asset(&request, &asset_manifest) {
-        let response = recoverable_termination_response(
-            request.schema_version(),
-            request.job_id().clone(),
-            request.correlation_id().clone(),
-            termination,
-        );
-        let bytes = serde_json::to_vec(&response).map_err(|_| ())?;
-        return std::io::stdout().write_all(&bytes).map_err(|_| ());
+        return write_termination_response(&request, termination);
+    }
+    if parser_containment.enforce().is_err() {
+        return write_termination_response(&request, WorkerTermination::ParserContainmentFailed);
+    }
+
+    if request
+        .job_id()
+        .as_str()
+        .contains("resource-network-denial")
+    {
+        return match std::net::TcpListener::bind("127.0.0.1:0") {
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                write_response(&request, "WORKER_NETWORK_DENIED", false)
+            }
+            Ok(listener) => {
+                drop(listener);
+                Err(())
+            }
+            Err(_) => Err(()),
+        };
+    }
+
+    if request
+        .job_id()
+        .as_str()
+        .contains("resource-descendant-denial")
+    {
+        let marker = resource_marker_path(&request);
+        return match std::process::Command::new(std::env::current_exe().map_err(|_| ())?)
+            .arg("--resource-descendant")
+            .arg(marker)
+            .spawn()
+        {
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                write_response(&request, "WORKER_DESCENDANT_DENIED", false)
+            }
+            Ok(mut child) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                Err(())
+            }
+            Err(_) => Err(()),
+        };
     }
 
     if request.job_id().as_str().contains("uncooperative") {
@@ -186,6 +231,20 @@ fn write_response(
         diagnostics,
     )
     .map_err(|_| ())?;
+    let bytes = serde_json::to_vec(&response).map_err(|_| ())?;
+    std::io::stdout().write_all(&bytes).map_err(|_| ())
+}
+
+fn write_termination_response(
+    request: &GeometryWorkerRequest,
+    termination: WorkerTermination,
+) -> Result<(), ()> {
+    let response = recoverable_termination_response(
+        request.schema_version(),
+        request.job_id().clone(),
+        request.correlation_id().clone(),
+        termination,
+    );
     let bytes = serde_json::to_vec(&response).map_err(|_| ())?;
     std::io::stdout().write_all(&bytes).map_err(|_| ())
 }

@@ -76,10 +76,53 @@ pub const fn hard_worker_file_limit_supported() -> bool {
     cfg!(unix)
 }
 
+/// Returns whether this target installs the worker's parser-boundary network syscall denial.
+#[must_use]
+pub const fn worker_parser_network_denial_supported() -> bool {
+    cfg!(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))
+}
+
 /// Returns whether this target prevents a worker from creating processes outside its owned tree.
 #[must_use]
 pub const fn hostile_worker_descendant_containment_supported() -> bool {
-    cfg!(windows)
+    cfg!(any(
+        windows,
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    ))
+}
+
+/// Prepared parser-boundary containment that must be enforced after asset acquisition.
+#[derive(Debug)]
+#[must_use = "prepared worker containment must be enforced before parser dispatch"]
+pub struct PendingWorkerParserContainment {
+    _private: (),
+}
+
+impl PendingWorkerParserContainment {
+    /// Applies the target's parser-boundary restrictions to the complete worker thread group.
+    pub fn enforce(self) -> io::Result<()> {
+        #[cfg(target_os = "linux")]
+        return linux_parser_containment::enforce();
+        #[cfg(not(target_os = "linux"))]
+        Ok(())
+    }
+}
+
+/// Prepares parser-boundary containment before the worker creates its cancellation thread.
+///
+/// Linux sets the irreversible `no_new_privs` thread attribute here so the subsequently created
+/// cancellation reader inherits it. The syscall filter itself is installed only after the worker
+/// has claimed and copied its authorized source bytes.
+pub fn prepare_worker_parser_containment() -> io::Result<PendingWorkerParserContainment> {
+    #[cfg(target_os = "linux")]
+    linux_parser_containment::prepare()?;
+    Ok(PendingWorkerParserContainment { _private: () })
 }
 
 /// A prepared direct worker asset kept alive until the child is spawned.
@@ -363,6 +406,161 @@ fn direct_transport_unavailable() -> io::Error {
         io::ErrorKind::Unsupported,
         "direct worker asset transport is unavailable on this target",
     )
+}
+
+#[cfg(target_os = "linux")]
+mod linux_parser_containment {
+    use std::io;
+
+    const SECCOMP_DATA_SYSCALL_OFFSET: u32 = 0;
+    const SECCOMP_DATA_ARCH_OFFSET: u32 = 4;
+    const BPF_LOAD_WORD_ABSOLUTE: u16 = 0x20;
+    const BPF_JUMP_EQUAL: u16 = 0x15;
+    #[cfg(target_arch = "x86_64")]
+    const BPF_JUMP_BITS_SET: u16 = 0x45;
+    const BPF_RETURN: u16 = 0x06;
+    #[cfg(target_arch = "x86_64")]
+    const AUDIT_ARCH: u32 = 0xc000_003e;
+    #[cfg(target_arch = "aarch64")]
+    const AUDIT_ARCH: u32 = 0xc000_00b7;
+    #[cfg(target_arch = "x86_64")]
+    const X32_SYSCALL_BIT: u32 = 0x4000_0000;
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    #[allow(
+        unsafe_code,
+        reason = "Linux prctl is required to set no_new_privs before worker thread creation"
+    )]
+    pub(super) fn prepare() -> io::Result<()> {
+        // SAFETY: PR_SET_NO_NEW_PRIVS changes only the calling worker thread's security state,
+        // takes scalar arguments, and is required before the cancellation thread is cloned.
+        if unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) } == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    pub(super) fn prepare() -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "worker parser containment is not implemented for this Linux architecture",
+        ))
+    }
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    #[allow(
+        unsafe_code,
+        reason = "the Linux seccomp syscall installs a validated classic-BPF worker filter"
+    )]
+    pub(super) fn enforce() -> io::Result<()> {
+        let denied_syscalls = denied_syscalls()?;
+        let denied_action = libc::SECCOMP_RET_ERRNO
+            | u32::try_from(libc::EPERM).expect("EPERM must fit seccomp return data");
+        let mut filter = Vec::with_capacity(7 + denied_syscalls.len() * 2);
+        filter.push(statement(BPF_LOAD_WORD_ABSOLUTE, SECCOMP_DATA_ARCH_OFFSET));
+        filter.push(jump(BPF_JUMP_EQUAL, AUDIT_ARCH, 1, 0));
+        filter.push(statement(BPF_RETURN, libc::SECCOMP_RET_KILL_PROCESS));
+        filter.push(statement(
+            BPF_LOAD_WORD_ABSOLUTE,
+            SECCOMP_DATA_SYSCALL_OFFSET,
+        ));
+        #[cfg(target_arch = "x86_64")]
+        {
+            filter.push(jump(BPF_JUMP_BITS_SET, X32_SYSCALL_BIT, 0, 1));
+            filter.push(statement(BPF_RETURN, denied_action));
+        }
+        for syscall in denied_syscalls {
+            filter.push(jump(BPF_JUMP_EQUAL, syscall, 0, 1));
+            filter.push(statement(BPF_RETURN, denied_action));
+        }
+        filter.push(statement(BPF_RETURN, libc::SECCOMP_RET_ALLOW));
+
+        let mut program = libc::sock_fprog {
+            len: u16::try_from(filter.len()).map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "seccomp filter is too large")
+            })?,
+            filter: filter.as_mut_ptr(),
+        };
+        // SAFETY: program points to a live, initialized classic-BPF array for this synchronous
+        // seccomp call. TSYNC applies the same irreversible filter to every existing worker thread.
+        let result = unsafe {
+            libc::syscall(
+                libc::SYS_seccomp,
+                libc::SECCOMP_SET_MODE_FILTER,
+                libc::SECCOMP_FILTER_FLAG_TSYNC,
+                std::ptr::from_mut(&mut program),
+            )
+        };
+        if result == 0 {
+            Ok(())
+        } else if result == -1 {
+            Err(io::Error::last_os_error())
+        } else {
+            Err(io::Error::other(
+                "seccomp could not synchronize every worker thread",
+            ))
+        }
+    }
+
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    pub(super) fn enforce() -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "worker parser containment is not implemented for this Linux architecture",
+        ))
+    }
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    fn denied_syscalls() -> io::Result<Vec<u32>> {
+        let syscalls = [
+            libc::SYS_socket,
+            libc::SYS_socketpair,
+            libc::SYS_io_uring_setup,
+            libc::SYS_clone,
+            libc::SYS_clone3,
+            libc::SYS_execve,
+            libc::SYS_execveat,
+        ];
+        let mut denied = syscalls
+            .into_iter()
+            .map(|syscall| {
+                u32::try_from(syscall).map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Linux syscall number is out of seccomp range",
+                    )
+                })
+            })
+            .collect::<io::Result<Vec<_>>>()?;
+        #[cfg(target_arch = "x86_64")]
+        {
+            denied.push(u32::try_from(libc::SYS_fork).expect("fork syscall must fit u32"));
+            denied.push(u32::try_from(libc::SYS_vfork).expect("vfork syscall must fit u32"));
+        }
+        Ok(denied)
+    }
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    const fn statement(code: u16, value: u32) -> libc::sock_filter {
+        libc::sock_filter {
+            code,
+            jt: 0,
+            jf: 0,
+            k: value,
+        }
+    }
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    const fn jump(code: u16, value: u32, jump_true: u8, jump_false: u8) -> libc::sock_filter {
+        libc::sock_filter {
+            code,
+            jt: jump_true,
+            jf: jump_false,
+            k: value,
+        }
+    }
 }
 
 #[cfg(unix)]

@@ -903,6 +903,8 @@ pub enum WorkerTermination {
     AssetDirectTransportUnavailable,
     /// Worker could not validate the explicitly selected asset transport.
     AssetTransportInvalid,
+    /// Worker could not install its target parser-containment boundary.
+    ParserContainmentFailed,
     /// Staged source bytes did not match the request.
     AssetHashMismatch,
     /// Controlled source cleanup failed.
@@ -943,6 +945,7 @@ pub fn recoverable_termination_response(
         WorkerTermination::AssetManifestMismatch => "ASSET_MANIFEST_MISMATCH",
         WorkerTermination::AssetDirectTransportUnavailable => "ASSET_DIRECT_TRANSPORT_UNAVAILABLE",
         WorkerTermination::AssetTransportInvalid => "ASSET_TRANSPORT_INVALID",
+        WorkerTermination::ParserContainmentFailed => "WORKER_CONTAINMENT_FAILED",
         WorkerTermination::AssetHashMismatch => "ASSET_HASH_MISMATCH",
         WorkerTermination::AssetCleanupFailed => "ASSET_CLEANUP_FAILED",
         WorkerTermination::WorkspacePrepareFailed => "WORKSPACE_PREPARE_FAILED",
