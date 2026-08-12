@@ -73,6 +73,18 @@ fn run() -> Result<(), ()> {
         return Err(());
     }
 
+    if request
+        .job_id()
+        .as_str()
+        .contains("resource-workspace-aggregate")
+    {
+        let output = vec![b'x'; 600 * 1024];
+        std::fs::write("worker-scratch-a.tmp", &output).map_err(|_| ())?;
+        std::fs::write("worker-scratch-b.tmp", &output).map_err(|_| ())?;
+        std::thread::sleep(Duration::from_secs(5));
+        return Err(());
+    }
+
     if request.job_id().as_str().contains("resource-descendant") {
         let marker = resource_marker_path(&request);
         let _child = std::process::Command::new(std::env::current_exe().map_err(|_| ())?)

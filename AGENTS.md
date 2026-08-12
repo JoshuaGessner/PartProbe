@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-08-11
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -69,6 +69,7 @@ These rules are mandatory for every person or agent changing this repository.
 57. Canonical-unit and warning-review confirmations are bound to the current analysis revision. Clear them whenever source or analysis state changes; never carry a review decision into re-analysis. Present user-requested cancellation distinctly from worker failure and keep retry state explicit.
 58. The GUI-5 real-worker smoke is an opt-in native test requiring an explicit verified runtime root and external worker workspace. Keep it ignored in ordinary CI unless that job constructs the exact pinned native runtime; never promote feature-off or synthetic-port results into configured-native evidence.
 59. Developer native runtimes must be assembled only from explicit pinned inputs into a new output, include the complete target OCCT shared-library closure, verify relative-path manifests and every copied artifact during assembly and again inside the desktop host before launch, reject overwrite/ambient discovery/unmanifested files, and remain labeled internal until legal, signing, containment, and three-OS package evidence pass.
+60. Treat worker workspace-output monitoring as poll-bounded supervisor containment, not a hard filesystem quota or sandbox. Preserve the staged-input size/read-only invariant, bound aggregate non-input bytes and entry count during execution and after exit, reject special or nested entries, terminate on violation, and recursively clean only the supervisor-owned private job directory.
 
 ## Documentation protocol
 

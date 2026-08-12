@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use partprobe_domain::{RuleVersion, SchemaVersion};
 use partprobe_geometry_core::{
@@ -683,6 +683,46 @@ fn worker_regular_file_output_is_hard_limited_and_cleaned() {
         "WORKER_EXIT"
     );
     assert!(execution.output().is_none());
+}
+
+#[test]
+fn aggregate_workspace_output_is_supervised_terminated_and_cleaned() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("test clock must follow the Unix epoch")
+        .as_nanos();
+    let job_root = std::env::temp_dir().join(format!(
+        "partprobe-workspace-budget-test-{}-{unique}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&job_root).expect("dedicated worker root must be created");
+    let supervisor = cancellation_fixture_supervisor_in(100, job_root.clone());
+    let started = Instant::now();
+
+    let execution = execute_resource_fixture(
+        &format!("resource-workspace-aggregate-{}", std::process::id()),
+        &supervisor,
+        &AtomicBool::new(false),
+    );
+
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::FailedRecoverable
+    );
+    assert_eq!(
+        execution.response().diagnostic_codes()[0].as_str(),
+        "WORKSPACE_OUTPUT_LIMIT_EXCEEDED"
+    );
+    assert!(execution.output().is_none());
+    assert!(started.elapsed() < Duration::from_secs(2));
+    assert_eq!(
+        std::fs::read_dir(&job_root)
+            .expect("worker root must remain readable")
+            .count(),
+        0,
+        "owned job workspace and all worker scratch files must be removed"
+    );
+    std::fs::remove_dir(job_root).expect("empty dedicated worker root must be removed");
 }
 
 #[test]

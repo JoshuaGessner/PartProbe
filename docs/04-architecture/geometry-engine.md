@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-08-09
+- **Last updated:** 2026-08-11
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, REQ-NF-011–REQ-NF-014, GEO-001–GEO-014, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Target-specific sandbox/resource enforcement? Canonical tolerance defaults? Which exact fixtures establish release tolerances?
@@ -70,7 +70,9 @@ The reversible spike now uses a bounded, newline-framed control stream with its 
 
 Native adapter ABI version 3 passes verified bytes by pointer and length to `STEPControl_Reader::ReadStream` under a fixed non-sensitive auxiliary name and passes the worker's atomic cancellation probe into an OCCT `Message_ProgressIndicator`. OCCT 8.0 polls `UserBreak()` during STEP root transfer, so a validated cancel can stop that phase and return the sanitized `OCCT_CANCELLED` boundary code; Rust contains probe panics and treats them as cancellation rather than unwinding through C++. Stream parsing and `SurfaceProperties`/`VolumeProperties` do not expose progress ranges, so they remain uninterruptible internally. The supervisor's grace-bounded kill/reap path remains the required bound for those phases and for any native code that stops polling.
 
-The supervisor treats launch, protocol I/O, worker exit, timeout, quota breach, malformed response, output-claim failure, cleanup failure, or cancellation as sanitized failure. Current partial resource containment includes Unix CPU/regular-file/core limits and process-group cleanup, Linux address-space limits, and a suspended Windows Job with per-process CPU, committed-memory, one-process, and kill-on-close controls. The target design still requires no worker network, OS-enforced filesystem confinement/temporary-storage isolation, hard macOS memory enforcement, hostile Unix descendant escape prevention, aggregate-output limits, and derivative cleanup under retention policy. A private directory, cleared environment, controlled working root, and these partial limits are defense in depth, not an OS sandbox.
+The supervisor treats launch, protocol I/O, worker exit, timeout, quota breach, malformed response, output-claim failure, cleanup failure, or cancellation as sanitized failure. Current partial resource containment includes Unix CPU/regular-file/core limits and process-group cleanup, Linux address-space limits, and a suspended Windows Job with per-process CPU, committed-memory, one-process, and kill-on-close controls. On every target, each process poll and the post-exit boundary also inspect the private job directory without accepting links, special files, or nested directories; the verified-copy input must remain the same length and read-only, while all other regular files share the request's output-byte budget and a fixed 64-entry ceiling. A violation terminates and reaps a live child, returns `WORKSPACE_OUTPUT_LIMIT_EXCEEDED`, and recursively removes only the supervisor-created job directory, including unclaimed scratch files.
+
+That inspection closes the demonstrated multi-file aggregate-output gap only at supervisor polling boundaries. It is not an OS-enforced storage quota: a hostile process can transiently overshoot or write and remove bytes between polls, and the worker is not prevented from attempting paths outside its job directory. The target design still requires no worker network, OS-enforced filesystem confinement/temporary-storage isolation and hard storage quotas, hard macOS memory enforcement, hostile Unix descendant escape prevention, and derivative cleanup under retention policy. A private directory, cleared environment, controlled working root, polling monitor, and these partial limits are defense in depth, not an OS sandbox.
 
 ## Kernel adapter boundary
 

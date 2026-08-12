@@ -1,12 +1,20 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-08-11
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-11 — TASK-003 aggregate private-workspace output containment
+
+- Added portable supervisor inspection of every private job directory during child polling and once after exit. The verified-copy input must stay a read-only regular file at its authorized length; links, special files, nested directories, more than 64 entries, arithmetic overflow, or aggregate non-input regular-file bytes above the request's output quota fail closed.
+- A live violation is terminated and reaped and maps only to `WORKSPACE_OUTPUT_LIMIT_EXCEEDED`; inspection failure has its own sanitized `WORKSPACE_INSPECTION_FAILED` code. The supervisor then recursively removes the exact job directory it atomically created, so worker scratch files do not turn a containment result into a stale-directory cleanup failure.
+- Added a hostile cross-platform fixture that writes two 600 KiB scratch files against a 1,000,000-byte output budget and then waits. Each file remains under the per-file ceiling, while the supervisor observes their aggregate, returns in under two seconds, exposes no output, and leaves the dedicated controlled parent empty.
+- This is poll-bounded defense in depth, not an OS-enforced filesystem quota or sandbox. Transient writes between polls, paths outside the job directory, target network denial, hard macOS memory, hostile Unix descendant escape, signed packaging, and native Windows/Linux OCCT evidence remain open.
+- The preproduction worker control/request/asset schemas, native ABI, geometry interpretation, calculation behavior, persisted/customer schemas, dependencies, production rates, external-transfer policy, and support/compliance claims did not change. Local closeout passes formatting, strict workspace/native-host/WASM Clippy, 143 runtime tests, the compile-fail doctest, eleven native-tooling tests, 142-document planning validation, fixture hashes, offline frontend construction, and diff checks. The new three-OS CI run is pending.
 
 ## 2026-08-09 — TASK-003 desktop startup verification
 

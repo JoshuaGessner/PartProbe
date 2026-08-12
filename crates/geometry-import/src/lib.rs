@@ -30,6 +30,8 @@ pub const WORKER_ASSET_TRANSPORT_SCHEMA_VERSION: u16 = 2;
 /// Opaque reference used only by the current developer-only native snapshot schema.
 pub const PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE: &str = "geometry-snapshot-v1";
 
+const MAX_WORKER_WORKSPACE_ENTRIES: usize = 64;
+
 static JOB_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 macro_rules! protocol_token {
@@ -907,6 +909,10 @@ pub enum WorkerTermination {
     AssetCleanupFailed,
     /// A private per-job workspace could not be created.
     WorkspacePrepareFailed,
+    /// Worker-created files exceeded the aggregate workspace-output budget or entry bound.
+    WorkspaceOutputLimitExceeded,
+    /// The supervisor could not inspect the private workspace while the worker was active.
+    WorkspaceInspectionFailed,
     /// Worker output could not be claimed and validated.
     OutputClaimFailed,
     /// Worker output could not be removed from the filesystem namespace.
@@ -940,6 +946,8 @@ pub fn recoverable_termination_response(
         WorkerTermination::AssetHashMismatch => "ASSET_HASH_MISMATCH",
         WorkerTermination::AssetCleanupFailed => "ASSET_CLEANUP_FAILED",
         WorkerTermination::WorkspacePrepareFailed => "WORKSPACE_PREPARE_FAILED",
+        WorkerTermination::WorkspaceOutputLimitExceeded => "WORKSPACE_OUTPUT_LIMIT_EXCEEDED",
+        WorkerTermination::WorkspaceInspectionFailed => "WORKSPACE_INSPECTION_FAILED",
         WorkerTermination::OutputClaimFailed => "OUTPUT_CLAIM_FAILED",
         WorkerTermination::OutputCleanupFailed => "OUTPUT_CLEANUP_FAILED",
         WorkerTermination::WorkspaceCleanupFailed => "WORKSPACE_CLEANUP_FAILED",
@@ -1554,6 +1562,7 @@ impl GeometryWorkerSupervisor {
         direct_asset: Option<partprobe_platform::DirectWorkerAsset>,
         cancellation: &AtomicBool,
         working_directory: &Path,
+        expected_staged_input_bytes: Option<u64>,
     ) -> GeometryWorkerResponse {
         if cancellation.load(Ordering::Acquire) {
             return response_for(request, WorkerTermination::Cancelled);
@@ -1611,6 +1620,16 @@ impl GeometryWorkerSupervisor {
         let started = Instant::now();
         let mut shutdown = None;
         let status = loop {
+            if let Err(termination) = inspect_worker_workspace(
+                working_directory,
+                expected_staged_input_bytes,
+                request.quotas().max_output_bytes(),
+            ) {
+                terminate_and_reap(&mut child);
+                close_control_writer(control_tx, control_writer);
+                let _ = reader.join();
+                return response_for(request, termination);
+            }
             if shutdown.is_none() {
                 let reason = if cancellation.load(Ordering::Acquire) {
                     Some(WorkerCancellationReason::UserRequested)
@@ -1655,6 +1674,16 @@ impl GeometryWorkerSupervisor {
                 }
             }
         };
+
+        if let Err(termination) = inspect_worker_workspace(
+            working_directory,
+            expected_staged_input_bytes,
+            request.quotas().max_output_bytes(),
+        ) {
+            close_control_writer(control_tx, control_writer);
+            let _ = reader.join();
+            return response_for(request, termination);
+        }
 
         if !close_control_writer(control_tx, control_writer) {
             let _ = reader.join();
@@ -1758,11 +1787,11 @@ impl GeometryWorkerSupervisor {
             Ok(prepared) => prepared,
             Err(termination) => {
                 drop(grant);
-                let cleanup = remove_staged_asset(&staged_path)
-                    .and_then(|()| std::fs::remove_dir(&job_directory));
+                let asset_cleanup = remove_staged_asset(&staged_path);
+                let workspace_cleanup = remove_job_directory(&job_directory);
                 return failed_execution(
                     request,
-                    if cleanup.is_ok() {
+                    if asset_cleanup.is_ok() && workspace_cleanup.is_ok() {
                         termination
                     } else {
                         WorkerTermination::WorkspaceCleanupFailed
@@ -1772,6 +1801,9 @@ impl GeometryWorkerSupervisor {
                 );
             }
         };
+        let expected_staged_input_bytes =
+            matches!(asset_transport, WorkerAssetTransport::VerifiedPrivateCopy)
+                .then_some(grant.authorized_byte_length());
         drop(grant);
 
         let response = self.execute_in(
@@ -1780,10 +1812,11 @@ impl GeometryWorkerSupervisor {
             direct_asset,
             cancellation,
             &job_directory,
+            expected_staged_input_bytes,
         );
         let output = reconcile_worker_output(request, &response, &output_path);
         let asset_cleanup = remove_staged_asset(&staged_path);
-        let workspace_cleanup = std::fs::remove_dir(&job_directory);
+        let workspace_cleanup = remove_job_directory(&job_directory);
 
         if asset_cleanup.is_err() {
             return failed_execution(
@@ -1948,6 +1981,68 @@ fn create_job_directory(root: &Path) -> std::io::Result<PathBuf> {
         std::io::ErrorKind::AlreadyExists,
         "could not allocate a unique worker job directory",
     ))
+}
+
+fn inspect_worker_workspace(
+    job_directory: &Path,
+    expected_staged_input_bytes: Option<u64>,
+    max_output_bytes: u64,
+) -> Result<(), WorkerTermination> {
+    let entries = std::fs::read_dir(job_directory)
+        .map_err(|_| WorkerTermination::WorkspaceInspectionFailed)?;
+    let mut entry_count = 0_usize;
+    let mut aggregate_output_bytes = 0_u64;
+
+    for entry in entries {
+        entry_count = entry_count
+            .checked_add(1)
+            .ok_or(WorkerTermination::WorkspaceOutputLimitExceeded)?;
+        if entry_count > MAX_WORKER_WORKSPACE_ENTRIES {
+            return Err(WorkerTermination::WorkspaceOutputLimitExceeded);
+        }
+        let entry = entry.map_err(|_| WorkerTermination::WorkspaceInspectionFailed)?;
+        let file_type = entry
+            .file_type()
+            .map_err(|_| WorkerTermination::WorkspaceInspectionFailed)?;
+        if !file_type.is_file() {
+            return Err(WorkerTermination::WorkspaceOutputLimitExceeded);
+        }
+        let metadata = entry
+            .metadata()
+            .map_err(|_| WorkerTermination::WorkspaceInspectionFailed)?;
+
+        if entry.file_name() == std::ffi::OsStr::new(WORKER_INPUT_FILENAME) {
+            if expected_staged_input_bytes != Some(metadata.len())
+                || !metadata.permissions().readonly()
+            {
+                return Err(WorkerTermination::WorkspaceOutputLimitExceeded);
+            }
+            continue;
+        }
+
+        aggregate_output_bytes = aggregate_output_bytes
+            .checked_add(metadata.len())
+            .ok_or(WorkerTermination::WorkspaceOutputLimitExceeded)?;
+        if aggregate_output_bytes > max_output_bytes {
+            return Err(WorkerTermination::WorkspaceOutputLimitExceeded);
+        }
+    }
+
+    Ok(())
+}
+
+fn remove_job_directory(job_directory: &Path) -> std::io::Result<()> {
+    match std::fs::symlink_metadata(job_directory) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+            std::fs::remove_dir_all(job_directory)
+        }
+        Ok(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "worker job workspace no longer identifies a directory",
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 fn reconcile_worker_output(
