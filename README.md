@@ -1,7 +1,7 @@
 # PartProbe
 
 > **Status:** In Review
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-12
 > **Related requirements:** REQ-F-001–REQ-F-065; REQ-NF-001–REQ-NF-022
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -22,7 +22,7 @@ PartProbe is currently a **pre-alpha engineering foundation**, not an installabl
 | STEP/OCCT | Optional OCCT 8.0 ABI-v3 spike parses exact verified bytes, emits a source-bound provisional snapshot, has a fail-closed pinned source-build command, measures both an OCCT-generated cube and a manually authored analytic prism, and assembles a host-verified developer runtime on evidenced Apple Silicon and Ubuntu x86_64 configurations | Not a supported product importer; formal fixture review, broader accuracy corpus, Windows native construction/runtime launch, signed distribution, Linux GUI/package evidence, and legal review remain open |
 | Desktop and storage | GUI-2 supplies the headless application use case; GUI-3 supplies the restrictive shell; GUI-4/GUI-5 provide an actual Apple-Silicon session-only path through real OCCT geometry, revision-bound review, complete inputs, cancellation/recovery, and a deterministic USD 702 trace; Ubuntu now passes the equivalent configured headless desktop-host smoke | No durable audit/database, save/reopen workflow, embedded/signed native runtime, supported installer, full accessibility matrix, or three-OS native GUI/package evidence exists |
 
-The local macOS default workspace passes **143 runtime tests** plus one compile-fail doctest and fourteen native-tooling tests. Portable tests cover desktop startup verification and aggregate workspace-output containment; Linux CI additionally exercises parser-phase socket and descendant denial. GUI-5's focused contract/native-host/UI set passes 29 tests plus one opt-in real-worker smoke ignored by default. The native construction path passes 29 adapter/worker tests, and [native Linux run 31555774851](https://github.com/JoshuaGessner/PartProbe/actions/runs/31555774851) constructs exact OCCT 8.0.0 on Ubuntu 24.04 x86_64, verifies the 24-binary/23-OCCT-family dynamic-link closure, and passes the configured desktop-host STEP-to-USD-702 smoke under seccomp. [Default matrix run 31555765300](https://github.com/JoshuaGessner/PartProbe/actions/runs/31555765300) passes macOS, Ubuntu, and Windows at implementation commit `34ce137`. The rebuilt unsigned Apple-Silicon app also retains its full native-picker flow, cancellation, malformed-input recovery, and review-reset evidence. Details and limits are in [TASK-003 validation evidence](docs/06-quality/task-003-validation.md); these results are internal engineering evidence, not production estimating accuracy or release readiness.
+The local macOS default workspace passes **143 runtime tests** plus one compile-fail doctest and 25 native-tooling tests. Portable tests cover desktop startup verification, aggregate workspace-output containment, and the fail-closed Windows runtime/DLL/PE contract; Linux CI additionally exercises parser-phase socket and descendant denial. GUI-5's focused contract/native-host/UI set passes 29 tests plus one opt-in real-worker smoke ignored by default. [Native Linux run 31555774851](https://github.com/JoshuaGessner/PartProbe/actions/runs/31555774851) constructs exact OCCT 8.0.0 on Ubuntu 24.04 x86_64, verifies the 24-binary/23-OCCT-family dynamic-link closure, and passes the configured desktop-host STEP-to-USD-702 smoke under seccomp. Windows native construction is currently being exercised by manual run 31594442807; no Windows native success, package, or support claim is made until that run passes assembly, PE closure, and the host smoke. The rebuilt unsigned Apple-Silicon app retains its full native-picker flow, cancellation, malformed-input recovery, and review-reset evidence. Details and limits are in [TASK-003 validation evidence](docs/06-quality/task-003-validation.md); these results are internal engineering evidence, not production estimating accuracy or release readiness.
 
 ## Product boundary
 
@@ -36,7 +36,7 @@ The local macOS default workspace passes **143 runtime tests** plus one compile-
 
 The current implementation order is:
 
-1. Review the GUI-1 fixture evidence; extend the verified developer-runtime construction/launch path to Windows; add Linux GUI/package evidence, dynamic-link/license/SBOM inspection, signed application integration, macOS/Windows parser egress denial, general filesystem confinement, and remaining TASK-003 resource containment.
+1. Review the GUI-1 fixture evidence; finish and validate the active Windows developer-runtime construction/launch run; add Linux GUI/package evidence, dynamic-link/license/SBOM inspection, signed application integration, macOS/Windows parser egress denial, general filesystem confinement, and remaining TASK-003 resource containment.
 2. Complete TASK-004 STL/3MF mesh import comparison.
 3. Build TASK-005 desktop UX, including guided shop-owned rate setup and model review.
 4. Implement TASK-006 durable SQLite repositories, migrations, backup/restore, and historical replay.

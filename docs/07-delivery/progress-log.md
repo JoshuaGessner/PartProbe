@@ -1,12 +1,20 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-12
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-12 — TASK-003 Windows x64 native-runtime evidence in progress
+
+- Added the read-only, opt-in `Native Windows OCCT Evidence` workflow on the explicit Windows Server 2022/Visual Studio 2022 x64 toolchain. It checks out the exact pinned source, constructs only in runner-temporary paths, assembles/re-verifies a new runtime, audits PE/import closure, runs the configured desktop-host smoke, and neither caches nor uploads native binaries.
+- Corrected the Windows artifact contract end to end: build-time `TK*.lib` inputs are required but never fingerprinted as runtime bytes; installed `TK*.dll` files supply the fingerprint and complete closure; the assembler and desktop verifier keep those DLLs beside the worker in `bin`; and the dependency audit requires x64 PE evidence plus every imported OCCT DLL inside that app-local runtime.
+- Added Visual Studio generator-platform provenance and a fail-closed compiler-metadata fallback. Initial run 31594054913 exposed that multi-configuration Visual Studio builds omit the Ninja-shaped compiler cache keys and stopped before compilation. Commit `5b5caf8` requires exactly one generated C/C++ compiler definition when those keys are absent; corrected run 31594442807 is active.
+- Local closeout passes formatting, strict workspace/native-host Clippy, all 143 runtime tests, the compile-fail doctest, 25 native-tooling tests, Python compilation, YAML parsing, and diff checks. The ordinary Windows runner passes the new tooling tests. No native Windows success, package, signing, bundled MSVC runtime, windowed-GUI, legal, or supported-importer claim is made before the corrected job completes.
+- No calculation behavior, geometry interpretation, worker/desktop schema, native ABI, persisted/customer schema, dependency version, production rate, external transfer, or support/compliance claim changed.
 
 ## 2026-08-11 — TASK-003 configured Linux OCCT construction and host smoke
 

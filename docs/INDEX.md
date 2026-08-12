@@ -1,7 +1,7 @@
 # PartProbe Documentation Index
 
 > **Status:** In Review
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-12
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -18,7 +18,7 @@ PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop est
 - **Recently completed:** Manual run 31555774851 constructs exact OCCT 8.0.0 on Ubuntu 24.04 x86_64, passes the current 29 native tests, assembles/re-verifies the developer runtime, proves all 23 observed OCCT dependency families resolve inside it, and passes the configured desktop-host STEP-to-USD-702 smoke under the Linux parser filter. The workflow uploads no binaries. This is headless developer evidence, not a general filesystem sandbox, hard disk quota, Linux window/package result, supported importer, or distribution approval. GUI-5 and GUI-4 remain complete only for their bounded internal checkpoints; GUI-1 implementation remains ready for formal fixture/security review.
 - **Documents awaiting review:** All documents marked Draft or In Review; especially ADR-0001–ADR-0014, advanced formulas/policies, calculation rules, requirements, security boundaries, and worked examples
 - **Blocking decisions:** ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
-- **Next actions:** Obtain GUI-1 fixture review; port the pinned OCCT construction plus schema-v1 runtime assembly/in-host-verification/launch evidence to Windows; add Linux GUI/package evidence, macOS/Windows parser egress denial, general filesystem containment, target dynamic-link/license/SBOM review, and signed application integration while closing remaining TASK-003 containment. TASK-004 mesh import, full TASK-005 durable desktop/rate UX, TASK-006 persistence, and TASK-007 shop calibration remain required for the broader product slice.
+- **Next actions:** Obtain GUI-1 fixture review; complete active Windows native run 31594442807 and accept it only if pinned construction, schema-v1 runtime assembly/in-host verification, x64 PE/OCCT import-closure inspection, and configured host launch all pass; add Linux GUI/package evidence, macOS/Windows parser egress denial, general filesystem containment, target dynamic-link/license/SBOM review, and signed application integration while closing remaining TASK-003 containment. TASK-004 mesh import, full TASK-005 durable desktop/rate UX, TASK-006 persistence, and TASK-007 shop calibration remain required for the broader product slice.
 
 Implementation readiness extends through reversible TASK-001/002 calculation and rate mechanics plus the evidence-producing TASK-003 worker/OCCT spike. Architecture acceptance, controlled-data deployment, shop calibration, native packaging, runtime-accuracy claims, and product release remain blocked on M0.2/M1 evidence and review.
 

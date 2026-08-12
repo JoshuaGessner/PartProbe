@@ -1,7 +1,7 @@
 # Delivery Backlog
 
 > **Status:** In Review
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-12
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -29,7 +29,7 @@
 
 ## Prioritized discovery/spike tasks
 
-TASK-003 is **In Progress** on 2026-08-11. Its stacked slices add kernel-neutral contracts, bounded control/transport schemas, exact verified-copy/Unix-descriptor/Windows-HANDLE delivery, worker byte verification, cancellation, partial target resource containment, fixture expectation schema v2, optional OCCT 8.0.0 ABI-v3 parsing, and a source-bound provisional snapshot. Checkpoint 20 added exact-commit/clean-tree OCCT construction automation with a recorded build manifest and `FIX-STEP-003`, a manually authored analytic AP214 prism verified through both adapter and supervisor. Later checkpoints added fail-closed schema-v1 assembly/verification of the native worker plus complete observed OCCT closure, portable poll-bounded aggregate private-workspace output monitoring, and Linux `x86_64`/`aarch64` parser-phase socket/process syscall denial. Apple Silicon passes the actual GUI-5 flow; Ubuntu 24.04 x86_64 run 31555774851 now constructs the same pinned source, verifies all runtime links stay internal, and passes the configured headless host smoke under seccomp. Representative mid-transfer cancellation, internally uninterruptible stream/property bounds, formal fixture review and a broader corpus, macOS/Windows parser egress denial, general filesystem sandboxing and hard storage quotas, remaining resource containment, legal approval, reproducible Windows construction/runtime launch, Linux GUI packaging, signed application integration, and three-OS native benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
+TASK-003 is **In Progress** on 2026-08-12. Its stacked slices add kernel-neutral contracts, bounded control/transport schemas, exact verified-copy/Unix-descriptor/Windows-HANDLE delivery, worker byte verification, cancellation, partial target resource containment, fixture expectation schema v2, optional OCCT 8.0.0 ABI-v3 parsing, and a source-bound provisional snapshot. Later checkpoints add fail-closed schema-v1 runtime assembly, aggregate-workspace monitoring, Linux parser socket/process syscall denial, and Ubuntu configured-native evidence. The current Windows checkpoint implements explicit Visual Studio 2022/x64 provenance, DLL-correct fingerprints/app-local closure, in-host verification, PE/import inspection, and an opt-in configured smoke; corrected run 31594442807 is active and no Windows native success is yet claimed. Representative cancellation, formal fixture/corpus review, macOS/Windows parser egress denial, filesystem sandboxing/hard quotas, legal approval, Linux GUI packaging, signed integration, and three-OS native benchmarks remain required; see [TASK-003 validation](../06-quality/task-003-validation.md).
 
 The [testable GUI vertical-slice plan](gui-vertical-slice-plan.md) defines a smaller internal, STEP-only, session-only developer path. GUI-1 implementation is awaiting fixture review; GUI-2 through GUI-5 are complete for their bounded checkpoint scopes, including actual Apple-Silicon STEP-to-estimate evidence. Passing the path does not complete TASK-003, TASK-005, TASK-006, M1, or M2.
 

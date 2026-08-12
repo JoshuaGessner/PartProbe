@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-12
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -40,6 +40,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - GUI-5 configured native evidence: an opt-in host smoke exercises the real pinned OCCT worker and retained draft session from `FIX-STEP-003` through the expected USD 702 result; the actual unsigned Apple-Silicon app passes keyboard completion, semantic trace inspection, live cancellation, malformed-input recovery, and path-redaction checks.
 - Opt-in, non-distributing Ubuntu 24.04 x86_64 evidence that constructs exact pinned OCCT 8.0.0, assembles and re-verifies the developer runtime, rejects unresolved or externally resolved OCCT dynamic links, and passes the configured desktop-host STEP-to-USD-702 smoke under the Linux parser filter. This is internal headless evidence, not a signed Linux package or supported importer.
 - Analysis-revision-bound geometry review confirmations and a distinct retryable cancellation state, with focused regressions preventing stale confirmations or user cancellation from being presented as generic analysis failure.
+- Opt-in Windows Server 2022/Visual Studio 2022 x64 OCCT construction tooling with DLL-correct fingerprints, app-local runtime closure, manifest-bound desktop verification, explicit PE/import auditing, and a configured-host smoke gate; native success remains pending the active evidence run.
 
 ### Security
 

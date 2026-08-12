@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-12
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -72,6 +72,7 @@ These rules are mandatory for every person or agent changing this repository.
 60. Treat worker workspace-output monitoring as poll-bounded supervisor containment, not a hard filesystem quota or sandbox. Preserve the staged-input size/read-only invariant, bound aggregate non-input bytes and entry count during execution and after exit, reject special or nested entries, terminate on violation, and recursively clean only the supervisor-owned private job directory.
 61. On supported Linux `x86_64`/`aarch64` workers, prepare irreversible `no_new_privs` before creating the cancellation reader and install the thread-synchronized parser seccomp filter only after the authorized asset has been claimed into immutable bytes. Keep socket creation and process/thread/exec creation denied, fail closed with a sanitized containment diagnostic, and do not generalize that Linux-only syscall evidence into filesystem sandbox, native-OCCT, or three-OS containment claims.
 62. Native Linux OCCT evidence must construct the exact pinned source in an opt-in, non-distributing job; assemble and re-verify a new manifest-bound runtime; prove every `libTK*` dependency resolves inside that runtime; and run the configured desktop-host smoke under the production parser filter. Do not cache or publish those developer binaries, and do not promote a headless Ubuntu smoke into signed packaging, windowed-GUI, Windows, legal, or supported-importer evidence.
+63. Native Windows x64 OCCT evidence must pin the Visual Studio generator and `x64` generator platform, fingerprint installed runtime DLLs rather than build-time import libraries, keep the complete `TK*.dll` closure app-local beside the worker, verify every worker/DLL PE machine and OCCT import with an explicit reviewed dependency tool, and run the configured desktop-host smoke. Do not infer bundled MSVC runtime, signing, installer, windowed-GUI, legal, or supported-importer evidence from that developer job.
 
 ## Documentation protocol
 

@@ -1,7 +1,7 @@
 # Deployment Models
 
 > **Status:** Draft  
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-08-12
 > **Related requirement IDs:** REQ-NF-001, REQ-NF-002, SEC-001–SEC-010  
 > **Related architecture decision IDs:** ADR-0001, ADR-0005, ADR-0006  
 > **Open questions:** Target networks, air-gap/offline needs, identity source, backup target, update process, and supported operating systems  
@@ -26,7 +26,7 @@ Choose the profile from actual data classification, contract terms, users, netwo
 
 ## Developer runtime is not a deployment profile
 
-The content-addressed native runtime assembled for the Apple-Silicon GUI-5/TASK-003 checkpoint is a local engineering artifact. It keeps the verified worker and its full OCCT shared-library closure together and requires an external explicit worker workspace, but it does not provide installation, signing, OS sandboxing, identity, authorization repositories, durable audit, backup, update, or controlled-data operations. Do not treat its successful local verification as Standalone, Team/LAN, or controlled-data deployment acceptance.
+The content-addressed native runtimes assembled for the evidenced Apple-Silicon and Ubuntu TASK-003 checkpoints are local engineering artifacts. The same manifest-bound shape is implemented for active Windows x64 evidence, with app-local DLLs beside the worker, but Windows success remains pending run 31594442807. These runtimes require an external explicit worker workspace and do not provide installation, a bundled MSVC runtime, signing, OS sandboxing, identity, authorization repositories, durable audit, backup, update, or controlled-data operations. Do not treat construction or local verification as Standalone, Team/LAN, or controlled-data deployment acceptance.
 
 ## Common deployment invariants
 
