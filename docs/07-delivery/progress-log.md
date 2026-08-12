@@ -8,6 +8,13 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-12 — Public source-repository boundary
+
+- Changed `JoshuaGessner/PartProbe` from private to public so hosted CI can continue. The current Windows native run remained active across the visibility change and required no restart.
+- Confirmed the current and historical tracked CAD filenames are limited to the five governed project-authored synthetic fixtures. A targeted full-history scan found no recognized private-key, AWS access-key, GitHub-token, or Slack-token patterns; this is a hygiene check, not a guarantee that arbitrary content is non-sensitive.
+- Confirmed every workflow grants read-only repository contents, disables persisted checkout credentials, and uploads no workflow artifact. Public visibility does not authorize committing customer/shop CAD, drawings, estimates, rates, credentials, signing material, controlled technical data, or private validation evidence.
+- Added the public-repository data boundary to `AGENTS.md`, the README, project state, and the test-data strategy. No calculation behavior, geometry interpretation, schema, native ABI, dependency, production rate, or support/compliance claim changed.
+
 ## 2026-08-12 — TASK-003 Windows x64 native-runtime evidence in progress
 
 - Added the read-only, opt-in `Native Windows OCCT Evidence` workflow on the explicit Windows Server 2022/Visual Studio 2022 x64 toolchain. It checks out the exact pinned source, constructs only in runner-temporary paths, assembles/re-verifies a new runtime, audits PE/import closure, runs the configured desktop-host smoke, and neither caches nor uploads native binaries.
