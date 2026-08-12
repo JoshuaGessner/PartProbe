@@ -135,7 +135,11 @@ impl VerifiedNativeRuntime {
         verify_worker_executable(&worker_executable)?;
         validate_build_provenance(&root.join(BUILD_MANIFEST_PATH), &manifest)?;
         validate_install_fingerprint(&root, &manifest)?;
-        let native_library_directory = root.join("lib");
+        let native_library_directory = root.join(if host_platform() == "windows" {
+            "bin"
+        } else {
+            "lib"
+        });
         if !native_library_directory.is_dir() {
             return Err(NativeRuntimeError::ArtifactInvalid);
         }
@@ -401,7 +405,12 @@ fn entry_matches_library_family(entry: &Artifact, family: &str) -> bool {
     let Ok(path) = validate_relative_path(&entry.path) else {
         return false;
     };
-    if path.parent() != Some(Path::new("lib")) {
+    let expected_parent = if host_platform() == "windows" {
+        Path::new("bin")
+    } else {
+        Path::new("lib")
+    };
+    if path.parent() != Some(expected_parent) {
         return false;
     }
     let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
@@ -438,6 +447,11 @@ fn validate_build_provenance(
         .any(|(key, expected)| value.get(key) != Some(expected))
         || value.get("platform").and_then(serde_json::Value::as_str)
             != Some(runtime.platform.as_str())
+        || (runtime.platform == "windows"
+            && value
+                .get("cmake_generator_platform")
+                .and_then(serde_json::Value::as_str)
+                != Some("x64"))
         || !value
             .get("machine")
             .and_then(serde_json::Value::as_str)
@@ -473,7 +487,12 @@ fn validate_install_fingerprint(
             "windows" => format!("{family}.dll"),
             _ => return Err(NativeRuntimeError::UnsupportedHost),
         };
-        if expected != &sha256(&root.join("lib").join(filename))? {
+        let directory = if host_platform() == "windows" {
+            "bin"
+        } else {
+            "lib"
+        };
+        if expected != &sha256(&root.join(directory).join(filename))? {
             return Err(NativeRuntimeError::ProvenanceInvalid);
         }
     }
@@ -624,7 +643,8 @@ mod tests {
             "platform": host_platform(),
             "machine": host_machine(),
             "build_type": "Release",
-            "library_type": "Shared"
+            "library_type": "Shared",
+            "cmake_generator_platform": if host_platform() == "windows" { "x64" } else { "" }
         });
         let build_bytes = serde_json::to_vec_pretty(&build_value).expect("build JSON");
         let build = create_file(&runtime.root, BUILD_MANIFEST_PATH, &build_bytes);
@@ -638,7 +658,12 @@ mod tests {
                 "windows" => format!("{family}.dll"),
                 _ => panic!("test host must be supported"),
             };
-            let relative = format!("lib/{filename}");
+            let directory = if host_platform() == "windows" {
+                "bin"
+            } else {
+                "lib"
+            };
+            let relative = format!("{directory}/{filename}");
             let artifact = create_file(&runtime.root, &relative, family.as_bytes());
             fingerprints.insert(
                 family.to_owned(),
@@ -697,7 +722,11 @@ mod tests {
         );
         assert_eq!(
             verified.native_library_directory(),
-            canonical_root.join("lib")
+            canonical_root.join(if host_platform() == "windows" {
+                "bin"
+            } else {
+                "lib"
+            })
         );
     }
 
@@ -716,7 +745,19 @@ mod tests {
         );
 
         let runtime = valid_runtime();
-        fs::write(runtime.root.join("lib/unmanifested.bin"), b"extra").unwrap();
+        let unmanifested_directory = if host_platform() == "windows" {
+            "bin"
+        } else {
+            "lib"
+        };
+        fs::write(
+            runtime
+                .root
+                .join(unmanifested_directory)
+                .join("unmanifested.bin"),
+            b"extra",
+        )
+        .unwrap();
         assert_eq!(
             VerifiedNativeRuntime::verify(&runtime.root).unwrap_err(),
             NativeRuntimeError::ArtifactInvalid

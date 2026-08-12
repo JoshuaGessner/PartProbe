@@ -81,14 +81,28 @@ def resolve_library(library_dir: Path, name: str) -> Path:
     return (unversioned or candidates)[0].resolve()
 
 
-def inspect_occt(root: Path) -> dict[str, object]:
+def inspect_occt(
+    root: Path,
+    system: str | None = None,
+    machine: str | None = None,
+    *,
+    require_link_libraries: bool = True,
+) -> dict[str, object]:
     root = root.expanduser().resolve(strict=True)
+    system = system or platform.system().lower()
+    machine = machine or platform.machine().lower()
     include_dir = root / "include" / "opencascade"
     library_dir = root / "lib"
+    runtime_dir = root / "bin" if system == "windows" else library_dir
     version_header = include_dir / "Standard_Version.hxx"
-    if not include_dir.is_dir() or not library_dir.is_dir() or not version_header.is_file():
+    if (
+        not include_dir.is_dir()
+        or not runtime_dir.is_dir()
+        or not version_header.is_file()
+        or (system == "windows" and require_link_libraries and not library_dir.is_dir())
+    ):
         raise ValueError(
-            "OCCT root must contain include/opencascade/Standard_Version.hxx and lib"
+            "OCCT root does not contain the required header and native library directories"
         )
     version_match = re.search(
         r'^#define OCC_VERSION_COMPLETE "([^"]+)"$',
@@ -100,12 +114,25 @@ def inspect_occt(root: Path) -> dict[str, object]:
         raise ValueError(
             f"expected OCCT {EXPECTED_OCCT_VERSION}, found {actual} in {version_header}"
         )
-    libraries = {name: resolve_library(library_dir, name) for name in REQUIRED_LIBRARIES}
+    if system == "windows":
+        if require_link_libraries:
+            for name in REQUIRED_LIBRARIES:
+                import_library = library_dir / f"{name}.lib"
+                if not import_library.is_file():
+                    raise ValueError(f"missing required OCCT import library {name}.lib")
+        libraries = {}
+        for name in REQUIRED_LIBRARIES:
+            runtime_library = runtime_dir / f"{name}.dll"
+            if not runtime_library.is_file():
+                raise ValueError(f"missing required OCCT runtime library {name}.dll")
+            libraries[name] = runtime_library.resolve(strict=True)
+    else:
+        libraries = {name: resolve_library(library_dir, name) for name in REQUIRED_LIBRARIES}
     return {
         "schema_version": 1,
         "occt_version": EXPECTED_OCCT_VERSION,
-        "platform": platform.system().lower(),
-        "machine": platform.machine().lower(),
+        "platform": system,
+        "machine": machine,
         "version_header_sha256": sha256(version_header),
         "libraries": {name: sha256(path) for name, path in libraries.items()},
     }

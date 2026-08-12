@@ -65,6 +65,11 @@ def parse_args() -> argparse.Namespace:
         help="Optional explicit CMake generator; the selected generator is recorded",
     )
     parser.add_argument(
+        "--architecture",
+        choices=("x64",),
+        help="Explicit Visual Studio generator platform; currently Windows x64 only",
+    )
+    parser.add_argument(
         "--allow-existing",
         action="store_true",
         help="Allow nonempty build/install directories after all path checks pass",
@@ -149,10 +154,13 @@ def configure_command(
     build: Path,
     install: Path,
     generator: str | None,
+    architecture: str | None,
 ) -> list[str]:
     command = ["cmake", "-S", str(source), "-B", str(build)]
     if generator:
         command.extend(["-G", generator])
+    if architecture:
+        command.extend(["-A", architecture])
     command.extend(FIXED_CMAKE_OPTIONS)
     command.extend(f"-DBUILD_MODULE_{module}=OFF" for module in TOP_LEVEL_MODULES)
     command.append(f"-DINSTALL_DIR={install}")
@@ -183,6 +191,7 @@ def write_manifest(
         "machine": platform.machine().lower(),
         "cmake_version": run_capture(["cmake", "--version"]).splitlines()[0],
         "cmake_generator": cmake_cache_value(cache, "CMAKE_GENERATOR"),
+        "cmake_generator_platform": cmake_cache_value(cache, "CMAKE_GENERATOR_PLATFORM"),
         "c_compiler": cmake_cache_value(cache, "CMAKE_C_COMPILER"),
         "cxx_compiler": cmake_cache_value(cache, "CMAKE_CXX_COMPILER"),
         "build_jobs": jobs,
@@ -201,6 +210,11 @@ def main() -> int:
     args = parse_args()
     if args.jobs <= 0:
         raise ValueError("--jobs must be positive")
+    system = platform.system().lower()
+    if system == "windows" and args.architecture != "x64":
+        raise ValueError("Windows construction requires explicit --architecture x64")
+    if system != "windows" and args.architecture is not None:
+        raise ValueError("--architecture is supported only for Windows construction")
     source, build, install = validate_output_paths(
         args.source,
         args.build,
@@ -210,7 +224,7 @@ def main() -> int:
     commit, tree = validate_source(source)
     build.mkdir(parents=True, exist_ok=True)
     install.mkdir(parents=True, exist_ok=True)
-    run(configure_command(source, build, install, args.generator))
+    run(configure_command(source, build, install, args.generator, args.architecture))
     manifest = write_manifest(build, commit, tree, args.jobs)
     print(f"wrote {manifest}")
     if args.configure_only:

@@ -123,6 +123,8 @@ def validate_build_manifest(
             raise ValueError(
                 f"OCCT build manifest {key} must be {value!r}, found {manifest.get(key)!r}"
             )
+    if expected_platform == "windows" and manifest.get("cmake_generator_platform") != "x64":
+        raise ValueError("Windows OCCT build manifest must pin CMake generator platform x64")
     return manifest
 
 
@@ -191,6 +193,10 @@ def runtime_library_families(root: Path, system: str) -> dict[str, list[Path]]:
     return families
 
 
+def runtime_library_directory_name(system: str) -> str:
+    return "bin" if system == "windows" else "lib"
+
+
 def relative_artifact_path(path: str) -> Path:
     pure = PurePosixPath(path)
     if pure.is_absolute() or not pure.parts or any(part in {"", ".", ".."} for part in pure.parts):
@@ -227,7 +233,7 @@ def assemble_runtime(
     )
     system, machine = host_identity()
     validate_build_manifest(build_manifest, system, machine)
-    install_fingerprint = inspect_occt(occt_root)
+    install_fingerprint = inspect_occt(occt_root, system, machine)
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".partprobe-native-runtime-", dir=output.parent))
     try:
@@ -247,7 +253,11 @@ def assemble_runtime(
         libraries: dict[str, list[dict[str, object]]] = {}
         for name, sources in runtime_library_families(occt_root, system).items():
             libraries[name] = [
-                copy_artifact(source, staging / "lib" / source.name, staging)
+                copy_artifact(
+                    source,
+                    staging / runtime_library_directory_name(system) / source.name,
+                    staging,
+                )
                 for source in sources
             ]
         manifest: dict[str, object] = {
@@ -382,7 +392,12 @@ def verify_runtime(runtime_root: Path) -> dict[str, object]:
     assert isinstance(provenance_entry, dict)
     provenance_path = root / relative_artifact_path(str(provenance_entry["path"]))
     validate_build_manifest(provenance_path, system, machine)
-    if manifest.get("occt_install_fingerprint") != inspect_occt(root):
+    if manifest.get("occt_install_fingerprint") != inspect_occt(
+        root,
+        system,
+        machine,
+        require_link_libraries=False,
+    ):
         raise ValueError("runtime OCCT fingerprint differs from the assembled install")
     return manifest
 

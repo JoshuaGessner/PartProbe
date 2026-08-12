@@ -22,9 +22,7 @@ class BuildOcctTests(unittest.TestCase):
         source = Path("/source")
         build = Path("/build")
         install = Path("/install")
-        command = build_occt.configure_command(
-            source, build, install, "Ninja"
-        )
+        command = build_occt.configure_command(source, build, install, "Ninja", None)
 
         self.assertEqual(
             command[:7],
@@ -37,6 +35,17 @@ class BuildOcctTests(unittest.TestCase):
         self.assertIn("-DUSE_TBB=OFF", command)
         self.assertIn("-DUSE_FREETYPE=OFF", command)
         self.assertEqual(command[-1], f"-DINSTALL_DIR={install}")
+
+    def test_windows_configure_command_pins_x64_generator_platform(self) -> None:
+        command = build_occt.configure_command(
+            Path("/source"),
+            Path("/build"),
+            Path("/install"),
+            "Visual Studio 17 2022",
+            "x64",
+        )
+
+        self.assertEqual(command[7:9], ["-A", "x64"])
 
     def test_output_paths_reject_source_children_and_nested_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -80,6 +89,7 @@ class BuildOcctTests(unittest.TestCase):
             build = Path(temporary)
             (build / "CMakeCache.txt").write_text(
                 "CMAKE_GENERATOR:INTERNAL=Ninja\n"
+                "CMAKE_GENERATOR_PLATFORM:INTERNAL=\n"
                 "CMAKE_C_COMPILER:FILEPATH=/tool/cc\n"
                 "CMAKE_CXX_COMPILER:FILEPATH=/tool/c++\n",
                 encoding="utf-8",
@@ -93,12 +103,20 @@ class BuildOcctTests(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
             self.assertEqual(manifest["cmake_generator"], "Ninja")
+            self.assertEqual(manifest["cmake_generator_platform"], "")
             self.assertEqual(manifest["cxx_compiler"], "/tool/c++")
             self.assertEqual(manifest["additional_toolkits"], ["TKDESTEP", "TKShHealing", "TKMesh"])
 
 
 class VerifyNativeStepTests(unittest.TestCase):
-    def create_install(self, root: Path, version: str = "8.0.0") -> None:
+    def create_install(
+        self,
+        root: Path,
+        version: str = "8.0.0",
+        *,
+        system: str | None = None,
+    ) -> None:
+        system = system or verify_native_step.platform.system().lower()
         include = root / "include" / "opencascade"
         libraries = root / "lib"
         include.mkdir(parents=True)
@@ -107,7 +125,13 @@ class VerifyNativeStepTests(unittest.TestCase):
             f'#define OCC_VERSION_COMPLETE "{version}"\n', encoding="utf-8"
         )
         for name in verify_native_step.REQUIRED_LIBRARIES:
-            (libraries / f"lib{name}.so").write_bytes(name.encode("ascii"))
+            if system == "windows":
+                binaries = root / "bin"
+                binaries.mkdir(exist_ok=True)
+                (libraries / f"{name}.lib").write_bytes(f"import-{name}".encode("ascii"))
+                (binaries / f"{name}.dll").write_bytes(f"runtime-{name}".encode("ascii"))
+            else:
+                (libraries / f"lib{name}.so").write_bytes(name.encode("ascii"))
 
     def test_install_fingerprint_is_content_addressed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -131,10 +155,45 @@ class VerifyNativeStepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 verify_native_step.inspect_occt(root)
 
+    def test_windows_fingerprint_hashes_runtime_dll_not_import_library(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_install(root, system="windows")
+
+            fingerprint = verify_native_step.inspect_occt(
+                root, "windows", "x86_64"
+            )
+
+            self.assertEqual(
+                fingerprint["libraries"]["TKernel"],
+                verify_native_step.sha256(root / "bin" / "TKernel.dll"),
+            )
+            self.assertNotEqual(
+                fingerprint["libraries"]["TKernel"],
+                verify_native_step.sha256(root / "lib" / "TKernel.lib"),
+            )
+
+    def test_windows_build_fingerprint_requires_import_libraries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_install(root, system="windows")
+            (root / "lib" / "TKernel.lib").unlink()
+
+            with self.assertRaises(ValueError):
+                verify_native_step.inspect_occt(root, "windows", "x86_64")
+
 
 class AssembleNativeRuntimeTests(unittest.TestCase):
-    def create_inputs(self, root: Path) -> tuple[Path, Path, Path]:
-        system, machine = assemble_native_runtime.host_identity()
+    def create_inputs(
+        self,
+        root: Path,
+        *,
+        system: str | None = None,
+        machine: str | None = None,
+    ) -> tuple[Path, Path, Path]:
+        host_system, host_machine = assemble_native_runtime.host_identity()
+        system = system or host_system
+        machine = machine or host_machine
         install = root / "install"
         include = install / "include" / "opencascade"
         libraries = install / "lib"
@@ -177,6 +236,7 @@ class AssembleNativeRuntimeTests(unittest.TestCase):
                     "machine": machine,
                     "build_type": "Release",
                     "library_type": "Shared",
+                    "cmake_generator_platform": "x64" if system == "windows" else "",
                 }
             ),
             encoding="utf-8",
@@ -273,6 +333,32 @@ class AssembleNativeRuntimeTests(unittest.TestCase):
                 [expected],
             )
 
+    def test_windows_runtime_assembly_keeps_dlls_beside_worker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install, worker, build_manifest = self.create_inputs(
+                root, system="windows", machine="x86_64"
+            )
+            worker.chmod(0o755)
+            output = root / "runtime"
+
+            with mock.patch.object(
+                assemble_native_runtime,
+                "host_identity",
+                return_value=("windows", "x86_64"),
+            ):
+                manifest = assemble_native_runtime.assemble_runtime(
+                    install, worker, build_manifest, output
+                )
+                assemble_native_runtime.verify_runtime(output)
+
+            self.assertTrue((output / "bin" / "TKernel.dll").is_file())
+            self.assertFalse((output / "lib" / "TKernel.dll").exists())
+            self.assertEqual(
+                manifest["occt_install_fingerprint"]["libraries"]["TKernel"],
+                verify_native_step.sha256(install / "bin" / "TKernel.dll"),
+            )
+
 
 class VerifyNativeRuntimeLinksTests(unittest.TestCase):
     def test_linux_link_evidence_accepts_runtime_occt_and_system_dependencies(self) -> None:
@@ -312,6 +398,63 @@ class VerifyNativeRuntimeLinksTests(unittest.TestCase):
                     f"libTKMath.so.8 => {external} (0x00000001)\n",
                     runtime_library_directory,
                 )
+
+    def test_windows_link_evidence_parses_declared_dependencies(self) -> None:
+        output = """
+Dump of file partprobe-geometry-worker.exe
+
+FILE HEADER VALUES
+            8664 machine (x64)
+
+File Type: EXECUTABLE IMAGE
+
+  Image has the following dependencies:
+
+    TKDESTEP.dll
+    KERNEL32.dll
+
+  Summary
+"""
+
+        self.assertEqual(
+            verify_native_runtime_links.parse_dumpbin_dependents(output),
+            {"TKDESTEP.dll", "KERNEL32.dll"},
+        )
+        self.assertEqual(
+            verify_native_runtime_links.parse_dumpbin_machine(output),
+            "x86_64",
+        )
+
+    def test_windows_link_evidence_rejects_wrong_or_missing_machine(self) -> None:
+        for output in ("14C machine (x86)\n", "no machine evidence\n"):
+            with self.subTest(output=output):
+                with self.assertRaises(ValueError):
+                    verify_native_runtime_links.parse_dumpbin_machine(output)
+
+    def test_windows_link_evidence_rejects_missing_dependency_header(self) -> None:
+        with self.assertRaises(ValueError):
+            verify_native_runtime_links.parse_dumpbin_dependents("KERNEL32.dll\n")
+
+    def test_windows_link_evidence_rejects_malformed_dependency_lines(self) -> None:
+        with self.assertRaises(ValueError):
+            verify_native_runtime_links.parse_dumpbin_dependents(
+                "Image has the following dependencies:\n"
+                "  C:\\unreviewed\\TKMath.dll\n"
+            )
+
+    def test_windows_link_evidence_requires_the_complete_internal_occt_closure(self) -> None:
+        with self.assertRaises(ValueError):
+            verify_native_runtime_links.validate_windows_occt_imports(
+                {"TKMath.dll", "KERNEL32.dll"},
+                {"tkernel.dll"},
+            )
+
+    def test_windows_link_evidence_requires_an_occt_import(self) -> None:
+        with self.assertRaises(ValueError):
+            verify_native_runtime_links.validate_windows_occt_imports(
+                {"KERNEL32.dll"},
+                {"tkernel.dll"},
+            )
 
 
 if __name__ == "__main__":
