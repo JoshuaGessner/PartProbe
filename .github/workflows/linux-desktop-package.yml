@@ -72,13 +72,23 @@ jobs:
           file "$deb_package"
           sha256sum "$deb_package"
 
-      - name: Launch packaged-content desktop shell under a virtual display
+          package_root="$RUNNER_TEMP/partprobe-deb-root"
+          test ! -e "$package_root"
+          mkdir --mode=0700 "$package_root"
+          dpkg-deb --extract "$deb_package" "$package_root"
+          packaged_executable="$package_root/usr/bin/partprobe-estimator-desktop"
+          test -x "$packaged_executable"
+          file "$packaged_executable"
+          sha256sum "$packaged_executable"
+          echo "PARTPROBE_PACKAGED_EXECUTABLE=$packaged_executable" >> "$GITHUB_ENV"
+
+      - name: Launch Debian-contained desktop shell under a virtual display
         run: |
           set +e
           dbus-run-session -- \
             timeout 10s \
             xvfb-run --auto-servernum \
-            target/debug/partprobe-estimator-desktop
+            "$PARTPROBE_PACKAGED_EXECUTABLE"
           launch_status=$?
           set -e
           if [ "$launch_status" -ne 124 ]; then
