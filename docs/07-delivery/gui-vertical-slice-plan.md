@@ -61,7 +61,7 @@ The display mesh is visual evidence only. It never replaces exact analysis geome
 
 ## What remains after the developer slice
 
-A cross-platform developer alpha still requires supported and reproducibly packaged STEP plus planned STL/3MF import, independent accuracy/tolerance evidence, remaining worker macOS/Windows parser egress, general filesystem and resource containment, completed Windows native construction/runtime evidence, Linux native-runtime package integration plus interactive dialog/portal/display evidence beyond the passing shell-only Debian checkpoint, durable SQLite/blob repositories with migrations and backup/restore, guided shop-owned rate/policy setup and calibration, save/reopen/replay, internal/customer previews, accessibility/usability evidence, signed three-platform application packaging, and release security/legal review.
+A cross-platform developer alpha still requires supported and reproducibly packaged STEP plus planned STL/3MF import, independent accuracy/tolerance evidence, remaining worker macOS/Windows parser egress, general filesystem and resource containment, native-runtime package integration plus interactive Linux/Windows dialog/portal/display evidence beyond the passing headless checkpoints, durable SQLite/blob repositories with migrations and backup/restore, guided shop-owned rate/policy setup and calibration, save/reopen/replay, internal/customer previews, accessibility/usability evidence, signed three-platform application packaging, and release security/legal review.
 
 The largest schedule risks are cross-platform native geometry packaging, safe containment, tessellation/viewer integration when included, and shop-owned rate/runtime calibration. The desktop form work is not the dominant uncertainty.
 
