@@ -119,16 +119,24 @@ def parse_dumpbin_machine(output: str) -> str:
 def inspect_windows_binary(binary: Path, dependency_tool: Path) -> set[str]:
     environment = os.environ.copy()
     environment["PATH"] = str(dependency_tool.parent)
-    result = subprocess.run(
-        [str(dependency_tool), "/HEADERS", "/DEPENDENTS", "/NOLOGO", str(binary)],
+    header_result = subprocess.run(
+        [str(dependency_tool), "/HEADERS", "/NOLOGO", str(binary)],
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         env=environment,
     )
-    parse_dumpbin_machine(result.stdout)
-    return parse_dumpbin_dependents(result.stdout)
+    dependency_result = subprocess.run(
+        [str(dependency_tool), "/DEPENDENTS", "/NOLOGO", str(binary)],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=environment,
+    )
+    parse_dumpbin_machine(header_result.stdout)
+    return parse_dumpbin_dependents(dependency_result.stdout)
 
 
 def validate_windows_occt_imports(

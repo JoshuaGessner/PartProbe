@@ -473,6 +473,35 @@ File Type: EXECUTABLE IMAGE
                 "  C:\\unreviewed\\TKMath.dll\n"
             )
 
+    def test_windows_binary_inspection_keeps_headers_and_dependencies_separate(
+        self,
+    ) -> None:
+        header_result = mock.Mock(stdout="8664 machine (x64)\n", stderr="")
+        dependency_result = mock.Mock(
+            stdout=(
+                "Image has the following dependencies:\n"
+                "  TKMath.dll\n"
+                "  KERNEL32.dll\n"
+                "Summary\n"
+            ),
+            stderr="",
+        )
+        with mock.patch.object(
+            verify_native_runtime_links.subprocess,
+            "run",
+            side_effect=[header_result, dependency_result],
+        ) as run:
+            dependencies = verify_native_runtime_links.inspect_windows_binary(
+                Path("worker.exe"), Path("dumpbin.exe")
+            )
+
+        self.assertEqual(dependencies, {"TKMath.dll", "KERNEL32.dll"})
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args_list[0].args[0][1:3], ["/HEADERS", "/NOLOGO"])
+        self.assertEqual(
+            run.call_args_list[1].args[0][1:3], ["/DEPENDENTS", "/NOLOGO"]
+        )
+
     def test_windows_link_evidence_requires_the_complete_internal_occt_closure(self) -> None:
         with self.assertRaises(ValueError):
             verify_native_runtime_links.validate_windows_occt_imports(
