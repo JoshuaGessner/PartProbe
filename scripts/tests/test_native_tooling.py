@@ -34,6 +34,9 @@ class BuildOcctTests(unittest.TestCase):
         self.assertIn("-DBUILD_MODULE_DataExchange=OFF", command)
         self.assertIn("-DUSE_TBB=OFF", command)
         self.assertIn("-DUSE_FREETYPE=OFF", command)
+        self.assertIn("-DINSTALL_DIR_BIN=bin", command)
+        self.assertIn("-DINSTALL_DIR_LIB=lib", command)
+        self.assertIn("-DINSTALL_DIR_INCLUDE=include/opencascade", command)
         self.assertEqual(command[-1], f"-DINSTALL_DIR={install}")
 
     def test_windows_configure_command_pins_x64_generator_platform(self) -> None:
