@@ -209,6 +209,11 @@ fn native_request(
     .expect("request must be valid")
 }
 
+#[cfg(feature = "native-occt")]
+fn native_library_directory(occt_root: &Path) -> PathBuf {
+    occt_root.join(if cfg!(windows) { "bin" } else { "lib" })
+}
+
 #[cfg(not(feature = "native-occt"))]
 #[test]
 fn supervisor_executes_the_path_free_worker_contract() {
@@ -983,7 +988,7 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
             .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
-    .with_native_library_directory(occt_root.join("lib"))
+    .with_native_library_directory(native_library_directory(&occt_root))
     .expect("native library directory must be valid");
     let source =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
@@ -1054,7 +1059,7 @@ fn supervised_native_worker_measures_the_independently_authored_step_prism() {
             .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
-    .with_native_library_directory(occt_root.join("lib"))
+    .with_native_library_directory(native_library_directory(&occt_root))
     .expect("native library directory must be valid");
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/models/rectangular_prism_12x8x5.step");
@@ -1116,7 +1121,7 @@ fn supervised_native_worker_rejects_invalid_step_entity_without_output() {
             .expect("policy must be valid"),
     )
     .expect("supervisor must be valid")
-    .with_native_library_directory(occt_root.join("lib"))
+    .with_native_library_directory(native_library_directory(&occt_root))
     .expect("native library directory must be valid");
     let source =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/invalid_entity.step");
