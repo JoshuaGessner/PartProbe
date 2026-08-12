@@ -8,6 +8,13 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-12 — Linux desktop package evidence workflow ready
+
+- Added an opt-in read-only Ubuntu 22.04 x86_64 workflow that installs the pinned Rust/WASM/Tauri/Trunk toolchain and reviewed Tauri system prerequisites, then builds unsigned Debian and AppImage packages from bundled local frontend content.
+- The job inspects package metadata/contents, prints ephemeral SHA-256 values, and requires the desktop executable to survive a bounded ten-second Xvfb/DBus launch. It uploads no artifact or cache and confirms the checkout remains unchanged.
+- Added a focused validation document and agent guardrail. The pending first run is package/shell evidence only: no native OCCT runtime, CAD analysis, interactive dialog, physical GPU/display, signing, install/upgrade/uninstall, accessibility acceptance, distribution support, or release claim is implied.
+- No calculation behavior, geometry interpretation, worker/desktop contract, native ABI, persisted/customer schema, dependency version, production rate, or external-data policy changed.
+
 ## 2026-08-12 — Public source-repository boundary
 
 - Changed `JoshuaGessner/PartProbe` from private to public so hosted CI can continue. The current Windows native run remained active across the visibility change and required no restart.

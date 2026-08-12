@@ -1,0 +1,94 @@
+name: Linux Desktop Package Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux-desktop-package:
+    name: Unsigned Ubuntu x64 package and window smoke
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out PartProbe
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.94.1 --profile minimal
+
+      - name: Select pinned Rust toolchain
+        run: rustup default 1.94.1
+
+      - name: Install pinned WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install reviewed Linux desktop prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            curl \
+            dbus-x11 \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            wget \
+            xvfb
+
+      - name: Install pinned developer build tools
+        run: |
+          cargo install trunk --version 0.21.14 --locked --no-default-features
+          cargo install wasm-bindgen-cli --version 0.2.127 --locked
+          cargo install tauri-cli --version 2.11.4 --locked
+
+      - name: Fetch locked application dependencies
+        run: cargo fetch --locked
+
+      - name: Build unsigned Debian and AppImage packages
+        working-directory: apps/estimator-desktop
+        run: >-
+          cargo tauri build
+          --debug
+          --features desktop-host
+          --bundles deb,appimage
+
+      - name: Inspect package contents without publishing artifacts
+        run: |
+          deb_package=$(find target/debug/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)
+          appimage_package=$(find target/debug/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)
+          test -n "$deb_package"
+          test -n "$appimage_package"
+          dpkg-deb --info "$deb_package"
+          dpkg-deb --contents "$deb_package"
+          file "$appimage_package"
+          sha256sum "$deb_package" "$appimage_package"
+
+      - name: Launch packaged-content desktop shell under a virtual display
+        run: |
+          set +e
+          dbus-run-session -- \
+            timeout 10s \
+            xvfb-run --auto-servernum \
+            target/debug/partprobe-estimator-desktop
+          launch_status=$?
+          set -e
+          if [ "$launch_status" -ne 124 ]; then
+            echo "desktop shell exited before the bounded smoke window: $launch_status" >&2
+            exit 1
+          fi
+
+      - name: Confirm checkout remains unchanged
+        run: |
+          git diff --exit-code
+          git diff --cached --exit-code
