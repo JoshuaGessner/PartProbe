@@ -10,9 +10,10 @@
 
 ## 2026-08-12 — Linux desktop package evidence workflow ready
 
-- Added an opt-in read-only Ubuntu 22.04 x86_64 workflow that installs the pinned Rust/WASM/Tauri/Trunk toolchain and reviewed Tauri system prerequisites, then builds unsigned Debian and AppImage packages from bundled local frontend content.
-- The job inspects package metadata/contents, prints ephemeral SHA-256 values, and requires the desktop executable to survive a bounded ten-second Xvfb/DBus launch. It uploads no artifact or cache and confirms the checkout remains unchanged.
+- Added an opt-in read-only Ubuntu 22.04 x86_64 workflow that installs the pinned Rust/WASM/Tauri/Trunk toolchain and reviewed Tauri system prerequisites, then builds an unsigned Debian package from bundled local frontend content.
+- The job inspects package metadata/contents, prints an ephemeral SHA-256 value, and requires the desktop executable to survive a bounded ten-second Xvfb/DBus launch. It uploads no artifact or cache and confirms the checkout remains unchanged.
 - Added a focused validation document and agent guardrail. The pending first run is package/shell evidence only: no native OCCT runtime, CAD analysis, interactive dialog, physical GPU/display, signing, install/upgrade/uninstall, accessibility acceptance, distribution support, or release claim is implied.
+- Initial run 31610449968 passes pinned tool/prerequisite installation, builds the bundled-content executable, and produces the Debian package. AppImage bundling then fails closed because Tauri cannot select a square icon from the previously implicit files; its attempted build also downloads helper inputs from moving locations. The production config now pins the exact reviewed multi-platform icon list, and a host-contract test requires that list while keeping default bundling inactive. The corrected checkpoint builds Debian only; AppImage is deferred until helper sources/hashes are governed, and inspection/virtual-display launch remain pending rerun.
 - No calculation behavior, geometry interpretation, worker/desktop contract, native ABI, persisted/customer schema, dependency version, production rate, or external-data policy changed.
 
 ## 2026-08-12 — Public source-repository boundary

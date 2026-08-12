@@ -394,6 +394,18 @@ mod tests {
         assert_eq!(config["app"]["windows"][0]["label"], "main");
         assert_eq!(config["app"]["windows"][0]["decorations"], true);
         assert_eq!(config["build"]["frontendDist"], "../dist");
+        assert_eq!(config["bundle"]["active"], false);
+        assert_eq!(
+            config["bundle"]["icon"],
+            serde_json::json!([
+                "icons/32x32.png",
+                "icons/128x128.png",
+                "icons/128x128@2x.png",
+                "icons/icon.png",
+                "icons/icon.icns",
+                "icons/icon.ico"
+            ])
+        );
         assert!(csp.contains("default-src 'self'"));
         assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval'"));
         assert!(csp.contains("connect-src 'self' ipc: http://ipc.localhost"));

@@ -11,7 +11,7 @@ env:
 
 jobs:
   linux-desktop-package:
-    name: Unsigned Ubuntu x64 package and window smoke
+    name: Unsigned Ubuntu x64 Debian package and window smoke
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -55,24 +55,22 @@ jobs:
       - name: Fetch locked application dependencies
         run: cargo fetch --locked
 
-      - name: Build unsigned Debian and AppImage packages
+      - name: Build unsigned Debian package
         working-directory: apps/estimator-desktop
         run: >-
           cargo tauri build
           --debug
           --features desktop-host
-          --bundles deb,appimage
+          --bundles deb
 
       - name: Inspect package contents without publishing artifacts
         run: |
           deb_package=$(find target/debug/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)
-          appimage_package=$(find target/debug/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)
           test -n "$deb_package"
-          test -n "$appimage_package"
           dpkg-deb --info "$deb_package"
           dpkg-deb --contents "$deb_package"
-          file "$appimage_package"
-          sha256sum "$deb_package" "$appimage_package"
+          file "$deb_package"
+          sha256sum "$deb_package"
 
       - name: Launch packaged-content desktop shell under a virtual display
         run: |
