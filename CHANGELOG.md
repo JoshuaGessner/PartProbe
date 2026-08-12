@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-08-11
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -38,6 +38,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - GUI-4 native analysis workspace: desktop contract v2 adds a token-only asynchronous analysis command, explicit fail-closed worker/workspace/OCCT configuration, developer-session authorization and in-memory audit, native `DraftEstimateSession` retention, path-free provisional exact-B-rep evidence, and deliberately unavailable estimate states in the Leptos workspace.
 - GUI-4 estimate workspace: desktop contract v3 adds token-bound cooperative cancellation and native draft-estimate evaluation; the deliberate Leptos workflow now requires explicit unit/warning review, complete manual quantities/times/costs, confirmed session-only rates, and a confirmed versioned pricing policy before showing the deterministic itemized result and trace. The host delegates all authoritative evaluation to `DraftEstimateSession` and supplies no production defaults or durable approval.
 - GUI-5 configured native evidence: an opt-in host smoke exercises the real pinned OCCT worker and retained draft session from `FIX-STEP-003` through the expected USD 702 result; the actual unsigned Apple-Silicon app passes keyboard completion, semantic trace inspection, live cancellation, malformed-input recovery, and path-redaction checks.
+- Opt-in, non-distributing Ubuntu 24.04 x86_64 evidence that constructs exact pinned OCCT 8.0.0, assembles and re-verifies the developer runtime, rejects unresolved or externally resolved OCCT dynamic links, and passes the configured desktop-host STEP-to-USD-702 smoke under the Linux parser filter. This is internal headless evidence, not a signed Linux package or supported importer.
 - Analysis-revision-bound geometry review confirmations and a distinct retryable cancellation state, with focused regressions preventing stale confirmations or user cancellation from being presented as generic analysis failure.
 
 ### Security

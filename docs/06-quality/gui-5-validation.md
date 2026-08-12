@@ -1,7 +1,7 @@
 # GUI-5 Configured Native Desktop Validation
 
 > **Status:** Complete for the bounded internal developer checkpoint
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-08-11
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; TEST-002, TEST-003, TEST-008, TEST-011, TEST-012, TEST-014, TEST-019, TEST-021, TEST-024, TEST-030
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005, ADR-0007, ADR-0008
 > **Open questions:** Formal GUI-1 fixture approval, signed/embedded native distribution, three-platform native desktop evidence, full assistive-technology matrix
@@ -49,6 +49,8 @@ GitHub Actions run 31340568277 passes formatting, six native-tooling tests, stri
 
 Follow-on GitHub Actions run 31346159820 passes the current eleven-tooling-test and 142-runtime-test matrix plus all lint/doctest gates on macOS, Ubuntu, and Windows at startup-verifier implementation commit `86e00b5`. It validates the portable verifier logic but still does not construct or launch OCCT on Windows/Linux.
 
+Later TASK-003 native run 31555774851 passes this same ignored configured-host smoke in 3.27 seconds on Ubuntu 24.04 x86_64 after exact OCCT construction, runtime assembly/re-verification, and internal dynamic-link auditing. That extends the application-service/worker path to one Linux host under seccomp, but does not repeat this document's actual Tauri-window, keyboard, semantic, cancellation, or recovery checklist on Linux.
+
 ## Actual application checklist
 
 An unsigned debug `PartProbe.app` was originally built and launched with three explicit native environment paths. After host-side runtime enforcement, the current bundle was rebuilt and the complete success path was repeated with only `PARTPROBE_NATIVE_RUNTIME` and `PARTPROBE_GEOMETRY_WORKSPACE`. Both checklists passed; the current composition repeat specifically confirmed native selection, in-host runtime verification, real OCCT analysis, complete explicit review/input/rate/pricing submission, the semantic result trace, path redaction, and clean application exit:
@@ -62,7 +64,7 @@ An unsigned debug `PartProbe.app` was originally built and launched with three e
 - developer-alpha, provisional, session-only, not-saved, unapproved, and not-a-customer-quote boundaries remained visible;
 - only the selected leaf filename and opaque native session authority appeared; no absolute source path appeared in the UI or safe diagnostics.
 
-The current-composition repeat displayed the same 392 mm², 480 mm³, `(6, 4, 2.5)` mm, one-solid, zero-warning OCCT 8.0.0 evidence and reconciled to material USD 100, operation USD 260, base internal USD 485, risk reserve USD 35, total internal USD 520, and rounded selling price USD 702. It used the rebuilt unsigned `.app` and the separately assembled 49 MiB runtime; it does not add signing, persistence, supported-importer, or Windows/Linux native evidence.
+The current-composition repeat displayed the same 392 mm², 480 mm³, `(6, 4, 2.5)` mm, one-solid, zero-warning OCCT 8.0.0 evidence and reconciled to material USD 100, operation USD 260, base internal USD 485, risk reserve USD 35, total internal USD 520, and rounded selling price USD 702. It used the rebuilt unsigned `.app` and the separately assembled 49 MiB runtime; it does not add signing, persistence, supported-importer, Windows native, or Linux window/package evidence.
 
 ## Cancellation, failure, and recovery
 
@@ -72,6 +74,6 @@ The deliberately invalid `invalid_entity.step` fixture produced a bounded `GUI4-
 
 ## Remaining evidence and next development gate
 
-GUI-5 and GUI-4 are complete only for this bounded developer checkpoint. GUI-1 formal fixture/security review remains open in parallel. The next product-facing work is not another form demo: it is Windows/Linux native construction and runtime launch evidence, signed application/runtime integration, remaining worker containment, a supported importer accuracy corpus, durable shop-owned rate/policy setup, persistence/save/reopen/replay, broader STEP/STL/3MF intake, and release accessibility/usability/security evidence. A visible model adds the separate tessellation/viewer checkpoints in the vertical-slice plan.
+GUI-5 and GUI-4 are complete only for this bounded developer checkpoint. GUI-1 formal fixture/security review remains open in parallel. The next product-facing work is not another form demo: it is Windows native construction/runtime evidence, Linux GUI/package evidence, signed application/runtime integration, remaining worker containment, a supported importer accuracy corpus, durable shop-owned rate/policy setup, persistence/save/reopen/replay, broader STEP/STL/3MF intake, and release accessibility/usability/security evidence. A visible model adds the separate tessellation/viewer checkpoints in the vertical-slice plan.
 
 No calculation formula, geometry interpretation, worker schema/ABI, persisted/customer schema, production rate, third-party package/version, external data transfer, or compliance/support claim changed in GUI-5.

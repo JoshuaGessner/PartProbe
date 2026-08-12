@@ -8,6 +8,14 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-11 — TASK-003 configured Linux OCCT construction and host smoke
+
+- Added the manual, read-only `Native Linux OCCT Evidence` workflow. It checks out exact official OCCT 8.0.0 commit `d3056ef80c9668f395da40f5fd7be186cae4501f`, constructs only in new runner-temporary paths, assembles and re-verifies the schema-v1 runtime, audits dynamic links, and runs the configured desktop-host smoke. It neither caches nor uploads native artifacts.
+- Added `scripts/verify_native_runtime_links.py`. On Linux it repeats the runtime verifier, runs `ldd` over the worker and every real `libTK*.so*` artifact with only the runtime library directory configured, rejects unresolved dependencies, and rejects every OCCT binding that escapes the verified runtime. Three new tests cover accepted system/internal links, unresolved links, and escaped OCCT links; fourteen Python native-tooling tests now pass.
+- Default run 31555765300 passes the macOS/Ubuntu/Windows matrix at implementation commit `34ce137`. Manual native run 31555774851 passes on Ubuntu 24.04 x86_64 in 53m39s: exact commit/tree construction, strict native Clippy, 11 adapter plus 18 worker tests, worker SHA-256 `74e7b73561e4f434a68101739ccd4a960da92e12d27323e1c47da6a6d0a66e07`, runtime assembly/re-verification, and a 24-binary link audit with all 23 observed OCCT dependency families resolved internally.
+- The configured desktop-host smoke passes in 3.27 seconds, taking the manually authored prism through the production Linux seccomp boundary to the retained deterministic USD 702 estimate. This closes the Ubuntu-x86_64 configured-native/filter compatibility question only; Linux aarch64, the Tauri window/package, Windows native construction, broader corpus accuracy, signing, legal redistribution, and general filesystem containment remain open.
+- No calculation behavior, geometry interpretation, worker/desktop schema, native ABI, persisted/customer schema, dependency version, production rate, external transfer, or support/compliance claim changed.
+
 ## 2026-08-11 — TASK-003 Linux parser syscall containment
 
 - Added a fail-closed Linux `x86_64`/`aarch64` parser boundary. The worker sets irreversible `no_new_privs` before creating its cancellation reader, claims and hashes the authorized source into immutable bytes, then applies one classic-BPF seccomp filter to the entire thread group with `TSYNC`.

@@ -72,6 +72,9 @@ python3 scripts/assemble_native_runtime.py assemble \
   --output /approved/local/partprobe-native-runtime
 python3 scripts/assemble_native_runtime.py verify \
   --runtime-root /approved/local/partprobe-native-runtime
+# Linux only: require every OCCT dynamic link to stay inside the verified runtime.
+python3 scripts/verify_native_runtime_links.py \
+  --runtime-root /approved/local/partprobe-native-runtime
 mkdir -p /private/tmp/partprobe-gui-worker
 PARTPROBE_NATIVE_RUNTIME=/approved/local/partprobe-native-runtime \
 PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
@@ -104,4 +107,4 @@ PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
   ../../target/debug/bundle/macos/PartProbe.app/Contents/MacOS/partprobe-estimator-desktop
 ```
 
-Launching the bundle executable, rather than Finder or `open`, is intentional for this developer checkpoint because the two explicit environment paths must reach the host process. The runtime directory is likewise not embedded in the `.app`, signed, notarized, installed, immutable, or approved for redistribution. Startup verification detects the checked failure classes but does not prevent a privileged actor from changing files after verification. Windows and Linux still need native construction and runtime assembly/launch evidence. The completed Apple-Silicon GUI checklist is recorded in [GUI-5 validation](../../docs/06-quality/gui-5-validation.md), and native-runtime evidence is recorded in [TASK-003 validation](../../docs/06-quality/task-003-validation.md).
+Launching the bundle executable, rather than Finder or `open`, is intentional for this developer checkpoint because the two explicit environment paths must reach the host process. The runtime directory is likewise not embedded in the `.app`, signed, notarized, installed, immutable, or approved for redistribution. Startup verification detects the checked failure classes but does not prevent a privileged actor from changing files after verification. The repository's manual `Native Linux OCCT Evidence` workflow now performs exact-source Ubuntu-x86_64 construction, runtime/link verification, and this configured headless host smoke without retaining binaries. It is not a Linux GUI/package test. Windows still needs native construction/runtime evidence, and all targets need signed package evidence. The completed Apple-Silicon GUI checklist is recorded in [GUI-5 validation](../../docs/06-quality/gui-5-validation.md), and native-runtime evidence is recorded in [TASK-003 validation](../../docs/06-quality/task-003-validation.md).

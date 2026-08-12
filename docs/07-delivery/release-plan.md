@@ -1,7 +1,7 @@
 # Initial Release Plan
 
 > **Status:** Draft
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-08-11
 > **Related requirements:** REQ-F-001–REQ-F-011; REQ-NF-001–REQ-NF-010
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** Supported OS versions, signing, quote format, accuracy thresholds
@@ -12,7 +12,7 @@ The first releasable vertical slice proves: RFQ/customer/one part revision; STEP
 
 ## Current readiness
 
-The repository is not yet at developer alpha. Calculation and user-owned rate mechanics exist as headless Rust foundations, and the isolated geometry-worker has exact asset delivery/revalidation, partial OS resource containment, a reproducible pinned Apple-Silicon OCCT construction path, provisional measurements for generated and manually authored analytic STEP fixtures, and a separately assembled/verified developer runtime containing its complete observed OCCT closure. GUI-2 through GUI-5 provide configured end-to-end Apple-Silicon developer evidence through selection, analysis, cancellation/recovery, explicit review/manual/session-rate/pricing inputs, and deterministic trace rendering. The release still lacks the broader durable desktop workflow, supported STEP/STL/3MF importers, representative reviewed accuracy validation, Windows/Linux native runtime evidence, save/reopen repositories and migrations, complete containment/resource controls, real-shop policy calibration, preview/report generation, signed installers, and release acceptance evidence.
+The repository is not yet at developer alpha. Calculation and user-owned rate mechanics exist as headless Rust foundations, and the isolated geometry-worker has exact asset delivery/revalidation, partial OS resource containment, reproducible pinned OCCT construction on evidenced Apple-Silicon and Ubuntu-x86_64 configurations, provisional measurements for generated and manually authored analytic STEP fixtures, and separately assembled/verified developer runtimes containing their complete observed OCCT closures. GUI-2 through GUI-5 provide configured end-to-end Apple-Silicon developer evidence through selection, analysis, cancellation/recovery, explicit review/manual/session-rate/pricing inputs, and deterministic trace rendering; Ubuntu passes the equivalent configured headless host smoke under seccomp. The release still lacks the broader durable desktop workflow, supported STEP/STL/3MF importers, representative reviewed accuracy validation, Windows native runtime evidence, Linux GUI/package evidence, save/reopen repositories and migrations, complete containment/resource controls, real-shop policy calibration, preview/report generation, signed installers, and release acceptance evidence.
 
 The next release-critical sequence is TASK-003 worker/native completion, TASK-004 mesh import, TASK-005 desktop and guided rate setup, TASK-006 persistence/backup/replay, and TASK-007 shop calibration. Advanced routing, uncertainty, PMI, learning, CAM, capacity, and integration features remain outside the initial release gate.
 
