@@ -1,7 +1,7 @@
 # Milestones
 
 > **Status:** In Review
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-08-11
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -22,7 +22,7 @@ Status: **In Progress.** Calculation/rate mechanics, a substantial worker/geomet
 
 Exit: Cargo workspace; domain/units/money/provenance; migrations/repositories; worker protocol; initial import/measurement corpus; application shell/design system; cross-platform CI; future-safe identifiers/snapshots for route sets, requirements, revisions, availability, and correction events without implementing advanced engines.
 
-Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. TASK-003 supplies kernel-neutral geometry contracts, an isolated control-schema-v2 worker, explicit verified-copy transport, exact Unix descriptor and Windows HANDLE direct-resource allowlisting with unrelated-resource exclusion, worker-side revalidation, controlled intake/output seams, cancellation behavior, provisional Apple-Silicon OCCT ABI-v3 byte-stream evidence, and a verified local runtime containing the worker plus complete observed OCCT closure. GUI-3 supplies an unsigned local desktop shell, native picker, typed pathless bridge, and initial design/security boundary; GUI-4/GUI-5 implement and validate the connected session-only analysis/review/input/rate/pricing/result workflow. Production importer accuracy, remaining containment, Windows/Linux native runtime launch, signed packaging, persistence, mesh support, full accessibility, and remaining foundation components are pending.
+Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. TASK-003 supplies kernel-neutral geometry contracts, an isolated control-schema-v2 worker, explicit verified-copy transport, exact Unix descriptor and Windows HANDLE direct-resource allowlisting with unrelated-resource exclusion, worker-side revalidation, controlled intake/output seams, cancellation behavior, Linux parser-phase socket/process syscall denial, provisional Apple-Silicon OCCT ABI-v3 byte-stream evidence, and a verified local runtime containing the worker plus complete observed OCCT closure. GUI-3 supplies an unsigned local desktop shell, native picker, typed pathless bridge, and initial design/security boundary; GUI-4/GUI-5 implement and validate the connected session-only analysis/review/input/rate/pricing/result workflow. Production importer accuracy, remaining containment, Windows/Linux native runtime launch, signed packaging, persistence, mesh support, full accessibility, and remaining foundation components are pending.
 
 ## M2 Vertical slice
 

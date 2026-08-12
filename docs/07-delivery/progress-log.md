@@ -8,6 +8,14 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-11 — TASK-003 Linux parser syscall containment
+
+- Added a fail-closed Linux `x86_64`/`aarch64` parser boundary. The worker sets irreversible `no_new_privs` before creating its cancellation reader, claims and hashes the authorized source into immutable bytes, then applies one classic-BPF seccomp filter to the entire thread group with `TSYNC`.
+- The filter validates the audit architecture and denies socket/socketpair, `io_uring_setup`, clone/clone3, execve/execveat, plus architecture-specific fork/vfork and x32 entry. Denied operations return `EPERM`; unsupported Linux architectures or setup/synchronization failures return only the sanitized recoverable `WORKER_CONTAINMENT_FAILED` diagnostic.
+- Added Linux subprocess fixtures that attempt a local TCP listener and a descendant launch after asset acquisition. Both are denied at the parser boundary. The prior normal-descendant tree-cleanup regression remains on macOS/Windows, where that lifecycle behavior is still the active control; non-Linux worker behavior otherwise remains unchanged.
+- This closes the demonstrated Linux feature-off socket-creation and hostile-descendant syscall gaps only. General filesystem confinement/hard storage quotas, macOS/Windows parser egress denial, hard macOS memory, hostile macOS descendants, configured native Linux OCCT compatibility, signed packaging, and complete three-OS containment remain open. The worker remains partially OS-contained, not sandboxed.
+- No package/version, control/request/asset schema, native ABI, fixture schema, persisted/customer schema, geometry interpretation, calculation behavior, production rate, or external-transfer policy changed. The existing locked `libc 0.2.189` supplies the narrow `prctl`/seccomp bindings. Local macOS closeout passes formatting, strict workspace Clippy, all 143 runtime tests, the compile-fail doctest, eleven native-tooling tests, 142-document planning validation, fixture hashes, and diff checks. GitHub Actions run 31553615142 passes the complete default matrix on macOS, Ubuntu, and Windows at implementation commit `097f78f`; Ubuntu includes both new syscall-denial regressions.
+
 ## 2026-08-11 — TASK-003 aggregate private-workspace output containment
 
 - Added portable supervisor inspection of every private job directory during child polling and once after exit. The verified-copy input must stay a read-only regular file at its authorized length; links, special files, nested directories, more than 64 entries, arithmetic overflow, or aggregate non-input regular-file bytes above the request's output quota fail closed.

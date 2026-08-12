@@ -1,7 +1,7 @@
 # Testable GUI Vertical Slice Plan
 
 > **Status:** In Review
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-08-11
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; UX-001–UX-012; GEO-001–GEO-007; TEST-003, TEST-012, TEST-014, TEST-021, TEST-028
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005–ADR-0008
 > **Open questions:** Whether the first internal build must include a 3D viewport; which independent STEP fixture is approved for the first end-to-end test
@@ -61,7 +61,7 @@ The display mesh is visual evidence only. It never replaces exact analysis geome
 
 ## What remains after the developer slice
 
-A cross-platform developer alpha still requires supported and reproducibly packaged STEP plus planned STL/3MF import, independent accuracy/tolerance evidence, remaining worker network/filesystem and resource containment, Windows/Linux native construction and runtime assembly/launch evidence, durable SQLite/blob repositories with migrations and backup/restore, guided shop-owned rate/policy setup and calibration, save/reopen/replay, internal/customer previews, accessibility/usability evidence, signed three-platform application packaging, and release security/legal review.
+A cross-platform developer alpha still requires supported and reproducibly packaged STEP plus planned STL/3MF import, independent accuracy/tolerance evidence, remaining worker macOS/Windows parser egress, general filesystem and resource containment, configured Linux native-filter compatibility, Windows/Linux native construction and runtime assembly/launch evidence, durable SQLite/blob repositories with migrations and backup/restore, guided shop-owned rate/policy setup and calibration, save/reopen/replay, internal/customer previews, accessibility/usability evidence, signed three-platform application packaging, and release security/legal review.
 
 The largest schedule risks are cross-platform native geometry packaging, safe containment, tessellation/viewer integration when included, and shop-owned rate/runtime calibration. The desktop form work is not the dominant uncertainty.
 
