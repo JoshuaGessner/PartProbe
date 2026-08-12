@@ -44,6 +44,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
             build-essential \
+            at-spi2-core \
             cmake \
             curl \
             dbus-x11 \
@@ -55,7 +56,9 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libxdo-dev \
             ninja-build \
+            python3-pyatspi \
             wget \
+            xdotool \
             xvfb
 
       - name: Install pinned developer build tools
@@ -146,22 +149,16 @@ jobs:
             packaged_resource_worker_runs_real_step_through_retained_estimate_session \
             --locked -- --ignored --nocapture
 
-      - name: Launch exact native Debian payload under a virtual display
+      - name: Exercise exact native Debian payload through accessibility and keyboard input
         env:
           PARTPROBE_GEOMETRY_WORKSPACE: ${{ runner.temp }}/partprobe-native-package-app-worker
         run: |
           mkdir "$PARTPROBE_GEOMETRY_WORKSPACE"
-          set +e
           dbus-run-session -- \
-            timeout 10s \
             xvfb-run --auto-servernum \
-            "$PARTPROBE_PACKAGED_EXECUTABLE"
-          launch_status=$?
-          set -e
-          if [ "$launch_status" -ne 124 ]; then
-            echo "native desktop package exited before the bounded smoke window: $launch_status" >&2
-            exit 1
-          fi
+            /usr/bin/python3 scripts/smoke_linux_desktop_package.py \
+              --executable "$PARTPROBE_PACKAGED_EXECUTABLE" \
+              --fixture "$GITHUB_WORKSPACE/fixtures/models/rectangular_prism_12x8x5.step"
 
       - name: Confirm checkout remains unchanged
         run: |

@@ -1,7 +1,7 @@
 # Dependency Record
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-12
 > **Related requirements:** REQ-NF-003, REQ-NF-010; TEST-001, TEST-020  
 > **Related ADRs:** ADR-0001, ADR-0007
 > **Open questions:** Organization-wide license approval and automated advisory/SBOM tooling  
@@ -68,6 +68,7 @@ Reported package licenses are MIT, MIT OR Apache-2.0, Apache-2.0 OR MIT, `memchr
 - Every Unix worker launch also installs a hard CPU-time ceiling, regular-file-size ceiling, core-dump prohibition, and dedicated process group before `exec`; Linux additionally installs an address-space ceiling. Linux `x86_64`/`aarch64` workers use the same already-locked `libc` package to set `no_new_privs` and install a thread-synchronized classic-BPF seccomp filter after immutable asset acquisition; no package/version was added. The filter denies socket, `io_uring`, clone/fork, and exec entry points but does not confine general filesystem access. Current macOS rejects the available hard memory rlimit candidates, and a hostile macOS child can leave its process group, so both remain explicit deployment gaps. Every Windows worker is created suspended, assigned to a configured Job with CPU, committed-memory, active-process count one, and kill-on-close limits, then resumed; forced termination targets the Job. Windows has no hard Job file-write byte ceiling. The portable supervisor polls aggregate non-input bytes and entry/type invariants and performs a post-exit check, but this adds no package and is not a hard filesystem quota or sandbox.
 - Default features are disabled for `rust_decimal` to reduce optional surface. Decimal overflow, scale, serialization, and cross-platform behavior are exercised by TEST-001 but still require representative golden estimates in TASK-002.
 - CI pins the Rust toolchain and the checkout action commit. A future dependency gate must add automated advisory, SBOM, source-integrity, and full transitive-license evidence before release.
+- The opt-in Linux interactive-package checkpoint installs Ubuntu's `at-spi2-core`, `python3-pyatspi`, and `xdotool` packages only in the ephemeral evidence runner. They expose the packaged application's real AT-SPI tree and inject keyboard input into Xvfb; they are not Cargo dependencies, Debian payload contents, runtime permissions, external services, or supported-product prerequisites. The hosted Ubuntu 22.04 image and its apt snapshot supply these test tools; the workflow neither vendors nor distributes them. Remove them with `scripts/smoke_linux_desktop_package.py` if the Linux acceptance adapter changes.
 - TASK-003 may not add or distribute OCCT until an exact source/build/version, native transitive graph, LGPL-2.1-with-additional-exception obligations, notices/relinking approach, advisories, reproducible three-OS packaging, update owner, and adapter removal/replacement path are recorded and reviewed.
 
 ## Native candidate evidence — not distribution approval
