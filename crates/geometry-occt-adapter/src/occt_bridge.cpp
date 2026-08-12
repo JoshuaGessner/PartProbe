@@ -37,8 +37,12 @@ struct NativeResult {
 };
 
 void set_diagnostic(NativeResult *result, const char *code) noexcept {
-  std::strncpy(result->diagnostic_code, code, kDiagnosticCapacity - 1);
-  result->diagnostic_code[kDiagnosticCapacity - 1] = '\0';
+  std::size_t length = 0;
+  while (length + 1 < kDiagnosticCapacity && code[length] != '\0') {
+    result->diagnostic_code[length] = code[length];
+    ++length;
+  }
+  result->diagnostic_code[length] = '\0';
 }
 
 int fail(NativeResult *result, const char *code) noexcept {

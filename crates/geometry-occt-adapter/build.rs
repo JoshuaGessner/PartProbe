@@ -19,15 +19,19 @@ fn main() {
         "PARTPROBE_OCCT_ROOT must contain include/opencascade and lib"
     );
 
-    cc::Build::new()
+    let mut bridge = cc::Build::new();
+    bridge
         .cpp(true)
         .std("c++17")
         .include(&include)
         .file("src/occt_bridge.cpp")
         .warnings(true)
         .extra_warnings(true)
-        .warnings_into_errors(true)
-        .compile("partprobe_occt_bridge");
+        .warnings_into_errors(true);
+    if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        bridge.flag("/EHsc");
+    }
+    bridge.compile("partprobe_occt_bridge");
 
     println!("cargo:rustc-link-search=native={}", library.display());
     for library_name in [
