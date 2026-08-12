@@ -107,6 +107,34 @@ class BuildOcctTests(unittest.TestCase):
             self.assertEqual(manifest["cxx_compiler"], "/tool/c++")
             self.assertEqual(manifest["additional_toolkits"], ["TKDESTEP", "TKShHealing", "TKMesh"])
 
+    def test_manifest_reads_visual_studio_compilers_from_generated_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            build = Path(temporary)
+            (build / "CMakeCache.txt").write_text(
+                "CMAKE_GENERATOR:INTERNAL=Visual Studio 17 2022\n"
+                "CMAKE_GENERATOR_PLATFORM:INTERNAL=x64\n",
+                encoding="utf-8",
+            )
+            compiler_metadata = build / "CMakeFiles" / "4.3.4"
+            compiler_metadata.mkdir(parents=True)
+            (compiler_metadata / "CMakeCCompiler.cmake").write_text(
+                'set(CMAKE_C_COMPILER "C:/tool/cl.exe")\n', encoding="utf-8"
+            )
+            (compiler_metadata / "CMakeCXXCompiler.cmake").write_text(
+                'set(CMAKE_CXX_COMPILER "C:/tool/cl.exe")\n', encoding="utf-8"
+            )
+            with mock.patch.object(
+                build_occt, "run_capture", return_value="cmake version 4.3.4"
+            ):
+                manifest_path = build_occt.write_manifest(
+                    build, build_occt.EXPECTED_OCCT_COMMIT, "tree", 2
+                )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["c_compiler"], "C:/tool/cl.exe")
+            self.assertEqual(manifest["cxx_compiler"], "C:/tool/cl.exe")
+            self.assertEqual(manifest["cmake_generator_platform"], "x64")
+
 
 class VerifyNativeStepTests(unittest.TestCase):
     def create_install(

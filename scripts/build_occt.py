@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 
@@ -175,6 +176,31 @@ def cmake_cache_value(cache: Path, key: str) -> str:
     raise ValueError(f"configured CMake cache does not contain {key}")
 
 
+def cmake_compiler_value(build: Path, cache: Path, language: str) -> str:
+    key = f"CMAKE_{language}_COMPILER"
+    try:
+        return cmake_cache_value(cache, key)
+    except ValueError:
+        candidates = sorted(
+            (build / "CMakeFiles").glob(f"*/CMake{language}Compiler.cmake")
+        )
+        if len(candidates) != 1:
+            raise ValueError(
+                f"configured CMake build does not expose one {key} definition"
+            ) from None
+        content = candidates[0].read_text(encoding="utf-8")
+        match = re.search(
+            rf'^set\({re.escape(key)} "([^"]+)"\)$',
+            content,
+            flags=re.MULTILINE,
+        )
+        if match is None or not match.group(1).strip():
+            raise ValueError(
+                f"configured CMake compiler metadata does not contain {key}"
+            ) from None
+        return match.group(1)
+
+
 def write_manifest(
     build: Path,
     commit: str,
@@ -192,8 +218,8 @@ def write_manifest(
         "cmake_version": run_capture(["cmake", "--version"]).splitlines()[0],
         "cmake_generator": cmake_cache_value(cache, "CMAKE_GENERATOR"),
         "cmake_generator_platform": cmake_cache_value(cache, "CMAKE_GENERATOR_PLATFORM"),
-        "c_compiler": cmake_cache_value(cache, "CMAKE_C_COMPILER"),
-        "cxx_compiler": cmake_cache_value(cache, "CMAKE_CXX_COMPILER"),
+        "c_compiler": cmake_compiler_value(build, cache, "C"),
+        "cxx_compiler": cmake_compiler_value(build, cache, "CXX"),
         "build_jobs": jobs,
         "build_type": "Release",
         "library_type": "Shared",
