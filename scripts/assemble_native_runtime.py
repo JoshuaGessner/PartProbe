@@ -47,6 +47,9 @@ def parse_args() -> argparse.Namespace:
     assemble.add_argument("--worker", required=True, type=Path)
     assemble.add_argument("--build-manifest", required=True, type=Path)
     assemble.add_argument("--output", required=True, type=Path)
+    materialize = subparsers.add_parser("materialize-for-package")
+    materialize.add_argument("--runtime-root", required=True, type=Path)
+    materialize.add_argument("--output", required=True, type=Path)
     verify = subparsers.add_parser("verify")
     verify.add_argument("--runtime-root", required=True, type=Path)
     return parser.parse_args()
@@ -58,6 +61,20 @@ def normalized_new_output(path: Path) -> Path:
 
 def path_contains(parent: Path, child: Path) -> bool:
     return child == parent or parent in child.parents
+
+
+def validate_distinct_new_output(source: Path, output: Path) -> tuple[Path, Path]:
+    source = source.expanduser().resolve(strict=True)
+    output = normalized_new_output(output)
+    if not source.is_dir():
+        raise ValueError("source runtime must be a directory")
+    if output.exists():
+        raise ValueError(f"output already exists; refusing to overwrite it: {output}")
+    if output in {Path(output.anchor), Path.home().resolve()}:
+        raise ValueError("output must not be filesystem root or the user home directory")
+    if path_contains(output, source) or path_contains(source, output):
+        raise ValueError("output must be separate from the source runtime")
+    return source, output
 
 
 def validate_inputs(
@@ -402,6 +419,64 @@ def verify_runtime(runtime_root: Path) -> dict[str, object]:
     return manifest
 
 
+def artifact_entries(manifest: dict[str, object]) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    for key in ("worker", "version_header", "build_provenance"):
+        entry = manifest.get(key)
+        if not isinstance(entry, dict):
+            raise ValueError(f"runtime manifest {key} must be an artifact object")
+        entries.append(entry)
+    libraries = manifest.get("libraries")
+    if not isinstance(libraries, dict):
+        raise ValueError("runtime manifest libraries must be an object")
+    for family_entries in libraries.values():
+        if not isinstance(family_entries, list):
+            raise ValueError("runtime manifest library family must be a list")
+        for entry in family_entries:
+            if not isinstance(entry, dict):
+                raise ValueError("runtime manifest library artifact must be an object")
+            entries.append(entry)
+    return entries
+
+
+def materialize_runtime_for_package(
+    runtime_root: Path,
+    output: Path,
+) -> dict[str, object]:
+    source, output = validate_distinct_new_output(runtime_root, output)
+    manifest = verify_runtime(source)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".partprobe-packaged-runtime-", dir=output.parent))
+    try:
+        shutil.copytree(source, staging, dirs_exist_ok=True, symlinks=False)
+        for entry in artifact_entries(manifest):
+            if entry.get("type") != "symlink":
+                continue
+            path_value = entry.get("path")
+            if not isinstance(path_value, str):
+                raise ValueError("runtime artifact must contain a string path")
+            artifact = staging / relative_artifact_path(path_value)
+            entry.clear()
+            entry.update(
+                {
+                    "path": path_value,
+                    "type": "file",
+                    "size_bytes": artifact.stat().st_size,
+                    "sha256": sha256(artifact),
+                }
+            )
+        (staging / MANIFEST_NAME).write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        verify_runtime(staging)
+        staging.replace(output)
+        return manifest
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+
 def main() -> int:
     args = parse_args()
     if args.command == "assemble":
@@ -413,6 +488,19 @@ def main() -> int:
         )
         print(json.dumps(manifest, indent=2, sort_keys=True))
         print(f"assembled verified developer runtime at {args.output.expanduser().resolve()}")
+    elif args.command == "materialize-for-package":
+        manifest = materialize_runtime_for_package(args.runtime_root, args.output)
+        print(
+            json.dumps(
+                {
+                    "status": "packaged_native_runtime_materialized",
+                    "runtime_root": str(args.output.expanduser().resolve()),
+                    "artifact_count": len(artifact_entries(manifest)),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
     else:
         manifest = verify_runtime(args.runtime_root)
         root = args.runtime_root.expanduser().resolve(strict=True)

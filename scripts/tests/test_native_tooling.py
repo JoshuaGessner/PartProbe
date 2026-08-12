@@ -390,6 +390,57 @@ class AssembleNativeRuntimeTests(unittest.TestCase):
                 verify_native_step.sha256(install / "bin" / "TKernel.dll"),
             )
 
+    @unittest.skipIf(sys.platform == "win32", "fixture requires Unix symlinks")
+    def test_package_materialization_replaces_safe_aliases_and_regenerates_manifest(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install, worker, build_manifest = self.create_inputs(root)
+            if sys.platform == "darwin":
+                unversioned = install / "lib" / "libTKernel.dylib"
+                versioned = install / "lib" / "libTKernel.8.0.0.dylib"
+            else:
+                unversioned = install / "lib" / "libTKernel.so"
+                versioned = install / "lib" / "libTKernel.so.8.0.0"
+            unversioned.rename(versioned)
+            unversioned.symlink_to(versioned.name)
+            assembled = root / "assembled-runtime"
+            packaged = root / "packaged-runtime"
+
+            original = assemble_native_runtime.assemble_runtime(
+                install, worker, build_manifest, assembled
+            )
+            materialized = assemble_native_runtime.materialize_runtime_for_package(
+                assembled, packaged
+            )
+
+            assemble_native_runtime.verify_runtime(packaged)
+            self.assertTrue(
+                any(
+                    entry["type"] == "symlink"
+                    for entry in original["libraries"]["TKernel"]
+                )
+            )
+            self.assertTrue(
+                all(
+                    entry["type"] == "file"
+                    for entry in materialized["libraries"]["TKernel"]
+                )
+            )
+            self.assertTrue(
+                all(
+                    not (packaged / entry["path"]).is_symlink()
+                    for entry in materialized["libraries"]["TKernel"]
+                )
+            )
+            self.assertTrue(
+                any(
+                    (assembled / entry["path"]).is_symlink()
+                    for entry in original["libraries"]["TKernel"]
+                )
+            )
+
 
 class VerifyNativeRuntimeLinksTests(unittest.TestCase):
     def test_linux_link_evidence_accepts_runtime_occt_and_system_dependencies(self) -> None:

@@ -87,11 +87,18 @@ jobs:
             --runtime-root "$RUNNER_TEMP/partprobe-native-runtime"
           python scripts/verify_native_runtime_links.py \
             --runtime-root "$RUNNER_TEMP/partprobe-native-runtime"
+          python scripts/assemble_native_runtime.py materialize-for-package \
+            --runtime-root "$RUNNER_TEMP/partprobe-native-runtime" \
+            --output "$RUNNER_TEMP/partprobe-packaged-native-runtime"
+          python scripts/assemble_native_runtime.py verify \
+            --runtime-root "$RUNNER_TEMP/partprobe-packaged-native-runtime"
+          python scripts/verify_native_runtime_links.py \
+            --runtime-root "$RUNNER_TEMP/partprobe-packaged-native-runtime"
 
       - name: Write package-only native resource configuration
         working-directory: apps/estimator-desktop
         run: |
-          python -c 'import json, os, pathlib; root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "partprobe-native-runtime"; config = {"bundle": {"linux": {"deb": {"files": {"usr/lib/PartProbe/partprobe-native-runtime": str(root)}}}}}; pathlib.Path(os.environ["RUNNER_TEMP"], "partprobe-native-package-config.json").write_text(json.dumps(config), encoding="utf-8")'
+          python -c 'import json, os, pathlib; root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "partprobe-packaged-native-runtime"; config = {"bundle": {"linux": {"deb": {"files": {"usr/lib/PartProbe/partprobe-native-runtime": str(root)}}}}}; pathlib.Path(os.environ["RUNNER_TEMP"], "partprobe-native-package-config.json").write_text(json.dumps(config), encoding="utf-8")'
 
       - name: Build unsigned native Debian package
         working-directory: apps/estimator-desktop
