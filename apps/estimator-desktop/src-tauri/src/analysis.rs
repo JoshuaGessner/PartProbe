@@ -42,6 +42,8 @@ const MAX_INPUT_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_OUTPUT_BYTES: u64 = 1024 * 1024;
 const MAX_ENTITIES: u64 = 2_000_000;
 const WALL_TIME_MILLIS: u64 = 30_000;
+#[cfg(feature = "desktop-host")]
+const BUNDLED_NATIVE_RUNTIME_DIRECTORY: &str = "partprobe-native-runtime";
 
 #[cfg(feature = "desktop-host")]
 #[derive(Debug)]
@@ -53,8 +55,23 @@ pub struct DesktopAnalysisConfiguration {
 
 #[cfg(feature = "desktop-host")]
 impl DesktopAnalysisConfiguration {
+    #[cfg(test)]
     pub fn from_environment() -> Result<Self, HostCommandError> {
         let runtime_root = required_path("PARTPROBE_NATIVE_RUNTIME")?;
+        Self::from_runtime_root(runtime_root)
+    }
+
+    pub fn from_deployment_resource_directory(
+        resource_directory: &Path,
+    ) -> Result<Self, HostCommandError> {
+        let runtime_root = deployment_runtime_root(
+            resource_directory,
+            optional_path("PARTPROBE_NATIVE_RUNTIME"),
+        );
+        Self::from_runtime_root(runtime_root)
+    }
+
+    fn from_runtime_root(runtime_root: PathBuf) -> Result<Self, HostCommandError> {
         let worker_workspace = required_path("PARTPROBE_GEOMETRY_WORKSPACE")?;
         let runtime = VerifiedNativeRuntime::verify(runtime_root)
             .map_err(|_| HostCommandError::analysis_unavailable("GUI5-NATIVE-RUNTIME-VERIFY"))?;
@@ -107,10 +124,24 @@ impl DesktopAnalysisConfiguration {
 }
 
 #[cfg(feature = "desktop-host")]
-fn required_path(name: &str) -> Result<PathBuf, HostCommandError> {
+fn deployment_runtime_root(
+    resource_directory: &Path,
+    explicit_runtime_root: Option<PathBuf>,
+) -> PathBuf {
+    explicit_runtime_root
+        .unwrap_or_else(|| resource_directory.join(BUNDLED_NATIVE_RUNTIME_DIRECTORY))
+}
+
+#[cfg(feature = "desktop-host")]
+fn optional_path(name: &str) -> Option<PathBuf> {
     std::env::var_os(name)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
+}
+
+#[cfg(feature = "desktop-host")]
+fn required_path(name: &str) -> Result<PathBuf, HostCommandError> {
+    optional_path(name)
         .ok_or_else(|| HostCommandError::analysis_unavailable("GUI4-ANALYSIS-CONFIG-MISSING"))
 }
 
@@ -564,6 +595,24 @@ mod tests {
             partprobe_desktop_contract::HostErrorCode::AnalysisUnavailable
         );
         assert!(!error.message.contains("missing-worker"));
+    }
+
+    #[cfg(feature = "desktop-host")]
+    #[test]
+    fn deployment_runtime_location_is_fixed_and_explicit_override_wins() {
+        let resource_directory = Path::new("bundle-resources");
+
+        assert_eq!(
+            deployment_runtime_root(resource_directory, None),
+            resource_directory.join("partprobe-native-runtime")
+        );
+        assert_eq!(
+            deployment_runtime_root(
+                resource_directory,
+                Some(PathBuf::from("explicit-developer-runtime")),
+            ),
+            PathBuf::from("explicit-developer-runtime")
+        );
     }
 
     fn decimal(value: &str) -> ProvisionalGeometryDecimal {

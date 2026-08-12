@@ -437,6 +437,16 @@ mod tests {
     }
 
     #[test]
+    fn production_host_resolves_native_runtime_from_tauri_resources() {
+        assert!(RUNTIME.contains(".path()"));
+        assert!(RUNTIME.contains(".resource_dir()"));
+        assert!(RUNTIME.contains("from_deployment_resource_directory"));
+        assert!(!RUNTIME.contains("read_dir("));
+        assert!(!RUNTIME.contains("PARTPROBE_GEOMETRY_WORKER"));
+        assert!(!RUNTIME.contains("PARTPROBE_OCCT_ROOT"));
+    }
+
+    #[test]
     fn estimate_evaluation_and_cancellation_stay_in_typed_native_commands() {
         assert!(RUNTIME.contains("async fn evaluate_draft_estimate"));
         assert!(RUNTIME.contains("EvaluateDraftEstimateRequest"));
@@ -542,6 +552,30 @@ mod tests {
         let adapter = crate::analysis::DesktopAnalysisConfiguration::from_environment()
             .and_then(crate::analysis::DesktopAnalysisConfiguration::build_adapter)
             .expect("GUI-5 requires verified native-runtime/workspace configuration");
+        assert_real_step_reaches_retained_estimate(adapter);
+    }
+
+    #[cfg(feature = "desktop-host")]
+    #[test]
+    #[ignore = "requires an extracted packaged native runtime and worker workspace"]
+    fn packaged_resource_worker_runs_real_step_through_retained_estimate_session() {
+        let resource_directory = std::env::var_os("PARTPROBE_DESKTOP_RESOURCE_DIRECTORY")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .expect("packaged smoke requires an explicit extracted resource directory");
+        let adapter =
+            crate::analysis::DesktopAnalysisConfiguration::from_deployment_resource_directory(
+                &resource_directory,
+            )
+            .and_then(crate::analysis::DesktopAnalysisConfiguration::build_adapter)
+            .expect("packaged resource runtime/workspace must verify before analysis");
+        assert_real_step_reaches_retained_estimate(adapter);
+    }
+
+    #[cfg(feature = "desktop-host")]
+    fn assert_real_step_reaches_retained_estimate(
+        adapter: DesktopAnalysisAdapter<GeometryWorkerSupervisor>,
+    ) {
         let state = DesktopSessionState::with_analysis_adapter(adapter);
         let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/models/rectangular_prism_12x8x5.step")

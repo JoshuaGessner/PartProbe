@@ -1,0 +1,162 @@
+name: Linux Native Desktop Package Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux-native-desktop-package:
+    name: Pinned OCCT Debian package and native smoke
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out PartProbe
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check out exact OCCT source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Open-Cascade-SAS/OCCT
+          ref: d3056ef80c9668f395da40f5fd7be186cae4501f
+          fetch-depth: 0
+          path: native-input/occt-source
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.94.1 --profile minimal --component clippy
+
+      - name: Select pinned Rust toolchain
+        run: rustup default 1.94.1
+
+      - name: Install pinned WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install reviewed native and desktop prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential \
+            cmake \
+            curl \
+            dbus-x11 \
+            file \
+            g++ \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            ninja-build \
+            wget \
+            xvfb
+
+      - name: Install pinned developer build tools
+        run: |
+          cargo install trunk --version 0.21.14 --locked --no-default-features
+          cargo install wasm-bindgen-cli --version 0.2.127 --locked
+          cargo install tauri-cli --version 2.11.4 --locked
+
+      - name: Fetch locked application dependencies
+        run: cargo fetch --locked
+
+      - name: Construct and verify pinned OCCT worker
+        run: |
+          python scripts/build_occt.py \
+            --source native-input/occt-source \
+            --build "$RUNNER_TEMP/partprobe-occt-build" \
+            --install "$RUNNER_TEMP/partprobe-occt-install" \
+            --generator Ninja \
+            --jobs 2
+
+      - name: Assemble and verify Linux native runtime
+        run: |
+          python scripts/assemble_native_runtime.py assemble \
+            --occt-root "$RUNNER_TEMP/partprobe-occt-install" \
+            --worker target/debug/partprobe-geometry-worker \
+            --build-manifest "$RUNNER_TEMP/partprobe-occt-build/partprobe-occt-build-manifest.json" \
+            --output "$RUNNER_TEMP/partprobe-native-runtime"
+          python scripts/assemble_native_runtime.py verify \
+            --runtime-root "$RUNNER_TEMP/partprobe-native-runtime"
+          python scripts/verify_native_runtime_links.py \
+            --runtime-root "$RUNNER_TEMP/partprobe-native-runtime"
+
+      - name: Write package-only native resource configuration
+        working-directory: apps/estimator-desktop
+        run: |
+          python -c 'import json, os, pathlib; root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "partprobe-native-runtime"; config = {"bundle": {"linux": {"deb": {"files": {"usr/lib/PartProbe/partprobe-native-runtime": str(root)}}}}}; pathlib.Path(os.environ["RUNNER_TEMP"], "partprobe-native-package-config.json").write_text(json.dumps(config), encoding="utf-8")'
+
+      - name: Build unsigned native Debian package
+        working-directory: apps/estimator-desktop
+        run: >-
+          cargo tauri build
+          --debug
+          --features desktop-host
+          --bundles deb
+          --config "$RUNNER_TEMP/partprobe-native-package-config.json"
+
+      - name: Inspect and verify extracted package runtime
+        run: |
+          deb_package=$(find target/debug/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)
+          test -n "$deb_package"
+          dpkg-deb --info "$deb_package"
+          dpkg-deb --contents "$deb_package"
+          file "$deb_package"
+          sha256sum "$deb_package"
+
+          package_root="$RUNNER_TEMP/partprobe-native-deb-root"
+          test ! -e "$package_root"
+          mkdir --mode=0700 "$package_root"
+          dpkg-deb --extract "$deb_package" "$package_root"
+          packaged_executable="$package_root/usr/bin/partprobe-estimator-desktop"
+          packaged_resources="$package_root/usr/lib/PartProbe"
+          packaged_runtime="$packaged_resources/partprobe-native-runtime"
+          test -x "$packaged_executable"
+          file "$packaged_executable"
+          sha256sum "$packaged_executable"
+          test -d "$packaged_runtime"
+          python scripts/assemble_native_runtime.py verify --runtime-root "$packaged_runtime"
+          python scripts/verify_native_runtime_links.py --runtime-root "$packaged_runtime"
+          echo "PARTPROBE_PACKAGED_EXECUTABLE=$packaged_executable" >> "$GITHUB_ENV"
+          echo "PARTPROBE_PACKAGED_RESOURCE_DIRECTORY=$packaged_resources" >> "$GITHUB_ENV"
+          echo "PARTPROBE_DESKTOP_RESOURCE_DIRECTORY=$packaged_resources" >> "$GITHUB_ENV"
+
+      - name: Run extracted packaged-resource analysis smoke
+        env:
+          PARTPROBE_GEOMETRY_WORKSPACE: ${{ runner.temp }}/partprobe-native-package-worker
+        run: |
+          mkdir "$PARTPROBE_GEOMETRY_WORKSPACE"
+          cargo test \
+            -p partprobe-estimator-desktop \
+            --features desktop-host \
+            packaged_resource_worker_runs_real_step_through_retained_estimate_session \
+            --locked -- --ignored --nocapture
+
+      - name: Launch exact native Debian payload under a virtual display
+        env:
+          PARTPROBE_GEOMETRY_WORKSPACE: ${{ runner.temp }}/partprobe-native-package-app-worker
+        run: |
+          mkdir "$PARTPROBE_GEOMETRY_WORKSPACE"
+          set +e
+          dbus-run-session -- \
+            timeout 10s \
+            xvfb-run --auto-servernum \
+            "$PARTPROBE_PACKAGED_EXECUTABLE"
+          launch_status=$?
+          set -e
+          if [ "$launch_status" -ne 124 ]; then
+            echo "native desktop package exited before the bounded smoke window: $launch_status" >&2
+            exit 1
+          fi
+
+      - name: Confirm checkout remains unchanged
+        run: |
+          git diff --exit-code
+          git diff --cached --exit-code

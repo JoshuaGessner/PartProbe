@@ -19,6 +19,14 @@
 - The headless log reports unavailable AT-SPI and portal/display services. This is accepted within the deliberately shell-only gate and explicitly leaves native dialogs, portals, assistive technology, physical display/GPU behavior, installation/registration, native STEP analysis, signing, compatibility, and release acceptance open.
 - No calculation behavior, geometry interpretation, worker/desktop contract, native ABI, persisted/customer schema, dependency version, production rate, or external-data policy changed.
 
+## 2026-08-12 — Packaged native-runtime integration gate ready
+
+- Added one deterministic production-host runtime location: `partprobe-native-runtime` under Tauri's resolved resource directory. An explicit developer `PARTPROBE_NATIVE_RUNTIME` remains available; both paths feed the same manifest/hash/provenance verifier, and there is no adjacent-directory search, independent worker/library override, or fallback after verification failure. The external controlled worker workspace remains explicit.
+- Moved desktop session construction into Tauri setup so the host can resolve its OS-specific resource directory before managing native state. Added regressions for the fixed location, explicit override precedence, and production startup use of the Tauri resolver.
+- Added an opt-in, read-only Ubuntu 22.04 x86_64 `Linux Native Desktop Package Evidence` workflow. It constructs exact pinned OCCT, assembles and audits a new runtime, injects it through package-only Tauri configuration, extracts and re-verifies the Debian copy, runs the real packaged-resource STEP-to-USD-702 test, and launches the exact package executable without a runtime-path override. It uploads no package/runtime/cache and keeps all native/package outputs under the ephemeral runner root.
+- Local focused closeout passes formatting, 4 desktop-contract tests, 8 UI tests, 19 desktop-host tests with the two real-worker smokes ignored by default, strict desktop-host Clippy, workflow YAML parsing, and diff checks. The hosted combined-package gate remains pending; no native package success is claimed yet.
+- No calculation behavior, geometry interpretation, bridge command/schema, native ABI, persisted/customer schema, dependency version, production rate, external-data policy, supported importer, or release claim changed.
+
 ## 2026-08-12 — Public source-repository boundary
 
 - Changed `JoshuaGessner/PartProbe` from private to public so hosted CI can continue. The current Windows native run remained active across the visibility change and required no restart.

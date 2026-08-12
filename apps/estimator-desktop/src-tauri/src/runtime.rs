@@ -92,16 +92,27 @@ fn desktop_path(selected: FilePath) -> Result<PathBuf, HostCommandError> {
 }
 
 pub fn run() {
-    let session_state = DesktopAnalysisConfiguration::from_environment()
-        .and_then(DesktopAnalysisConfiguration::build_adapter)
-        .map_or_else(
-            |_| DesktopSessionState::default(),
-            DesktopSessionState::with_analysis_adapter,
-        );
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(session_state)
         .setup(|app| {
+            let session_state = app
+                .path()
+                .resource_dir()
+                .map_err(|_| ())
+                .and_then(|resource_directory| {
+                    DesktopAnalysisConfiguration::from_deployment_resource_directory(
+                        &resource_directory,
+                    )
+                    .map_err(|_| ())
+                })
+                .and_then(|configuration| configuration.build_adapter().map_err(|_| ()))
+                .map_or_else(
+                    |_| DesktopSessionState::default(),
+                    DesktopSessionState::with_analysis_adapter,
+                );
+            if !app.manage(session_state) {
+                return Err("desktop session state is already managed".into());
+            }
             let window = app
                 .get_webview_window("main")
                 .ok_or("configured main window is missing")?;
