@@ -1,0 +1,86 @@
+name: Native Linux OCCT Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  native-linux:
+    name: Pinned OCCT worker and desktop smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out PartProbe
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check out exact OCCT source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Open-Cascade-SAS/OCCT
+          ref: d3056ef80c9668f395da40f5fd7be186cae4501f
+          fetch-depth: 0
+          path: native-input/occt-source
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.94.1 --profile minimal --component clippy
+
+      - name: Select pinned Rust toolchain
+        run: rustup default 1.94.1
+
+      - name: Install Linux native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends cmake ninja-build g++ libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Fetch locked Rust dependencies
+        run: cargo fetch --locked
+
+      - name: Construct and verify pinned OCCT worker
+        run: |
+          python scripts/build_occt.py \
+            --source native-input/occt-source \
+            --build "$RUNNER_TEMP/partprobe-occt-build" \
+            --install "$RUNNER_TEMP/partprobe-occt-install" \
+            --generator Ninja \
+            --jobs 2
+
+      - name: Assemble and verify Linux developer runtime
+        run: |
+          python scripts/assemble_native_runtime.py assemble \
+            --occt-root "$RUNNER_TEMP/partprobe-occt-install" \
+            --worker target/debug/partprobe-geometry-worker \
+            --build-manifest "$RUNNER_TEMP/partprobe-occt-build/partprobe-occt-build-manifest.json" \
+            --output "$RUNNER_TEMP/partprobe-native-runtime"
+          python scripts/assemble_native_runtime.py verify \
+            --runtime-root "$RUNNER_TEMP/partprobe-native-runtime"
+
+      - name: Verify Linux dynamic-link closure
+        run: |
+          python scripts/verify_native_runtime_links.py \
+            --runtime-root "$RUNNER_TEMP/partprobe-native-runtime"
+
+      - name: Run configured native desktop smoke
+        env:
+          PARTPROBE_NATIVE_RUNTIME: ${{ runner.temp }}/partprobe-native-runtime
+          PARTPROBE_GEOMETRY_WORKSPACE: ${{ runner.temp }}/partprobe-gui-worker
+        run: |
+          mkdir "$PARTPROBE_GEOMETRY_WORKSPACE"
+          cargo test \
+            -p partprobe-estimator-desktop \
+            --features desktop-host \
+            gui5_configured_worker_runs_real_step_through_retained_estimate_session \
+            --locked -- --ignored --nocapture
+
+      - name: Confirm PartProbe checkout remains unchanged
+        run: |
+          git diff --exit-code
+          git diff --cached --exit-code

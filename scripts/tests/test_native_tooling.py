@@ -14,6 +14,7 @@ sys.path.insert(0, str(SCRIPTS))
 import build_occt  # noqa: E402
 import assemble_native_runtime  # noqa: E402
 import verify_native_step  # noqa: E402
+import verify_native_runtime_links  # noqa: E402
 
 
 class BuildOcctTests(unittest.TestCase):
@@ -271,6 +272,46 @@ class AssembleNativeRuntimeTests(unittest.TestCase):
                 ),
                 [expected],
             )
+
+
+class VerifyNativeRuntimeLinksTests(unittest.TestCase):
+    def test_linux_link_evidence_accepts_runtime_occt_and_system_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            library = root / "libTKMath.so.8"
+            library.write_bytes(b"runtime")
+            output = (
+                f"libTKMath.so.8 => {library} (0x00000001)\n"
+                "libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00000002)\n"
+                "/lib64/ld-linux-x86-64.so.2 (0x00000003)\n"
+            )
+
+            dependencies = verify_native_runtime_links.parse_ldd_output(output, root)
+
+            self.assertEqual(dependencies, {"libTKMath.so.8", "libc.so.6"})
+
+    def test_linux_link_evidence_rejects_an_unresolved_dependency(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(ValueError):
+                verify_native_runtime_links.parse_ldd_output(
+                    "libTKMath.so.8 => not found\n", Path(temporary)
+                )
+
+    def test_linux_link_evidence_rejects_occt_outside_the_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime_library_directory = root / "runtime"
+            runtime_library_directory.mkdir()
+            external_library_directory = root / "external"
+            external_library_directory.mkdir()
+            external = external_library_directory / "libTKMath.so.8"
+            external.write_bytes(b"external")
+
+            with self.assertRaises(ValueError):
+                verify_native_runtime_links.parse_ldd_output(
+                    f"libTKMath.so.8 => {external} (0x00000001)\n",
+                    runtime_library_directory,
+                )
 
 
 if __name__ == "__main__":
