@@ -67,12 +67,20 @@ def role_name(node: Any) -> str:
         return ""
 
 
-def find_node(pyatspi: Any, text: str, roles: set[str] | None = None) -> Any | None:
+def find_node(
+    pyatspi: Any,
+    text: str,
+    roles: set[str] | None = None,
+    *,
+    exact: bool = False,
+) -> Any | None:
     expected = text.casefold()
     for node in accessibility_nodes(pyatspi):
         if roles is not None and role_name(node) not in roles:
             continue
-        if expected in node_text(node).casefold():
+        candidate = node_text(node).casefold()
+        matches = candidate == expected if exact else expected in candidate
+        if matches:
             return node
     return None
 
@@ -82,9 +90,11 @@ def wait_for_node(
     text: str,
     deadline: float,
     roles: set[str] | None = None,
+    *,
+    exact: bool = False,
 ) -> Any:
     while time.monotonic() < deadline:
-        node = find_node(pyatspi, text, roles)
+        node = find_node(pyatspi, text, roles, exact=exact)
         if node is not None:
             return node
         time.sleep(0.25)
@@ -177,6 +187,15 @@ def main() -> int:
         focus_window("Open File")
         key("ctrl+l")
         type_text(str(fixture))
+        key("Return")
+        open_button = wait_for_node(
+            pyatspi,
+            "Open",
+            deadline,
+            {"push button", "button"},
+            exact=True,
+        )
+        focus(open_button, "Open selected STEP model")
         key("Return")
 
         wait_for_node(pyatspi, "Model selected", deadline)

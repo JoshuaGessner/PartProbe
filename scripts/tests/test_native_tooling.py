@@ -570,6 +570,30 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
+    def test_exact_accessible_match_does_not_accept_substring(self) -> None:
+        picker_open = mock.Mock(name="picker_open")
+        picker_open.name = "Picker open"
+        picker_open.description = ""
+        picker_open.getRoleName.return_value = "push button"
+        open_button = mock.Mock(name="open_button")
+        open_button.name = "Open"
+        open_button.description = ""
+        open_button.getRoleName.return_value = "push button"
+
+        with mock.patch.object(
+            smoke_linux_desktop_package,
+            "accessibility_nodes",
+            return_value=[picker_open, open_button],
+        ):
+            found = smoke_linux_desktop_package.find_node(
+                mock.sentinel.pyatspi,
+                "Open",
+                {"push button"},
+                exact=True,
+            )
+
+        self.assertIs(found, open_button)
+
     @mock.patch.object(smoke_linux_desktop_package.subprocess, "run")
     def test_focus_window_uses_exact_visible_title_without_coordinates(
         self, run: mock.Mock
