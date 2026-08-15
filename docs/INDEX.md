@@ -1,7 +1,7 @@
 # PartProbe Documentation Index
 
 > **Status:** In Review
-> **Last updated:** 2026-08-12
+> **Last updated:** 2026-08-15
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -18,7 +18,7 @@ PartProbe is a planned local-first, cross-platform CAD-assisted machine-shop est
 - **Recently completed:** Linux native-package run 31624958771 constructs exact OCCT 8.0.0 on Ubuntu 22.04 x86_64, materializes and verifies a package-safe 72-artifact runtime, builds and privately extracts the Debian package, repeats manifest and 24-binary/23-family dynamic-link verification, passes the packaged-resource STEP-to-USD-702 smoke, and keeps the exact packaged executable alive through the bounded virtual-display window. The workflow uploads no binaries. This is unsigned headless developer evidence, not installation, interactive portal/dialog/accessibility, supported importer, signing, legal approval, or distribution approval. GUI-5 and GUI-4 remain complete only for their bounded internal checkpoints; GUI-1 implementation remains ready for formal fixture/security review.
 - **Documents awaiting review:** All documents marked Draft or In Review; especially ADR-0001–ADR-0014, advanced formulas/policies, calculation rules, requirements, security boundaries, and worked examples
 - **Blocking decisions:** ADR acceptance blocks committing to production UI/kernel/worker/persistence choices
-- **Next actions:** Run the pending Linux packaged accessibility/keyboard gate, then add interactive Windows evidence. Obtain GUI-1 fixture review; add Windows/macOS package integration, macOS/Windows parser egress denial, general filesystem containment, target dynamic-link/license/SBOM review, and signed application integration while closing remaining TASK-003 containment. TASK-004 mesh import, full TASK-005 durable desktop/rate UX, TASK-006 persistence, and TASK-007 shop calibration remain required for the broader product slice.
+- **Next actions:** Run the corrected Linux packaged accessibility/keyboard gate after initial run 31629574058 exposed only a pre-selection X11 focus defect in the harness, then add interactive Windows evidence. Obtain GUI-1 fixture review; add Windows/macOS package integration, macOS/Windows parser egress denial, general filesystem containment, target dynamic-link/license/SBOM review, and signed application integration while closing remaining TASK-003 containment. TASK-004 mesh import, full TASK-005 durable desktop/rate UX, TASK-006 persistence, and TASK-007 shop calibration remain required for the broader product slice.
 
 Implementation readiness extends through reversible TASK-001/002 calculation and rate mechanics plus the evidence-producing TASK-003 worker/OCCT spike. Architecture acceptance, controlled-data deployment, shop calibration, native packaging, runtime-accuracy claims, and product release remain blocked on M0.2/M1 evidence and review.
 

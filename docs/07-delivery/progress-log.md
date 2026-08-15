@@ -1,12 +1,20 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-12
+> **Last updated:** 2026-08-15
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-15 — Linux packaged GUI accessibility gate correction
+
+- Reviewed run 31629574058 at `d9dcefd`. Ordinary three-OS CI passes, and the native workflow repeats exact OCCT construction, runtime/link verification, Debian construction/extraction/re-verification, and the real packaged-resource analysis smoke before the new interactive step.
+- AT-SPI starts successfully, exposes the PartProbe document/control tree, accepts Return on `Choose STEP model`, and exposes the real GTK `Open File` chooser with its STEP filter. The application correctly remains `Picker open` with no source or analysis when the harness times out.
+- The failure is confined to the evidence harness: it sent `Ctrl+L` without first focusing the chooser's X11 window, leaving GTK on `Other Locations`. The correction focuses exact visible `PartProbe`/`Open File` titles with `windowfocus`, never coordinates, and requires the application's accessible `Model selected` state before accepting the filename or invoking Analyze.
+- Added two portable regressions for exact-title focus and regex escaping. Local closeout passes all 29 tooling tests, 144 Rust runtime tests, the compile-fail doctest, strict workspace/native-host/WASM Clippy, offline frontend construction, fixture hashes, workflow parsing, 143-document planning validation, Python compilation, and diff checks. The corrected hosted run remains pending.
+- No application command, WebView permission/path, native ABI, worker or desktop schema, calculation behavior, geometry interpretation, package dependency, persisted/customer schema, production rate, external transfer, or support/release claim changed.
 
 ## 2026-08-12 — Linux desktop package evidence workflow ready
 

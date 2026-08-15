@@ -13,6 +13,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 import build_occt  # noqa: E402
 import assemble_native_runtime  # noqa: E402
+import smoke_linux_desktop_package  # noqa: E402
 import verify_native_step  # noqa: E402
 import verify_native_runtime_links  # noqa: E402
 
@@ -566,6 +567,35 @@ File Type: EXECUTABLE IMAGE
                 {"KERNEL32.dll"},
                 {"tkernel.dll"},
             )
+
+
+class LinuxDesktopPackageSmokeTests(unittest.TestCase):
+    @mock.patch.object(smoke_linux_desktop_package.subprocess, "run")
+    def test_focus_window_uses_exact_visible_title_without_coordinates(
+        self, run: mock.Mock
+    ) -> None:
+        smoke_linux_desktop_package.focus_window("Open File")
+
+        run.assert_called_once_with(
+            [
+                "xdotool",
+                "search",
+                "--sync",
+                "--onlyvisible",
+                "--name",
+                "^Open\\ File$",
+                "windowfocus",
+                "--sync",
+            ],
+            check=True,
+            timeout=10,
+        )
+
+    @mock.patch.object(smoke_linux_desktop_package.subprocess, "run")
+    def test_focus_window_escapes_regex_metacharacters(self, run: mock.Mock) -> None:
+        smoke_linux_desktop_package.focus_window("PartProbe [test]")
+
+        self.assertEqual(run.call_args.args[0][5], r"^PartProbe\ \[test\]$")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # Linux Desktop Package Validation
 
 > **Status:** In Review
-> **Last updated:** 2026-08-12
+> **Last updated:** 2026-08-15
 > **Related requirements:** REQ-NF-001, REQ-NF-003, REQ-NF-006, REQ-NF-010; TEST-008, TEST-012, TEST-019
 > **Related ADRs:** ADR-0001, ADR-0003
 > **Open questions:** Supported Linux baseline, signing identity/policy, package format support, GPU/display matrix, interactive acceptance, and legal redistribution
@@ -52,3 +52,7 @@ This closes the unsigned extracted Linux native-runtime package-integration chec
 The next opt-in gate now launches that exact extracted executable under Xvfb/DBus with the package-resource runtime and external worker workspace, discovers controls and results through the Linux AT-SPI accessibility tree, and supplies keyboard input through `xdotool`. It must focus and activate the real `Choose STEP model` button, select the governed public prism through the host-owned GTK picker, observe only its leaf name in the application, activate the real Analyze control, and observe the expected 392 mm², 480 mm³, `(6, 4, 2.5)` mm, and OCCT 8.0.0 evidence. The harness has no test-only source-selection command, raw WebView path, frontend dialog permission, coordinate click, or external file transfer.
 
 This follow-up is **pending hosted evidence**. Even a pass will cover keyboard/AT-SPI discoverability, native selection, and analysis on one virtual Ubuntu configuration only. It will not establish Orca speech output, a physical display/GPU, contrast/scaling/HiDPI, portal behavior, the complete estimate form, installation, signing, legal redistribution, broad usability, or supported Linux acceptance.
+
+Initial interactive run [31629574058](https://github.com/JoshuaGessner/PartProbe/actions/runs/31629574058) passes ordinary three-OS CI, exact OCCT construction, runtime assembly and link verification, package construction/extraction/re-verification, and the packaged-resource analysis smoke. AT-SPI starts successfully, exposes the PartProbe document/control tree, receives Return on `Choose STEP model`, and exposes the real `Open File` chooser with its STEP filter. The test then times out without selecting the prism because the harness sends `Ctrl+L` before explicitly focusing the chooser's X11 window; its diagnostic tree remains on `Other Locations`, while PartProbe correctly remains `Picker open` with no selected source or analysis.
+
+The correction keeps the product boundary unchanged. It finds the exact visible `PartProbe` and `Open File` titles and uses X11 `windowfocus`—not a coordinate click—before each keyboard sequence, then requires the application's accessible `Model selected` state before accepting the leaf filename or activating Analyze. Two portable tooling regressions cover exact-title focus and regex escaping. A corrected hosted result remains pending.

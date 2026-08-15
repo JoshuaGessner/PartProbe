@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -99,6 +100,23 @@ def focus(node: Any, label: str) -> None:
         raise RuntimeError(f"accessibility focus was rejected for {label!r}")
 
 
+def focus_window(title: str) -> None:
+    subprocess.run(
+        [
+            "xdotool",
+            "search",
+            "--sync",
+            "--onlyvisible",
+            "--name",
+            f"^{re.escape(title)}$",
+            "windowfocus",
+            "--sync",
+        ],
+        check=True,
+        timeout=10,
+    )
+
+
 def key(*keys: str) -> None:
     subprocess.run(
         ["xdotool", "key", "--clearmodifiers", *keys],
@@ -151,14 +169,17 @@ def main() -> int:
             deadline,
             {"push button", "button"},
         )
+        focus_window("PartProbe")
         focus(choose_button, "Choose STEP model")
         key("Return")
 
         wait_for_node(pyatspi, "Open File", deadline)
+        focus_window("Open File")
         key("ctrl+l")
         type_text(str(fixture))
         key("Return")
 
+        wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)
         analyze_button = wait_for_node(
             pyatspi,
@@ -166,6 +187,7 @@ def main() -> int:
             deadline,
             {"push button", "button"},
         )
+        focus_window("PartProbe")
         focus(analyze_button, "Analyze provisional geometry")
         key("Return")
 
