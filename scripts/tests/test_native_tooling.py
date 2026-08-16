@@ -570,18 +570,58 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
-    def test_accept_open_dialog_focuses_live_button_and_uses_keyboard(self) -> None:
+    def test_accept_open_dialog_activates_the_verified_live_button(self) -> None:
         open_button = mock.sentinel.open_button
         with (
             mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
-            mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
-            mock.patch.object(smoke_linux_desktop_package, "key") as key,
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "activate_button",
+            ) as activate_button,
         ):
             smoke_linux_desktop_package.accept_open_dialog(open_button)
 
         focus_window.assert_called_once_with("Open File")
-        focus.assert_called_once_with(open_button, "Open")
-        key.assert_called_once_with("space")
+        activate_button.assert_called_once_with(
+            open_button,
+            "Open selected STEP model",
+        )
+
+    def test_activate_button_uses_named_click_action(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 2
+        actions.getName.side_effect = ["focus", "click"]
+        actions.doAction.return_value = True
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        smoke_linux_desktop_package.activate_button(
+            node,
+            "Open selected STEP model",
+        )
+
+        actions.doAction.assert_called_once_with(1)
+
+    def test_activate_button_rejects_failed_action(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 1
+        actions.getName.return_value = "click"
+        actions.doAction.return_value = False
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        with self.assertRaisesRegex(RuntimeError, "activation was rejected"):
+            smoke_linux_desktop_package.activate_button(node, "Open")
+
+    def test_activate_button_rejects_nodes_without_activation(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 1
+        actions.getName.return_value = "focus"
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        with self.assertRaisesRegex(RuntimeError, "has no activation action"):
+            smoke_linux_desktop_package.activate_button(node, "Open")
 
     def test_required_accessible_state_skips_hidden_duplicate(self) -> None:
         hidden = mock.Mock(name="hidden_open")

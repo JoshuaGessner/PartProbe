@@ -152,6 +152,30 @@ def select_node(node: Any, label: str) -> None:
     raise RuntimeError(f"could not select accessible item {label!r}")
 
 
+def activate_button(node: Any, label: str) -> None:
+    try:
+        actions = node.queryAction()
+        action_names = [
+            str(actions.getName(index)).casefold()
+            for index in range(int(actions.nActions))
+        ]
+    except Exception as error:
+        raise RuntimeError(
+            f"could not inspect accessibility actions for {label!r}"
+        ) from error
+    for preferred_name in ("click", "press", "activate"):
+        for index, name in enumerate(action_names):
+            if name == preferred_name:
+                if not bool(actions.doAction(index)):
+                    raise RuntimeError(
+                        f"accessibility activation was rejected for {label!r}"
+                    )
+                return
+    raise RuntimeError(
+        f"accessible button {label!r} has no activation action: {action_names!r}"
+    )
+
+
 def focus_window(title: str) -> None:
     subprocess.run(
         [
@@ -187,8 +211,7 @@ def type_text(value: str) -> None:
 
 def accept_open_dialog(open_button: Any) -> None:
     focus_window("Open File")
-    focus(open_button, "Open")
-    key("space")
+    activate_button(open_button, "Open selected STEP model")
 
 
 def dump_accessibility(pyatspi: Any) -> None:
