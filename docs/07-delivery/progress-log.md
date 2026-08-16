@@ -1,12 +1,20 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-15
+> **Last updated:** 2026-08-16
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-16 — Linux packaged GUI semantic selection correction
+
+- Successive hosted reruns kept exact OCCT construction, the 72-artifact runtime, package extraction/re-verification, internal link closure, and the packaged-resource STEP-to-USD-702 smoke green while narrowing the remaining failure to native GTK chooser automation. The app consistently stayed in the correct path-free `Picker open` state when no source was accepted.
+- Runs 31911739196, 31914058096, 31916632207, and 31918897815 proved exact X11 focus, the visible fixture row, and the native Open control but also showed that location-entry Return, `grabFocus()`, and a successful row `activate` action do not by themselves prove file acceptance. Run 31920887889 then exposed GTK's unrealized-widget rejection when accessibility actions attempted to activate the selected row/Open control.
+- The harness now selects the exact fixture through the parent AT-SPI Selection interface, waits until that child reports selected, confirms the exact native Open control exists, and presses Return on the exactly focused chooser window. It still uses the exact extracted executable and real host-owned dialog, sends no path to the WebView, adds no app/test command, and uses no coordinate click.
+- Run 31922971723 proves exact AT-SPI child selection succeeds, then shows that Return is consumed by GTK's file-list widget and does not invoke the native Open response. Run 31925017689 proves an exact Open-button accessibility action is accepted without a dialog response, so an action return alone is correctly rejected as evidence. Run 31927099386 shows the `_Open` mnemonic reaches an unrealized widget and, critically, that GTK publishes hidden dialog controls with the same exact accessible names as the live controls. Run 31929252874 requires the selected row and live Open button to be showing, requires the button to be enabled, focuses that exact control, and presses Space. The native/package/analysis prerequisites pass, but the chooser remains open and PartProbe correctly stays `Picker open`, so focus plus key delivery is also rejected as acceptance evidence. Six focused state/selection/keyboard regressions plus exact node/title matching keep the local Python tooling suite at 36 passing tests; the interactive gate remains open.
+- Agent guidance now distinguishes shell survival from native package integration and requires exact semantic targets plus an observed application state transition; an accepted focus/selection/action call alone is not acceptance evidence.
 
 ## 2026-08-15 — Linux packaged GUI accessibility gate correction
 

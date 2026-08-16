@@ -1,14 +1,14 @@
 # Test Strategy
 
 > **Status:** In Review
-> **Last updated:** 2026-08-12
+> **Last updated:** 2026-08-16
 > **Related requirements:** All; TEST-001–TEST-099
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** Hardware/performance and accuracy thresholds
 > **Dependencies:** Executable workspace and fixtures
 > **Supersedes:** None
 
-Current executable evidence: [TASK-001 validation](task-001-validation.md) covers TEST-001; [TASK-002 validation](task-002-validation.md) provides partial TEST-002/014 evidence; [TASK-003 validation](task-003-validation.md) provides partial TEST-003/008/011/019/021/023/030 evidence; [GUI-2 validation](gui-2-validation.md) provides partial TEST-002/003/006/014/021/030 application-composition evidence; [GUI-3 validation](gui-3-validation.md) provides partial TEST-008/011/012 desktop-shell evidence; [GUI-4 validation](gui-4-validation.md) adds partial TEST-002/003/006/008/011/012/014/021/024/030 workspace evidence; and [GUI-5 validation](gui-5-validation.md) adds the passing opt-in developer-runtime OCCT host smoke plus actual Apple-Silicon app evidence for keyboard completion, semantics, live cancellation, malformed-input recovery, path redaction, and revision-bound review reset. The packaged-resource native smoke and combined Linux package run 31624958771 also pass the unsigned extracted Debian manifest/link, real-analysis, and bounded-launch checkpoint. Requirements remain incomplete until their full supported accuracy, persistence, containment, three-platform package, assistive-technology, usability, and approval suites pass.
+Current executable evidence: [TASK-001 validation](task-001-validation.md) covers TEST-001; [TASK-002 validation](task-002-validation.md) provides partial TEST-002/014 evidence; [TASK-003 validation](task-003-validation.md) provides partial TEST-003/008/011/019/021/023/030 evidence; [GUI-2 validation](gui-2-validation.md) provides partial TEST-002/003/006/014/021/030 application-composition evidence; [GUI-3 validation](gui-3-validation.md) provides partial TEST-008/011/012 desktop-shell evidence; [GUI-4 validation](gui-4-validation.md) adds partial TEST-002/003/006/008/011/012/014/021/024/030 workspace evidence; and [GUI-5 validation](gui-5-validation.md) adds the passing opt-in developer-runtime OCCT host smoke plus actual Apple-Silicon app evidence for keyboard completion, semantics, live cancellation, malformed-input recovery, path redaction, and revision-bound review reset. The packaged-resource native smoke and combined Linux package run 31624958771 also pass the unsigned extracted Debian manifest/link, real-analysis, and bounded-launch checkpoint; an exact-payload AT-SPI/native-picker analysis gate is under final validation. Requirements remain incomplete until their full supported accuracy, persistence, containment, three-platform package, assistive-technology, usability, and approval suites pass.
 
 | ID | Layer | Core evidence |
 |---|---|---|

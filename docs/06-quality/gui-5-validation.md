@@ -1,7 +1,7 @@
 # GUI-5 Configured Native Desktop Validation
 
 > **Status:** Complete for the bounded internal developer checkpoint
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-16
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; TEST-002, TEST-003, TEST-008, TEST-011, TEST-012, TEST-014, TEST-019, TEST-021, TEST-024, TEST-030
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005, ADR-0007, ADR-0008
 > **Open questions:** Formal GUI-1 fixture approval, signed/embedded native distribution, three-platform native desktop evidence, full assistive-technology matrix
@@ -43,7 +43,7 @@ PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
     --locked -- --ignored --nocapture
 ```
 
-Result: the explicit developer-runtime smoke passed against the original construction root during GUI-5 closeout, against the separately assembled runtime during the next TASK-003 checkpoint, and in 0.68 seconds after desktop startup enforcement was added. Ordinary desktop-host execution now passes 19 tests and reports that smoke plus the pending packaged-resource smoke ignored unless explicitly configured. Five portable runtime-verifier tests independently cover the valid path, worker tampering plus extra files, traversal/unreviewed configuration, wrong copied build provenance, and wrong-host rejection. The focused contract/UI/native-host set now has 31 passing tests plus those two ignored smokes; the verifier coverage is counted separately in the workspace suite. The package-aware smoke reuses the same STEP-to-USD-702 assertions but does not become evidence until the combined Linux package workflow passes.
+Result: the explicit developer-runtime smoke passed against the original construction root during GUI-5 closeout, against the separately assembled runtime during the next TASK-003 checkpoint, and in 0.68 seconds after desktop startup enforcement was added. Ordinary desktop-host execution now passes 19 tests and reports that smoke plus the packaged-resource smoke ignored unless explicitly configured. Five portable runtime-verifier tests independently cover the valid path, worker tampering plus extra files, traversal/unreviewed configuration, wrong copied build provenance, and wrong-host rejection. The focused contract/UI/native-host set now has 31 passing tests plus those two ignored smokes; the verifier coverage is counted separately in the workspace suite. The package-aware smoke reuses the same STEP-to-USD-702 assertions, and combined Linux package run 31624958771 supplies its configured hosted evidence.
 
 GitHub Actions run 31340568277 passes formatting, six native-tooling tests, strict workspace/native-host/WASM lint, all-target tests, and doctests on macOS, Ubuntu, and Windows at GUI-5 implementation commit `40c20a2`. The native OCCT smoke remains explicit Apple-Silicon local evidence and is not run by that feature-off default matrix.
 
@@ -74,6 +74,6 @@ The deliberately invalid `invalid_entity.step` fixture produced a bounded `GUI4-
 
 ## Remaining evidence and next development gate
 
-GUI-5 and GUI-4 are complete only for this bounded developer checkpoint. GUI-1 formal fixture/security review remains open in parallel. Linux and Windows configured-native headless evidence now pass, as does the separate Linux shell-only Debian checkpoint. The next product-facing work is not another form demo: it is verified-runtime package integration and interactive Linux/Windows evidence, signed application/runtime integration, remaining worker containment, a supported importer accuracy corpus, durable shop-owned rate/policy setup, persistence/save/reopen/replay, broader STEP/STL/3MF intake, and release accessibility/usability/security evidence. A visible model adds the separate tessellation/viewer checkpoints in the vertical-slice plan.
+GUI-5 and GUI-4 are complete only for this bounded developer checkpoint. GUI-1 formal fixture/security review remains open in parallel. Linux and Windows configured-native headless evidence pass, and Linux additionally passes the verified-runtime Debian package-integration checkpoint. The next product-facing work is not another form demo: it is bounded interactive Linux/Windows evidence, Windows/macOS package integration, signed application/runtime integration, remaining worker containment, a supported importer accuracy corpus, durable shop-owned rate/policy setup, persistence/save/reopen/replay, broader STEP/STL/3MF intake, and release accessibility/usability/security evidence. A visible model adds the separate tessellation/viewer checkpoints in the vertical-slice plan.
 
 No calculation formula, geometry interpretation, worker schema/ABI, persisted/customer schema, production rate, third-party package/version, external data transfer, or compliance/support claim changed in GUI-5.

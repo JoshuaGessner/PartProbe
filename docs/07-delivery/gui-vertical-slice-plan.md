@@ -1,7 +1,7 @@
 # Testable GUI Vertical Slice Plan
 
 > **Status:** In Review
-> **Last updated:** 2026-08-11
+> **Last updated:** 2026-08-16
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; UX-001–UX-012; GEO-001–GEO-007; TEST-003, TEST-012, TEST-014, TEST-021, TEST-028
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005–ADR-0008
 > **Open questions:** Whether the first internal build must include a 3D viewport; which independent STEP fixture is approved for the first end-to-end test
@@ -12,7 +12,7 @@
 
 The nearest honest product demonstration is an **internal developer test slice**, not developer alpha, a supported importer, or the initial release. It proves that one local STEP file can move through the isolated worker, produce provisional geometry facts, accept explicit estimator inputs, and drive the existing deterministic cost and pricing rules through a deliberately styled desktop workflow.
 
-The first slice may be macOS/Apple-Silicon-only and session-only because that remains the only platform with actual windowed GUI evidence; Ubuntu x86_64 now has configured native OCCT headless-host evidence, not a GUI/package result. The slice must visibly label analysis as provisional and state that unsaved work is lost on exit. It must use isolated fixtures or explicitly approved local test files, perform no external network access, supply no production rate defaults, and make missing or conflicting inputs blocking rather than treating them as zero.
+The first slice may be macOS/Apple-Silicon-only and session-only because that remains the only platform with a manually completed estimate-form workflow. Ubuntu x86_64 now also has configured native OCCT host evidence and an exact extracted Debian payload containing the verified runtime; its bounded native-picker/analysis interaction gate remains under validation. The slice must visibly label analysis as provisional and state that unsaved work is lost on exit. It must use isolated fixtures or explicitly approved local test files, perform no external network access, supply no production rate defaults, and make missing or conflicting inputs blocking rather than treating them as zero.
 
 This boundary does not complete TASK-003, TASK-005, TASK-006, M1, M2, or any production-format requirement.
 
@@ -23,7 +23,7 @@ This boundary does not complete TASK-003, TASK-005, TASK-006, M1, M2, or any pro
 - Application/security seams for authorization and audit, plus persistence-neutral derivative manifests.
 - Documented desktop, model-review, design-system, accessibility, persistence, security, and release boundaries.
 
-A restrictive Tauri/Leptos developer shell, typed desktop contract, native STEP picker, and unsigned local macOS bundle now exist. Contract v3 connects a retained selection token to the completed estimate-workflow application service, provides token-bound cooperative cancellation, and submits explicit review/manual/rate/pricing inputs to the retained native session for a deterministic result trace. TASK-003 can assemble a content-addressed developer runtime containing the verified worker and full OCCT shared-library closure, independently of mutable Cargo output; Apple Silicon passes the actual app, while Ubuntu x86_64 passes construction, link auditing, and the configured headless host smoke. Neither runtime is embedded, signed, distributable, or cross-platform product packaging. No model-viewer, tessellation contract, durable repository, report renderer, or supported production importer exists yet. Default feature-off geometry builds intentionally report `NATIVE_ADAPTER_UNAVAILABLE`.
+A restrictive Tauri/Leptos developer shell, typed desktop contract, native STEP picker, and unsigned local macOS bundle now exist. Contract v3 connects a retained selection token to the completed estimate-workflow application service, provides token-bound cooperative cancellation, and submits explicit review/manual/rate/pricing inputs to the retained native session for a deterministic result trace. TASK-003 can assemble a content-addressed developer runtime containing the verified worker and full OCCT shared-library closure, independently of mutable Cargo output; Apple Silicon passes the actual app, while Ubuntu x86_64 passes construction, link auditing, the configured host smoke, and an extracted unsigned Debian package whose fixed resource child contains and re-verifies that runtime. The Apple bundle still uses an explicit external developer runtime, and neither result is signed, installed, legally approved for distribution, or cross-platform product packaging. No model-viewer, tessellation contract, durable repository, report renderer, or supported production importer exists yet. Default feature-off geometry builds intentionally report `NATIVE_ADAPTER_UNAVAILABLE`.
 
 ## Current checkpoint status
 
@@ -61,7 +61,7 @@ The display mesh is visual evidence only. It never replaces exact analysis geome
 
 ## What remains after the developer slice
 
-A cross-platform developer alpha still requires supported and reproducibly packaged STEP plus planned STL/3MF import, independent accuracy/tolerance evidence, remaining worker macOS/Windows parser egress, general filesystem and resource containment, native-runtime package integration plus interactive Linux/Windows dialog/portal/display evidence beyond the passing headless checkpoints, durable SQLite/blob repositories with migrations and backup/restore, guided shop-owned rate/policy setup and calibration, save/reopen/replay, internal/customer previews, accessibility/usability evidence, signed three-platform application packaging, and release security/legal review.
+A cross-platform developer alpha still requires supported and reproducibly packaged STEP plus planned STL/3MF import, independent accuracy/tolerance evidence, remaining worker macOS/Windows parser egress, general filesystem and resource containment, Windows/macOS native-runtime package integration plus completed interactive Linux/Windows dialog/portal/display evidence, durable SQLite/blob repositories with migrations and backup/restore, guided shop-owned rate/policy setup and calibration, save/reopen/replay, internal/customer previews, accessibility/usability evidence, signed three-platform application packaging, and release security/legal review.
 
 The largest schedule risks are cross-platform native geometry packaging, safe containment, tessellation/viewer integration when included, and shop-owned rate/runtime calibration. The desktop form work is not the dominant uncertainty.
 

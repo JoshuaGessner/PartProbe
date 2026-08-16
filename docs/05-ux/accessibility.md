@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-08-09
+- **Last updated:** 2026-08-16
 - **Related requirement IDs:** UX-007 through UX-010, REQ-NF-004
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Confirm minimum supported assistive-technology/browser-engine combinations for each OS.
@@ -33,7 +33,7 @@ Command palette: dialog role, labelled search, result count, arrow navigation, a
 
 Run automated semantic/contrast checks in UI CI and manually test core workflows on: Windows with Narrator and Accessibility Insights; macOS with VoiceOver and Accessibility Inspector; Linux with Orca/AT-SPI on the supported distribution. Slint’s documentation is a useful reminder that custom widgets need explicit roles, labels, and actions ([Slint accessibility guidance](https://docs.slint.dev/latest/docs/slint/guide/development/best-practices/)); the same discipline applies to DOM controls. Capture test date, OS/webview version, flow, defects, and remediation in release evidence.
 
-GUI-3 supplies a preliminary Apple-Silicon smoke only. The rendered accessibility tree exposed the skip link, level-one/level-two headings, named application state, named native button, and source/estimate description lists; Tab produced visible focus, Return opened the picker, and Escape cancelled it. Reduced-motion and forced-color CSS fallbacks are present. No screen reader, automated contrast, zoom/scaling, high-DPI, full workflow, Windows, or Linux acceptance pass has occurred, so TEST-012 and the non-negotiable examples remain open.
+GUI-3 supplies a preliminary Apple-Silicon smoke. The rendered accessibility tree exposed the skip link, level-one/level-two headings, named application state, named native button, and source/estimate description lists; Tab produced visible focus, Return opened the picker, and Escape cancelled it. Reduced-motion and forced-color CSS fallbacks are present. The Linux package follow-up uses AT-SPI to find exact semantic controls, confirmed selection for the exact governed fixture, keyboard input for the application controls, and the exact native Open button action; its final hosted result remains pending. No Orca/VoiceOver/Narrator session, automated contrast, zoom/scaling, high-DPI, complete estimate-form Linux/Windows workflow, or full acceptance pass has occurred, so TEST-012 and the non-negotiable examples remain open.
 
 ## Non-negotiable acceptance examples
 
