@@ -570,6 +570,28 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
+    def test_activate_uses_named_accessibility_action(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 2
+        actions.getName.side_effect = ["select", "activate"]
+        actions.doAction.return_value = True
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        smoke_linux_desktop_package.activate(node, "fixture.step")
+
+        actions.doAction.assert_called_once_with(1)
+
+    def test_activate_rejects_nodes_without_activation(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 1
+        actions.getName.return_value = "select"
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        with self.assertRaisesRegex(RuntimeError, "does not expose an activate action"):
+            smoke_linux_desktop_package.activate(node, "fixture.step")
+
     def test_exact_accessible_match_does_not_accept_substring(self) -> None:
         picker_open = mock.Mock(name="picker_open")
         picker_open.name = "Picker open"

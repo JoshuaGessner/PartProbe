@@ -110,6 +110,25 @@ def focus(node: Any, label: str) -> None:
         raise RuntimeError(f"accessibility focus was rejected for {label!r}")
 
 
+def activate(node: Any, label: str) -> None:
+    try:
+        actions = node.queryAction()
+        action_names = [
+            str(actions.getName(index)).casefold()
+            for index in range(int(actions.nActions))
+        ]
+    except Exception as error:
+        raise RuntimeError(f"could not inspect accessibility actions for {label!r}") from error
+    for index, name in enumerate(action_names):
+        if name == "activate":
+            if not bool(actions.doAction(index)):
+                raise RuntimeError(f"accessibility activation was rejected for {label!r}")
+            return
+    raise RuntimeError(
+        f"accessible {label!r} does not expose an activate action: {action_names!r}"
+    )
+
+
 def focus_window(title: str) -> None:
     subprocess.run(
         [
@@ -194,8 +213,7 @@ def main() -> int:
             deadline,
             exact=True,
         )
-        focus(fixture_row, fixture.name)
-        key("Return")
+        activate(fixture_row, fixture.name)
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)
