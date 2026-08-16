@@ -186,16 +186,15 @@ def main() -> int:
         wait_for_node(pyatspi, "Open File", deadline)
         focus_window("Open File")
         key("ctrl+l")
-        type_text(str(fixture))
+        type_text(str(fixture.parent))
         key("Return")
-        open_button = wait_for_node(
+        fixture_row = wait_for_node(
             pyatspi,
-            "Open",
+            fixture.name,
             deadline,
-            {"push button", "button"},
             exact=True,
         )
-        focus(open_button, "Open selected STEP model")
+        focus(fixture_row, fixture.name)
         key("Return")
 
         wait_for_node(pyatspi, "Model selected", deadline)
