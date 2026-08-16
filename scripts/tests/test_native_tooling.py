@@ -753,6 +753,28 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
 
         text.getText.assert_called_once_with(0, 15)
 
+    def test_portal_directory_text_uses_one_trailing_separator(self) -> None:
+        self.assertEqual(
+            smoke_linux_desktop_package.canonical_portal_directory_text(
+                "/fixtures/models"
+            ),
+            "/fixtures/models/",
+        )
+        self.assertEqual(
+            smoke_linux_desktop_package.canonical_portal_directory_text(
+                "/fixtures/models/"
+            ),
+            "/fixtures/models/",
+        )
+        self.assertEqual(
+            smoke_linux_desktop_package.canonical_portal_directory_text("/"),
+            "/",
+        )
+        with self.assertRaisesRegex(ValueError, "must be absolute"):
+            smoke_linux_desktop_package.canonical_portal_directory_text(
+                "fixtures/models"
+            )
+
     def test_selection_acceptance_requires_model_and_closed_picker(self) -> None:
         with mock.patch.object(
             smoke_linux_desktop_package,

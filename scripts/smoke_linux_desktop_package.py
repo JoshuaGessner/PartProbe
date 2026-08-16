@@ -215,6 +215,14 @@ def wait_for_text_value(node: Any, expected: str, timeout_seconds: float) -> Non
     )
 
 
+def canonical_portal_directory_text(directory: str) -> str:
+    if not directory.startswith("/"):
+        raise ValueError("portal directory must be absolute")
+    if directory == "/":
+        return directory
+    return f"{directory.rstrip('/')}/"
+
+
 def wait_for_node_absent(
     pyatspi: Any,
     text: str,
@@ -504,11 +512,10 @@ def main() -> int:
         )
         wait_for_text_value(location_entry, "/", 2.0)
         fixture_directory = str(fixture.parent)
-        if not fixture_directory.startswith("/"):
-            raise RuntimeError("interactive smoke fixture directory must be absolute")
+        expected_directory_text = canonical_portal_directory_text(fixture_directory)
         type_text(fixture_directory.removeprefix("/"))
-        wait_for_text_value(location_entry, fixture_directory, 2.0)
-        print("Confirmed exact portal location entry text", flush=True)
+        wait_for_text_value(location_entry, expected_directory_text, 2.0)
+        print("Confirmed exact canonical portal location entry text", flush=True)
         key("Return")
         fixture_row = wait_for_unique_node(
             pyatspi,
