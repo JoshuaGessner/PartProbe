@@ -424,6 +424,8 @@ mod tests {
     fn native_picker_is_non_blocking() {
         assert!(RUNTIME.contains("async fn select_model_source"));
         assert!(RUNTIME.contains(".pick_file("));
+        assert!(RUNTIME.contains(".set_title(MODEL_SOURCE_DIALOG_TITLE)"));
+        assert!(RUNTIME.contains("Select STEP model"));
         assert!(!RUNTIME.contains("blocking_pick_file"));
     }
 

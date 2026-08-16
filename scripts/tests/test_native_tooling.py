@@ -580,6 +580,10 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
             smoke_linux_desktop_package.PORTAL_NAVIGATION_ANCHOR_LABEL,
             "Cancel",
         )
+        self.assertEqual(
+            smoke_linux_desktop_package.PORTAL_WINDOW_TITLE,
+            "Select STEP model",
+        )
 
     def test_dialog_dependency_pins_xdg_portal_backend(self) -> None:
         cargo_manifest = (SCRIPTS.parent / "Cargo.toml").read_text(encoding="utf-8")
@@ -615,6 +619,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
     def test_activate_accept_button_confirms_focus_before_return(self) -> None:
         accept_button = mock.sentinel.accept_button
         with (
+            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
             mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
             mock.patch.object(smoke_linux_desktop_package, "key") as key,
         ):
@@ -624,6 +629,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 mock.sentinel.focused,
             )
 
+        focus_window.assert_called_once_with("Select STEP model")
         focus.assert_called_once_with(
             accept_button,
             "Select selected STEP model",
@@ -634,6 +640,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
     def test_click_accept_button_confirms_focus_before_semantic_activation(self) -> None:
         accept_button = mock.sentinel.accept_button
         with (
+            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
             mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
             mock.patch.object(
                 smoke_linux_desktop_package,
@@ -646,6 +653,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 mock.sentinel.focused,
             )
 
+        focus_window.assert_called_once_with("Select STEP model")
         focus.assert_called_once_with(
             accept_button,
             "Select selected STEP model",
@@ -659,6 +667,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
     def test_activate_selected_file_confirms_focus_before_return(self) -> None:
         fixture_row = mock.sentinel.fixture_row
         with (
+            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
             mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
             mock.patch.object(smoke_linux_desktop_package, "key") as key,
         ):
@@ -667,6 +676,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 mock.sentinel.focused,
             )
 
+        focus_window.assert_called_once_with("Select STEP model")
         focus.assert_called_once_with(
             fixture_row,
             "Selected STEP model",
@@ -677,6 +687,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
     def test_open_location_entry_confirms_portal_focus_before_ctrl_l(self) -> None:
         focus_anchor = mock.sentinel.focus_anchor
         with (
+            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
             mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
             mock.patch.object(smoke_linux_desktop_package, "key") as key,
         ):
@@ -686,6 +697,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 mock.sentinel.focused,
             )
 
+        focus_window.assert_called_once_with("Select STEP model")
         focus.assert_called_once_with(
             focus_anchor,
             "Cancel file selection",

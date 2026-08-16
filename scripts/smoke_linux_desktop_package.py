@@ -16,6 +16,7 @@ from typing import Any, Iterable
 PORTAL_CHOOSER_NAME = "File Chooser Widget"
 PORTAL_ACCEPT_LABEL = "Select"
 PORTAL_NAVIGATION_ANCHOR_LABEL = "Cancel"
+PORTAL_WINDOW_TITLE = "Select STEP model"
 
 
 def parse_args() -> argparse.Namespace:
@@ -296,6 +297,7 @@ def activate_accept_button(
     accept_label: str,
     focused_state: Any,
 ) -> None:
+    focus_window(PORTAL_WINDOW_TITLE)
     focus(
         accept_button,
         f"{accept_label} selected STEP model",
@@ -309,6 +311,7 @@ def click_accept_button(
     accept_label: str,
     focused_state: Any,
 ) -> None:
+    focus_window(PORTAL_WINDOW_TITLE)
     focus(
         accept_button,
         f"{accept_label} selected STEP model",
@@ -318,6 +321,7 @@ def click_accept_button(
 
 
 def activate_selected_file(fixture_row: Any, focused_state: Any) -> None:
+    focus_window(PORTAL_WINDOW_TITLE)
     focus(
         fixture_row,
         "Selected STEP model",
@@ -331,6 +335,7 @@ def open_location_entry(
     focus_label: str,
     focused_state: Any,
 ) -> None:
+    focus_window(PORTAL_WINDOW_TITLE)
     focus(
         focus_anchor,
         focus_label,

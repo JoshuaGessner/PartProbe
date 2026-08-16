@@ -12,6 +12,8 @@ use tauri_plugin_dialog::{DialogExt, FilePath};
 use crate::DesktopSessionState;
 use crate::analysis::DesktopAnalysisConfiguration;
 
+const MODEL_SOURCE_DIALOG_TITLE: &str = "Select STEP model";
+
 #[tauri::command]
 fn desktop_contract() -> DesktopContract {
     DesktopContract::current()
@@ -24,6 +26,7 @@ async fn select_model_source(
     let (sender, mut receiver) = tauri::async_runtime::channel(1);
     app.dialog()
         .file()
+        .set_title(MODEL_SOURCE_DIALOG_TITLE)
         .add_filter("STEP model", &["step", "stp"])
         .pick_file(move |selected| {
             let _ = sender.try_send(selected);
