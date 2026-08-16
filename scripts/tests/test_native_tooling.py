@@ -570,15 +570,58 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
-    def test_accept_open_dialog_uses_exact_window_and_keyboard_mnemonic(self) -> None:
+    def test_accept_open_dialog_focuses_live_button_and_uses_keyboard(self) -> None:
+        open_button = mock.sentinel.open_button
         with (
             mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
+            mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
             mock.patch.object(smoke_linux_desktop_package, "key") as key,
         ):
-            smoke_linux_desktop_package.accept_open_dialog()
+            smoke_linux_desktop_package.accept_open_dialog(open_button)
 
         focus_window.assert_called_once_with("Open File")
-        key.assert_called_once_with("alt+o")
+        focus.assert_called_once_with(open_button, "Open")
+        key.assert_called_once_with("space")
+
+    def test_required_accessible_state_skips_hidden_duplicate(self) -> None:
+        hidden = mock.Mock(name="hidden_open")
+        hidden.name = "Open"
+        hidden.description = ""
+        hidden.getRoleName.return_value = "push button"
+        hidden.getState.return_value.contains.return_value = False
+        visible = mock.Mock(name="visible_open")
+        visible.name = "Open"
+        visible.description = ""
+        visible.getRoleName.return_value = "push button"
+        visible.getState.return_value.contains.return_value = True
+
+        with mock.patch.object(
+            smoke_linux_desktop_package,
+            "accessibility_nodes",
+            return_value=[hidden, visible],
+        ):
+            found = smoke_linux_desktop_package.find_node(
+                mock.sentinel.pyatspi,
+                "Open",
+                {"push button"},
+                exact=True,
+                required_states=(mock.sentinel.showing, mock.sentinel.enabled),
+            )
+
+        self.assertIs(found, visible)
+        self.assertEqual(hidden.getState.return_value.contains.call_count, 1)
+        self.assertEqual(visible.getState.return_value.contains.call_count, 2)
+
+    def test_required_accessible_state_fails_closed_when_unavailable(self) -> None:
+        node = mock.Mock()
+        node.getState.side_effect = RuntimeError("state unavailable")
+
+        self.assertFalse(
+            smoke_linux_desktop_package.node_has_states(
+                node,
+                (mock.sentinel.showing,),
+            )
+        )
 
     def test_select_node_uses_parent_selection_and_confirms_state(self) -> None:
         selection = mock.Mock()

@@ -73,6 +73,7 @@ def find_node(
     roles: set[str] | None = None,
     *,
     exact: bool = False,
+    required_states: tuple[Any, ...] = (),
 ) -> Any | None:
     expected = text.casefold()
     for node in accessibility_nodes(pyatspi):
@@ -80,9 +81,19 @@ def find_node(
             continue
         candidate = node_text(node).casefold()
         matches = candidate == expected if exact else expected in candidate
-        if matches:
+        if matches and node_has_states(node, required_states):
             return node
     return None
+
+
+def node_has_states(node: Any, required_states: tuple[Any, ...]) -> bool:
+    if not required_states:
+        return True
+    try:
+        states = node.getState()
+        return all(bool(states.contains(state)) for state in required_states)
+    except Exception:
+        return False
 
 
 def wait_for_node(
@@ -92,9 +103,16 @@ def wait_for_node(
     roles: set[str] | None = None,
     *,
     exact: bool = False,
+    required_states: tuple[Any, ...] = (),
 ) -> Any:
     while time.monotonic() < deadline:
-        node = find_node(pyatspi, text, roles, exact=exact)
+        node = find_node(
+            pyatspi,
+            text,
+            roles,
+            exact=exact,
+            required_states=required_states,
+        )
         if node is not None:
             return node
         time.sleep(0.25)
@@ -167,9 +185,10 @@ def type_text(value: str) -> None:
     )
 
 
-def accept_open_dialog() -> None:
+def accept_open_dialog(open_button: Any) -> None:
     focus_window("Open File")
-    key("alt+o")
+    focus(open_button, "Open")
+    key("space")
 
 
 def dump_accessibility(pyatspi: Any) -> None:
@@ -222,16 +241,18 @@ def main() -> int:
             fixture.name,
             deadline,
             exact=True,
+            required_states=(pyatspi.STATE_SHOWING,),
         )
         select_node(fixture_row, fixture.name)
-        wait_for_node(
+        open_button = wait_for_node(
             pyatspi,
             "Open",
             deadline,
             {"push button", "button"},
             exact=True,
+            required_states=(pyatspi.STATE_SHOWING, pyatspi.STATE_ENABLED),
         )
-        accept_open_dialog()
+        accept_open_dialog(open_button)
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)
