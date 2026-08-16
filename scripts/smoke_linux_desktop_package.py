@@ -293,22 +293,15 @@ def main() -> int:
         focus(choose_button, "Choose STEP model")
         key("Return")
 
-        wait_for_node(pyatspi, "Open File", deadline)
-        portal_application = wait_for_node(
-            pyatspi,
-            "xdg-desktop-portal-gtk",
-            deadline,
-            {"application"},
-            exact=True,
-        )
-        portal_chooser = wait_for_node(
+        live_chooser = wait_for_node(
             pyatspi,
             "Open File",
             deadline,
             {"file chooser"},
             exact=True,
-            root=portal_application,
+            required_states=(pyatspi.STATE_SHOWING,),
         )
+        print("Found exact showing Open File chooser", flush=True)
         focus_window("Open File")
         key("ctrl+l")
         type_text(str(fixture.parent))
@@ -319,9 +312,10 @@ def main() -> int:
             deadline,
             exact=True,
             required_states=(pyatspi.STATE_SHOWING,),
-            root=portal_chooser,
+            root=live_chooser,
         )
         select_node(fixture_row, fixture.name)
+        print(f"Selected exact fixture row: {fixture.name}", flush=True)
         open_button = wait_for_node(
             pyatspi,
             "Open",
@@ -333,9 +327,10 @@ def main() -> int:
                 pyatspi.STATE_ENABLED,
                 pyatspi.STATE_FOCUSABLE,
             ),
-            root=portal_chooser,
+            root=live_chooser,
         )
         accept_open_dialog(open_button, pyatspi.STATE_FOCUSED)
+        print("Invoked exact Open button click action", flush=True)
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)

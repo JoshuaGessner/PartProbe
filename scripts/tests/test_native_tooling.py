@@ -637,30 +637,30 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "no exact click action"):
             smoke_linux_desktop_package.activate_click_action(node, "Open")
 
-    def test_find_node_can_be_scoped_to_portal_chooser(self) -> None:
-        portal_chooser = mock.Mock(name="portal_chooser")
-        portal_chooser.name = "Open File"
-        portal_chooser.description = ""
-        portal_chooser.getRoleName.return_value = "file chooser"
-        portal_chooser.childCount = 0
+    def test_find_node_can_be_scoped_to_live_chooser(self) -> None:
+        live_chooser = mock.Mock(name="live_chooser")
+        live_chooser.name = "Open File"
+        live_chooser.description = ""
+        live_chooser.getRoleName.return_value = "file chooser"
+        live_chooser.childCount = 0
 
         with mock.patch.object(
             smoke_linux_desktop_package,
             "accessibility_nodes",
-            return_value=[portal_chooser],
+            return_value=[live_chooser],
         ) as accessibility_nodes:
             found = smoke_linux_desktop_package.find_node(
                 mock.sentinel.pyatspi,
                 "Open File",
                 {"file chooser"},
                 exact=True,
-                root=mock.sentinel.portal_application,
+                root=mock.sentinel.live_chooser,
             )
 
-        self.assertIs(found, portal_chooser)
+        self.assertIs(found, live_chooser)
         accessibility_nodes.assert_called_once_with(
             mock.sentinel.pyatspi,
-            mock.sentinel.portal_application,
+            mock.sentinel.live_chooser,
         )
 
     def test_focus_waits_for_confirmed_accessible_focus(self) -> None:
