@@ -773,15 +773,22 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
 
     def test_wait_for_expected_source_label_accepts_one_exact_showing_match(self) -> None:
         expected_source_label = "Selected model source: fixture.step"
-        with mock.patch.object(
-            smoke_linux_desktop_package,
-            "matching_nodes",
-            return_value=[mock.sentinel.source_summary],
-        ) as matching_nodes:
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "matching_nodes",
+                return_value=[mock.sentinel.source_summary],
+            ) as matching_nodes,
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                return_value=10_000.0,
+            ),
+        ):
             found = smoke_linux_desktop_package.wait_for_expected_source_label(
                 mock.sentinel.pyatspi,
                 expected_source_label,
-                1.0,
+                10_001.0,
                 mock.sentinel.showing,
             )
 
@@ -794,15 +801,23 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         )
 
     def test_wait_for_expected_source_label_rejects_another_selected_source(self) -> None:
-        with mock.patch.object(
-            smoke_linux_desktop_package,
-            "matching_nodes",
-            side_effect=[[], [mock.sentinel.wrong_source]],
-        ), self.assertRaisesRegex(RuntimeError, "other than the governed fixture"):
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "matching_nodes",
+                side_effect=[[], [mock.sentinel.wrong_source]],
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                return_value=10_000.0,
+            ),
+            self.assertRaisesRegex(RuntimeError, "other than the governed fixture"),
+        ):
             smoke_linux_desktop_package.wait_for_expected_source_label(
                 mock.sentinel.pyatspi,
                 "Selected model source: fixture.step",
-                1.0,
+                10_001.0,
                 mock.sentinel.showing,
             )
 
