@@ -17,6 +17,7 @@ PORTAL_CHOOSER_NAME = "File Chooser Widget"
 PORTAL_ACCEPT_LABEL = "Select"
 PORTAL_FILES_LABEL = "Files"
 PORTAL_WINDOW_TITLE = "Select STEP model"
+SELECTED_SOURCE_LABEL = "Selected model source"
 
 
 def parse_args() -> argparse.Namespace:
@@ -200,7 +201,7 @@ def accessible_text_value(node: Any) -> str:
         text = node.queryText()
         return str(text.getText(0, int(text.characterCount)))
     except Exception as error:
-        raise RuntimeError("accessible location entry has no text interface") from error
+        raise RuntimeError("accessible node has no text interface") from error
 
 
 def wait_for_text_value(node: Any, expected: str, timeout_seconds: float) -> None:
@@ -212,6 +213,29 @@ def wait_for_text_value(node: Any, expected: str, timeout_seconds: float) -> Non
     actual = accessible_text_value(node)
     raise RuntimeError(
         f"accessible location entry did not contain the expected text: {actual!r}"
+    )
+
+
+def wait_for_text_interface_value(
+    pyatspi: Any,
+    expected: str,
+    deadline: float,
+    *,
+    required_states: tuple[Any, ...] = (),
+) -> Any:
+    while time.monotonic() < deadline:
+        for node in accessibility_nodes(pyatspi):
+            if not node_has_states(node, required_states):
+                continue
+            try:
+                value = accessible_text_value(node)
+            except RuntimeError:
+                continue
+            if value == expected:
+                return node
+        time.sleep(0.05)
+    raise RuntimeError(
+        f"timed out waiting for exact accessible text-interface value: {expected!r}"
     )
 
 
@@ -409,8 +433,16 @@ def picker_open_observed(pyatspi: Any) -> bool:
 
 
 def selection_acceptance_observed(pyatspi: Any) -> bool:
-    model_selected = find_node(pyatspi, "Model selected") is not None
-    return model_selected and not picker_open_observed(pyatspi)
+    source_summary = (
+        find_node(
+            pyatspi,
+            SELECTED_SOURCE_LABEL,
+            exact=True,
+            required_states=(pyatspi.STATE_SHOWING,),
+        )
+        is not None
+    )
+    return source_summary and not picker_open_observed(pyatspi)
 
 
 def wait_for_selection_acceptance(pyatspi: Any, timeout_seconds: float) -> bool:
@@ -581,8 +613,19 @@ def main() -> int:
             )
             print("Invoked exact portal Select button click action", flush=True)
 
-        wait_for_node(pyatspi, "Model selected", deadline)
-        wait_for_node(pyatspi, fixture.name, deadline)
+        wait_for_unique_node(
+            pyatspi,
+            SELECTED_SOURCE_LABEL,
+            deadline,
+            exact=True,
+            required_states=(pyatspi.STATE_SHOWING,),
+        )
+        wait_for_text_interface_value(
+            pyatspi,
+            fixture.name,
+            deadline,
+            required_states=(pyatspi.STATE_SHOWING,),
+        )
         wait_for_node_absent(
             pyatspi,
             "Picker open",

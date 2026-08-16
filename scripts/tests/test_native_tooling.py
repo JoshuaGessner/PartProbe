@@ -584,6 +584,10 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
             smoke_linux_desktop_package.PORTAL_WINDOW_TITLE,
             "Select STEP model",
         )
+        self.assertEqual(
+            smoke_linux_desktop_package.SELECTED_SOURCE_LABEL,
+            "Selected model source",
+        )
 
     def test_dialog_dependency_pins_xdg_portal_backend(self) -> None:
         cargo_manifest = (SCRIPTS.parent / "Cargo.toml").read_text(encoding="utf-8")
@@ -753,6 +757,41 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
 
         text.getText.assert_called_once_with(0, 15)
 
+    def test_wait_for_text_interface_value_requires_an_exact_showing_match(self) -> None:
+        expected = "rectangular_prism_12x8x5.step"
+        text = mock.Mock()
+        text.characterCount = len(expected)
+        text.getText.return_value = expected
+        fixture_name = mock.Mock()
+        fixture_name.queryText.return_value = text
+
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "accessibility_nodes",
+                return_value=[fixture_name],
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_has_states",
+                return_value=True,
+            ) as node_has_states,
+        ):
+            found = (
+                smoke_linux_desktop_package.wait_for_text_interface_value(
+                    mock.sentinel.pyatspi,
+                    expected,
+                    1.0,
+                    required_states=(mock.sentinel.showing,),
+                )
+            )
+
+        self.assertIs(found, fixture_name)
+        node_has_states.assert_called_once_with(
+            fixture_name,
+            (mock.sentinel.showing,),
+        )
+
     def test_portal_directory_text_uses_one_trailing_separator(self) -> None:
         self.assertEqual(
             smoke_linux_desktop_package.canonical_portal_directory_text(
@@ -775,17 +814,24 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 "fixtures/models"
             )
 
-    def test_selection_acceptance_requires_model_and_closed_picker(self) -> None:
+    def test_selection_acceptance_requires_source_summary_and_closed_picker(self) -> None:
+        pyatspi = mock.Mock()
         with mock.patch.object(
             smoke_linux_desktop_package,
             "find_node",
             side_effect=[mock.sentinel.model_selected, None],
-        ):
+        ) as find_node:
             self.assertTrue(
                 smoke_linux_desktop_package.selection_acceptance_observed(
-                    mock.sentinel.pyatspi
+                    pyatspi
                 )
             )
+        find_node.assert_any_call(
+            pyatspi,
+            "Selected model source",
+            exact=True,
+            required_states=(pyatspi.STATE_SHOWING,),
+        )
 
         with mock.patch.object(
             smoke_linux_desktop_package,
@@ -794,7 +840,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         ):
             self.assertFalse(
                 smoke_linux_desktop_package.selection_acceptance_observed(
-                    mock.sentinel.pyatspi
+                    pyatspi
                 )
             )
 
