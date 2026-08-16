@@ -38,9 +38,8 @@ def accessible_children(node: Any) -> Iterable[Any]:
     return children
 
 
-def accessibility_nodes(pyatspi: Any) -> Iterable[Any]:
-    desktop = pyatspi.Registry.getDesktop(0)
-    pending = [desktop]
+def accessibility_nodes(pyatspi: Any, root: Any | None = None) -> Iterable[Any]:
+    pending = [root if root is not None else pyatspi.Registry.getDesktop(0)]
     visited = 0
     while pending and visited < 10_000:
         node = pending.pop()
@@ -75,9 +74,10 @@ def find_node(
     *,
     exact: bool = False,
     required_states: tuple[Any, ...] = (),
+    root: Any | None = None,
 ) -> Any | None:
     expected = text.casefold()
-    for node in accessibility_nodes(pyatspi):
+    for node in accessibility_nodes(pyatspi, root):
         if roles is not None and role_name(node) not in roles:
             continue
         candidate = node_text(node).casefold()
@@ -105,6 +105,7 @@ def wait_for_node(
     *,
     exact: bool = False,
     required_states: tuple[Any, ...] = (),
+    root: Any | None = None,
 ) -> Any:
     while time.monotonic() < deadline:
         node = find_node(
@@ -113,6 +114,7 @@ def wait_for_node(
             roles,
             exact=exact,
             required_states=required_states,
+            root=root,
         )
         if node is not None:
             return node
@@ -181,6 +183,33 @@ def select_node(node: Any, label: str) -> None:
     raise RuntimeError(f"could not select accessible item {label!r}")
 
 
+def activate_click_action(node: Any, label: str) -> None:
+    try:
+        actions = node.queryAction()
+        action_count = int(actions.nActions)
+    except Exception as error:
+        raise RuntimeError(f"accessible control has no action interface: {label!r}") from error
+
+    available = []
+    for index in range(action_count):
+        try:
+            action_name = str(actions.getName(index))
+        except Exception:
+            continue
+        available.append(action_name)
+        if action_name.casefold() == "click":
+            try:
+                accepted = bool(actions.doAction(index))
+            except Exception as error:
+                raise RuntimeError(f"accessible click failed for {label!r}") from error
+            if not accepted:
+                raise RuntimeError(f"accessible click was rejected for {label!r}")
+            return
+    raise RuntimeError(
+        f"accessible control has no exact click action for {label!r}: {available!r}"
+    )
+
+
 def focus_window(title: str) -> None:
     subprocess.run(
         [
@@ -221,7 +250,7 @@ def accept_open_dialog(open_button: Any, focused_state: Any) -> None:
         "Open selected STEP model",
         focused_state=focused_state,
     )
-    key("Return")
+    activate_click_action(open_button, "Open selected STEP model")
 
 
 def dump_accessibility(pyatspi: Any) -> None:
@@ -265,6 +294,21 @@ def main() -> int:
         key("Return")
 
         wait_for_node(pyatspi, "Open File", deadline)
+        portal_application = wait_for_node(
+            pyatspi,
+            "xdg-desktop-portal-gtk",
+            deadline,
+            {"application"},
+            exact=True,
+        )
+        portal_chooser = wait_for_node(
+            pyatspi,
+            "Open File",
+            deadline,
+            {"file chooser"},
+            exact=True,
+            root=portal_application,
+        )
         focus_window("Open File")
         key("ctrl+l")
         type_text(str(fixture.parent))
@@ -275,6 +319,7 @@ def main() -> int:
             deadline,
             exact=True,
             required_states=(pyatspi.STATE_SHOWING,),
+            root=portal_chooser,
         )
         select_node(fixture_row, fixture.name)
         open_button = wait_for_node(
@@ -288,6 +333,7 @@ def main() -> int:
                 pyatspi.STATE_ENABLED,
                 pyatspi.STATE_FOCUSABLE,
             ),
+            root=portal_chooser,
         )
         accept_open_dialog(open_button, pyatspi.STATE_FOCUSED)
 

@@ -589,12 +589,15 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                     workflow,
                 )
 
-    def test_accept_open_dialog_confirms_focus_before_keyboard_acceptance(self) -> None:
+    def test_accept_open_dialog_confirms_focus_before_semantic_activation(self) -> None:
         open_button = mock.sentinel.open_button
         with (
             mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
             mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
-            mock.patch.object(smoke_linux_desktop_package, "key") as key,
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "activate_click_action",
+            ) as activate_click_action,
         ):
             smoke_linux_desktop_package.accept_open_dialog(
                 open_button,
@@ -607,7 +610,58 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
             "Open selected STEP model",
             focused_state=mock.sentinel.focused,
         )
-        key.assert_called_once_with("Return")
+        activate_click_action.assert_called_once_with(
+            open_button,
+            "Open selected STEP model",
+        )
+
+    def test_activate_click_action_requires_exact_semantic_action(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 2
+        actions.getName.side_effect = ["press", "click"]
+        actions.doAction.return_value = True
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        smoke_linux_desktop_package.activate_click_action(node, "Open")
+
+        actions.doAction.assert_called_once_with(1)
+
+    def test_activate_click_action_rejects_unknown_actions(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 1
+        actions.getName.return_value = "press"
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        with self.assertRaisesRegex(RuntimeError, "no exact click action"):
+            smoke_linux_desktop_package.activate_click_action(node, "Open")
+
+    def test_find_node_can_be_scoped_to_portal_chooser(self) -> None:
+        portal_chooser = mock.Mock(name="portal_chooser")
+        portal_chooser.name = "Open File"
+        portal_chooser.description = ""
+        portal_chooser.getRoleName.return_value = "file chooser"
+        portal_chooser.childCount = 0
+
+        with mock.patch.object(
+            smoke_linux_desktop_package,
+            "accessibility_nodes",
+            return_value=[portal_chooser],
+        ) as accessibility_nodes:
+            found = smoke_linux_desktop_package.find_node(
+                mock.sentinel.pyatspi,
+                "Open File",
+                {"file chooser"},
+                exact=True,
+                root=mock.sentinel.portal_application,
+            )
+
+        self.assertIs(found, portal_chooser)
+        accessibility_nodes.assert_called_once_with(
+            mock.sentinel.pyatspi,
+            mock.sentinel.portal_application,
+        )
 
     def test_focus_waits_for_confirmed_accessible_focus(self) -> None:
         component = mock.Mock()
