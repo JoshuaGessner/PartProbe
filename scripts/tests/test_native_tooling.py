@@ -570,39 +570,49 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
-    def test_activate_uses_named_accessibility_action(self) -> None:
-        actions = mock.Mock()
-        actions.nActions = 2
-        actions.getName.side_effect = ["select", "activate"]
-        actions.doAction.return_value = True
+    def test_select_node_uses_parent_selection_and_confirms_state(self) -> None:
+        selection = mock.Mock()
+        selection.selectChild.return_value = True
+        selection.isChildSelected.side_effect = [False, True]
+        parent = mock.Mock()
+        parent.querySelection.return_value = selection
         node = mock.Mock()
-        node.queryAction.return_value = actions
+        node.parent = parent
+        node.getIndexInParent.return_value = 3
 
-        smoke_linux_desktop_package.activate(node, "fixture.step")
+        smoke_linux_desktop_package.select_node(node, "fixture.step")
 
-        actions.doAction.assert_called_once_with(1)
+        selection.selectChild.assert_called_once_with(3)
+        self.assertEqual(selection.isChildSelected.call_count, 2)
 
-    def test_activate_accepts_button_click_action(self) -> None:
-        actions = mock.Mock()
-        actions.nActions = 1
-        actions.getName.return_value = "click"
-        actions.doAction.return_value = True
+    def test_select_node_walks_to_selection_ancestor(self) -> None:
+        selection = mock.Mock()
+        selection.selectChild.return_value = True
+        selection.isChildSelected.return_value = True
+        table = mock.Mock()
+        table.querySelection.return_value = selection
+        intermediate = mock.Mock()
+        intermediate.parent = table
+        intermediate.getIndexInParent.return_value = 4
+        intermediate.querySelection.side_effect = RuntimeError("unsupported")
         node = mock.Mock()
-        node.queryAction.return_value = actions
+        node.parent = intermediate
+        node.getIndexInParent.return_value = 1
 
-        smoke_linux_desktop_package.activate(node, "Open selected STEP model")
+        smoke_linux_desktop_package.select_node(node, "fixture.step")
 
-        actions.doAction.assert_called_once_with(0)
+        selection.selectChild.assert_called_once_with(4)
 
-    def test_activate_rejects_nodes_without_activation(self) -> None:
-        actions = mock.Mock()
-        actions.nActions = 1
-        actions.getName.return_value = "select"
+    def test_select_node_rejects_unselectable_item(self) -> None:
+        parent = mock.Mock()
+        parent.parent = None
+        parent.querySelection.side_effect = RuntimeError("unsupported")
         node = mock.Mock()
-        node.queryAction.return_value = actions
+        node.parent = parent
+        node.getIndexInParent.return_value = 0
 
-        with self.assertRaisesRegex(RuntimeError, "does not expose an activation action"):
-            smoke_linux_desktop_package.activate(node, "fixture.step")
+        with self.assertRaisesRegex(RuntimeError, "could not select accessible item"):
+            smoke_linux_desktop_package.select_node(node, "fixture.step")
 
     def test_exact_accessible_match_does_not_accept_substring(self) -> None:
         picker_open = mock.Mock(name="picker_open")

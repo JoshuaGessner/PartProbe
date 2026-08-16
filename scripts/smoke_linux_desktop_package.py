@@ -110,26 +110,28 @@ def focus(node: Any, label: str) -> None:
         raise RuntimeError(f"accessibility focus was rejected for {label!r}")
 
 
-def activate(node: Any, label: str) -> None:
-    try:
-        actions = node.queryAction()
-        action_names = [
-            str(actions.getName(index)).casefold()
-            for index in range(int(actions.nActions))
-        ]
-    except Exception as error:
-        raise RuntimeError(f"could not inspect accessibility actions for {label!r}") from error
-    for preferred_name in ("activate", "click", "press"):
-        for index, name in enumerate(action_names):
-            if name == preferred_name:
-                if not bool(actions.doAction(index)):
-                    raise RuntimeError(
-                        f"accessibility activation was rejected for {label!r}"
-                    )
-                return
-    raise RuntimeError(
-        f"accessible {label!r} does not expose an activation action: {action_names!r}"
-    )
+def select_node(node: Any, label: str) -> None:
+    current = node
+    for _ in range(16):
+        try:
+            parent = current.parent
+        except Exception:
+            parent = None
+        if parent is None:
+            break
+        try:
+            child_index = int(current.getIndexInParent())
+            selection = parent.querySelection()
+            if bool(selection.selectChild(child_index)):
+                selection_deadline = time.monotonic() + 2.0
+                while time.monotonic() < selection_deadline:
+                    if bool(selection.isChildSelected(child_index)):
+                        return
+                    time.sleep(0.05)
+        except Exception:
+            pass
+        current = parent
+    raise RuntimeError(f"could not select accessible item {label!r}")
 
 
 def focus_window(title: str) -> None:
@@ -216,15 +218,16 @@ def main() -> int:
             deadline,
             exact=True,
         )
-        activate(fixture_row, fixture.name)
-        open_button = wait_for_node(
+        select_node(fixture_row, fixture.name)
+        wait_for_node(
             pyatspi,
             "Open",
             deadline,
             {"push button", "button"},
             exact=True,
         )
-        activate(open_button, "Open selected STEP model")
+        focus_window("Open File")
+        key("Return")
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)
