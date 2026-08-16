@@ -637,31 +637,51 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "no exact click action"):
             smoke_linux_desktop_package.activate_click_action(node, "Open")
 
-    def test_find_node_can_be_scoped_to_live_chooser(self) -> None:
-        live_chooser = mock.Mock(name="live_chooser")
-        live_chooser.name = "Open File"
-        live_chooser.description = ""
-        live_chooser.getRoleName.return_value = "file chooser"
-        live_chooser.childCount = 0
-
-        with mock.patch.object(
-            smoke_linux_desktop_package,
-            "accessibility_nodes",
-            return_value=[live_chooser],
-        ) as accessibility_nodes:
-            found = smoke_linux_desktop_package.find_node(
+    def test_wait_for_unique_node_rejects_ambiguous_live_controls(self) -> None:
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "matching_nodes",
+                return_value=[mock.sentinel.first, mock.sentinel.second],
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                return_value=0.0,
+            ),
+            self.assertRaisesRegex(RuntimeError, "ambiguous accessible target"),
+        ):
+            smoke_linux_desktop_package.wait_for_unique_node(
                 mock.sentinel.pyatspi,
-                "Open File",
-                {"file chooser"},
+                "Open",
+                1.0,
+                {"push button"},
                 exact=True,
-                root=mock.sentinel.live_chooser,
             )
 
-        self.assertIs(found, live_chooser)
-        accessibility_nodes.assert_called_once_with(
-            mock.sentinel.pyatspi,
-            mock.sentinel.live_chooser,
-        )
+    def test_wait_for_unique_node_waits_for_one_live_control(self) -> None:
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "matching_nodes",
+                side_effect=[[], [mock.sentinel.open_button]],
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                side_effect=[0.0, 0.1],
+            ),
+            mock.patch.object(smoke_linux_desktop_package.time, "sleep"),
+        ):
+            found = smoke_linux_desktop_package.wait_for_unique_node(
+                mock.sentinel.pyatspi,
+                "Open",
+                1.0,
+                {"push button"},
+                exact=True,
+            )
+
+        self.assertIs(found, mock.sentinel.open_button)
 
     def test_focus_waits_for_confirmed_accessible_focus(self) -> None:
         component = mock.Mock()

@@ -38,8 +38,8 @@ def accessible_children(node: Any) -> Iterable[Any]:
     return children
 
 
-def accessibility_nodes(pyatspi: Any, root: Any | None = None) -> Iterable[Any]:
-    pending = [root if root is not None else pyatspi.Registry.getDesktop(0)]
+def accessibility_nodes(pyatspi: Any) -> Iterable[Any]:
+    pending = [pyatspi.Registry.getDesktop(0)]
     visited = 0
     while pending and visited < 10_000:
         node = pending.pop()
@@ -74,17 +74,35 @@ def find_node(
     *,
     exact: bool = False,
     required_states: tuple[Any, ...] = (),
-    root: Any | None = None,
 ) -> Any | None:
+    matches = matching_nodes(
+        pyatspi,
+        text,
+        roles,
+        exact=exact,
+        required_states=required_states,
+    )
+    return matches[0] if matches else None
+
+
+def matching_nodes(
+    pyatspi: Any,
+    text: str,
+    roles: set[str] | None = None,
+    *,
+    exact: bool = False,
+    required_states: tuple[Any, ...] = (),
+) -> list[Any]:
     expected = text.casefold()
-    for node in accessibility_nodes(pyatspi, root):
+    matches = []
+    for node in accessibility_nodes(pyatspi):
         if roles is not None and role_name(node) not in roles:
             continue
         candidate = node_text(node).casefold()
-        matches = candidate == expected if exact else expected in candidate
-        if matches and node_has_states(node, required_states):
-            return node
-    return None
+        text_matches = candidate == expected if exact else expected in candidate
+        if text_matches and node_has_states(node, required_states):
+            matches.append(node)
+    return matches
 
 
 def node_has_states(node: Any, required_states: tuple[Any, ...]) -> bool:
@@ -105,7 +123,6 @@ def wait_for_node(
     *,
     exact: bool = False,
     required_states: tuple[Any, ...] = (),
-    root: Any | None = None,
 ) -> Any:
     while time.monotonic() < deadline:
         node = find_node(
@@ -114,12 +131,38 @@ def wait_for_node(
             roles,
             exact=exact,
             required_states=required_states,
-            root=root,
         )
         if node is not None:
             return node
         time.sleep(0.25)
     raise RuntimeError(f"timed out waiting for accessible text: {text!r}")
+
+
+def wait_for_unique_node(
+    pyatspi: Any,
+    text: str,
+    deadline: float,
+    roles: set[str] | None = None,
+    *,
+    exact: bool = False,
+    required_states: tuple[Any, ...] = (),
+) -> Any:
+    while time.monotonic() < deadline:
+        matches = matching_nodes(
+            pyatspi,
+            text,
+            roles,
+            exact=exact,
+            required_states=required_states,
+        )
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"ambiguous accessible target {text!r}: {len(matches)} live matches"
+            )
+        time.sleep(0.25)
+    raise RuntimeError(f"timed out waiting for unique accessible text: {text!r}")
 
 
 def wait_for_node_absent(
@@ -283,17 +326,27 @@ def main() -> int:
     deadline = time.monotonic() + args.timeout_seconds
     process = subprocess.Popen([str(executable)])
     try:
-        choose_button = wait_for_node(
+        choose_button = wait_for_unique_node(
             pyatspi,
             "Choose STEP model",
             deadline,
             {"push button", "button"},
+            exact=True,
+            required_states=(
+                pyatspi.STATE_SHOWING,
+                pyatspi.STATE_ENABLED,
+                pyatspi.STATE_FOCUSABLE,
+            ),
         )
         focus_window("PartProbe")
-        focus(choose_button, "Choose STEP model")
+        focus(
+            choose_button,
+            "Choose STEP model",
+            focused_state=pyatspi.STATE_FOCUSED,
+        )
         key("Return")
 
-        live_chooser = wait_for_node(
+        wait_for_unique_node(
             pyatspi,
             "Open File",
             deadline,
@@ -306,17 +359,16 @@ def main() -> int:
         key("ctrl+l")
         type_text(str(fixture.parent))
         key("Return")
-        fixture_row = wait_for_node(
+        fixture_row = wait_for_unique_node(
             pyatspi,
             fixture.name,
             deadline,
             exact=True,
             required_states=(pyatspi.STATE_SHOWING,),
-            root=live_chooser,
         )
         select_node(fixture_row, fixture.name)
         print(f"Selected exact fixture row: {fixture.name}", flush=True)
-        open_button = wait_for_node(
+        open_button = wait_for_unique_node(
             pyatspi,
             "Open",
             deadline,
@@ -327,31 +379,40 @@ def main() -> int:
                 pyatspi.STATE_ENABLED,
                 pyatspi.STATE_FOCUSABLE,
             ),
-            root=live_chooser,
         )
         accept_open_dialog(open_button, pyatspi.STATE_FOCUSED)
         print("Invoked exact Open button click action", flush=True)
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)
+        wait_for_node_absent(
+            pyatspi,
+            "Picker open",
+            deadline,
+            {"push button", "button"},
+            exact=True,
+        )
         if args.selection_only:
-            wait_for_node_absent(
-                pyatspi,
-                "Picker open",
-                deadline,
-                {"push button", "button"},
-                exact=True,
-            )
             print("Linux packaged desktop native selection smoke passed")
             return 0
-        analyze_button = wait_for_node(
+        analyze_button = wait_for_unique_node(
             pyatspi,
             "Analyze provisional geometry",
             deadline,
             {"push button", "button"},
+            exact=True,
+            required_states=(
+                pyatspi.STATE_SHOWING,
+                pyatspi.STATE_ENABLED,
+                pyatspi.STATE_FOCUSABLE,
+            ),
         )
         focus_window("PartProbe")
-        focus(analyze_button, "Analyze provisional geometry")
+        focus(
+            analyze_button,
+            "Analyze provisional geometry",
+            focused_state=pyatspi.STATE_FOCUSED,
+        )
         key("Return")
 
         for expected in (
