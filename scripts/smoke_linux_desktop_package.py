@@ -13,6 +13,11 @@ import time
 from typing import Any, Iterable
 
 
+PORTAL_CHOOSER_NAME = "File Chooser Widget"
+PORTAL_ACCEPT_LABEL = "Select"
+PORTAL_NAVIGATION_ANCHOR_LABEL = "Cancel"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--executable", required=True, type=Path)
@@ -286,18 +291,33 @@ def type_text(value: str) -> None:
     )
 
 
-def accept_open_dialog(open_button: Any, focused_state: Any) -> None:
-    focus_window("Open File")
+def activate_accept_button(
+    accept_button: Any,
+    accept_label: str,
+    focused_state: Any,
+) -> None:
     focus(
-        open_button,
-        "Open selected STEP model",
+        accept_button,
+        f"{accept_label} selected STEP model",
         focused_state=focused_state,
     )
-    activate_click_action(open_button, "Open selected STEP model")
+    key("Return")
+
+
+def click_accept_button(
+    accept_button: Any,
+    accept_label: str,
+    focused_state: Any,
+) -> None:
+    focus(
+        accept_button,
+        f"{accept_label} selected STEP model",
+        focused_state=focused_state,
+    )
+    activate_click_action(accept_button, f"{accept_label} selected STEP model")
 
 
 def activate_selected_file(fixture_row: Any, focused_state: Any) -> None:
-    focus_window("Open File")
     focus(
         fixture_row,
         "Selected STEP model",
@@ -306,14 +326,17 @@ def activate_selected_file(fixture_row: Any, focused_state: Any) -> None:
     key("Return")
 
 
-def activate_open_mnemonic(open_button: Any, focused_state: Any) -> None:
-    focus_window("Open File")
+def open_location_entry(
+    focus_anchor: Any,
+    focus_label: str,
+    focused_state: Any,
+) -> None:
     focus(
-        open_button,
-        "Open selected STEP model",
+        focus_anchor,
+        focus_label,
         focused_state=focused_state,
     )
-    key("alt+o")
+    key("ctrl+l")
 
 
 def picker_open_observed(pyatspi: Any) -> bool:
@@ -394,15 +417,30 @@ def main() -> int:
 
         wait_for_unique_node(
             pyatspi,
-            "Open File",
+            PORTAL_CHOOSER_NAME,
             deadline,
             {"file chooser"},
             exact=True,
             required_states=(pyatspi.STATE_SHOWING,),
         )
-        print("Found exact showing Open File chooser", flush=True)
-        focus_window("Open File")
-        key("ctrl+l")
+        print("Found exact showing XDG portal file chooser", flush=True)
+        location_focus_anchor = wait_for_unique_node(
+            pyatspi,
+            PORTAL_NAVIGATION_ANCHOR_LABEL,
+            deadline,
+            {"push button", "button"},
+            exact=True,
+            required_states=(
+                pyatspi.STATE_SHOWING,
+                pyatspi.STATE_ENABLED,
+                pyatspi.STATE_FOCUSABLE,
+            ),
+        )
+        open_location_entry(
+            location_focus_anchor,
+            "Cancel file selection",
+            pyatspi.STATE_FOCUSED,
+        )
         type_text(str(fixture.parent))
         key("Return")
         fixture_row = wait_for_unique_node(
@@ -414,9 +452,10 @@ def main() -> int:
         )
         select_node(fixture_row, fixture.name)
         print(f"Selected exact fixture row: {fixture.name}", flush=True)
-        open_button = wait_for_unique_node(
+        accept_label = PORTAL_ACCEPT_LABEL
+        accept_button = wait_for_unique_node(
             pyatspi,
-            "Open",
+            accept_label,
             deadline,
             {"push button", "button"},
             exact=True,
@@ -426,8 +465,12 @@ def main() -> int:
                 pyatspi.STATE_FOCUSABLE,
             ),
         )
-        activate_open_mnemonic(open_button, pyatspi.STATE_FOCUSED)
-        print("Invoked exact Open mnemonic Alt+O", flush=True)
+        activate_accept_button(
+            accept_button,
+            accept_label,
+            pyatspi.STATE_FOCUSED,
+        )
+        print("Activated exact portal Select button with Return", flush=True)
 
         selection_accepted = wait_for_selection_acceptance(pyatspi, 2.0)
         if not selection_accepted and picker_open_observed(pyatspi):
@@ -445,9 +488,9 @@ def main() -> int:
 
         selection_accepted = wait_for_selection_acceptance(pyatspi, 2.0)
         if not selection_accepted and picker_open_observed(pyatspi):
-            open_button = wait_for_unique_node(
+            accept_button = wait_for_unique_node(
                 pyatspi,
-                "Open",
+                accept_label,
                 deadline,
                 {"push button", "button"},
                 exact=True,
@@ -457,8 +500,12 @@ def main() -> int:
                     pyatspi.STATE_FOCUSABLE,
                 ),
             )
-            accept_open_dialog(open_button, pyatspi.STATE_FOCUSED)
-            print("Invoked exact Open button click action", flush=True)
+            click_accept_button(
+                accept_button,
+                accept_label,
+                pyatspi.STATE_FOCUSED,
+            )
+            print("Invoked exact portal Select button click action", flush=True)
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)

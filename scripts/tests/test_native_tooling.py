@@ -570,6 +570,17 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
+    def test_portal_accessibility_contract_matches_hosted_surface(self) -> None:
+        self.assertEqual(
+            smoke_linux_desktop_package.PORTAL_CHOOSER_NAME,
+            "File Chooser Widget",
+        )
+        self.assertEqual(smoke_linux_desktop_package.PORTAL_ACCEPT_LABEL, "Select")
+        self.assertEqual(
+            smoke_linux_desktop_package.PORTAL_NAVIGATION_ANCHOR_LABEL,
+            "Cancel",
+        )
+
     def test_dialog_dependency_pins_xdg_portal_backend(self) -> None:
         cargo_manifest = (SCRIPTS.parent / "Cargo.toml").read_text(encoding="utf-8")
 
@@ -601,36 +612,53 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 self.assertIn("xdg-desktop-portal \\", workflow)
                 self.assertIn("xdg-desktop-portal-gtk \\", workflow)
 
-    def test_accept_open_dialog_confirms_focus_before_semantic_activation(self) -> None:
-        open_button = mock.sentinel.open_button
+    def test_activate_accept_button_confirms_focus_before_return(self) -> None:
+        accept_button = mock.sentinel.accept_button
         with (
-            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
+            mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
+            mock.patch.object(smoke_linux_desktop_package, "key") as key,
+        ):
+            smoke_linux_desktop_package.activate_accept_button(
+                accept_button,
+                "Select",
+                mock.sentinel.focused,
+            )
+
+        focus.assert_called_once_with(
+            accept_button,
+            "Select selected STEP model",
+            focused_state=mock.sentinel.focused,
+        )
+        key.assert_called_once_with("Return")
+
+    def test_click_accept_button_confirms_focus_before_semantic_activation(self) -> None:
+        accept_button = mock.sentinel.accept_button
+        with (
             mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
             mock.patch.object(
                 smoke_linux_desktop_package,
                 "activate_click_action",
             ) as activate_click_action,
         ):
-            smoke_linux_desktop_package.accept_open_dialog(
-                open_button,
+            smoke_linux_desktop_package.click_accept_button(
+                accept_button,
+                "Select",
                 mock.sentinel.focused,
             )
 
-        focus_window.assert_called_once_with("Open File")
         focus.assert_called_once_with(
-            open_button,
-            "Open selected STEP model",
+            accept_button,
+            "Select selected STEP model",
             focused_state=mock.sentinel.focused,
         )
         activate_click_action.assert_called_once_with(
-            open_button,
-            "Open selected STEP model",
+            accept_button,
+            "Select selected STEP model",
         )
 
     def test_activate_selected_file_confirms_focus_before_return(self) -> None:
         fixture_row = mock.sentinel.fixture_row
         with (
-            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
             mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
             mock.patch.object(smoke_linux_desktop_package, "key") as key,
         ):
@@ -639,7 +667,6 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 mock.sentinel.focused,
             )
 
-        focus_window.assert_called_once_with("Open File")
         focus.assert_called_once_with(
             fixture_row,
             "Selected STEP model",
@@ -647,25 +674,24 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         )
         key.assert_called_once_with("Return")
 
-    def test_activate_open_mnemonic_confirms_focus_before_alt_o(self) -> None:
-        open_button = mock.sentinel.open_button
+    def test_open_location_entry_confirms_portal_focus_before_ctrl_l(self) -> None:
+        focus_anchor = mock.sentinel.focus_anchor
         with (
-            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
             mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
             mock.patch.object(smoke_linux_desktop_package, "key") as key,
         ):
-            smoke_linux_desktop_package.activate_open_mnemonic(
-                open_button,
+            smoke_linux_desktop_package.open_location_entry(
+                focus_anchor,
+                "Cancel file selection",
                 mock.sentinel.focused,
             )
 
-        focus_window.assert_called_once_with("Open File")
         focus.assert_called_once_with(
-            open_button,
-            "Open selected STEP model",
+            focus_anchor,
+            "Cancel file selection",
             focused_state=mock.sentinel.focused,
         )
-        key.assert_called_once_with("alt+o")
+        key.assert_called_once_with("ctrl+l")
 
     def test_selection_acceptance_requires_model_and_closed_picker(self) -> None:
         with mock.patch.object(
