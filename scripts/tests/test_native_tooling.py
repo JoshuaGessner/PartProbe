@@ -570,6 +570,28 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
+    def test_activate_button_uses_named_click_action(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 2
+        actions.getName.side_effect = ["focus", "click"]
+        actions.doAction.return_value = True
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        smoke_linux_desktop_package.activate_button(node, "Open selected STEP model")
+
+        actions.doAction.assert_called_once_with(1)
+
+    def test_activate_button_rejects_nodes_without_activation(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 1
+        actions.getName.return_value = "focus"
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        with self.assertRaisesRegex(RuntimeError, "has no activation action"):
+            smoke_linux_desktop_package.activate_button(node, "Open")
+
     def test_select_node_uses_parent_selection_and_confirms_state(self) -> None:
         selection = mock.Mock()
         selection.selectChild.return_value = True
