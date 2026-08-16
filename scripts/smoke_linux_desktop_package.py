@@ -119,13 +119,16 @@ def activate(node: Any, label: str) -> None:
         ]
     except Exception as error:
         raise RuntimeError(f"could not inspect accessibility actions for {label!r}") from error
-    for index, name in enumerate(action_names):
-        if name == "activate":
-            if not bool(actions.doAction(index)):
-                raise RuntimeError(f"accessibility activation was rejected for {label!r}")
-            return
+    for preferred_name in ("activate", "click", "press"):
+        for index, name in enumerate(action_names):
+            if name == preferred_name:
+                if not bool(actions.doAction(index)):
+                    raise RuntimeError(
+                        f"accessibility activation was rejected for {label!r}"
+                    )
+                return
     raise RuntimeError(
-        f"accessible {label!r} does not expose an activate action: {action_names!r}"
+        f"accessible {label!r} does not expose an activation action: {action_names!r}"
     )
 
 
@@ -214,6 +217,14 @@ def main() -> int:
             exact=True,
         )
         activate(fixture_row, fixture.name)
+        open_button = wait_for_node(
+            pyatspi,
+            "Open",
+            deadline,
+            {"push button", "button"},
+            exact=True,
+        )
+        activate(open_button, "Open selected STEP model")
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)

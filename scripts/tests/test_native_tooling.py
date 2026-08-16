@@ -582,6 +582,18 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
 
         actions.doAction.assert_called_once_with(1)
 
+    def test_activate_accepts_button_click_action(self) -> None:
+        actions = mock.Mock()
+        actions.nActions = 1
+        actions.getName.return_value = "click"
+        actions.doAction.return_value = True
+        node = mock.Mock()
+        node.queryAction.return_value = actions
+
+        smoke_linux_desktop_package.activate(node, "Open selected STEP model")
+
+        actions.doAction.assert_called_once_with(0)
+
     def test_activate_rejects_nodes_without_activation(self) -> None:
         actions = mock.Mock()
         actions.nActions = 1
@@ -589,7 +601,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         node = mock.Mock()
         node.queryAction.return_value = actions
 
-        with self.assertRaisesRegex(RuntimeError, "does not expose an activate action"):
+        with self.assertRaisesRegex(RuntimeError, "does not expose an activation action"):
             smoke_linux_desktop_package.activate(node, "fixture.step")
 
     def test_exact_accessible_match_does_not_accept_substring(self) -> None:
