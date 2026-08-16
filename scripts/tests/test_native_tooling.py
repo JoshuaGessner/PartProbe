@@ -577,8 +577,8 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         )
         self.assertEqual(smoke_linux_desktop_package.PORTAL_ACCEPT_LABEL, "Select")
         self.assertEqual(
-            smoke_linux_desktop_package.PORTAL_NAVIGATION_ANCHOR_LABEL,
-            "Cancel",
+            smoke_linux_desktop_package.PORTAL_FILES_LABEL,
+            "Files",
         )
         self.assertEqual(
             smoke_linux_desktop_package.PORTAL_WINDOW_TITLE,
@@ -684,7 +684,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         )
         key.assert_called_once_with("Return")
 
-    def test_open_location_entry_confirms_portal_focus_before_ctrl_l(self) -> None:
+    def test_open_location_entry_confirms_file_list_focus_before_slash(self) -> None:
         focus_anchor = mock.sentinel.focus_anchor
         with (
             mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
@@ -693,17 +693,65 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         ):
             smoke_linux_desktop_package.open_location_entry(
                 focus_anchor,
-                "Cancel file selection",
+                "Portal file list",
                 mock.sentinel.focused,
             )
 
         focus_window.assert_called_once_with("Select STEP model")
         focus.assert_called_once_with(
             focus_anchor,
-            "Cancel file selection",
+            "Portal file list",
             focused_state=mock.sentinel.focused,
         )
-        key.assert_called_once_with("ctrl+l")
+        key.assert_called_once_with("slash")
+
+    def test_wait_for_unique_role_node_requires_one_live_match(self) -> None:
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "accessibility_nodes",
+                return_value=[mock.sentinel.location_entry],
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "role_name",
+                return_value="text",
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_has_states",
+                return_value=True,
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                return_value=0.0,
+            ),
+        ):
+            found = smoke_linux_desktop_package.wait_for_unique_role_node(
+                mock.sentinel.pyatspi,
+                {"text", "entry"},
+                1.0,
+                label="focused portal location entry",
+                required_states=(mock.sentinel.focused,),
+            )
+
+        self.assertIs(found, mock.sentinel.location_entry)
+
+    def test_wait_for_text_value_requires_exact_accessible_text(self) -> None:
+        text = mock.Mock()
+        text.characterCount = 15
+        text.getText.return_value = "/fixtures/models"
+        location_entry = mock.Mock()
+        location_entry.queryText.return_value = text
+
+        smoke_linux_desktop_package.wait_for_text_value(
+            location_entry,
+            "/fixtures/models",
+            1.0,
+        )
+
+        text.getText.assert_called_once_with(0, 15)
 
     def test_selection_acceptance_requires_model_and_closed_picker(self) -> None:
         with mock.patch.object(

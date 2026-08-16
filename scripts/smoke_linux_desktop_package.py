@@ -15,7 +15,7 @@ from typing import Any, Iterable
 
 PORTAL_CHOOSER_NAME = "File Chooser Widget"
 PORTAL_ACCEPT_LABEL = "Select"
-PORTAL_NAVIGATION_ANCHOR_LABEL = "Cancel"
+PORTAL_FILES_LABEL = "Files"
 PORTAL_WINDOW_TITLE = "Select STEP model"
 
 
@@ -169,6 +169,50 @@ def wait_for_unique_node(
             )
         time.sleep(0.25)
     raise RuntimeError(f"timed out waiting for unique accessible text: {text!r}")
+
+
+def wait_for_unique_role_node(
+    pyatspi: Any,
+    roles: set[str],
+    deadline: float,
+    *,
+    label: str,
+    required_states: tuple[Any, ...] = (),
+) -> Any:
+    while time.monotonic() < deadline:
+        matches = [
+            node
+            for node in accessibility_nodes(pyatspi)
+            if role_name(node) in roles and node_has_states(node, required_states)
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"ambiguous accessible role target {label!r}: {len(matches)} live matches"
+            )
+        time.sleep(0.05)
+    raise RuntimeError(f"timed out waiting for unique accessible role: {label!r}")
+
+
+def accessible_text_value(node: Any) -> str:
+    try:
+        text = node.queryText()
+        return str(text.getText(0, int(text.characterCount)))
+    except Exception as error:
+        raise RuntimeError("accessible location entry has no text interface") from error
+
+
+def wait_for_text_value(node: Any, expected: str, timeout_seconds: float) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if accessible_text_value(node) == expected:
+            return
+        time.sleep(0.05)
+    actual = accessible_text_value(node)
+    raise RuntimeError(
+        f"accessible location entry did not contain the expected text: {actual!r}"
+    )
 
 
 def wait_for_node_absent(
@@ -341,7 +385,7 @@ def open_location_entry(
         focus_label,
         focused_state=focused_state,
     )
-    key("ctrl+l")
+    key("slash")
 
 
 def picker_open_observed(pyatspi: Any) -> bool:
@@ -431,9 +475,9 @@ def main() -> int:
         print("Found exact showing XDG portal file chooser", flush=True)
         location_focus_anchor = wait_for_unique_node(
             pyatspi,
-            PORTAL_NAVIGATION_ANCHOR_LABEL,
+            PORTAL_FILES_LABEL,
             deadline,
-            {"push button", "button"},
+            {"table"},
             exact=True,
             required_states=(
                 pyatspi.STATE_SHOWING,
@@ -443,10 +487,28 @@ def main() -> int:
         )
         open_location_entry(
             location_focus_anchor,
-            "Cancel file selection",
+            "Portal file list",
             pyatspi.STATE_FOCUSED,
         )
-        type_text(str(fixture.parent))
+        location_entry = wait_for_unique_role_node(
+            pyatspi,
+            {"text", "entry"},
+            deadline,
+            label="focused portal location entry",
+            required_states=(
+                pyatspi.STATE_SHOWING,
+                pyatspi.STATE_ENABLED,
+                pyatspi.STATE_FOCUSABLE,
+                pyatspi.STATE_FOCUSED,
+            ),
+        )
+        wait_for_text_value(location_entry, "/", 2.0)
+        fixture_directory = str(fixture.parent)
+        if not fixture_directory.startswith("/"):
+            raise RuntimeError("interactive smoke fixture directory must be absolute")
+        type_text(fixture_directory.removeprefix("/"))
+        wait_for_text_value(location_entry, fixture_directory, 2.0)
+        print("Confirmed exact portal location entry text", flush=True)
         key("Return")
         fixture_row = wait_for_unique_node(
             pyatspi,
