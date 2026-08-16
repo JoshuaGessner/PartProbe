@@ -56,6 +56,7 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libxdo-dev \
             ninja-build \
+            openbox \
             python3-pyatspi \
             wget \
             xdotool \
@@ -156,9 +157,15 @@ jobs:
           mkdir "$PARTPROBE_GEOMETRY_WORKSPACE"
           dbus-run-session -- \
             xvfb-run --auto-servernum \
-            /usr/bin/python3 scripts/smoke_linux_desktop_package.py \
-              --executable "$PARTPROBE_PACKAGED_EXECUTABLE" \
-              --fixture "$GITHUB_WORKSPACE/fixtures/models/rectangular_prism_12x8x5.step"
+            sh -c '
+              openbox --sm-disable > "$RUNNER_TEMP/partprobe-openbox.log" 2>&1 &
+              openbox_pid=$!
+              trap "kill $openbox_pid" EXIT
+              sleep 1
+              /usr/bin/python3 scripts/smoke_linux_desktop_package.py \
+                --executable "$PARTPROBE_PACKAGED_EXECUTABLE" \
+                --fixture "$GITHUB_WORKSPACE/fixtures/models/rectangular_prism_12x8x5.step"
+            '
 
       - name: Confirm checkout remains unchanged
         run: |

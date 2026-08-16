@@ -570,58 +570,102 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
-    def test_accept_open_dialog_activates_the_verified_live_button(self) -> None:
+    def test_accept_open_dialog_confirms_focus_before_keyboard_acceptance(self) -> None:
         open_button = mock.sentinel.open_button
         with (
             mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
-            mock.patch.object(
-                smoke_linux_desktop_package,
-                "activate_button",
-            ) as activate_button,
+            mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
+            mock.patch.object(smoke_linux_desktop_package, "key") as key,
         ):
-            smoke_linux_desktop_package.accept_open_dialog(open_button)
+            smoke_linux_desktop_package.accept_open_dialog(
+                open_button,
+                mock.sentinel.focused,
+            )
 
         focus_window.assert_called_once_with("Open File")
-        activate_button.assert_called_once_with(
+        focus.assert_called_once_with(
             open_button,
             "Open selected STEP model",
+            focused_state=mock.sentinel.focused,
         )
+        key.assert_called_once_with("Return")
 
-    def test_activate_button_uses_named_click_action(self) -> None:
-        actions = mock.Mock()
-        actions.nActions = 2
-        actions.getName.side_effect = ["focus", "click"]
-        actions.doAction.return_value = True
+    def test_focus_waits_for_confirmed_accessible_focus(self) -> None:
+        component = mock.Mock()
+        component.grabFocus.return_value = True
         node = mock.Mock()
-        node.queryAction.return_value = actions
+        node.queryComponent.return_value = component
+        with mock.patch.object(
+            smoke_linux_desktop_package,
+            "node_has_states",
+            side_effect=[False, True],
+        ) as node_has_states:
+            smoke_linux_desktop_package.focus(
+                node,
+                "Open",
+                focused_state=mock.sentinel.focused,
+            )
 
-        smoke_linux_desktop_package.activate_button(
+        component.grabFocus.assert_called_once_with()
+        self.assertEqual(node_has_states.call_count, 2)
+        node_has_states.assert_called_with(
             node,
-            "Open selected STEP model",
+            (mock.sentinel.focused,),
         )
 
-        actions.doAction.assert_called_once_with(1)
-
-    def test_activate_button_rejects_failed_action(self) -> None:
-        actions = mock.Mock()
-        actions.nActions = 1
-        actions.getName.return_value = "click"
-        actions.doAction.return_value = False
+    def test_focus_fails_when_accessible_focus_never_arrives(self) -> None:
+        component = mock.Mock()
+        component.grabFocus.return_value = True
         node = mock.Mock()
-        node.queryAction.return_value = actions
+        node.queryComponent.return_value = component
 
-        with self.assertRaisesRegex(RuntimeError, "activation was rejected"):
-            smoke_linux_desktop_package.activate_button(node, "Open")
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_has_states",
+                return_value=False,
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                side_effect=[0.0, 0.0, 2.0],
+            ),
+            self.assertRaisesRegex(RuntimeError, "did not acquire focus"),
+        ):
+            smoke_linux_desktop_package.focus(
+                node,
+                "Open",
+                focused_state=mock.sentinel.focused,
+            )
 
-    def test_activate_button_rejects_nodes_without_activation(self) -> None:
-        actions = mock.Mock()
-        actions.nActions = 1
-        actions.getName.return_value = "focus"
-        node = mock.Mock()
-        node.queryAction.return_value = actions
+    def test_wait_for_node_absent_confirms_stale_control_is_removed(self) -> None:
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "find_node",
+                side_effect=[mock.sentinel.stale, None],
+            ) as find_node,
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                side_effect=[0.0, 0.1],
+            ),
+        ):
+            smoke_linux_desktop_package.wait_for_node_absent(
+                mock.sentinel.pyatspi,
+                "Picker open",
+                1.0,
+                {"push button"},
+                exact=True,
+            )
 
-        with self.assertRaisesRegex(RuntimeError, "has no activation action"):
-            smoke_linux_desktop_package.activate_button(node, "Open")
+        self.assertEqual(find_node.call_count, 2)
+        find_node.assert_called_with(
+            mock.sentinel.pyatspi,
+            "Picker open",
+            {"push button"},
+            exact=True,
+        )
 
     def test_required_accessible_state_skips_hidden_duplicate(self) -> None:
         hidden = mock.Mock(name="hidden_open")

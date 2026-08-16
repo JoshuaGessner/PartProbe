@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--executable", required=True, type=Path)
     parser.add_argument("--fixture", required=True, type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=60.0)
+    parser.add_argument("--selection-only", action="store_true")
     return parser.parse_args()
 
 
@@ -119,13 +120,41 @@ def wait_for_node(
     raise RuntimeError(f"timed out waiting for accessible text: {text!r}")
 
 
-def focus(node: Any, label: str) -> None:
+def wait_for_node_absent(
+    pyatspi: Any,
+    text: str,
+    deadline: float,
+    roles: set[str] | None = None,
+    *,
+    exact: bool = False,
+) -> None:
+    while time.monotonic() < deadline:
+        if find_node(pyatspi, text, roles, exact=exact) is None:
+            return
+        time.sleep(0.05)
+    raise RuntimeError(f"timed out waiting for accessible text to clear: {text!r}")
+
+
+def focus(
+    node: Any,
+    label: str,
+    *,
+    focused_state: Any | None = None,
+) -> None:
     try:
         focused = bool(node.queryComponent().grabFocus())
     except Exception as error:
         raise RuntimeError(f"could not focus {label!r}") from error
     if not focused:
         raise RuntimeError(f"accessibility focus was rejected for {label!r}")
+    if focused_state is None:
+        return
+    focus_deadline = time.monotonic() + 2.0
+    while time.monotonic() < focus_deadline:
+        if node_has_states(node, (focused_state,)):
+            return
+        time.sleep(0.05)
+    raise RuntimeError(f"accessible control did not acquire focus for {label!r}")
 
 
 def select_node(node: Any, label: str) -> None:
@@ -150,30 +179,6 @@ def select_node(node: Any, label: str) -> None:
             pass
         current = parent
     raise RuntimeError(f"could not select accessible item {label!r}")
-
-
-def activate_button(node: Any, label: str) -> None:
-    try:
-        actions = node.queryAction()
-        action_names = [
-            str(actions.getName(index)).casefold()
-            for index in range(int(actions.nActions))
-        ]
-    except Exception as error:
-        raise RuntimeError(
-            f"could not inspect accessibility actions for {label!r}"
-        ) from error
-    for preferred_name in ("click", "press", "activate"):
-        for index, name in enumerate(action_names):
-            if name == preferred_name:
-                if not bool(actions.doAction(index)):
-                    raise RuntimeError(
-                        f"accessibility activation was rejected for {label!r}"
-                    )
-                return
-    raise RuntimeError(
-        f"accessible button {label!r} has no activation action: {action_names!r}"
-    )
 
 
 def focus_window(title: str) -> None:
@@ -209,9 +214,14 @@ def type_text(value: str) -> None:
     )
 
 
-def accept_open_dialog(open_button: Any) -> None:
+def accept_open_dialog(open_button: Any, focused_state: Any) -> None:
     focus_window("Open File")
-    activate_button(open_button, "Open selected STEP model")
+    focus(
+        open_button,
+        "Open selected STEP model",
+        focused_state=focused_state,
+    )
+    key("Return")
 
 
 def dump_accessibility(pyatspi: Any) -> None:
@@ -273,12 +283,26 @@ def main() -> int:
             deadline,
             {"push button", "button"},
             exact=True,
-            required_states=(pyatspi.STATE_SHOWING, pyatspi.STATE_ENABLED),
+            required_states=(
+                pyatspi.STATE_SHOWING,
+                pyatspi.STATE_ENABLED,
+                pyatspi.STATE_FOCUSABLE,
+            ),
         )
-        accept_open_dialog(open_button)
+        accept_open_dialog(open_button, pyatspi.STATE_FOCUSED)
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)
+        if args.selection_only:
+            wait_for_node_absent(
+                pyatspi,
+                "Picker open",
+                deadline,
+                {"push button", "button"},
+                exact=True,
+            )
+            print("Linux packaged desktop native selection smoke passed")
+            return 0
         analyze_button = wait_for_node(
             pyatspi,
             "Analyze provisional geometry",

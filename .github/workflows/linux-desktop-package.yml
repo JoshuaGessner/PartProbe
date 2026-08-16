@@ -35,6 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes \
             build-essential \
+            at-spi2-core \
             curl \
             dbus-x11 \
             file \
@@ -43,7 +44,10 @@ jobs:
             libssl-dev \
             libwebkit2gtk-4.1-dev \
             libxdo-dev \
+            openbox \
+            python3-pyatspi \
             wget \
+            xdotool \
             xvfb
 
       - name: Install pinned developer build tools
@@ -95,6 +99,21 @@ jobs:
             echo "desktop shell exited before the bounded smoke window: $launch_status" >&2
             exit 1
           fi
+
+      - name: Exercise native selection through the exact Debian payload
+        run: |
+          dbus-run-session -- \
+            xvfb-run --auto-servernum \
+            sh -c '
+              openbox --sm-disable > "$RUNNER_TEMP/partprobe-openbox.log" 2>&1 &
+              openbox_pid=$!
+              trap "kill $openbox_pid" EXIT
+              sleep 1
+              /usr/bin/python3 scripts/smoke_linux_desktop_package.py \
+                --selection-only \
+                --executable "$PARTPROBE_PACKAGED_EXECUTABLE" \
+                --fixture "$GITHUB_WORKSPACE/fixtures/models/rectangular_prism_12x8x5.step"
+            '
 
       - name: Confirm checkout remains unchanged
         run: |
