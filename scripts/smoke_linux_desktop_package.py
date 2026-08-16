@@ -216,35 +216,16 @@ def wait_for_text_value(node: Any, expected: str, timeout_seconds: float) -> Non
     )
 
 
-def wait_for_text_interface_value(
-    pyatspi: Any,
-    expected: str,
-    deadline: float,
-    *,
-    required_states: tuple[Any, ...] = (),
-) -> Any:
-    while time.monotonic() < deadline:
-        for node in accessibility_nodes(pyatspi):
-            if not node_has_states(node, required_states):
-                continue
-            try:
-                value = accessible_text_value(node)
-            except RuntimeError:
-                continue
-            if value == expected:
-                return node
-        time.sleep(0.05)
-    raise RuntimeError(
-        f"timed out waiting for exact accessible text-interface value: {expected!r}"
-    )
-
-
 def canonical_portal_directory_text(directory: str) -> str:
     if not directory.startswith("/"):
         raise ValueError("portal directory must be absolute")
     if directory == "/":
         return directory
     return f"{directory.rstrip('/')}/"
+
+
+def selected_source_accessible_label(display_name: str) -> str:
+    return f"{SELECTED_SOURCE_LABEL}: {display_name}"
 
 
 def wait_for_node_absent(
@@ -432,11 +413,11 @@ def picker_open_observed(pyatspi: Any) -> bool:
     )
 
 
-def selection_acceptance_observed(pyatspi: Any) -> bool:
+def selection_acceptance_observed(pyatspi: Any, expected_source_label: str) -> bool:
     source_summary = (
         find_node(
             pyatspi,
-            SELECTED_SOURCE_LABEL,
+            expected_source_label,
             exact=True,
             required_states=(pyatspi.STATE_SHOWING,),
         )
@@ -445,13 +426,17 @@ def selection_acceptance_observed(pyatspi: Any) -> bool:
     return source_summary and not picker_open_observed(pyatspi)
 
 
-def wait_for_selection_acceptance(pyatspi: Any, timeout_seconds: float) -> bool:
+def wait_for_selection_acceptance(
+    pyatspi: Any,
+    expected_source_label: str,
+    timeout_seconds: float,
+) -> bool:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        if selection_acceptance_observed(pyatspi):
+        if selection_acceptance_observed(pyatspi, expected_source_label):
             return True
         time.sleep(0.05)
-    return selection_acceptance_observed(pyatspi)
+    return selection_acceptance_observed(pyatspi, expected_source_label)
 
 
 def dump_accessibility(pyatspi: Any) -> None:
@@ -475,6 +460,7 @@ def main() -> int:
         raise RuntimeError("packaged executable is not executable")
     if fixture.suffix.lower() not in {".step", ".stp"}:
         raise RuntimeError("interactive smoke fixture must be a STEP file")
+    expected_source_label = selected_source_accessible_label(fixture.name)
 
     try:
         import pyatspi  # type: ignore[import-not-found]
@@ -578,7 +564,11 @@ def main() -> int:
         )
         print("Activated exact portal Select button with Return", flush=True)
 
-        selection_accepted = wait_for_selection_acceptance(pyatspi, 2.0)
+        selection_accepted = wait_for_selection_acceptance(
+            pyatspi,
+            expected_source_label,
+            2.0,
+        )
         if not selection_accepted and picker_open_observed(pyatspi):
             if node_has_states(
                 fixture_row,
@@ -592,7 +582,11 @@ def main() -> int:
                     flush=True,
                 )
 
-        selection_accepted = wait_for_selection_acceptance(pyatspi, 2.0)
+        selection_accepted = wait_for_selection_acceptance(
+            pyatspi,
+            expected_source_label,
+            2.0,
+        )
         if not selection_accepted and picker_open_observed(pyatspi):
             accept_button = wait_for_unique_node(
                 pyatspi,
@@ -615,15 +609,9 @@ def main() -> int:
 
         wait_for_unique_node(
             pyatspi,
-            SELECTED_SOURCE_LABEL,
+            expected_source_label,
             deadline,
             exact=True,
-            required_states=(pyatspi.STATE_SHOWING,),
-        )
-        wait_for_text_interface_value(
-            pyatspi,
-            fixture.name,
-            deadline,
             required_states=(pyatspi.STATE_SHOWING,),
         )
         wait_for_node_absent(

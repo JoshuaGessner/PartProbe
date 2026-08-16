@@ -757,39 +757,12 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
 
         text.getText.assert_called_once_with(0, 15)
 
-    def test_wait_for_text_interface_value_requires_an_exact_showing_match(self) -> None:
-        expected = "rectangular_prism_12x8x5.step"
-        text = mock.Mock()
-        text.characterCount = len(expected)
-        text.getText.return_value = expected
-        fixture_name = mock.Mock()
-        fixture_name.queryText.return_value = text
-
-        with (
-            mock.patch.object(
-                smoke_linux_desktop_package,
-                "accessibility_nodes",
-                return_value=[fixture_name],
+    def test_selected_source_accessible_label_contains_the_exact_leaf_name(self) -> None:
+        self.assertEqual(
+            smoke_linux_desktop_package.selected_source_accessible_label(
+                "rectangular_prism_12x8x5.step"
             ),
-            mock.patch.object(
-                smoke_linux_desktop_package,
-                "node_has_states",
-                return_value=True,
-            ) as node_has_states,
-        ):
-            found = (
-                smoke_linux_desktop_package.wait_for_text_interface_value(
-                    mock.sentinel.pyatspi,
-                    expected,
-                    1.0,
-                    required_states=(mock.sentinel.showing,),
-                )
-            )
-
-        self.assertIs(found, fixture_name)
-        node_has_states.assert_called_once_with(
-            fixture_name,
-            (mock.sentinel.showing,),
+            "Selected model source: rectangular_prism_12x8x5.step",
         )
 
     def test_portal_directory_text_uses_one_trailing_separator(self) -> None:
@@ -816,6 +789,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
 
     def test_selection_acceptance_requires_source_summary_and_closed_picker(self) -> None:
         pyatspi = mock.Mock()
+        expected_source_label = "Selected model source: fixture.step"
         with mock.patch.object(
             smoke_linux_desktop_package,
             "find_node",
@@ -823,12 +797,13 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         ) as find_node:
             self.assertTrue(
                 smoke_linux_desktop_package.selection_acceptance_observed(
-                    pyatspi
+                    pyatspi,
+                    expected_source_label,
                 )
             )
         find_node.assert_any_call(
             pyatspi,
-            "Selected model source",
+            expected_source_label,
             exact=True,
             required_states=(pyatspi.STATE_SHOWING,),
         )
@@ -840,7 +815,8 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         ):
             self.assertFalse(
                 smoke_linux_desktop_package.selection_acceptance_observed(
-                    pyatspi
+                    pyatspi,
+                    expected_source_label,
                 )
             )
 

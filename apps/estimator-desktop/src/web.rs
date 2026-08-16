@@ -11,6 +11,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     AnalysisPanelState, DraftEstimatePanelState, GeometryReviewConfirmation, ModelPanelState,
+    selected_source_accessible_label,
 };
 
 #[wasm_bindgen(inline_js = r#"
@@ -370,8 +371,9 @@ fn SelectedSource(state: ReadSignal<ModelPanelState>) -> impl IntoView {
 
 #[component]
 fn SourceSummary(source: SelectedModelSource) -> impl IntoView {
+    let accessible_label = selected_source_accessible_label(&source.display_name);
     view! {
-        <dl class="source-summary" aria-label="Selected model source">
+        <dl class="source-summary" aria-label=accessible_label>
             <div><dt>"File"</dt><dd>{source.display_name}</dd></div>
             <div><dt>"Format"</dt><dd>"STEP"</dd></div>
             <div><dt>"Authority"</dt><dd>"Native session token"</dd></div>

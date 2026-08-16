@@ -5,6 +5,11 @@ use partprobe_desktop_contract::{
     ModelSourceSelection, SelectedModelSource,
 };
 
+#[must_use]
+pub fn selected_source_accessible_label(display_name: &str) -> String {
+    format!("Selected model source: {display_name}")
+}
+
 #[cfg(any(target_arch = "wasm32", test))]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct GeometryReviewConfirmation {
@@ -189,6 +194,14 @@ mod tests {
         assert!(state.status_heading().contains("analysis not started"));
         assert!(state.status_detail().contains("session"));
         assert!(state.status_detail().contains("requires"));
+    }
+
+    #[test]
+    fn selected_source_accessible_label_includes_the_display_name() {
+        assert_eq!(
+            selected_source_accessible_label("fixture.step"),
+            "Selected model source: fixture.step"
+        );
     }
 
     #[test]
