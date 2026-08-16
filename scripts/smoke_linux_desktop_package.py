@@ -296,6 +296,52 @@ def accept_open_dialog(open_button: Any, focused_state: Any) -> None:
     activate_click_action(open_button, "Open selected STEP model")
 
 
+def activate_selected_file(fixture_row: Any, focused_state: Any) -> None:
+    focus_window("Open File")
+    focus(
+        fixture_row,
+        "Selected STEP model",
+        focused_state=focused_state,
+    )
+    key("Return")
+
+
+def activate_open_mnemonic(open_button: Any, focused_state: Any) -> None:
+    focus_window("Open File")
+    focus(
+        open_button,
+        "Open selected STEP model",
+        focused_state=focused_state,
+    )
+    key("alt+o")
+
+
+def picker_open_observed(pyatspi: Any) -> bool:
+    return (
+        find_node(
+            pyatspi,
+            "Picker open",
+            {"push button", "button"},
+            exact=True,
+        )
+        is not None
+    )
+
+
+def selection_acceptance_observed(pyatspi: Any) -> bool:
+    model_selected = find_node(pyatspi, "Model selected") is not None
+    return model_selected and not picker_open_observed(pyatspi)
+
+
+def wait_for_selection_acceptance(pyatspi: Any, timeout_seconds: float) -> bool:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if selection_acceptance_observed(pyatspi):
+            return True
+        time.sleep(0.05)
+    return selection_acceptance_observed(pyatspi)
+
+
 def dump_accessibility(pyatspi: Any) -> None:
     rows = []
     for node in accessibility_nodes(pyatspi):
@@ -380,8 +426,39 @@ def main() -> int:
                 pyatspi.STATE_FOCUSABLE,
             ),
         )
-        accept_open_dialog(open_button, pyatspi.STATE_FOCUSED)
-        print("Invoked exact Open button click action", flush=True)
+        activate_open_mnemonic(open_button, pyatspi.STATE_FOCUSED)
+        print("Invoked exact Open mnemonic Alt+O", flush=True)
+
+        selection_accepted = wait_for_selection_acceptance(pyatspi, 2.0)
+        if not selection_accepted and picker_open_observed(pyatspi):
+            if node_has_states(
+                fixture_row,
+                (pyatspi.STATE_SHOWING, pyatspi.STATE_FOCUSABLE),
+            ):
+                activate_selected_file(fixture_row, pyatspi.STATE_FOCUSED)
+                print("Activated selected fixture with Return", flush=True)
+            else:
+                print(
+                    "Selected fixture row is not focusable; skipping Return activation",
+                    flush=True,
+                )
+
+        selection_accepted = wait_for_selection_acceptance(pyatspi, 2.0)
+        if not selection_accepted and picker_open_observed(pyatspi):
+            open_button = wait_for_unique_node(
+                pyatspi,
+                "Open",
+                deadline,
+                {"push button", "button"},
+                exact=True,
+                required_states=(
+                    pyatspi.STATE_SHOWING,
+                    pyatspi.STATE_ENABLED,
+                    pyatspi.STATE_FOCUSABLE,
+                ),
+            )
+            accept_open_dialog(open_button, pyatspi.STATE_FOCUSED)
+            print("Invoked exact Open button click action", flush=True)
 
         wait_for_node(pyatspi, "Model selected", deadline)
         wait_for_node(pyatspi, fixture.name, deadline)

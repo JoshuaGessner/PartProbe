@@ -48,6 +48,8 @@ jobs:
             python3-pyatspi \
             wget \
             xdotool \
+            xdg-desktop-portal \
+            xdg-desktop-portal-gtk \
             xvfb
 
       - name: Install pinned developer build tools

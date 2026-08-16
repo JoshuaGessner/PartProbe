@@ -52,7 +52,7 @@ leptos = { version = "=0.8.20", default-features = false, features = ["csr"] }
 serde-wasm-bindgen = "=0.6.5"
 tauri = { version = "=2.11.5", default-features = false, features = ["wry"] }
 tauri-build = "=2.6.3"
-tauri-plugin-dialog = "=2.7.2"
+tauri-plugin-dialog = { version = "=2.7.2", default-features = false, features = ["xdg-portal"] }
 wasm-bindgen = "=0.2.127"
 wasm-bindgen-futures = "=0.4.77"
 
