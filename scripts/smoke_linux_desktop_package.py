@@ -14,7 +14,6 @@ from typing import Any, Iterable
 
 
 PORTAL_CHOOSER_NAME = "File Chooser Widget"
-PORTAL_ACCEPT_LABEL = "Select"
 PORTAL_FILES_LABEL = "Files"
 PORTAL_WINDOW_TITLE = "Select STEP model"
 SELECTED_SOURCE_LABEL = "Selected model source"
@@ -216,12 +215,23 @@ def wait_for_text_value(node: Any, expected: str, timeout_seconds: float) -> Non
     )
 
 
-def canonical_portal_directory_text(directory: str) -> str:
-    if not directory.startswith("/"):
-        raise ValueError("portal directory must be absolute")
-    if directory == "/":
-        return directory
-    return f"{directory.rstrip('/')}/"
+def portal_source_entry_text(source: Path) -> str:
+    if not source.is_absolute():
+        raise ValueError("portal source must be absolute")
+    return str(source)
+
+
+def submit_source_from_location_entry(
+    location_entry: Any,
+    source_text: str,
+    focused_state: Any,
+) -> None:
+    wait_for_text_value(location_entry, "/", 2.0)
+    type_text(source_text.removeprefix("/"))
+    wait_for_text_value(location_entry, source_text, 2.0)
+    if not node_has_states(location_entry, (focused_state,)):
+        raise RuntimeError("portal location entry lost focus before source submission")
+    key("Return")
 
 
 def selected_source_accessible_label(display_name: str) -> str:
@@ -265,57 +275,6 @@ def focus(
     raise RuntimeError(f"accessible control did not acquire focus for {label!r}")
 
 
-def select_node(node: Any, label: str) -> None:
-    current = node
-    for _ in range(16):
-        try:
-            parent = current.parent
-        except Exception:
-            parent = None
-        if parent is None:
-            break
-        try:
-            child_index = int(current.getIndexInParent())
-            selection = parent.querySelection()
-            if bool(selection.selectChild(child_index)):
-                selection_deadline = time.monotonic() + 2.0
-                while time.monotonic() < selection_deadline:
-                    if bool(selection.isChildSelected(child_index)):
-                        return
-                    time.sleep(0.05)
-        except Exception:
-            pass
-        current = parent
-    raise RuntimeError(f"could not select accessible item {label!r}")
-
-
-def activate_click_action(node: Any, label: str) -> None:
-    try:
-        actions = node.queryAction()
-        action_count = int(actions.nActions)
-    except Exception as error:
-        raise RuntimeError(f"accessible control has no action interface: {label!r}") from error
-
-    available = []
-    for index in range(action_count):
-        try:
-            action_name = str(actions.getName(index))
-        except Exception:
-            continue
-        available.append(action_name)
-        if action_name.casefold() == "click":
-            try:
-                accepted = bool(actions.doAction(index))
-            except Exception as error:
-                raise RuntimeError(f"accessible click failed for {label!r}") from error
-            if not accepted:
-                raise RuntimeError(f"accessible click was rejected for {label!r}")
-            return
-    raise RuntimeError(
-        f"accessible control has no exact click action for {label!r}: {available!r}"
-    )
-
-
 def focus_window(title: str) -> None:
     subprocess.run(
         [
@@ -349,44 +308,6 @@ def type_text(value: str) -> None:
     )
 
 
-def activate_accept_button(
-    accept_button: Any,
-    accept_label: str,
-    focused_state: Any,
-) -> None:
-    focus_window(PORTAL_WINDOW_TITLE)
-    focus(
-        accept_button,
-        f"{accept_label} selected STEP model",
-        focused_state=focused_state,
-    )
-    key("Return")
-
-
-def click_accept_button(
-    accept_button: Any,
-    accept_label: str,
-    focused_state: Any,
-) -> None:
-    focus_window(PORTAL_WINDOW_TITLE)
-    focus(
-        accept_button,
-        f"{accept_label} selected STEP model",
-        focused_state=focused_state,
-    )
-    activate_click_action(accept_button, f"{accept_label} selected STEP model")
-
-
-def activate_selected_file(fixture_row: Any, focused_state: Any) -> None:
-    focus_window(PORTAL_WINDOW_TITLE)
-    focus(
-        fixture_row,
-        "Selected STEP model",
-        focused_state=focused_state,
-    )
-    key("Return")
-
-
 def open_location_entry(
     focus_anchor: Any,
     focus_label: str,
@@ -401,42 +322,38 @@ def open_location_entry(
     key("slash")
 
 
-def picker_open_observed(pyatspi: Any) -> bool:
-    return (
-        find_node(
-            pyatspi,
-            "Picker open",
-            {"push button", "button"},
-            exact=True,
-        )
-        is not None
-    )
-
-
-def selection_acceptance_observed(pyatspi: Any, expected_source_label: str) -> bool:
-    source_summary = (
-        find_node(
+def wait_for_expected_source_label(
+    pyatspi: Any,
+    expected_source_label: str,
+    deadline: float,
+    showing_state: Any,
+) -> Any:
+    while time.monotonic() < deadline:
+        exact_matches = matching_nodes(
             pyatspi,
             expected_source_label,
             exact=True,
-            required_states=(pyatspi.STATE_SHOWING,),
+            required_states=(showing_state,),
         )
-        is not None
-    )
-    return source_summary and not picker_open_observed(pyatspi)
-
-
-def wait_for_selection_acceptance(
-    pyatspi: Any,
-    expected_source_label: str,
-    timeout_seconds: float,
-) -> bool:
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        if selection_acceptance_observed(pyatspi, expected_source_label):
-            return True
+        if len(exact_matches) == 1:
+            return exact_matches[0]
+        if len(exact_matches) > 1:
+            raise RuntimeError(
+                f"ambiguous accepted source label: {expected_source_label!r}"
+            )
+        any_source = matching_nodes(
+            pyatspi,
+            f"{SELECTED_SOURCE_LABEL}:",
+            required_states=(showing_state,),
+        )
+        if any_source:
+            raise RuntimeError(
+                "native picker accepted a source other than the governed fixture"
+            )
         time.sleep(0.05)
-    return selection_acceptance_observed(pyatspi, expected_source_label)
+    raise RuntimeError(
+        f"timed out waiting for exact accepted source label: {expected_source_label!r}"
+    )
 
 
 def dump_accessibility(pyatspi: Any) -> None:
@@ -460,6 +377,7 @@ def main() -> int:
         raise RuntimeError("packaged executable is not executable")
     if fixture.suffix.lower() not in {".step", ".stp"}:
         raise RuntimeError("interactive smoke fixture must be a STEP file")
+    expected_source_text = portal_source_entry_text(fixture)
     expected_source_label = selected_source_accessible_label(fixture.name)
 
     try:
@@ -528,26 +446,28 @@ def main() -> int:
                 pyatspi.STATE_FOCUSED,
             ),
         )
-        wait_for_text_value(location_entry, "/", 2.0)
-        fixture_directory = str(fixture.parent)
-        expected_directory_text = canonical_portal_directory_text(fixture_directory)
-        type_text(fixture_directory.removeprefix("/"))
-        wait_for_text_value(location_entry, expected_directory_text, 2.0)
-        print("Confirmed exact canonical portal location entry text", flush=True)
-        key("Return")
-        fixture_row = wait_for_unique_node(
-            pyatspi,
-            fixture.name,
-            deadline,
-            exact=True,
-            required_states=(pyatspi.STATE_SHOWING,),
+        submit_source_from_location_entry(
+            location_entry,
+            expected_source_text,
+            pyatspi.STATE_FOCUSED,
         )
-        select_node(fixture_row, fixture.name)
-        print(f"Selected exact fixture row: {fixture.name}", flush=True)
-        accept_label = PORTAL_ACCEPT_LABEL
-        accept_button = wait_for_unique_node(
+        print("Submitted exact portal source entry text", flush=True)
+        wait_for_expected_source_label(
             pyatspi,
-            accept_label,
+            expected_source_label,
+            deadline,
+            pyatspi.STATE_SHOWING,
+        )
+        wait_for_node_absent(
+            pyatspi,
+            "Picker open",
+            deadline,
+            {"push button", "button"},
+            exact=True,
+        )
+        wait_for_unique_node(
+            pyatspi,
+            "Analyze provisional geometry",
             deadline,
             {"push button", "button"},
             exact=True,
@@ -556,70 +476,6 @@ def main() -> int:
                 pyatspi.STATE_ENABLED,
                 pyatspi.STATE_FOCUSABLE,
             ),
-        )
-        activate_accept_button(
-            accept_button,
-            accept_label,
-            pyatspi.STATE_FOCUSED,
-        )
-        print("Activated exact portal Select button with Return", flush=True)
-
-        selection_accepted = wait_for_selection_acceptance(
-            pyatspi,
-            expected_source_label,
-            2.0,
-        )
-        if not selection_accepted and picker_open_observed(pyatspi):
-            if node_has_states(
-                fixture_row,
-                (pyatspi.STATE_SHOWING, pyatspi.STATE_FOCUSABLE),
-            ):
-                activate_selected_file(fixture_row, pyatspi.STATE_FOCUSED)
-                print("Activated selected fixture with Return", flush=True)
-            else:
-                print(
-                    "Selected fixture row is not focusable; skipping Return activation",
-                    flush=True,
-                )
-
-        selection_accepted = wait_for_selection_acceptance(
-            pyatspi,
-            expected_source_label,
-            2.0,
-        )
-        if not selection_accepted and picker_open_observed(pyatspi):
-            accept_button = wait_for_unique_node(
-                pyatspi,
-                accept_label,
-                deadline,
-                {"push button", "button"},
-                exact=True,
-                required_states=(
-                    pyatspi.STATE_SHOWING,
-                    pyatspi.STATE_ENABLED,
-                    pyatspi.STATE_FOCUSABLE,
-                ),
-            )
-            click_accept_button(
-                accept_button,
-                accept_label,
-                pyatspi.STATE_FOCUSED,
-            )
-            print("Invoked exact portal Select button click action", flush=True)
-
-        wait_for_unique_node(
-            pyatspi,
-            expected_source_label,
-            deadline,
-            exact=True,
-            required_states=(pyatspi.STATE_SHOWING,),
-        )
-        wait_for_node_absent(
-            pyatspi,
-            "Picker open",
-            deadline,
-            {"push button", "button"},
-            exact=True,
         )
         if args.selection_only:
             print("Linux packaged desktop native selection smoke passed")

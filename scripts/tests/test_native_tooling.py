@@ -575,7 +575,6 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
             smoke_linux_desktop_package.PORTAL_CHOOSER_NAME,
             "File Chooser Widget",
         )
-        self.assertEqual(smoke_linux_desktop_package.PORTAL_ACCEPT_LABEL, "Select")
         self.assertEqual(
             smoke_linux_desktop_package.PORTAL_FILES_LABEL,
             "Files",
@@ -619,74 +618,6 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 )
                 self.assertIn("xdg-desktop-portal \\", workflow)
                 self.assertIn("xdg-desktop-portal-gtk \\", workflow)
-
-    def test_activate_accept_button_confirms_focus_before_return(self) -> None:
-        accept_button = mock.sentinel.accept_button
-        with (
-            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
-            mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
-            mock.patch.object(smoke_linux_desktop_package, "key") as key,
-        ):
-            smoke_linux_desktop_package.activate_accept_button(
-                accept_button,
-                "Select",
-                mock.sentinel.focused,
-            )
-
-        focus_window.assert_called_once_with("Select STEP model")
-        focus.assert_called_once_with(
-            accept_button,
-            "Select selected STEP model",
-            focused_state=mock.sentinel.focused,
-        )
-        key.assert_called_once_with("Return")
-
-    def test_click_accept_button_confirms_focus_before_semantic_activation(self) -> None:
-        accept_button = mock.sentinel.accept_button
-        with (
-            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
-            mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
-            mock.patch.object(
-                smoke_linux_desktop_package,
-                "activate_click_action",
-            ) as activate_click_action,
-        ):
-            smoke_linux_desktop_package.click_accept_button(
-                accept_button,
-                "Select",
-                mock.sentinel.focused,
-            )
-
-        focus_window.assert_called_once_with("Select STEP model")
-        focus.assert_called_once_with(
-            accept_button,
-            "Select selected STEP model",
-            focused_state=mock.sentinel.focused,
-        )
-        activate_click_action.assert_called_once_with(
-            accept_button,
-            "Select selected STEP model",
-        )
-
-    def test_activate_selected_file_confirms_focus_before_return(self) -> None:
-        fixture_row = mock.sentinel.fixture_row
-        with (
-            mock.patch.object(smoke_linux_desktop_package, "focus_window") as focus_window,
-            mock.patch.object(smoke_linux_desktop_package, "focus") as focus,
-            mock.patch.object(smoke_linux_desktop_package, "key") as key,
-        ):
-            smoke_linux_desktop_package.activate_selected_file(
-                fixture_row,
-                mock.sentinel.focused,
-            )
-
-        focus_window.assert_called_once_with("Select STEP model")
-        focus.assert_called_once_with(
-            fixture_row,
-            "Selected STEP model",
-            focused_state=mock.sentinel.focused,
-        )
-        key.assert_called_once_with("Return")
 
     def test_open_location_entry_confirms_file_list_focus_before_slash(self) -> None:
         focus_anchor = mock.sentinel.focus_anchor
@@ -765,82 +696,115 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
             "Selected model source: rectangular_prism_12x8x5.step",
         )
 
-    def test_portal_directory_text_uses_one_trailing_separator(self) -> None:
+    def test_portal_source_entry_text_requires_an_exact_absolute_path(self) -> None:
         self.assertEqual(
-            smoke_linux_desktop_package.canonical_portal_directory_text(
-                "/fixtures/models"
+            smoke_linux_desktop_package.portal_source_entry_text(
+                Path("/fixtures/models/fixture.step")
             ),
-            "/fixtures/models/",
-        )
-        self.assertEqual(
-            smoke_linux_desktop_package.canonical_portal_directory_text(
-                "/fixtures/models/"
-            ),
-            "/fixtures/models/",
-        )
-        self.assertEqual(
-            smoke_linux_desktop_package.canonical_portal_directory_text("/"),
-            "/",
+            "/fixtures/models/fixture.step",
         )
         with self.assertRaisesRegex(ValueError, "must be absolute"):
-            smoke_linux_desktop_package.canonical_portal_directory_text(
-                "fixtures/models"
+            smoke_linux_desktop_package.portal_source_entry_text(
+                Path("fixtures/models/fixture.step")
             )
 
-    def test_selection_acceptance_requires_source_summary_and_closed_picker(self) -> None:
-        pyatspi = mock.Mock()
+    def test_submit_source_requires_exact_text_and_retained_focus_before_return(
+        self,
+    ) -> None:
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "wait_for_text_value",
+            ) as wait_for_text_value,
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "type_text",
+            ) as type_text,
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_has_states",
+                return_value=True,
+            ) as node_has_states,
+            mock.patch.object(smoke_linux_desktop_package, "key") as key,
+        ):
+            smoke_linux_desktop_package.submit_source_from_location_entry(
+                mock.sentinel.location_entry,
+                "/fixtures/models/fixture.step",
+                mock.sentinel.focused,
+            )
+
+        self.assertEqual(
+            wait_for_text_value.call_args_list,
+            [
+                mock.call(mock.sentinel.location_entry, "/", 2.0),
+                mock.call(
+                    mock.sentinel.location_entry,
+                    "/fixtures/models/fixture.step",
+                    2.0,
+                ),
+            ],
+        )
+        type_text.assert_called_once_with("fixtures/models/fixture.step")
+        node_has_states.assert_called_once_with(
+            mock.sentinel.location_entry,
+            (mock.sentinel.focused,),
+        )
+        key.assert_called_once_with("Return")
+
+    def test_submit_source_rejects_lost_location_entry_focus(self) -> None:
+        with (
+            mock.patch.object(smoke_linux_desktop_package, "wait_for_text_value"),
+            mock.patch.object(smoke_linux_desktop_package, "type_text"),
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_has_states",
+                return_value=False,
+            ),
+            mock.patch.object(smoke_linux_desktop_package, "key") as key,
+            self.assertRaisesRegex(RuntimeError, "lost focus"),
+        ):
+            smoke_linux_desktop_package.submit_source_from_location_entry(
+                mock.sentinel.location_entry,
+                "/fixtures/models/fixture.step",
+                mock.sentinel.focused,
+            )
+
+        key.assert_not_called()
+
+    def test_wait_for_expected_source_label_accepts_one_exact_showing_match(self) -> None:
         expected_source_label = "Selected model source: fixture.step"
         with mock.patch.object(
             smoke_linux_desktop_package,
-            "find_node",
-            side_effect=[mock.sentinel.model_selected, None],
-        ) as find_node:
-            self.assertTrue(
-                smoke_linux_desktop_package.selection_acceptance_observed(
-                    pyatspi,
-                    expected_source_label,
-                )
+            "matching_nodes",
+            return_value=[mock.sentinel.source_summary],
+        ) as matching_nodes:
+            found = smoke_linux_desktop_package.wait_for_expected_source_label(
+                mock.sentinel.pyatspi,
+                expected_source_label,
+                1.0,
+                mock.sentinel.showing,
             )
-        find_node.assert_any_call(
-            pyatspi,
+
+        self.assertIs(found, mock.sentinel.source_summary)
+        matching_nodes.assert_called_once_with(
+            mock.sentinel.pyatspi,
             expected_source_label,
             exact=True,
-            required_states=(pyatspi.STATE_SHOWING,),
+            required_states=(mock.sentinel.showing,),
         )
 
+    def test_wait_for_expected_source_label_rejects_another_selected_source(self) -> None:
         with mock.patch.object(
             smoke_linux_desktop_package,
-            "find_node",
-            side_effect=[mock.sentinel.model_selected, mock.sentinel.picker_open],
-        ):
-            self.assertFalse(
-                smoke_linux_desktop_package.selection_acceptance_observed(
-                    pyatspi,
-                    expected_source_label,
-                )
+            "matching_nodes",
+            side_effect=[[], [mock.sentinel.wrong_source]],
+        ), self.assertRaisesRegex(RuntimeError, "other than the governed fixture"):
+            smoke_linux_desktop_package.wait_for_expected_source_label(
+                mock.sentinel.pyatspi,
+                "Selected model source: fixture.step",
+                1.0,
+                mock.sentinel.showing,
             )
-
-    def test_activate_click_action_requires_exact_semantic_action(self) -> None:
-        actions = mock.Mock()
-        actions.nActions = 2
-        actions.getName.side_effect = ["press", "click"]
-        actions.doAction.return_value = True
-        node = mock.Mock()
-        node.queryAction.return_value = actions
-
-        smoke_linux_desktop_package.activate_click_action(node, "Open")
-
-        actions.doAction.assert_called_once_with(1)
-
-    def test_activate_click_action_rejects_unknown_actions(self) -> None:
-        actions = mock.Mock()
-        actions.nActions = 1
-        actions.getName.return_value = "press"
-        node = mock.Mock()
-        node.queryAction.return_value = actions
-
-        with self.assertRaisesRegex(RuntimeError, "no exact click action"):
-            smoke_linux_desktop_package.activate_click_action(node, "Open")
 
     def test_wait_for_unique_node_rejects_ambiguous_live_controls(self) -> None:
         with (
@@ -1004,50 +968,6 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 (mock.sentinel.showing,),
             )
         )
-
-    def test_select_node_uses_parent_selection_and_confirms_state(self) -> None:
-        selection = mock.Mock()
-        selection.selectChild.return_value = True
-        selection.isChildSelected.side_effect = [False, True]
-        parent = mock.Mock()
-        parent.querySelection.return_value = selection
-        node = mock.Mock()
-        node.parent = parent
-        node.getIndexInParent.return_value = 3
-
-        smoke_linux_desktop_package.select_node(node, "fixture.step")
-
-        selection.selectChild.assert_called_once_with(3)
-        self.assertEqual(selection.isChildSelected.call_count, 2)
-
-    def test_select_node_walks_to_selection_ancestor(self) -> None:
-        selection = mock.Mock()
-        selection.selectChild.return_value = True
-        selection.isChildSelected.return_value = True
-        table = mock.Mock()
-        table.querySelection.return_value = selection
-        intermediate = mock.Mock()
-        intermediate.parent = table
-        intermediate.getIndexInParent.return_value = 4
-        intermediate.querySelection.side_effect = RuntimeError("unsupported")
-        node = mock.Mock()
-        node.parent = intermediate
-        node.getIndexInParent.return_value = 1
-
-        smoke_linux_desktop_package.select_node(node, "fixture.step")
-
-        selection.selectChild.assert_called_once_with(4)
-
-    def test_select_node_rejects_unselectable_item(self) -> None:
-        parent = mock.Mock()
-        parent.parent = None
-        parent.querySelection.side_effect = RuntimeError("unsupported")
-        node = mock.Mock()
-        node.parent = parent
-        node.getIndexInParent.return_value = 0
-
-        with self.assertRaisesRegex(RuntimeError, "could not select accessible item"):
-            smoke_linux_desktop_package.select_node(node, "fixture.step")
 
     def test_exact_accessible_match_does_not_accept_substring(self) -> None:
         picker_open = mock.Mock(name="picker_open")
