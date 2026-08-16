@@ -570,6 +570,25 @@ File Type: EXECUTABLE IMAGE
 
 
 class LinuxDesktopPackageSmokeTests(unittest.TestCase):
+    def test_workflows_start_dbus_inside_the_virtual_display(self) -> None:
+        repository_root = SCRIPTS.parent
+        for workflow_name in (
+            "linux-desktop-package.yml",
+            "linux-native-desktop-package.yml",
+        ):
+            with self.subTest(workflow=workflow_name):
+                workflow = (
+                    repository_root / ".github" / "workflows" / workflow_name
+                ).read_text(encoding="utf-8")
+                self.assertIn(
+                    "xvfb-run --auto-servernum \\\n            dbus-run-session --",
+                    workflow,
+                )
+                self.assertNotIn(
+                    "dbus-run-session -- \\\n            xvfb-run --auto-servernum",
+                    workflow,
+                )
+
     def test_accept_open_dialog_confirms_focus_before_keyboard_acceptance(self) -> None:
         open_button = mock.sentinel.open_button
         with (

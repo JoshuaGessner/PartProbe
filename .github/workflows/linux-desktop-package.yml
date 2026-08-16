@@ -89,9 +89,9 @@ jobs:
       - name: Launch Debian-contained desktop shell under a virtual display
         run: |
           set +e
-          dbus-run-session -- \
-            timeout 10s \
+          timeout 10s \
             xvfb-run --auto-servernum \
+            dbus-run-session -- \
             "$PARTPROBE_PACKAGED_EXECUTABLE"
           launch_status=$?
           set -e
@@ -102,8 +102,8 @@ jobs:
 
       - name: Exercise native selection through the exact Debian payload
         run: |
-          dbus-run-session -- \
-            xvfb-run --auto-servernum \
+          xvfb-run --auto-servernum \
+            dbus-run-session -- \
             sh -c '
               openbox --sm-disable > "$RUNNER_TEMP/partprobe-openbox.log" 2>&1 &
               openbox_pid=$!

@@ -155,8 +155,8 @@ jobs:
           PARTPROBE_GEOMETRY_WORKSPACE: ${{ runner.temp }}/partprobe-native-package-app-worker
         run: |
           mkdir "$PARTPROBE_GEOMETRY_WORKSPACE"
-          dbus-run-session -- \
-            xvfb-run --auto-servernum \
+          xvfb-run --auto-servernum \
+            dbus-run-session -- \
             sh -c '
               openbox --sm-disable > "$RUNNER_TEMP/partprobe-openbox.log" 2>&1 &
               openbox_pid=$!
