@@ -17,6 +17,8 @@ PORTAL_CHOOSER_NAME = "File Chooser Widget"
 PORTAL_FILES_LABEL = "Files"
 PORTAL_WINDOW_TITLE = "Select STEP model"
 SELECTED_SOURCE_LABEL = "Selected model source"
+PROVISIONAL_GEOMETRY_LABEL = "Provisional geometry available"
+PROVISIONAL_ANALYSIS_FAILURE_LABEL = "Provisional analysis failed safely"
 
 
 def parse_args() -> argparse.Namespace:
@@ -238,6 +240,20 @@ def selected_source_accessible_label(display_name: str) -> str:
     return f"{SELECTED_SOURCE_LABEL}: {display_name}"
 
 
+def provisional_geometry_accessible_label(
+    surface_area_mm2: str,
+    enclosed_volume_mm3: str,
+    center_of_mass_mm: tuple[str, str, str],
+    geometry_engine: str,
+) -> str:
+    centroid = ", ".join(center_of_mass_mm)
+    return (
+        f"{PROVISIONAL_GEOMETRY_LABEL}: surface area {surface_area_mm2} "
+        f"square millimeters; enclosed volume {enclosed_volume_mm3} cubic "
+        f"millimeters; centroid {centroid} millimeters; engine {geometry_engine}"
+    )
+
+
 def wait_for_node_absent(
     pyatspi: Any,
     text: str,
@@ -351,6 +367,43 @@ def wait_for_expected_source_label(
     )
 
 
+def wait_for_expected_geometry_label(
+    pyatspi: Any,
+    expected_geometry_label: str,
+    deadline: float,
+    showing_state: Any,
+) -> Any:
+    expected = expected_geometry_label.casefold()
+    geometry_prefix = f"{PROVISIONAL_GEOMETRY_LABEL}:".casefold()
+    failure_prefix = f"{PROVISIONAL_ANALYSIS_FAILURE_LABEL}:".casefold()
+    while time.monotonic() < deadline:
+        expected_matches = []
+        wrong_geometry = []
+        failures = []
+        for node in accessibility_nodes(pyatspi):
+            if not node_has_states(node, (showing_state,)):
+                continue
+            candidate = node_text(node).casefold()
+            if candidate == expected:
+                expected_matches.append(node)
+            elif candidate.startswith(geometry_prefix):
+                wrong_geometry.append(node)
+            elif candidate.startswith(failure_prefix):
+                failures.append(node)
+        if failures:
+            raise RuntimeError("the interactive analysis reported a safe failure")
+        if wrong_geometry:
+            raise RuntimeError("analysis returned geometry other than the governed fixture")
+        if len(expected_matches) > 1:
+            raise RuntimeError("ambiguous provisional geometry evidence label")
+        if len(expected_matches) == 1:
+            return expected_matches[0]
+        time.sleep(0.05)
+    raise RuntimeError(
+        f"timed out waiting for exact provisional geometry label: {expected_geometry_label!r}"
+    )
+
+
 def dump_accessibility(pyatspi: Any) -> None:
     rows = []
     for node in accessibility_nodes(pyatspi):
@@ -374,6 +427,12 @@ def main() -> int:
         raise RuntimeError("interactive smoke fixture must be a STEP file")
     expected_source_text = portal_source_entry_text(fixture)
     expected_source_label = selected_source_accessible_label(fixture.name)
+    expected_geometry_label = provisional_geometry_accessible_label(
+        "392",
+        "480",
+        ("6", "4", "2.5"),
+        "OCCT 8.0.0",
+    )
 
     try:
         import pyatspi  # type: ignore[import-not-found]
@@ -495,16 +554,12 @@ def main() -> int:
         )
         key("Return")
 
-        for expected in (
-            "Geometry evidence",
-            "392",
-            "480",
-            "6, 4, 2.5",
-            "OCCT 8.0.0",
-        ):
-            wait_for_node(pyatspi, expected, deadline)
-        if find_node(pyatspi, "Analysis failed safely") is not None:
-            raise RuntimeError("the interactive analysis reported a safe failure")
+        wait_for_expected_geometry_label(
+            pyatspi,
+            expected_geometry_label,
+            deadline,
+            pyatspi.STATE_SHOWING,
+        )
         if process.poll() is not None:
             raise RuntimeError(
                 f"packaged executable exited during interactive smoke: {process.returncode}"

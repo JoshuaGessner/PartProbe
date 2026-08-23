@@ -483,7 +483,7 @@ impl ProvisionalGeometrySnapshot {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UnitResolutionMethod {
-    /// Unit came from a supported file declaration.
+    /// Unit came from a supported file declaration or the format's normative default.
     Declared,
     /// A user explicitly confirmed the unit.
     Confirmed,

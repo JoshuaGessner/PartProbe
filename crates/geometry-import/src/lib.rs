@@ -1,11 +1,17 @@
 //! Versioned, path-free protocol for the isolated geometry worker.
 
 mod ascii_stl;
+mod mesh_analysis;
+mod three_mf;
 
 pub use ascii_stl::{
     ASCII_STL_ANALYZER_VERSION, AsciiStlError, AsciiStlLimits, AsciiStlMeshEvidence,
-    BINARY_STL_ANALYZER_VERSION, MeshVector3, StlEncoding, StlError, StlLimits, StlMeshEvidence,
+    BINARY_STL_ANALYZER_VERSION, StlEncoding, StlError, StlLimits, StlMeshEvidence,
     analyze_ascii_stl, analyze_binary_stl, analyze_stl,
+};
+pub use mesh_analysis::MeshVector3;
+pub use three_mf::{
+    THREE_MF_ANALYZER_VERSION, ThreeMfError, ThreeMfLimits, ThreeMfMeshEvidence, analyze_3mf,
 };
 
 use std::collections::BTreeSet;

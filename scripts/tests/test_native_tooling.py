@@ -696,6 +696,111 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
             "Selected model source: rectangular_prism_12x8x5.step",
         )
 
+    def test_geometry_accessible_label_contains_exact_governed_evidence(self) -> None:
+        self.assertEqual(
+            smoke_linux_desktop_package.provisional_geometry_accessible_label(
+                "392",
+                "480",
+                ("6", "4", "2.5"),
+                "OCCT 8.0.0",
+            ),
+            "Provisional geometry available: surface area 392 square millimeters; "
+            "enclosed volume 480 cubic millimeters; centroid 6, 4, 2.5 "
+            "millimeters; engine OCCT 8.0.0",
+        )
+
+    def test_wait_for_expected_geometry_label_accepts_one_exact_snapshot(self) -> None:
+        expected = smoke_linux_desktop_package.provisional_geometry_accessible_label(
+            "392",
+            "480",
+            ("6", "4", "2.5"),
+            "OCCT 8.0.0",
+        )
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "accessibility_nodes",
+                return_value=[mock.sentinel.geometry],
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_has_states",
+                return_value=True,
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_text",
+                return_value=expected,
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                return_value=10_000.0,
+            ),
+        ):
+            found = smoke_linux_desktop_package.wait_for_expected_geometry_label(
+                mock.sentinel.pyatspi,
+                expected,
+                10_001.0,
+                mock.sentinel.showing,
+            )
+
+        self.assertIs(found, mock.sentinel.geometry)
+
+    def test_wait_for_expected_geometry_label_rejects_wrong_or_failed_state(
+        self,
+    ) -> None:
+        expected = smoke_linux_desktop_package.provisional_geometry_accessible_label(
+            "392",
+            "480",
+            ("6", "4", "2.5"),
+            "OCCT 8.0.0",
+        )
+        for observed, error_pattern in (
+            (
+                smoke_linux_desktop_package.provisional_geometry_accessible_label(
+                    "600",
+                    "1000",
+                    ("5", "5", "5"),
+                    "OCCT 8.0.0",
+                ),
+                "other than the governed fixture",
+            ),
+            (
+                "Provisional analysis failed safely: diagnostic WORKER_FAILED",
+                "reported a safe failure",
+            ),
+        ):
+            with (
+                mock.patch.object(
+                    smoke_linux_desktop_package,
+                    "accessibility_nodes",
+                    return_value=[mock.sentinel.state],
+                ),
+                mock.patch.object(
+                    smoke_linux_desktop_package,
+                    "node_has_states",
+                    return_value=True,
+                ),
+                mock.patch.object(
+                    smoke_linux_desktop_package,
+                    "node_text",
+                    return_value=observed,
+                ),
+                mock.patch.object(
+                    smoke_linux_desktop_package.time,
+                    "monotonic",
+                    return_value=10_000.0,
+                ),
+                self.assertRaisesRegex(RuntimeError, error_pattern),
+            ):
+                smoke_linux_desktop_package.wait_for_expected_geometry_label(
+                    mock.sentinel.pyatspi,
+                    expected,
+                    10_001.0,
+                    mock.sentinel.showing,
+                )
+
     def test_portal_source_entry_text_requires_an_exact_absolute_path(self) -> None:
         absolute_source = (
             Path.cwd().resolve() / "fixtures" / "models" / "fixture.step"

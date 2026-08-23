@@ -8,6 +8,23 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-22 — Linux packaged geometry evidence-label correction
+
+- Full native package run 32607742609 passed pinned OCCT construction, runtime assembly/re-verification and link audit, unsigned Debian construction, extracted package/runtime verification, the separate packaged-resource retained-session STEP analysis, real XDG-portal opening, exact governed path submission, chooser closure, exact selected-source label, and Analyze activation. Only the final accessibility assertion failed.
+- The final assertion searched visible `392`, `480`, centroid, and engine DOM text through AT-SPI node names/descriptions. The failure tree already contained the returned Geometry evidence region and selected prism, confirming that this was another undocumented WebKit text-projection assumption rather than evidence of a package, native runtime, selection, or analysis crash.
+- Added an exact path-free application-owned geometry accessible label carrying the governed surface area, volume, centroid, and engine, plus a sanitized exact failure label. The harness classifies expected, wrong-fixture, and failed geometry from one live traversal per poll and fails immediately on a wrong or failed state.
+- Two Rust UI regressions and three Python checks pin exact label construction and expected/wrong/failure classification. The complete local gate now passes 161 runtime tests, one compile-fail doctest, 60 tooling tests, strict workspace/native-host/WASM Clippy, offline frontend construction, planning/fixture checks, and diff hygiene. A new hosted full-native run is required; no hosted pass is claimed yet.
+
+## 2026-08-22 — TASK-004 bounded 3MF package/unit/transform checkpoint
+
+- Added `partprobe-3mf-spike-v1` over already-authorized in-memory bytes. It validates ZIP/OPC framing, exact root relationship and model content type, safe unique regular-file part names, Store/Deflate compression, internal targets, and XML structure without extracting anything to disk.
+- Added explicit original-byte, entry-count, aggregate-expanded-byte, per-XML-byte, compression-ratio, vertex, and triangle limits. Encrypted/linked/unsafe/ambiguous entries, external or traversal targets, document types/general references, unsupported required extensions, unsupported units, non-finite numbers, components, and other out-of-scope structures fail with content-free diagnostics.
+- Moved the deterministic triangle topology and measurement implementation behind one format-neutral internal module used by ASCII STL, binary STL, and 3MF. Existing seven STL regressions remain unchanged and passing, avoiding a second set of area/volume/centroid formulas.
+- Added reproducible `FIX-MESH-004`, a 1,072-byte 3MF package derived from the governed cube with explicit centimetre units and a `(2, 3, 4)` source-unit build translation. It reproduces 10 mm canonical extents, 600 mm² area, 1,000 mm³ volume, and translated centroid `(25, 35, 45)` mm while retaining mesh-only authority.
+- Pinned `quick-xml 0.41.0` with defaults disabled and `zip 8.6.0` with defaults disabled plus only the pure-Rust-backed Deflate path. Recorded purpose, alternatives, license/source, active transitive graph, maintenance/removal owner, no intended network behavior, and residual archive/XML review gates.
+- Focused validation passes seven STL tests, seven 3MF tests, four fixture-contract tests, six mesh-fixture tooling tests, and strict geometry-import Clippy. The binary-STL three-OS Rust CI checkpoint also passed as run 32608602420 at `0f9a0a4`; this 3MF checkpoint is local pending the next pushed CI run.
+- TASK-004 remains In Progress. Next are broader 3MF all-unit/component/metadata/unsafe-package fixtures, additional binary/malformed cases, self-intersection and mesh-confidence policy, then typed worker/desktop integration. No calculation rule, persisted/customer schema, production rate, external transfer, or support/compliance claim changed.
+
 ## 2026-08-22 — TASK-004 bounded ASCII/binary STL comparison checkpoints
 
 - Added the dependency-free `partprobe-ascii-stl-spike-v1` analyzer over already-authorized in-memory bytes. Explicit positive byte/triangle limits bound the parser; failures return sanitized content-free codes; units remain `Unknown`/`Unresolved`; and results remain mesh evidence rather than exact solid topology.

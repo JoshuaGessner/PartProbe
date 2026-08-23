@@ -11,6 +11,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     AnalysisPanelState, DraftEstimatePanelState, GeometryReviewConfirmation, ModelPanelState,
+    provisional_analysis_failure_accessible_label, provisional_geometry_accessible_label,
     selected_source_accessible_label,
 };
 
@@ -388,13 +389,22 @@ fn AnalysisEvidence(state: ReadSignal<AnalysisPanelState>) -> impl IntoView {
         AnalysisPanelState::Available(result) => {
             let geometry = result.geometry;
             let centroid = geometry.center_of_mass_mm.join(", ");
+            let accessible_label = provisional_geometry_accessible_label(
+                &geometry.surface_area_mm2,
+                &geometry.enclosed_volume_mm3,
+                geometry.center_of_mass_mm.each_ref().map(String::as_str),
+                &geometry.geometry_engine,
+            );
             let warning_count = result
                 .stages
                 .iter()
                 .map(|stage| stage.warning_codes.len())
                 .sum::<usize>();
             view! {
-                <section class="analysis-evidence" aria-labelledby="analysis-evidence-heading">
+                <section
+                    class="analysis-evidence"
+                    aria-label=accessible_label
+                >
                     <div class="analysis-evidence-heading">
                         <div>
                             <p class="section-index">"PROVISIONAL / SESSION ONLY"</p>
@@ -419,14 +429,18 @@ fn AnalysisEvidence(state: ReadSignal<AnalysisPanelState>) -> impl IntoView {
             }
             .into_any()
         }
-        AnalysisPanelState::Failed(error) => view! {
-            <section class="analysis-error" role="alert">
-                <p class="blocked-title">"Analysis failed safely"</p>
-                <p>{error.message}</p>
-                <p class="diagnostic-id">"Diagnostic: " {error.diagnostic_id}</p>
-            </section>
+        AnalysisPanelState::Failed(error) => {
+            let accessible_label =
+                provisional_analysis_failure_accessible_label(&error.diagnostic_id);
+            view! {
+                <section class="analysis-error" role="alert" aria-label=accessible_label>
+                    <p class="blocked-title">"Analysis failed safely"</p>
+                    <p>{error.message}</p>
+                    <p class="diagnostic-id">"Diagnostic: " {error.diagnostic_id}</p>
+                </section>
+            }
+            .into_any()
         }
-        .into_any(),
         AnalysisPanelState::Running => view! {
             <section class="analysis-progress" role="status">
                 <p class="blocked-title">"Isolated worker analysis in progress"</p>

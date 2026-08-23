@@ -10,6 +10,26 @@ pub fn selected_source_accessible_label(display_name: &str) -> String {
     format!("Selected model source: {display_name}")
 }
 
+#[must_use]
+pub fn provisional_geometry_accessible_label(
+    surface_area_mm2: &str,
+    enclosed_volume_mm3: &str,
+    center_of_mass_mm: [&str; 3],
+    geometry_engine: &str,
+) -> String {
+    format!(
+        "Provisional geometry available: surface area {surface_area_mm2} square millimeters; \
+         enclosed volume {enclosed_volume_mm3} cubic millimeters; centroid {} millimeters; \
+         engine {geometry_engine}",
+        center_of_mass_mm.join(", ")
+    )
+}
+
+#[must_use]
+pub fn provisional_analysis_failure_accessible_label(diagnostic_id: &str) -> String {
+    format!("Provisional analysis failed safely: diagnostic {diagnostic_id}")
+}
+
 #[cfg(any(target_arch = "wasm32", test))]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct GeometryReviewConfirmation {
@@ -201,6 +221,23 @@ mod tests {
         assert_eq!(
             selected_source_accessible_label("fixture.step"),
             "Selected model source: fixture.step"
+        );
+    }
+
+    #[test]
+    fn provisional_geometry_accessible_label_carries_exact_path_free_evidence() {
+        assert_eq!(
+            provisional_geometry_accessible_label("392", "480", ["6", "4", "2.5"], "OCCT 8.0.0",),
+            "Provisional geometry available: surface area 392 square millimeters; enclosed volume \
+             480 cubic millimeters; centroid 6, 4, 2.5 millimeters; engine OCCT 8.0.0"
+        );
+    }
+
+    #[test]
+    fn provisional_analysis_failure_label_carries_only_the_diagnostic() {
+        assert_eq!(
+            provisional_analysis_failure_accessible_label("GUI4-ANALYSIS-TEST"),
+            "Provisional analysis failed safely: diagnostic GUI4-ANALYSIS-TEST"
         );
     }
 
