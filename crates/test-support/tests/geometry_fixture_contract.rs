@@ -6,6 +6,8 @@ use partprobe_test_support::geometry_fixtures::{
 const CLOSED: &str = include_str!("../../../fixtures/expected/cube_10mm.json");
 const BINARY_CLOSED: &str = include_str!("../../../fixtures/expected/cube_10mm_binary.json");
 const THREE_MF: &str = include_str!("../../../fixtures/expected/cube_1cm_translated_3mf.json");
+const COMPONENT_THREE_MF: &str =
+    include_str!("../../../fixtures/expected/cube_1cm_component_scaled_translated_3mf.json");
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");
 const STEP: &str = include_str!("../../../fixtures/expected/cube_10mm_step.json");
 const INDEPENDENT_STEP: &str =
@@ -23,6 +25,8 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         .expect("binary closed fixture expectation must be valid");
     let three_mf: GeometryFixtureExpectation =
         serde_json::from_str(THREE_MF).expect("3MF fixture expectation must be valid");
+    let component_three_mf: GeometryFixtureExpectation = serde_json::from_str(COMPONENT_THREE_MF)
+        .expect("component 3MF fixture expectation must be valid");
     let step: GeometryFixtureExpectation =
         serde_json::from_str(STEP).expect("STEP fixture expectation must be valid");
     let independent_step: GeometryFixtureExpectation = serde_json::from_str(INDEPENDENT_STEP)
@@ -32,6 +36,7 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert_eq!(open.fixture_id(), "FIX-MESH-002");
     assert_eq!(binary_closed.fixture_id(), "FIX-MESH-003");
     assert_eq!(three_mf.fixture_id(), "FIX-MESH-004");
+    assert_eq!(component_three_mf.fixture_id(), "FIX-MESH-005");
     assert_eq!(step.fixture_id(), "FIX-STEP-001");
     assert_eq!(independent_step.fixture_id(), "FIX-STEP-003");
     assert_eq!(closed.representation(), RepresentationBasis::Mesh);
@@ -50,6 +55,14 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert_eq!(three_mf.representation(), RepresentationBasis::Mesh);
     assert!(matches!(
         three_mf.enclosed_volume_mm3(),
+        ExpectedEvidence::Available { .. }
+    ));
+    assert_eq!(
+        component_three_mf.representation(),
+        RepresentationBasis::Mesh
+    );
+    assert!(matches!(
+        component_three_mf.enclosed_volume_mm3(),
         ExpectedEvidence::Available { .. }
     ));
     assert_eq!(step.representation(), RepresentationBasis::ExactBrep);

@@ -99,7 +99,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v1
-      parser: partprobe-3mf-spike-v1
+      parser: partprobe-3mf-spike-v2
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -108,6 +108,8 @@ fixtures:
       max_model_xml_bytes: 32768
       max_vertices: 100
       max_triangles: 1000
+      max_objects: 2
+      max_components: 1
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -121,6 +123,44 @@ fixtures:
       - canonical_aabb_volume_area_centroid_golden
     expected: expected/cube_1cm_translated_3mf.json
     sha256: 7912de2a58d93dafcb9196c0f443de4066d9f2a9939f4d5e1b4f7899e53f8d38
+  - id: FIX-MESH-005
+    title: Closed 1 cm synthetic 3MF cube with component and build transforms
+    path: models/cube_1cm_component_scaled_translated.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm
+    declared_units: cm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v2
+      parser: partprobe-3mf-spike-v2
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-007, GEO-010, TEST-003, TEST-025]
+    purpose:
+      - 3mf_component_reference_validation
+      - component_then_build_transform_order
+      - declared_centimeter_conversion
+      - closed_mesh_validation
+      - canonical_aabb_volume_area_centroid_golden
+    expected: expected/cube_1cm_component_scaled_translated_3mf.json
+    sha256: 00f90432983d63c7f5e55b8ccd452977a7c15dbfdb4f9a8fadc39b0ad0654696
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -216,7 +256,7 @@ fixtures:
     sha256: a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138
 required_next:
   - independent_non_project_cad_tool_step
-  - 3mf_all_units_components_and_unsafe_archive_corpus
+  - 3mf_all_units_metadata_and_unsafe_archive_corpus
   - expanded_malformed_and_resource_limit_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts

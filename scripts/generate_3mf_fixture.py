@@ -14,6 +14,9 @@ from generate_binary_stl_fixture import parse_ascii_triangles
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "fixtures" / "models" / "cube_10mm_ascii.stl"
 OUTPUT = ROOT / "fixtures" / "models" / "cube_1cm_translated.3mf"
+COMPONENT_OUTPUT = (
+    ROOT / "fixtures" / "models" / "cube_1cm_component_scaled_translated.3mf"
+)
 FIXED_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
 
 
@@ -62,7 +65,28 @@ def build_model_xml(source: bytes) -> bytes:
 '''.encode("utf-8")
 
 
-def package_parts(source: bytes) -> tuple[tuple[str, bytes], ...]:
+def build_component_model_xml(source: bytes) -> bytes:
+    """Wrap the governed mesh in one scaled/translated component object."""
+    direct = build_model_xml(source).decode("utf-8")
+    component_object = '''    <object id="2" type="model">
+      <components>
+        <component objectid="1" transform="2 0 0 0 1 0 0 0 1 1 2 3" />
+      </components>
+    </object>
+'''
+    model = direct.replace(
+        "  </resources>\n  <build>",
+        f"{component_object}  </resources>\n  <build>",
+    ).replace(
+        '<item objectid="1" transform="1 0 0 0 1 0 0 0 1 2 3 4" />',
+        '<item objectid="2" transform="1 0 0 0 1 0 0 0 1 4 5 6" />',
+    )
+    return model.encode("utf-8")
+
+
+def package_parts(
+    source: bytes, *, component: bool = False
+) -> tuple[tuple[str, bytes], ...]:
     """Return the exact ordered OPC parts used by the governed fixture."""
     content_types = b'''<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -77,7 +101,10 @@ def package_parts(source: bytes) -> tuple[tuple[str, bytes], ...]:
     return (
         ("[Content_Types].xml", content_types),
         ("_rels/.rels", relationships),
-        ("3D/3dmodel.model", build_model_xml(source)),
+        (
+            "3D/3dmodel.model",
+            build_component_model_xml(source) if component else build_model_xml(source),
+        ),
     )
 
 
@@ -94,11 +121,38 @@ def build_3mf(source: bytes) -> bytes:
     return output.getvalue()
 
 
+def build_component_3mf(source: bytes) -> bytes:
+    """Create deterministic bytes for the governed component-transform fixture."""
+    output = BytesIO()
+    with zipfile.ZipFile(output, "w") as package:
+        for name, contents in package_parts(source, component=True):
+            info = zipfile.ZipInfo(name, FIXED_TIMESTAMP)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3
+            info.external_attr = 0o100644 << 16
+            package.writestr(
+                info,
+                contents,
+                compress_type=zipfile.ZIP_DEFLATED,
+                compresslevel=9,
+            )
+    return output.getvalue()
+
+
 def check_fixture(source_path: Path = SOURCE, output_path: Path = OUTPUT) -> None:
     """Fail when the committed 3MF fixture differs from deterministic output."""
     expected = build_3mf(source_path.read_bytes())
     if not output_path.is_file() or output_path.read_bytes() != expected:
         raise RuntimeError("3MF fixture is missing or not reproducible")
+
+
+def check_component_fixture(
+    source_path: Path = SOURCE, output_path: Path = COMPONENT_OUTPUT
+) -> None:
+    """Fail when the committed component fixture differs from deterministic output."""
+    expected = build_component_3mf(source_path.read_bytes())
+    if not output_path.is_file() or output_path.read_bytes() != expected:
+        raise RuntimeError("component 3MF fixture is missing or not reproducible")
 
 
 def main() -> int:
@@ -110,10 +164,13 @@ def main() -> int:
     )
     args = parser.parse_args()
     expected = build_3mf(SOURCE.read_bytes())
+    component_expected = build_component_3mf(SOURCE.read_bytes())
     if args.write:
         OUTPUT.write_bytes(expected)
+        COMPONENT_OUTPUT.write_bytes(component_expected)
     else:
         check_fixture()
+        check_component_fixture()
     return 0
 
 

@@ -32,6 +32,24 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
 
     def test_committed_package_is_reproducible(self) -> None:
         generate_3mf_fixture.check_fixture()
+        generate_3mf_fixture.check_component_fixture()
+
+    def test_component_package_has_exact_governed_transform_chain(self) -> None:
+        generated = generate_3mf_fixture.build_component_3mf(
+            generate_3mf_fixture.SOURCE.read_bytes()
+        )
+        with zipfile.ZipFile(BytesIO(generated)) as package:
+            model = package.read("3D/3dmodel.model")
+        self.assertEqual(model.count(b"<object "), 2)
+        self.assertEqual(model.count(b"<component "), 1)
+        self.assertIn(
+            b'transform="2 0 0 0 1 0 0 0 1 1 2 3"',
+            model,
+        )
+        self.assertIn(
+            b'objectid="2" transform="1 0 0 0 1 0 0 0 1 4 5 6"',
+            model,
+        )
 
     def test_check_rejects_changed_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -39,6 +57,12 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             changed.write_bytes(b"not the governed fixture")
             with self.assertRaisesRegex(RuntimeError, "not reproducible"):
                 generate_3mf_fixture.check_fixture(
+                    generate_3mf_fixture.SOURCE,
+                    changed,
+                )
+
+            with self.assertRaisesRegex(RuntimeError, "not reproducible"):
+                generate_3mf_fixture.check_component_fixture(
                     generate_3mf_fixture.SOURCE,
                     changed,
                 )

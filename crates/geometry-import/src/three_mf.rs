@@ -18,8 +18,8 @@ use crate::mesh_analysis::{
     validate_triangle,
 };
 
-/// Versioned algorithm identity for the first governed 3MF comparison slice.
-pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v1";
+/// Versioned algorithm identity for the governed direct/component 3MF comparison slice.
+pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v2";
 
 const CONTENT_TYPES_PART: &str = "[Content_Types].xml";
 const ROOT_RELATIONSHIPS_PART: &str = "_rels/.rels";
@@ -40,11 +40,13 @@ pub struct ThreeMfLimits {
     max_model_xml_bytes: usize,
     max_vertices: usize,
     max_triangles: usize,
+    max_objects: usize,
+    max_components: usize,
     max_compression_ratio: u64,
 }
 
 impl ThreeMfLimits {
-    /// Constructs strictly positive archive, XML, and mesh limits.
+    /// Constructs strictly positive archive, XML, mesh, object, and component limits.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         max_input_bytes: usize,
@@ -53,6 +55,8 @@ impl ThreeMfLimits {
         max_model_xml_bytes: usize,
         max_vertices: usize,
         max_triangles: usize,
+        max_objects: usize,
+        max_components: usize,
         max_compression_ratio: u64,
     ) -> Result<Self, ThreeMfError> {
         if max_input_bytes == 0
@@ -61,6 +65,8 @@ impl ThreeMfLimits {
             || max_model_xml_bytes == 0
             || max_vertices == 0
             || max_triangles == 0
+            || max_objects == 0
+            || max_components == 0
             || max_compression_ratio == 0
         {
             return Err(ThreeMfError::InvalidLimits);
@@ -72,6 +78,8 @@ impl ThreeMfLimits {
             max_model_xml_bytes,
             max_vertices,
             max_triangles,
+            max_objects,
+            max_components,
             max_compression_ratio,
         })
     }
@@ -88,6 +96,11 @@ pub struct ThreeMfMeshEvidence {
     unit_was_explicit: bool,
     mesh_object_count: usize,
     mesh_object_id: u32,
+    component_object_count: usize,
+    component_object_id: Option<u32>,
+    component_mesh_object_id: Option<u32>,
+    component_transform_source_units: Option<[f64; 12]>,
+    component_transform_applied: bool,
     build_item_count: usize,
     build_object_id: u32,
     build_transform_source_units: [f64; 12],
@@ -140,16 +153,46 @@ impl ThreeMfMeshEvidence {
         self.unit_was_explicit
     }
 
-    /// Returns the direct mesh-object count retained by this slice.
+    /// Returns the leaf mesh-object count retained by this slice.
     #[must_use]
     pub const fn mesh_object_count(&self) -> usize {
         self.mesh_object_count
     }
 
-    /// Returns the direct mesh object's package-local ID.
+    /// Returns the leaf mesh object's package-local ID.
     #[must_use]
     pub const fn mesh_object_id(&self) -> u32 {
         self.mesh_object_id
+    }
+
+    /// Returns the component-object count retained by this bounded slice.
+    #[must_use]
+    pub const fn component_object_count(&self) -> usize {
+        self.component_object_count
+    }
+
+    /// Returns the optional component object's package-local ID.
+    #[must_use]
+    pub const fn component_object_id(&self) -> Option<u32> {
+        self.component_object_id
+    }
+
+    /// Returns the mesh-object ID referenced by the optional component.
+    #[must_use]
+    pub const fn component_mesh_object_id(&self) -> Option<u32> {
+        self.component_mesh_object_id
+    }
+
+    /// Returns the optional component's exact 3MF row-vector transform in source units.
+    #[must_use]
+    pub const fn component_transform_source_units(&self) -> Option<[f64; 12]> {
+        self.component_transform_source_units
+    }
+
+    /// Returns whether a non-identity component transform was applied.
+    #[must_use]
+    pub const fn component_transform_applied(&self) -> bool {
+        self.component_transform_applied
     }
 
     /// Returns the build-item count retained by this slice.
@@ -250,12 +293,14 @@ pub enum ThreeMfError {
     InvalidXml,
     /// The model requires an extension this slice does not implement.
     UnsupportedRequiredExtension,
-    /// The package uses a valid 3MF structure outside this slice's direct-mesh contract.
+    /// The package uses a 3MF structure outside this slice's bounded object contract.
     UnsupportedModelStructure,
     /// The model unit was not a supported 3MF core unit.
     UnsupportedUnit,
     /// A numeric token was invalid or non-finite.
     InvalidNumber,
+    /// A transform was singular or reflected geometry outside this slice's policy.
+    UnsupportedTransform,
     /// A vertex or triangle count exceeded its explicit limit.
     EntityLimitExceeded,
     /// A triangle had effectively zero area.
@@ -280,6 +325,7 @@ impl ThreeMfError {
             Self::UnsupportedModelStructure => "THREE_MF_UNSUPPORTED_MODEL_STRUCTURE",
             Self::UnsupportedUnit => "THREE_MF_UNSUPPORTED_UNIT",
             Self::InvalidNumber => "THREE_MF_INVALID_NUMBER",
+            Self::UnsupportedTransform => "THREE_MF_UNSUPPORTED_TRANSFORM",
             Self::EntityLimitExceeded => "THREE_MF_ENTITY_LIMIT_EXCEEDED",
             Self::DegenerateTriangle => "THREE_MF_DEGENERATE_TRIANGLE",
             Self::EmptyMesh => "THREE_MF_EMPTY_MESH",
@@ -318,15 +364,26 @@ impl Transform {
     fn is_identity(self) -> bool {
         self.0 == Self::IDENTITY.0
     }
+
+    fn has_positive_determinant(self) -> bool {
+        let matrix = self.0;
+        let determinant = matrix[0] * (matrix[4] * matrix[8] - matrix[5] * matrix[7])
+            - matrix[1] * (matrix[3] * matrix[8] - matrix[5] * matrix[6])
+            + matrix[2] * (matrix[3] * matrix[7] - matrix[4] * matrix[6]);
+        determinant.is_finite() && determinant > 0.0
+    }
 }
 
 #[derive(Debug)]
 struct ParsedModel {
     source_units: ModelLengthUnit,
     unit_was_explicit: bool,
-    object_id: u32,
+    mesh_object_id: u32,
     vertices: Vec<MeshVector3>,
     triangle_indices: Vec<[usize; 3]>,
+    component_object_id: Option<u32>,
+    component_mesh_object_id: Option<u32>,
+    component_transform: Option<Transform>,
     build_object_id: u32,
     build_transform: Transform,
 }
@@ -354,7 +411,8 @@ pub fn analyze_3mf(
     require_model_content_type(&content_types, &model_part)?;
     let model_xml = read_part(&mut archive, &model_part, limits.max_model_xml_bytes)?;
     let parsed = parse_model(&model_xml, limits)?;
-    if parsed.object_id != parsed.build_object_id {
+    let expected_build_object_id = parsed.component_object_id.unwrap_or(parsed.mesh_object_id);
+    if expected_build_object_id != parsed.build_object_id {
         return Err(ThreeMfError::UnsupportedModelStructure);
     }
 
@@ -368,9 +426,13 @@ pub fn analyze_3mf(
                 .get(source_index)
                 .copied()
                 .ok_or(ThreeMfError::UnsupportedModelStructure)?;
+            let component_transformed = match parsed.component_transform {
+                Some(transform) => transform.apply(source)?,
+                None => source,
+            };
             *target = parsed
                 .build_transform
-                .apply(source)?
+                .apply(component_transformed)?
                 .scale(millimetres_per_unit);
         }
         let triangle = Triangle(vertices);
@@ -391,7 +453,14 @@ pub fn analyze_3mf(
         unit_resolution: UnitResolutionMethod::Declared,
         unit_was_explicit: parsed.unit_was_explicit,
         mesh_object_count: 1,
-        mesh_object_id: parsed.object_id,
+        mesh_object_id: parsed.mesh_object_id,
+        component_object_count: usize::from(parsed.component_object_id.is_some()),
+        component_object_id: parsed.component_object_id,
+        component_mesh_object_id: parsed.component_mesh_object_id,
+        component_transform_source_units: parsed.component_transform.map(|transform| transform.0),
+        component_transform_applied: parsed
+            .component_transform
+            .is_some_and(|transform| !transform.is_identity()),
         build_item_count: 1,
         build_object_id: parsed.build_object_id,
         build_transform_source_units: parsed.build_transform.0,
@@ -657,15 +726,23 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
     let mut stack = Vec::<Vec<u8>>::new();
     let mut source_units = ModelLengthUnit::Millimeter;
     let mut unit_was_explicit = false;
-    let mut object_id = None;
+    let mut object_count = 0_usize;
+    let mut current_object_id = None;
+    let mut mesh_object_id = None;
     let mut vertices = Vec::new();
     let mut triangle_indices = Vec::new();
+    let mut component_object_id = None;
+    let mut component_mesh_object_id = None;
+    let mut component_transform = None;
+    let mut component_count = 0_usize;
     let mut build_object_id = None;
     let mut build_transform = Transform::IDENTITY;
     let mut resources_closed = false;
     let mut mesh_seen = false;
     let mut vertices_closed = false;
     let mut triangles_closed = false;
+    let mut components_seen = false;
+    let mut components_closed = false;
     let mut build_seen = false;
     let mut model_closed = false;
 
@@ -699,16 +776,43 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
                     (b"resources", Some(b"model")) if !resources_closed => {
                         require_only_model_attributes(&element, &[])?;
                     }
-                    (b"object", Some(b"resources")) if object_id.is_none() => {
+                    (b"object", Some(b"resources")) if current_object_id.is_none() => {
+                        if object_count == limits.max_objects {
+                            return Err(ThreeMfError::EntityLimitExceeded);
+                        }
+                        if object_count > 1 {
+                            return Err(ThreeMfError::UnsupportedModelStructure);
+                        }
+                        if object_count == 1
+                            && (!mesh_seen
+                                || !vertices_closed
+                                || !triangles_closed
+                                || vertices.is_empty()
+                                || triangle_indices.is_empty())
+                        {
+                            return Err(ThreeMfError::UnsupportedModelStructure);
+                        }
                         require_only_model_attributes(&element, &[b"id", b"type"])?;
                         if optional_attribute(&element, b"type")?
                             .is_some_and(|value| value != "model")
                         {
                             return Err(ThreeMfError::UnsupportedModelStructure);
                         }
-                        object_id = Some(parse_object_id_attribute(&element, b"id")?);
+                        let id = parse_object_id_attribute(&element, b"id")?;
+                        if mesh_object_id == Some(id) {
+                            return Err(ThreeMfError::UnsupportedModelStructure);
+                        }
+                        if object_count == 0 {
+                            mesh_object_id = Some(id);
+                        } else {
+                            component_object_id = Some(id);
+                        }
+                        current_object_id = Some(id);
+                        object_count += 1;
                     }
-                    (b"mesh", Some(b"object")) if !mesh_seen => {
+                    (b"mesh", Some(b"object"))
+                        if current_object_id == mesh_object_id && !mesh_seen =>
+                    {
                         require_only_model_attributes(&element, &[])?;
                         mesh_seen = true;
                     }
@@ -740,6 +844,31 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
                             parse_usize_attribute(&element, b"v3")?,
                         ]);
                     }
+                    (b"components", Some(b"object"))
+                        if current_object_id == component_object_id && !components_seen =>
+                    {
+                        require_only_model_attributes(&element, &[])?;
+                        components_seen = true;
+                    }
+                    (b"component", Some(b"components")) => {
+                        if component_count == limits.max_components {
+                            return Err(ThreeMfError::EntityLimitExceeded);
+                        }
+                        if component_count != 0 {
+                            return Err(ThreeMfError::UnsupportedModelStructure);
+                        }
+                        require_only_model_attributes(&element, &[b"objectid", b"transform"])?;
+                        let referenced_id = parse_object_id_attribute(&element, b"objectid")?;
+                        if Some(referenced_id) != mesh_object_id {
+                            return Err(ThreeMfError::UnsupportedModelStructure);
+                        }
+                        component_mesh_object_id = Some(referenced_id);
+                        component_transform = Some(
+                            optional_attribute(&element, b"transform")?
+                                .map_or(Ok(Transform::IDENTITY), |value| parse_transform(&value))?,
+                        );
+                        component_count += 1;
+                    }
                     (b"build", Some(b"model")) if resources_closed && !build_seen => {
                         require_only_model_attributes(&element, &[])?;
                         build_seen = true;
@@ -763,6 +892,8 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
                 match expected.as_slice() {
                     b"vertices" => vertices_closed = true,
                     b"triangles" => triangles_closed = true,
+                    b"components" => components_closed = true,
+                    b"object" => current_object_id = None,
                     b"resources" => resources_closed = true,
                     b"model" => model_closed = true,
                     _ => {}
@@ -784,19 +915,37 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
         || !vertices_closed
         || !triangles_closed
         || !build_seen
-        || object_id.is_none()
+        || mesh_object_id.is_none()
         || build_object_id.is_none()
         || vertices.is_empty()
         || triangle_indices.is_empty()
+        || !matches!(object_count, 1 | 2)
+        || (object_count == 1
+            && (components_seen
+                || components_closed
+                || component_object_id.is_some()
+                || component_mesh_object_id.is_some()
+                || component_transform.is_some()
+                || component_count != 0))
+        || (object_count == 2
+            && (!components_seen
+                || !components_closed
+                || component_object_id.is_none()
+                || component_mesh_object_id.is_none()
+                || component_transform.is_none()
+                || component_count != 1))
     {
         return Err(ThreeMfError::UnsupportedModelStructure);
     }
     Ok(ParsedModel {
         source_units,
         unit_was_explicit,
-        object_id: object_id.expect("checked above"),
+        mesh_object_id: mesh_object_id.expect("checked above"),
         vertices,
         triangle_indices,
+        component_object_id,
+        component_mesh_object_id,
+        component_transform,
         build_object_id: build_object_id.expect("checked above"),
         build_transform,
     })
@@ -910,7 +1059,7 @@ fn parse_object_id_attribute(element: &BytesStart<'_>, name: &[u8]) -> Result<u3
     let value = required_attribute(element, name)?
         .parse()
         .map_err(|_| ThreeMfError::InvalidNumber)?;
-    if value == 0 {
+    if value == 0 || value > i32::MAX as u32 {
         Err(ThreeMfError::InvalidNumber)
     } else {
         Ok(value)
@@ -944,7 +1093,12 @@ fn parse_transform(value: &str) -> Result<Transform, ThreeMfError> {
         .map(parse_f64)
         .collect::<Result<Vec<_>, _>>()?;
     let matrix: [f64; 12] = values.try_into().map_err(|_| ThreeMfError::InvalidNumber)?;
-    Ok(Transform(matrix))
+    let transform = Transform(matrix);
+    if transform.has_positive_determinant() {
+        Ok(transform)
+    } else {
+        Err(ThreeMfError::UnsupportedTransform)
+    }
 }
 
 const fn map_mesh_error(error: MeshAnalysisError) -> ThreeMfError {
