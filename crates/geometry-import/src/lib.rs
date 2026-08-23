@@ -1,5 +1,12 @@
 //! Versioned, path-free protocol for the isolated geometry worker.
 
+mod ascii_stl;
+
+pub use ascii_stl::{
+    ASCII_STL_ANALYZER_VERSION, AsciiStlError, AsciiStlLimits, AsciiStlMeshEvidence, MeshVector3,
+    analyze_ascii_stl,
+};
+
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};

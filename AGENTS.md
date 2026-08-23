@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-16
+> **Last updated:** 2026-08-22
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -84,6 +84,7 @@ These rules are mandatory for every person or agent changing this repository.
 72. Tests for helpers that accept an absolute monotonic deadline must control the monotonic clock and pass a demonstrably later deadline. Never use a small numeric literal as an absolute deadline because runner uptime can make it already expired.
 73. Cross-platform tests must construct absolute paths with the current host's path semantics unless they are explicitly testing a named foreign path grammar. A POSIX leading slash is not a Windows absolute path.
 74. When a live accessibility tree can change during polling, classify expected, wrong, and ambiguous state from one traversal snapshot per iteration. Do not make a fail-fast decision by comparing separate traversals whose state may differ.
+75. The TASK-004 ASCII STL analyzer reports unresolved source-coordinate evidence only. Do not infer physical units, expose closed volume/centroid for open or inconsistently wound meshes, or promote exact fixture-edge matching into a production welding/tolerance policy.
 
 ## Documentation protocol
 

@@ -12,9 +12,12 @@ fixtures:
     declared_units: null
     canonical_units_after_confirmation: mm
     analysis_profile: bootstrap_geometry_v0
-    algorithm_versions: null
+    algorithm_versions:
+      parser: partprobe-ascii-stl-spike-v1
     expected_worker_outcome: succeeded_with_warnings
-    resource_ceiling: null
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
     owner: unassigned
     recorded_date: 2026-07-22
     reviewed_date: null
@@ -37,9 +40,12 @@ fixtures:
     declared_units: null
     canonical_units_after_confirmation: mm
     analysis_profile: bootstrap_geometry_v0
-    algorithm_versions: null
+    algorithm_versions:
+      parser: partprobe-ascii-stl-spike-v1
     expected_worker_outcome: succeeded_with_warnings_no_closed_volume
-    resource_ceiling: null
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
     owner: unassigned
     recorded_date: 2026-07-22
     reviewed_date: null

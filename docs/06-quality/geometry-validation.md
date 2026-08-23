@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-08-11
+- **Last updated:** 2026-08-22
 - **Related requirement IDs:** GEO-001–GEO-014, REQ-NF-011–REQ-NF-014, TEST-021–TEST-030, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Reviewed tolerance table by format/property? Fixture-owner assignments? Release resource budgets?
@@ -15,6 +15,8 @@
 Prove that geometry claims are reproducible, correctly labelled by representation, and fail safely. Tests validate the analysis contract—not that any imported model is manufacturing-complete or that a kernel’s result is absolute truth.
 
 Current TASK-003 evidence includes analytic STEP measurements on Apple Silicon and Ubuntu 24.04 x86_64. The Ubuntu checkpoint constructs the exact pinned kernel, verifies the runtime/link closure, and passes the governed prism through the configured desktop host under Linux parser containment. That is one cross-platform comparison point, not the three-OS corpus, tolerance scorecard, packaging result, or production importer acceptance required below.
+
+Current TASK-004 evidence adds a path-free, quota-bounded ASCII STL comparison analyzer over the two public synthetic mesh fixtures. It reports triangle count, source-coordinate bounds/area, manifold/closure/winding state, and only reports enclosed volume/centroid for the closed consistently wound case. Units remain explicitly unresolved and diagnostics are sanitized. Binary STL, 3MF, self-intersection policy, approximate-confidence scoring, desktop integration, representative geometry, and supported-importer acceptance remain open; see `task-004-validation.md`.
 
 ## Validation layers
 

@@ -1,12 +1,20 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-16
+> **Last updated:** 2026-08-22
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-22 — TASK-004 bounded ASCII STL comparison checkpoint
+
+- Added the dependency-free `partprobe-ascii-stl-spike-v1` analyzer over already-authorized in-memory bytes. Explicit positive byte/triangle limits bound the parser; failures return sanitized content-free codes; units remain `Unknown`/`Unresolved`; and results remain mesh evidence rather than exact solid topology.
+- Reproduced the governed closed cube's 12 triangles, 10 × 10 × 10 source-coordinate extents, 600 area, 1,000 closed volume, and `(5, 5, 5)` centroid. Reproduced the open cube's 10 triangles and 500 area while keeping volume/centroid unavailable and emitting open-boundary evidence. Both retain the required unit-confirmation and non-B-rep warnings.
+- Added four regressions covering the two fixtures, deterministic warnings, byte/triangle quotas, malformed/empty/non-finite input, degenerate geometry, and aggregate numeric overflow. Focused tests and strict geometry-import Clippy pass. Binary STL, 3MF, self-intersection/confidence policy, worker/desktop integration, and representative corpus acceptance remain open, so TASK-004 is In Progress rather than Complete.
+- Updated fixture algorithm/resource metadata, the fixture and geometry strategies, requirements traceability, agent guidance, backlog, documentation index, and project state. No dependency, calculation behavior, persisted/customer schema, production rate, external transfer, or support/compliance claim changed.
+- Three-OS Rust CI run 32607097776 passes the preceding portable accessibility corrections at `dce0fde`. Short Linux package run 32607101403 then passes the exact feature-off Debian payload, real XDG-portal picker, complete-path governed-prism selection, exact app-owned label, chooser closure, Analyze exposure, bounded launch, and unchanged checkout. That success unblocks and starts full native OCCT package run 32607742609; its result will be reviewed later without waiting live.
 
 ## 2026-08-16 — Linux packaged GUI semantic selection correction
 
