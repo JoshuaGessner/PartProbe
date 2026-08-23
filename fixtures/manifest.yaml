@@ -99,7 +99,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v1
-      parser: partprobe-3mf-spike-v2
+      parser: partprobe-3mf-spike-v3
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -110,6 +110,7 @@ fixtures:
       max_triangles: 1000
       max_objects: 2
       max_components: 1
+      max_model_metadata: 8
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -137,7 +138,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v2
-      parser: partprobe-3mf-spike-v2
+      parser: partprobe-3mf-spike-v3
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -148,6 +149,7 @@ fixtures:
       max_triangles: 1000
       max_objects: 2
       max_components: 1
+      max_model_metadata: 8
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -175,7 +177,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v2
+      parser: partprobe-3mf-spike-v3
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -186,6 +188,7 @@ fixtures:
       max_triangles: 1000
       max_objects: 2
       max_components: 1
+      max_model_metadata: 8
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -208,7 +211,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v2
+      parser: partprobe-3mf-spike-v3
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -219,6 +222,7 @@ fixtures:
       max_triangles: 1000
       max_objects: 2
       max_components: 1
+      max_model_metadata: 8
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -241,7 +245,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v2
+      parser: partprobe-3mf-spike-v3
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -252,6 +256,7 @@ fixtures:
       max_triangles: 1000
       max_objects: 2
       max_components: 1
+      max_model_metadata: 8
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -274,7 +279,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v2
+      parser: partprobe-3mf-spike-v3
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -285,6 +290,7 @@ fixtures:
       max_triangles: 1000
       max_objects: 2
       max_components: 1
+      max_model_metadata: 8
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -307,7 +313,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v2
+      parser: partprobe-3mf-spike-v3
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -318,6 +324,7 @@ fixtures:
       max_triangles: 1000
       max_objects: 2
       max_components: 1
+      max_model_metadata: 8
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -340,7 +347,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v2
+      parser: partprobe-3mf-spike-v3
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -351,6 +358,7 @@ fixtures:
       max_triangles: 1000
       max_objects: 2
       max_components: 1
+      max_model_metadata: 8
       max_compression_ratio: 100
     owner: unassigned
     recorded_date: 2026-08-22
@@ -359,6 +367,44 @@ fixtures:
     purpose: [3mf_persisted_unit_corpus, normative_default_millimeter, canonical_mesh_golden]
     expected: expected/cube_10mm_3mf_default_mm.json
     sha256: b0e4df466063086e2c3184938ddfb0efd008ef8026e2863831063e2d0f6cb582
+  - id: FIX-MESH-012
+    title: Closed synthetic 3MF cube with bounded Core metadata
+    path: models/cube_10mm_3mf_metadata.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_mm
+    declared_units: mm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v4
+      parser: partprobe-3mf-spike-v3
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - 3mf_core_model_metadata
+      - metadata_limit_and_duplicate_rejection
+      - metadata_content_redaction
+      - canonical_mesh_golden
+    expected: expected/cube_10mm_3mf_metadata.json
+    sha256: 9ae666ac4f7e7fba0ad525e558e168cdd27d691c61d62d474a7a648985aeb6a9
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -454,7 +500,7 @@ fixtures:
     sha256: a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138
 required_next:
   - independent_non_project_cad_tool_step
-  - 3mf_component_graph_metadata_and_unsafe_archive_corpus
+  - 3mf_component_graph_object_item_vendor_metadata_and_unsafe_archive_corpus
   - expanded_malformed_and_resource_limit_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts

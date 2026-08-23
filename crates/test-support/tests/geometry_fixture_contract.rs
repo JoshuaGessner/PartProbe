@@ -8,6 +8,8 @@ const BINARY_CLOSED: &str = include_str!("../../../fixtures/expected/cube_10mm_b
 const THREE_MF: &str = include_str!("../../../fixtures/expected/cube_1cm_translated_3mf.json");
 const COMPONENT_THREE_MF: &str =
     include_str!("../../../fixtures/expected/cube_1cm_component_scaled_translated_3mf.json");
+const METADATA_THREE_MF: &str =
+    include_str!("../../../fixtures/expected/cube_10mm_3mf_metadata.json");
 const THREE_MF_UNITS: [(&str, &str); 6] = [
     (
         include_str!("../../../fixtures/expected/cube_10mm_3mf_micron.json"),
@@ -53,6 +55,8 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         serde_json::from_str(THREE_MF).expect("3MF fixture expectation must be valid");
     let component_three_mf: GeometryFixtureExpectation = serde_json::from_str(COMPONENT_THREE_MF)
         .expect("component 3MF fixture expectation must be valid");
+    let metadata_three_mf: GeometryFixtureExpectation = serde_json::from_str(METADATA_THREE_MF)
+        .expect("metadata 3MF fixture expectation must be valid");
     let step: GeometryFixtureExpectation =
         serde_json::from_str(STEP).expect("STEP fixture expectation must be valid");
     let independent_step: GeometryFixtureExpectation = serde_json::from_str(INDEPENDENT_STEP)
@@ -63,6 +67,7 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert_eq!(binary_closed.fixture_id(), "FIX-MESH-003");
     assert_eq!(three_mf.fixture_id(), "FIX-MESH-004");
     assert_eq!(component_three_mf.fixture_id(), "FIX-MESH-005");
+    assert_eq!(metadata_three_mf.fixture_id(), "FIX-MESH-012");
     assert_eq!(step.fixture_id(), "FIX-STEP-001");
     assert_eq!(independent_step.fixture_id(), "FIX-STEP-003");
     assert_eq!(closed.representation(), RepresentationBasis::Mesh);
@@ -89,6 +94,14 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     );
     assert!(matches!(
         component_three_mf.enclosed_volume_mm3(),
+        ExpectedEvidence::Available { .. }
+    ));
+    assert_eq!(
+        metadata_three_mf.representation(),
+        RepresentationBasis::Mesh
+    );
+    assert!(matches!(
+        metadata_three_mf.enclosed_volume_mm3(),
         ExpectedEvidence::Available { .. }
     ));
     for (source, fixture_id) in THREE_MF_UNITS {

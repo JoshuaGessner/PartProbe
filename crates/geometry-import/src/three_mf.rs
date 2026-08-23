@@ -18,8 +18,8 @@ use crate::mesh_analysis::{
     validate_triangle,
 };
 
-/// Versioned algorithm identity for the governed direct/component 3MF comparison slice.
-pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v2";
+/// Versioned algorithm identity for the governed direct/component/metadata 3MF slice.
+pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v3";
 
 const CONTENT_TYPES_PART: &str = "[Content_Types].xml";
 const ROOT_RELATIONSHIPS_PART: &str = "_rels/.rels";
@@ -42,11 +42,12 @@ pub struct ThreeMfLimits {
     max_triangles: usize,
     max_objects: usize,
     max_components: usize,
+    max_model_metadata: usize,
     max_compression_ratio: u64,
 }
 
 impl ThreeMfLimits {
-    /// Constructs strictly positive archive, XML, mesh, object, and component limits.
+    /// Constructs strictly positive archive, XML, mesh, object, component, and metadata limits.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         max_input_bytes: usize,
@@ -57,6 +58,7 @@ impl ThreeMfLimits {
         max_triangles: usize,
         max_objects: usize,
         max_components: usize,
+        max_model_metadata: usize,
         max_compression_ratio: u64,
     ) -> Result<Self, ThreeMfError> {
         if max_input_bytes == 0
@@ -67,6 +69,7 @@ impl ThreeMfLimits {
             || max_triangles == 0
             || max_objects == 0
             || max_components == 0
+            || max_model_metadata == 0
             || max_compression_ratio == 0
         {
             return Err(ThreeMfError::InvalidLimits);
@@ -80,6 +83,7 @@ impl ThreeMfLimits {
             max_triangles,
             max_objects,
             max_components,
+            max_model_metadata,
             max_compression_ratio,
         })
     }
@@ -94,6 +98,8 @@ pub struct ThreeMfMeshEvidence {
     source_units: ModelLengthUnit,
     unit_resolution: UnitResolutionMethod,
     unit_was_explicit: bool,
+    model_metadata_count: usize,
+    preserved_model_metadata_count: usize,
     mesh_object_count: usize,
     mesh_object_id: u32,
     component_object_count: usize,
@@ -151,6 +157,18 @@ impl ThreeMfMeshEvidence {
     #[must_use]
     pub const fn unit_was_explicit(&self) -> bool {
         self.unit_was_explicit
+    }
+
+    /// Returns the count of bounded model-level metadata entries observed without retaining text.
+    #[must_use]
+    pub const fn model_metadata_count(&self) -> usize {
+        self.model_metadata_count
+    }
+
+    /// Returns how many model-level metadata entries requested preservation.
+    #[must_use]
+    pub const fn preserved_model_metadata_count(&self) -> usize {
+        self.preserved_model_metadata_count
     }
 
     /// Returns the leaf mesh-object count retained by this slice.
@@ -378,6 +396,8 @@ impl Transform {
 struct ParsedModel {
     source_units: ModelLengthUnit,
     unit_was_explicit: bool,
+    model_metadata_count: usize,
+    preserved_model_metadata_count: usize,
     mesh_object_id: u32,
     vertices: Vec<MeshVector3>,
     triangle_indices: Vec<[usize; 3]>,
@@ -444,7 +464,10 @@ pub fn analyze_3mf(
     }
 
     let analysis = analyze_triangles(&triangles).map_err(map_mesh_error)?;
-    let warnings = mesh_warning_codes(&analysis);
+    let mut warnings = mesh_warning_codes(&analysis);
+    if parsed.model_metadata_count > 0 {
+        warnings.push(warning("THREE_MF_METADATA_NOT_INTERPRETED"));
+    }
     Ok(ThreeMfMeshEvidence {
         algorithm_version: THREE_MF_ANALYZER_VERSION,
         detected_format: ModelFormat::ThreeMf,
@@ -452,6 +475,8 @@ pub fn analyze_3mf(
         source_units: parsed.source_units,
         unit_resolution: UnitResolutionMethod::Declared,
         unit_was_explicit: parsed.unit_was_explicit,
+        model_metadata_count: parsed.model_metadata_count,
+        preserved_model_metadata_count: parsed.preserved_model_metadata_count,
         mesh_object_count: 1,
         mesh_object_id: parsed.mesh_object_id,
         component_object_count: usize::from(parsed.component_object_id.is_some()),
@@ -726,6 +751,9 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
     let mut stack = Vec::<Vec<u8>>::new();
     let mut source_units = ModelLengthUnit::Millimeter;
     let mut unit_was_explicit = false;
+    let mut model_metadata_names = BTreeSet::new();
+    let mut model_metadata_count = 0_usize;
+    let mut preserved_model_metadata_count = 0_usize;
     let mut object_count = 0_usize;
     let mut current_object_id = None;
     let mut mesh_object_id = None;
@@ -737,6 +765,7 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
     let mut component_count = 0_usize;
     let mut build_object_id = None;
     let mut build_transform = Transform::IDENTITY;
+    let mut resources_seen = false;
     let mut resources_closed = false;
     let mut mesh_seen = false;
     let mut vertices_closed = false;
@@ -775,6 +804,23 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
                     }
                     (b"resources", Some(b"model")) if !resources_closed => {
                         require_only_model_attributes(&element, &[])?;
+                        resources_seen = true;
+                    }
+                    (b"metadata", Some(b"model")) if !resources_seen => {
+                        if model_metadata_count == limits.max_model_metadata {
+                            return Err(ThreeMfError::EntityLimitExceeded);
+                        }
+                        require_only_model_attributes(&element, &[b"name", b"preserve"])?;
+                        let name = required_attribute(&element, b"name")?;
+                        if !is_well_known_model_metadata_name(&name)
+                            || !model_metadata_names.insert(name)
+                        {
+                            return Err(ThreeMfError::UnsupportedModelStructure);
+                        }
+                        let preserve = optional_attribute(&element, b"preserve")?
+                            .map_or(Ok(false), |value| parse_xml_boolean(&value))?;
+                        model_metadata_count += 1;
+                        preserved_model_metadata_count += usize::from(preserve);
                     }
                     (b"object", Some(b"resources")) if current_object_id.is_none() => {
                         if object_count == limits.max_objects {
@@ -899,6 +945,12 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
                     _ => {}
                 }
             }
+            Event::Text(text) if stack.last().is_some_and(|name| name == b"metadata") => {
+                text.decode().map_err(|_| ThreeMfError::InvalidXml)?;
+            }
+            Event::CData(text) if stack.last().is_some_and(|name| name == b"metadata") => {
+                text.decode().map_err(|_| ThreeMfError::InvalidXml)?;
+            }
             Event::Text(text) if text.iter().all(u8::is_ascii_whitespace) => {}
             Event::Decl(_) | Event::Comment(_) | Event::PI(_) => {}
             Event::Eof => break,
@@ -910,6 +962,7 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
 
     if !stack.is_empty()
         || !model_closed
+        || !resources_seen
         || !resources_closed
         || !mesh_seen
         || !vertices_closed
@@ -940,6 +993,8 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
     Ok(ParsedModel {
         source_units,
         unit_was_explicit,
+        model_metadata_count,
+        preserved_model_metadata_count,
         mesh_object_id: mesh_object_id.expect("checked above"),
         vertices,
         triangle_indices,
@@ -949,6 +1004,29 @@ fn parse_model(xml: &[u8], limits: ThreeMfLimits) -> Result<ParsedModel, ThreeMf
         build_object_id: build_object_id.expect("checked above"),
         build_transform,
     })
+}
+
+fn is_well_known_model_metadata_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Title"
+            | "Designer"
+            | "Description"
+            | "Copyright"
+            | "LicenseTerms"
+            | "Rating"
+            | "CreationDate"
+            | "ModificationDate"
+            | "Application"
+    )
+}
+
+fn parse_xml_boolean(value: &str) -> Result<bool, ThreeMfError> {
+    match value {
+        "0" | "false" => Ok(false),
+        "1" | "true" => Ok(true),
+        _ => Err(ThreeMfError::UnsupportedModelStructure),
+    }
 }
 
 fn xml_reader(xml: &[u8]) -> Reader<&[u8]> {
@@ -1106,4 +1184,8 @@ const fn map_mesh_error(error: MeshAnalysisError) -> ThreeMfError {
         MeshAnalysisError::DegenerateTriangle => ThreeMfError::DegenerateTriangle,
         MeshAnalysisError::InvalidNumber => ThreeMfError::InvalidNumber,
     }
+}
+
+fn warning(code: &str) -> GeometryWarningCode {
+    GeometryWarningCode::new(code).expect("static 3MF warning code must be valid")
 }

@@ -12,6 +12,7 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 const TRANSLATED_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_1cm_translated.3mf");
 const COMPONENT_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_1cm_component_scaled_translated.3mf");
+const METADATA_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_metadata.3mf");
 const MICRON_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_micron.3mf");
 const MILLIMETER_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_millimeter.3mf");
@@ -22,8 +23,19 @@ const DEFAULT_MM_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_mm.3mf");
 
 fn limits() -> ThreeMfLimits {
-    ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 100, 1_000, 2, 1, 100)
-        .expect("test limits must be valid")
+    ThreeMfLimits::new(
+        64 * 1024,
+        16,
+        64 * 1024,
+        32 * 1024,
+        100,
+        1_000,
+        2,
+        1,
+        8,
+        100,
+    )
+    .expect("test limits must be valid")
 }
 
 fn warning_codes(evidence: &ThreeMfMeshEvidence) -> Vec<&str> {
@@ -114,6 +126,8 @@ fn centimeter_cube_applies_build_transform_and_returns_canonical_mm() {
     assert_eq!(evidence.source_units(), ModelLengthUnit::Centimeter);
     assert_eq!(evidence.unit_resolution(), UnitResolutionMethod::Declared);
     assert!(evidence.unit_was_explicit());
+    assert_eq!(evidence.model_metadata_count(), 0);
+    assert_eq!(evidence.preserved_model_metadata_count(), 0);
     assert_eq!(evidence.mesh_object_count(), 1);
     assert_eq!(evidence.mesh_object_id(), 1);
     assert_eq!(evidence.component_object_count(), 0);
@@ -156,6 +170,8 @@ fn component_then_build_transform_is_applied_and_retained() {
 
     assert_eq!(evidence.algorithm_version(), THREE_MF_ANALYZER_VERSION);
     assert_eq!(evidence.source_units(), ModelLengthUnit::Centimeter);
+    assert_eq!(evidence.model_metadata_count(), 0);
+    assert_eq!(evidence.preserved_model_metadata_count(), 0);
     assert_eq!(evidence.mesh_object_count(), 1);
     assert_eq!(evidence.mesh_object_id(), 1);
     assert_eq!(evidence.component_object_count(), 1);
@@ -193,9 +209,87 @@ fn component_then_build_transform_is_applied_and_retained() {
 }
 
 #[test]
+fn bounded_model_metadata_is_counted_but_never_retained_or_interpreted() {
+    let evidence = analyze_3mf(METADATA_CUBE, limits()).expect("metadata 3MF cube must parse");
+
+    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v3");
+    assert_eq!(evidence.source_units(), ModelLengthUnit::Millimeter);
+    assert_eq!(evidence.model_metadata_count(), 3);
+    assert_eq!(evidence.preserved_model_metadata_count(), 1);
+    assert_eq!(evidence.aabb_extents_mm().components(), [10.0; 3]);
+    assert_close(evidence.surface_area_mm2(), 600.0);
+    assert_close(evidence.enclosed_volume_mm3().unwrap(), 1_000.0);
+    assert_eq!(
+        warning_codes(&evidence),
+        ["MESH_NOT_EXACT_BREP", "THREE_MF_METADATA_NOT_INTERPRETED"]
+    );
+    let debug = format!("{evidence:?}");
+    assert!(!debug.contains("Governed 10 mm cube"));
+    assert!(!debug.contains("PartProbe fixture generator"));
+
+    let metadata_limited = ThreeMfLimits::new(
+        64 * 1024,
+        16,
+        64 * 1024,
+        32 * 1024,
+        100,
+        1_000,
+        2,
+        1,
+        2,
+        100,
+    )
+    .unwrap();
+    assert_eq!(
+        analyze_3mf(METADATA_CUBE, metadata_limited),
+        Err(ThreeMfError::EntityLimitExceeded)
+    );
+
+    for unsupported in [
+        rewrite_part(METADATA_CUBE, "3D/3dmodel.model", |xml| {
+            xml.replace(
+                "  <metadata name=\"Title\">Governed 10 mm cube</metadata>",
+                "  <metadata name=\"Title\">First</metadata>\n  <metadata name=\"Title\">Second</metadata>",
+            )
+        }),
+        rewrite_part(METADATA_CUBE, "3D/3dmodel.model", |xml| {
+            xml.replace("preserve=\"true\"", "preserve=\"yes\"")
+        }),
+        rewrite_part(METADATA_CUBE, "3D/3dmodel.model", |xml| {
+            xml.replace("name=\"Title\"", "name=\"ShopSecret\"")
+        }),
+        rewrite_part(METADATA_CUBE, "3D/3dmodel.model", |xml| {
+            xml.replace("name=\"Title\"", "name=\"Title\" type=\"xs:string\"")
+        }),
+        rewrite_part(METADATA_CUBE, "3D/3dmodel.model", |xml| {
+            xml.replace(
+                "      <mesh>",
+                "      <metadatagroup><metadata name=\"Title\">Nested</metadata></metadatagroup>\n      <mesh>",
+            )
+        }),
+    ] {
+        assert_eq!(
+            analyze_3mf(&unsupported, limits()),
+            Err(ThreeMfError::UnsupportedModelStructure)
+        );
+    }
+}
+
+#[test]
 fn component_limits_references_and_transform_policy_fail_closed() {
-    let object_limited =
-        ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 100, 1_000, 1, 1, 100).unwrap();
+    let object_limited = ThreeMfLimits::new(
+        64 * 1024,
+        16,
+        64 * 1024,
+        32 * 1024,
+        100,
+        1_000,
+        1,
+        1,
+        8,
+        100,
+    )
+    .unwrap();
     assert_eq!(
         analyze_3mf(COMPONENT_CUBE, object_limited),
         Err(ThreeMfError::EntityLimitExceeded)
@@ -262,31 +356,34 @@ fn component_limits_references_and_transform_policy_fail_closed() {
 fn archive_xml_and_entity_limits_fail_closed() {
     for (limited, expected) in [
         (
-            ThreeMfLimits::new(8, 16, 64 * 1024, 32 * 1024, 100, 1_000, 2, 1, 100).unwrap(),
+            ThreeMfLimits::new(8, 16, 64 * 1024, 32 * 1024, 100, 1_000, 2, 1, 8, 100).unwrap(),
             ThreeMfError::InputLimitExceeded,
         ),
         (
-            ThreeMfLimits::new(64 * 1024, 2, 64 * 1024, 32 * 1024, 100, 1_000, 2, 1, 100).unwrap(),
+            ThreeMfLimits::new(64 * 1024, 2, 64 * 1024, 32 * 1024, 100, 1_000, 2, 1, 8, 100)
+                .unwrap(),
             ThreeMfError::ArchiveLimitExceeded,
         ),
         (
-            ThreeMfLimits::new(64 * 1024, 16, 1, 32 * 1024, 100, 1_000, 2, 1, 100).unwrap(),
+            ThreeMfLimits::new(64 * 1024, 16, 1, 32 * 1024, 100, 1_000, 2, 1, 8, 100).unwrap(),
             ThreeMfError::ArchiveLimitExceeded,
         ),
         (
-            ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 8, 100, 1_000, 2, 1, 100).unwrap(),
+            ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 8, 100, 1_000, 2, 1, 8, 100).unwrap(),
             ThreeMfError::InvalidXml,
         ),
         (
-            ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 1, 1_000, 2, 1, 100).unwrap(),
+            ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 1, 1_000, 2, 1, 8, 100)
+                .unwrap(),
             ThreeMfError::EntityLimitExceeded,
         ),
         (
-            ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 100, 1, 2, 1, 100).unwrap(),
+            ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 100, 1, 2, 1, 8, 100).unwrap(),
             ThreeMfError::EntityLimitExceeded,
         ),
         (
-            ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 100, 1_000, 2, 1, 1).unwrap(),
+            ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 100, 1_000, 2, 1, 8, 1)
+                .unwrap(),
             ThreeMfError::ArchiveLimitExceeded,
         ),
     ] {
@@ -297,7 +394,11 @@ fn archive_xml_and_entity_limits_fail_closed() {
 #[test]
 fn invalid_limits_and_non_packages_have_sanitized_failures() {
     assert_eq!(
-        ThreeMfLimits::new(0, 1, 1, 1, 1, 1, 1, 1, 1),
+        ThreeMfLimits::new(0, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+        Err(ThreeMfError::InvalidLimits)
+    );
+    assert_eq!(
+        ThreeMfLimits::new(1, 1, 1, 1, 1, 1, 1, 1, 0, 1),
         Err(ThreeMfError::InvalidLimits)
     );
     assert_eq!(

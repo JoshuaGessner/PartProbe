@@ -33,7 +33,22 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
     def test_committed_package_is_reproducible(self) -> None:
         generate_3mf_fixture.check_fixture()
         generate_3mf_fixture.check_component_fixture()
+        generate_3mf_fixture.check_metadata_fixture()
         generate_3mf_fixture.check_unit_fixtures()
+
+    def test_metadata_package_is_bounded_public_core_evidence(self) -> None:
+        generated = generate_3mf_fixture.build_metadata_3mf(
+            generate_3mf_fixture.SOURCE.read_bytes()
+        )
+        self.assertEqual(generated, generate_3mf_fixture.METADATA_OUTPUT.read_bytes())
+        with zipfile.ZipFile(BytesIO(generated)) as package:
+            model = package.read("3D/3dmodel.model")
+        self.assertEqual(model.count(b"<metadata "), 3)
+        self.assertIn(b'<metadata name="Title">Governed 10 mm cube</metadata>', model)
+        self.assertIn(b'<metadata name="Description" preserve="true">', model)
+        self.assertNotIn(b"customer", model.lower())
+        self.assertEqual(model.count(b"<vertex "), 8)
+        self.assertEqual(model.count(b"<triangle "), 12)
 
     def test_unit_corpus_has_every_remaining_declaration_and_default(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()
@@ -89,6 +104,12 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "not reproducible"):
                 generate_3mf_fixture.check_component_fixture(
+                    generate_3mf_fixture.SOURCE,
+                    changed,
+                )
+
+            with self.assertRaisesRegex(RuntimeError, "not reproducible"):
+                generate_3mf_fixture.check_metadata_fixture(
                     generate_3mf_fixture.SOURCE,
                     changed,
                 )

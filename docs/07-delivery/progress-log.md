@@ -8,6 +8,15 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-22 — TASK-004 bounded 3MF Core model-metadata checkpoint
+
+- Advanced the parser to `partprobe-3mf-spike-v3`. It accepts only well-known unprefixed Core metadata directly under the model and before resources, under a new explicit positive metadata-entry ceiling. Duplicate names, unknown/vendor names, unsupported attributes/types, invalid preservation booleans, object/item metadata groups, and nested content fail visibly.
+- Added deterministic public `FIX-MESH-012` with `Title`, `Application`, and `Description` entries and one `preserve=true` request. Evidence retains only total and preservation-request counts, emits `THREE_MF_METADATA_NOT_INTERPRETED`, never retains metadata names/values, and reproduces the governed cube's canonical measurements unchanged.
+- The algorithm identity changes because metadata-bearing models now succeed with new evidence and a warning. This remains a preproduction comparison API with no persisted/customer records; callers rebuild against the expanded limit constructor, old v1/v2 results are not reinterpreted, and no storage migration is implied.
+- Focused validation passes seven STL tests, ten 3MF tests, four fixture-contract tests, and nine generator-tooling tests. The complete local gate passes 164 runtime tests, one compile-fail doctest, 63 Python tooling tests, strict workspace/native-host/WASM Clippy, offline frontend construction, planning, deterministic fixture reproduction/hashes, and diff hygiene.
+- Three-OS Rust CI run 32613154817 passes the preceding persisted unit-corpus checkpoint at exact commit `3f6e6bf` on macOS, Ubuntu, and Windows.
+- TASK-004 remains In Progress. Broader component graphs/unions, object/item/vendor metadata, materials, adversarial layouts, self-intersection/confidence policy, independent representative geometry, and typed worker/desktop integration remain open. Metadata is not geometry, requirement, or estimate authority.
+
 ## 2026-08-22 — TASK-004 persisted 3MF Core-unit corpus
 
 - Added deterministic public `FIX-MESH-006`–`011` packages for explicit micron, millimetre, metre, inch, and foot declarations plus the normative omitted-unit millimetre default. Together with explicit-centimetre `FIX-MESH-004`, the persisted corpus now covers every 3MF Core length declaration and the default.

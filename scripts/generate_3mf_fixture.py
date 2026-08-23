@@ -18,6 +18,7 @@ OUTPUT = ROOT / "fixtures" / "models" / "cube_1cm_translated.3mf"
 COMPONENT_OUTPUT = (
     ROOT / "fixtures" / "models" / "cube_1cm_component_scaled_translated.3mf"
 )
+METADATA_OUTPUT = ROOT / "fixtures" / "models" / "cube_10mm_3mf_metadata.3mf"
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
     (
@@ -129,6 +130,16 @@ def build_component_model_xml(source: bytes) -> bytes:
     return model.encode("utf-8")
 
 
+def build_metadata_model_xml(source: bytes) -> bytes:
+    """Add bounded public Core metadata without changing the governed cube."""
+    direct = build_unit_model_xml(source, "millimeter", "1").decode("utf-8")
+    metadata = '''  <metadata name="Title">Governed 10 mm cube</metadata>
+  <metadata name="Application">PartProbe fixture generator</metadata>
+  <metadata name="Description" preserve="true">Public synthetic metadata fixture</metadata>
+'''
+    return direct.replace("  <resources>", f"{metadata}  <resources>").encode("utf-8")
+
+
 def package_parts(
     source: bytes, *, component: bool = False
 ) -> tuple[tuple[str, bytes], ...]:
@@ -176,6 +187,13 @@ def build_component_3mf(source: bytes) -> bytes:
     return build_package(package_parts(source, component=True))
 
 
+def build_metadata_3mf(source: bytes) -> bytes:
+    """Create deterministic bytes for the governed Core-metadata fixture."""
+    parts = list(package_parts(source))
+    parts[-1] = (parts[-1][0], build_metadata_model_xml(source))
+    return build_package(tuple(parts))
+
+
 def build_unit_3mf(source: bytes, unit: str | None, millimeters_per_unit: str) -> bytes:
     """Create deterministic bytes for one governed direct-mesh unit fixture."""
     model = build_unit_model_xml(source, unit, millimeters_per_unit)
@@ -200,6 +218,15 @@ def check_component_fixture(
         raise RuntimeError("component 3MF fixture is missing or not reproducible")
 
 
+def check_metadata_fixture(
+    source_path: Path = SOURCE, output_path: Path = METADATA_OUTPUT
+) -> None:
+    """Fail when the committed metadata fixture differs from deterministic output."""
+    expected = build_metadata_3mf(source_path.read_bytes())
+    if not output_path.is_file() or output_path.read_bytes() != expected:
+        raise RuntimeError("metadata 3MF fixture is missing or not reproducible")
+
+
 def check_unit_fixtures(
     source_path: Path = SOURCE,
     fixtures: tuple[tuple[str | None, str, Path], ...] = UNIT_FIXTURES,
@@ -217,12 +244,13 @@ def main() -> int:
     parser.add_argument(
         "--write",
         action="store_true",
-        help="replace only the governed 3MF output with deterministic bytes",
+        help="replace only the governed 3MF outputs with deterministic bytes",
     )
     args = parser.parse_args()
     source = SOURCE.read_bytes()
     expected = build_3mf(source)
     component_expected = build_component_3mf(source)
+    metadata_expected = build_metadata_3mf(source)
     unit_expected = tuple(
         (
             output_path,
@@ -233,11 +261,13 @@ def main() -> int:
     if args.write:
         OUTPUT.write_bytes(expected)
         COMPONENT_OUTPUT.write_bytes(component_expected)
+        METADATA_OUTPUT.write_bytes(metadata_expected)
         for output_path, contents in unit_expected:
             output_path.write_bytes(contents)
     else:
         check_fixture()
         check_component_fixture()
+        check_metadata_fixture()
         check_unit_fixtures()
     return 0
 
