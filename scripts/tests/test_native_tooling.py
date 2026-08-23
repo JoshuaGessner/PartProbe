@@ -697,11 +697,14 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         )
 
     def test_portal_source_entry_text_requires_an_exact_absolute_path(self) -> None:
+        absolute_source = (
+            Path.cwd().resolve() / "fixtures" / "models" / "fixture.step"
+        )
         self.assertEqual(
             smoke_linux_desktop_package.portal_source_entry_text(
-                Path("/fixtures/models/fixture.step")
+                absolute_source
             ),
-            "/fixtures/models/fixture.step",
+            str(absolute_source),
         )
         with self.assertRaisesRegex(ValueError, "must be absolute"):
             smoke_linux_desktop_package.portal_source_entry_text(
@@ -780,6 +783,11 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 return_value=[mock.sentinel.source_summary],
             ) as matching_nodes,
             mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_text",
+                return_value=expected_source_label,
+            ) as node_text,
+            mock.patch.object(
                 smoke_linux_desktop_package.time,
                 "monotonic",
                 return_value=10_000.0,
@@ -795,17 +803,55 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         self.assertIs(found, mock.sentinel.source_summary)
         matching_nodes.assert_called_once_with(
             mock.sentinel.pyatspi,
-            expected_source_label,
-            exact=True,
+            "Selected model source:",
             required_states=(mock.sentinel.showing,),
         )
+        node_text.assert_called_once_with(mock.sentinel.source_summary)
+
+    def test_wait_for_expected_source_label_accepts_transition_on_next_snapshot(
+        self,
+    ) -> None:
+        expected_source_label = "Selected model source: fixture.step"
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "matching_nodes",
+                side_effect=[[], [mock.sentinel.source_summary]],
+            ) as matching_nodes,
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_text",
+                return_value=expected_source_label,
+            ),
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                side_effect=[10_000.0, 10_000.1],
+            ),
+            mock.patch.object(smoke_linux_desktop_package.time, "sleep") as sleep,
+        ):
+            found = smoke_linux_desktop_package.wait_for_expected_source_label(
+                mock.sentinel.pyatspi,
+                expected_source_label,
+                10_001.0,
+                mock.sentinel.showing,
+            )
+
+        self.assertIs(found, mock.sentinel.source_summary)
+        self.assertEqual(matching_nodes.call_count, 2)
+        sleep.assert_called_once_with(0.05)
 
     def test_wait_for_expected_source_label_rejects_another_selected_source(self) -> None:
         with (
             mock.patch.object(
                 smoke_linux_desktop_package,
                 "matching_nodes",
-                side_effect=[[], [mock.sentinel.wrong_source]],
+                return_value=[mock.sentinel.wrong_source],
+            ) as matching_nodes,
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "node_text",
+                return_value="Selected model source: cube_10mm.step",
             ),
             mock.patch.object(
                 smoke_linux_desktop_package.time,
@@ -820,6 +866,41 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 10_001.0,
                 mock.sentinel.showing,
             )
+
+        matching_nodes.assert_called_once_with(
+            mock.sentinel.pyatspi,
+            "Selected model source:",
+            required_states=(mock.sentinel.showing,),
+        )
+
+    def test_wait_for_expected_source_label_rejects_ambiguous_source_snapshot(
+        self,
+    ) -> None:
+        with (
+            mock.patch.object(
+                smoke_linux_desktop_package,
+                "matching_nodes",
+                return_value=[mock.sentinel.first_source, mock.sentinel.second_source],
+            ) as matching_nodes,
+            mock.patch.object(
+                smoke_linux_desktop_package.time,
+                "monotonic",
+                return_value=10_000.0,
+            ),
+            self.assertRaisesRegex(RuntimeError, "ambiguous accepted source label"),
+        ):
+            smoke_linux_desktop_package.wait_for_expected_source_label(
+                mock.sentinel.pyatspi,
+                "Selected model source: fixture.step",
+                10_001.0,
+                mock.sentinel.showing,
+            )
+
+        matching_nodes.assert_called_once_with(
+            mock.sentinel.pyatspi,
+            "Selected model source:",
+            required_states=(mock.sentinel.showing,),
+        )
 
     def test_wait_for_unique_node_rejects_ambiguous_live_controls(self) -> None:
         with (

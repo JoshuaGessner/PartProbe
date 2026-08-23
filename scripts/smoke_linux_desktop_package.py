@@ -329,24 +329,19 @@ def wait_for_expected_source_label(
     showing_state: Any,
 ) -> Any:
     while time.monotonic() < deadline:
-        exact_matches = matching_nodes(
-            pyatspi,
-            expected_source_label,
-            exact=True,
-            required_states=(showing_state,),
-        )
-        if len(exact_matches) == 1:
-            return exact_matches[0]
-        if len(exact_matches) > 1:
-            raise RuntimeError(
-                f"ambiguous accepted source label: {expected_source_label!r}"
-            )
-        any_source = matching_nodes(
+        source_matches = matching_nodes(
             pyatspi,
             f"{SELECTED_SOURCE_LABEL}:",
             required_states=(showing_state,),
         )
-        if any_source:
+        if len(source_matches) > 1:
+            raise RuntimeError(
+                f"ambiguous accepted source label: {expected_source_label!r}"
+            )
+        if len(source_matches) == 1:
+            source_match = source_matches[0]
+            if node_text(source_match).casefold() == expected_source_label.casefold():
+                return source_match
             raise RuntimeError(
                 "native picker accepted a source other than the governed fixture"
             )
