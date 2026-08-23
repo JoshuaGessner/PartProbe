@@ -161,6 +161,204 @@ fixtures:
       - canonical_aabb_volume_area_centroid_golden
     expected: expected/cube_1cm_component_scaled_translated_3mf.json
     sha256: 00f90432983d63c7f5e55b8ccd452977a7c15dbfdb4f9a8fadc39b0ad0654696
+  - id: FIX-MESH-006
+    title: Closed synthetic 3MF cube declared in microns
+    path: models/cube_10mm_3mf_micron.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_micron
+    declared_units: micron
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v3
+      parser: partprobe-3mf-spike-v2
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, TEST-003, TEST-025]
+    purpose: [3mf_persisted_unit_corpus, declared_micron_conversion, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_micron.json
+    sha256: 77138bdeaca64f768165a5edecdf40e6bc14d2729899348002b4de49ee9498f7
+  - id: FIX-MESH-007
+    title: Closed synthetic 3MF cube declared in millimetres
+    path: models/cube_10mm_3mf_millimeter.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_mm
+    declared_units: mm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v3
+      parser: partprobe-3mf-spike-v2
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, TEST-003, TEST-025]
+    purpose: [3mf_persisted_unit_corpus, declared_millimeter_conversion, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_millimeter.json
+    sha256: 009ec4eb6b93fc87d2a50f998de6ee0d45965171fddf5675a707927fc8914320
+  - id: FIX-MESH-008
+    title: Closed synthetic 3MF cube declared in metres
+    path: models/cube_10mm_3mf_meter.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_m
+    declared_units: m
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v3
+      parser: partprobe-3mf-spike-v2
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, TEST-003, TEST-025]
+    purpose: [3mf_persisted_unit_corpus, declared_meter_conversion, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_meter.json
+    sha256: daecdc99dcce4ff7c63c74a58640cde7f34c5038a184d4ba93ac5e5efd6a0117
+  - id: FIX-MESH-009
+    title: Closed synthetic 3MF cube declared in inches
+    path: models/cube_10mm_3mf_inch.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_in
+    declared_units: in
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v3
+      parser: partprobe-3mf-spike-v2
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, TEST-003, TEST-025]
+    purpose: [3mf_persisted_unit_corpus, declared_inch_conversion, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_inch.json
+    sha256: 663ccd9c205292a1fad1d73404a4a28318d94e97f5236bc15f3834151be1c2b7
+  - id: FIX-MESH-010
+    title: Closed synthetic 3MF cube declared in feet
+    path: models/cube_10mm_3mf_foot.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_ft
+    declared_units: ft
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v3
+      parser: partprobe-3mf-spike-v2
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, TEST-003, TEST-025]
+    purpose: [3mf_persisted_unit_corpus, declared_foot_conversion, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_foot.json
+    sha256: 61e9865bd8f6ca90a25433bdbe2062d1a383c542d6feb7e742c09d592861f58a
+  - id: FIX-MESH-011
+    title: Closed synthetic 3MF cube using normative default millimetres
+    path: models/cube_10mm_3mf_default_mm.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: normative_default_mm
+    declared_units: null
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v3
+      parser: partprobe-3mf-spike-v2
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, TEST-003, TEST-025]
+    purpose: [3mf_persisted_unit_corpus, normative_default_millimeter, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_default_mm.json
+    sha256: b0e4df466063086e2c3184938ddfb0efd008ef8026e2863831063e2d0f6cb582
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -256,7 +454,7 @@ fixtures:
     sha256: a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138
 required_next:
   - independent_non_project_cad_tool_step
-  - 3mf_all_units_metadata_and_unsafe_archive_corpus
+  - 3mf_component_graph_metadata_and_unsafe_archive_corpus
   - expanded_malformed_and_resource_limit_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts

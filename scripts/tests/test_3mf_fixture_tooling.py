@@ -33,6 +33,32 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
     def test_committed_package_is_reproducible(self) -> None:
         generate_3mf_fixture.check_fixture()
         generate_3mf_fixture.check_component_fixture()
+        generate_3mf_fixture.check_unit_fixtures()
+
+    def test_unit_corpus_has_every_remaining_declaration_and_default(self) -> None:
+        source = generate_3mf_fixture.SOURCE.read_bytes()
+        seen_units = []
+        for unit, millimeters_per_unit, output_path in generate_3mf_fixture.UNIT_FIXTURES:
+            generated = generate_3mf_fixture.build_unit_3mf(
+                source,
+                unit,
+                millimeters_per_unit,
+            )
+            self.assertEqual(generated, output_path.read_bytes())
+            with zipfile.ZipFile(BytesIO(generated)) as package:
+                model = package.read("3D/3dmodel.model")
+            if unit is None:
+                self.assertNotIn(b" unit=", model)
+            else:
+                self.assertIn(f'unit="{unit}"'.encode(), model)
+            self.assertIn(b'<item objectid="1" />', model)
+            self.assertEqual(model.count(b"<vertex "), 8)
+            self.assertEqual(model.count(b"<triangle "), 12)
+            seen_units.append(unit)
+        self.assertEqual(
+            seen_units,
+            ["micron", "millimeter", "meter", "inch", "foot", None],
+        )
 
     def test_component_package_has_exact_governed_transform_chain(self) -> None:
         generated = generate_3mf_fixture.build_component_3mf(
@@ -65,6 +91,12 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
                 generate_3mf_fixture.check_component_fixture(
                     generate_3mf_fixture.SOURCE,
                     changed,
+                )
+
+            with self.assertRaisesRegex(RuntimeError, "not reproducible"):
+                generate_3mf_fixture.check_unit_fixtures(
+                    generate_3mf_fixture.SOURCE,
+                    (("millimeter", "1", changed),),
                 )
 
 

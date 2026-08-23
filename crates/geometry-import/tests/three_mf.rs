@@ -12,6 +12,14 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 const TRANSLATED_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_1cm_translated.3mf");
 const COMPONENT_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_1cm_component_scaled_translated.3mf");
+const MICRON_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_micron.3mf");
+const MILLIMETER_CUBE: &[u8] =
+    include_bytes!("../../../fixtures/models/cube_10mm_3mf_millimeter.3mf");
+const METER_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_meter.3mf");
+const INCH_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_inch.3mf");
+const FOOT_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_foot.3mf");
+const DEFAULT_MM_CUBE: &[u8] =
+    include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_mm.3mf");
 
 fn limits() -> ThreeMfLimits {
     ThreeMfLimits::new(64 * 1024, 16, 64 * 1024, 32 * 1024, 100, 1_000, 2, 1, 100)
@@ -402,28 +410,38 @@ fn core_default_millimeters_are_explicitly_distinguished_from_a_unit_attribute()
 }
 
 #[test]
-fn every_core_length_unit_uses_the_documented_canonical_scale() {
-    for (unit_text, unit, factor) in [
-        ("micron", ModelLengthUnit::Micrometer, 0.001),
-        ("millimeter", ModelLengthUnit::Millimeter, 1.0),
-        ("centimeter", ModelLengthUnit::Centimeter, 10.0),
-        ("meter", ModelLengthUnit::Meter, 1_000.0),
-        ("inch", ModelLengthUnit::Inch, 25.4),
-        ("foot", ModelLengthUnit::Foot, 304.8),
+fn persisted_core_unit_fixtures_resolve_to_the_same_canonical_cube() {
+    for (package, unit, explicit) in [
+        (MICRON_CUBE, ModelLengthUnit::Micrometer, true),
+        (MILLIMETER_CUBE, ModelLengthUnit::Millimeter, true),
+        (METER_CUBE, ModelLengthUnit::Meter, true),
+        (INCH_CUBE, ModelLengthUnit::Inch, true),
+        (FOOT_CUBE, ModelLengthUnit::Foot, true),
+        (DEFAULT_MM_CUBE, ModelLengthUnit::Millimeter, false),
     ] {
-        let package = rewrite_part(TRANSLATED_CUBE, "3D/3dmodel.model", |xml| {
-            xml.replace("unit=\"centimeter\"", &format!("unit=\"{unit_text}\""))
-        });
-        let evidence = analyze_3mf(&package, limits()).expect("core unit must resolve");
+        let evidence = analyze_3mf(package, limits()).expect("governed unit fixture must resolve");
 
         assert_eq!(evidence.source_units(), unit);
-        assert_close(evidence.aabb_extents_mm().components()[0], factor);
-        let centroid = evidence
-            .center_of_mass_mm()
-            .expect("scaled closed centroid must be available")
-            .components();
-        for (actual, source_coordinate) in centroid.into_iter().zip([2.5, 3.5, 4.5]) {
-            assert_close(actual, source_coordinate * factor);
-        }
+        assert_eq!(evidence.unit_was_explicit(), explicit);
+        assert_eq!(
+            evidence.build_transform_source_units(),
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,]
+        );
+        assert!(!evidence.build_transform_applied());
+        assert_eq!(evidence.aabb_extents_mm().components(), [10.0; 3]);
+        assert_close(evidence.surface_area_mm2(), 600.0);
+        assert_close(
+            evidence
+                .enclosed_volume_mm3()
+                .expect("closed volume must be available"),
+            1_000.0,
+        );
+        assert_eq!(
+            evidence
+                .center_of_mass_mm()
+                .expect("closed centroid must be available")
+                .components(),
+            [5.0; 3]
+        );
     }
 }

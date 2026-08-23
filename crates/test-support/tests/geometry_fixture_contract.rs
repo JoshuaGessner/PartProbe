@@ -8,6 +8,32 @@ const BINARY_CLOSED: &str = include_str!("../../../fixtures/expected/cube_10mm_b
 const THREE_MF: &str = include_str!("../../../fixtures/expected/cube_1cm_translated_3mf.json");
 const COMPONENT_THREE_MF: &str =
     include_str!("../../../fixtures/expected/cube_1cm_component_scaled_translated_3mf.json");
+const THREE_MF_UNITS: [(&str, &str); 6] = [
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_micron.json"),
+        "FIX-MESH-006",
+    ),
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_millimeter.json"),
+        "FIX-MESH-007",
+    ),
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_meter.json"),
+        "FIX-MESH-008",
+    ),
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_inch.json"),
+        "FIX-MESH-009",
+    ),
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_foot.json"),
+        "FIX-MESH-010",
+    ),
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_default_mm.json"),
+        "FIX-MESH-011",
+    ),
+];
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");
 const STEP: &str = include_str!("../../../fixtures/expected/cube_10mm_step.json");
 const INDEPENDENT_STEP: &str =
@@ -65,6 +91,16 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         component_three_mf.enclosed_volume_mm3(),
         ExpectedEvidence::Available { .. }
     ));
+    for (source, fixture_id) in THREE_MF_UNITS {
+        let unit_fixture: GeometryFixtureExpectation = serde_json::from_str(source)
+            .expect("persisted 3MF unit fixture expectation must be valid");
+        assert_eq!(unit_fixture.fixture_id(), fixture_id);
+        assert_eq!(unit_fixture.representation(), RepresentationBasis::Mesh);
+        assert!(matches!(
+            unit_fixture.enclosed_volume_mm3(),
+            ExpectedEvidence::Available { .. }
+        ));
+    }
     assert_eq!(step.representation(), RepresentationBasis::ExactBrep);
     assert!(matches!(
         step.enclosed_volume_mm3(),
