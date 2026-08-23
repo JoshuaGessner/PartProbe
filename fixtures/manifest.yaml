@@ -55,6 +55,36 @@ fixtures:
       - unavailable_volume_policy
     expected: expected/open_cube_10mm.json
     sha256: f78bc469609e5805ced85c710be08b985443a21e1b5b3da9c7f19ffa008ed55d
+  - id: FIX-MESH-003
+    title: Closed 10 mm synthetic binary STL cube
+    path: models/cube_10mm_binary.stl
+    format: stl-binary
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_format_fixture_convention_mm
+    declared_units: null
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-binary-stl-fixture-generator-v1
+      parser: partprobe-binary-stl-spike-v1
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-010, TEST-022, TEST-025]
+    purpose:
+      - binary_encoding_comparison
+      - closed_mesh_validation
+      - unit_confirmation
+      - aabb_volume_area_golden
+    expected: expected/cube_10mm_binary.json
+    sha256: e255796261eeaa5b4c9985c8d374dd03caa45b315c59159708fa0b619ff9c509
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step

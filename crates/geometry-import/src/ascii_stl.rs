@@ -1,4 +1,4 @@
-//! Bounded, path-free ASCII STL comparison spike.
+//! Bounded, path-free ASCII and binary STL comparison spike.
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -11,15 +11,30 @@ use serde::Serialize;
 
 /// Versioned algorithm identity for the initial ASCII STL comparison spike.
 pub const ASCII_STL_ANALYZER_VERSION: &str = "partprobe-ascii-stl-spike-v1";
+/// Versioned algorithm identity for the initial binary STL comparison spike.
+pub const BINARY_STL_ANALYZER_VERSION: &str = "partprobe-binary-stl-spike-v1";
 
 const DEGENERATE_AREA_EPSILON: f64 = 1.0e-12;
 const ZERO_VOLUME_EPSILON: f64 = 1.0e-12;
+const BINARY_HEADER_BYTES: usize = 80;
+const BINARY_COUNT_BYTES: usize = 4;
+const BINARY_TRIANGLE_BYTES: usize = 50;
 
-/// Explicit parser limits applied before and during ASCII STL analysis.
+/// Explicit parser limits applied before and during STL analysis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AsciiStlLimits {
     max_input_bytes: usize,
     max_triangles: usize,
+}
+
+/// STL byte encoding established from parser framing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StlEncoding {
+    /// Line-oriented ASCII STL grammar.
+    Ascii,
+    /// Fixed-size little-endian binary STL records.
+    Binary,
 }
 
 impl AsciiStlLimits {
@@ -34,6 +49,9 @@ impl AsciiStlLimits {
         })
     }
 }
+
+/// Encoding-neutral name for the STL parser limits.
+pub type StlLimits = AsciiStlLimits;
 
 /// Three-dimensional mesh evidence in unresolved STL source-coordinate units.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
@@ -87,10 +105,11 @@ impl MeshVector3 {
     }
 }
 
-/// Provisional mesh evidence emitted by the ASCII STL comparison spike.
+/// Provisional mesh evidence emitted by the STL comparison spike.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct AsciiStlMeshEvidence {
     algorithm_version: &'static str,
+    encoding: StlEncoding,
     detected_format: ModelFormat,
     representation: RepresentationBasis,
     source_units: ModelLengthUnit,
@@ -111,6 +130,12 @@ impl AsciiStlMeshEvidence {
     #[must_use]
     pub const fn algorithm_version(&self) -> &str {
         self.algorithm_version
+    }
+
+    /// Returns the parser-confirmed STL encoding.
+    #[must_use]
+    pub const fn encoding(&self) -> StlEncoding {
+        self.encoding
     }
 
     /// Returns the content-detected format.
@@ -192,7 +217,10 @@ impl AsciiStlMeshEvidence {
     }
 }
 
-/// Sanitized failure from bounded ASCII STL analysis.
+/// Encoding-neutral name for provisional STL mesh evidence.
+pub type StlMeshEvidence = AsciiStlMeshEvidence;
+
+/// Sanitized failure from bounded STL analysis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AsciiStlError {
     /// A parser limit was zero.
@@ -205,6 +233,8 @@ pub enum AsciiStlError {
     InvalidStructure,
     /// A numeric token was invalid or non-finite.
     InvalidNumber,
+    /// Binary per-facet attribute payloads are outside this spike's contract.
+    UnsupportedAttributeData,
     /// Triangle count exceeded the explicit limit.
     TriangleLimitExceeded,
     /// A triangle had effectively zero area.
@@ -223,6 +253,7 @@ impl AsciiStlError {
             Self::InvalidText => "STL_INVALID_TEXT",
             Self::InvalidStructure => "STL_INVALID_STRUCTURE",
             Self::InvalidNumber => "STL_INVALID_NUMBER",
+            Self::UnsupportedAttributeData => "STL_UNSUPPORTED_ATTRIBUTE_DATA",
             Self::TriangleLimitExceeded => "STL_TRIANGLE_LIMIT_EXCEEDED",
             Self::DegenerateTriangle => "STL_DEGENERATE_TRIANGLE",
             Self::EmptyMesh => "STL_EMPTY_MESH",
@@ -237,6 +268,9 @@ impl fmt::Display for AsciiStlError {
 }
 
 impl Error for AsciiStlError {}
+
+/// Encoding-neutral name for bounded STL analysis failures.
+pub type StlError = AsciiStlError;
 
 #[derive(Clone, Copy, Debug)]
 struct Triangle([MeshVector3; 3]);
@@ -274,10 +308,7 @@ impl EdgeUses {
 }
 
 /// Parses and measures one ASCII STL byte stream without resolving a source path.
-pub fn analyze_ascii_stl(
-    bytes: &[u8],
-    limits: AsciiStlLimits,
-) -> Result<AsciiStlMeshEvidence, AsciiStlError> {
+pub fn analyze_ascii_stl(bytes: &[u8], limits: StlLimits) -> Result<StlMeshEvidence, StlError> {
     if bytes.len() > limits.max_input_bytes {
         return Err(AsciiStlError::InputLimitExceeded);
     }
@@ -307,20 +338,129 @@ pub fn analyze_ascii_stl(
         if triangles.len() == limits.max_triangles {
             return Err(AsciiStlError::TriangleLimitExceeded);
         }
-        let double_area = vertices[1]
-            .subtract(vertices[0])
-            .cross(vertices[2].subtract(vertices[0]))
-            .norm();
-        if !double_area.is_finite() || double_area <= DEGENERATE_AREA_EPSILON {
-            return Err(AsciiStlError::DegenerateTriangle);
-        }
+        validate_triangle(vertices)?;
         triangles.push(Triangle(vertices));
     }
     if triangles.is_empty() {
         return Err(AsciiStlError::EmptyMesh);
     }
 
-    analyze_triangles(&triangles)
+    analyze_triangles(&triangles, ASCII_STL_ANALYZER_VERSION, StlEncoding::Ascii)
+}
+
+/// Detects ASCII versus binary STL from content framing and measures it.
+pub fn analyze_stl(bytes: &[u8], limits: StlLimits) -> Result<StlMeshEvidence, StlError> {
+    if bytes.len() > limits.max_input_bytes {
+        return Err(AsciiStlError::InputLimitExceeded);
+    }
+    if has_exact_binary_framing(bytes) {
+        analyze_binary_stl(bytes, limits)
+    } else {
+        analyze_ascii_stl(bytes, limits)
+    }
+}
+
+/// Parses and measures one binary STL byte stream without resolving a source path.
+pub fn analyze_binary_stl(bytes: &[u8], limits: StlLimits) -> Result<StlMeshEvidence, StlError> {
+    if bytes.len() > limits.max_input_bytes {
+        return Err(AsciiStlError::InputLimitExceeded);
+    }
+    if bytes.len() < BINARY_HEADER_BYTES + BINARY_COUNT_BYTES {
+        return Err(AsciiStlError::InvalidStructure);
+    }
+
+    let triangle_count = read_u32(bytes, BINARY_HEADER_BYTES)? as usize;
+    if triangle_count == 0 {
+        return Err(AsciiStlError::EmptyMesh);
+    }
+    if triangle_count > limits.max_triangles {
+        return Err(AsciiStlError::TriangleLimitExceeded);
+    }
+    let expected_bytes = binary_length(triangle_count).ok_or(AsciiStlError::InvalidStructure)?;
+    if bytes.len() != expected_bytes {
+        return Err(AsciiStlError::InvalidStructure);
+    }
+
+    let mut triangles = Vec::with_capacity(triangle_count);
+    let mut offset = BINARY_HEADER_BYTES + BINARY_COUNT_BYTES;
+    for _ in 0..triangle_count {
+        for _ in 0..3 {
+            let normal_component = read_f32(bytes, offset)?;
+            if !normal_component.is_finite() {
+                return Err(AsciiStlError::InvalidNumber);
+            }
+            offset += 4;
+        }
+        let mut vertices = [MeshVector3::new(0.0, 0.0, 0.0); 3];
+        for vertex in &mut vertices {
+            *vertex = MeshVector3::new(
+                f64::from(read_f32(bytes, offset)?),
+                f64::from(read_f32(bytes, offset + 4)?),
+                f64::from(read_f32(bytes, offset + 8)?),
+            );
+            if !vertex.is_finite() {
+                return Err(AsciiStlError::InvalidNumber);
+            }
+            offset += 12;
+        }
+        let attribute_bytes = read_u16(bytes, offset)?;
+        offset += 2;
+        if attribute_bytes != 0 {
+            return Err(AsciiStlError::UnsupportedAttributeData);
+        }
+        validate_triangle(vertices)?;
+        triangles.push(Triangle(vertices));
+    }
+
+    analyze_triangles(&triangles, BINARY_STL_ANALYZER_VERSION, StlEncoding::Binary)
+}
+
+fn has_exact_binary_framing(bytes: &[u8]) -> bool {
+    if bytes.len() < BINARY_HEADER_BYTES + BINARY_COUNT_BYTES {
+        return false;
+    }
+    read_u32(bytes, BINARY_HEADER_BYTES)
+        .ok()
+        .and_then(|count| usize::try_from(count).ok())
+        .and_then(binary_length)
+        == Some(bytes.len())
+}
+
+fn binary_length(triangle_count: usize) -> Option<usize> {
+    triangle_count
+        .checked_mul(BINARY_TRIANGLE_BYTES)?
+        .checked_add(BINARY_HEADER_BYTES + BINARY_COUNT_BYTES)
+}
+
+fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, AsciiStlError> {
+    let value = bytes
+        .get(offset..offset + 2)
+        .ok_or(AsciiStlError::InvalidStructure)?;
+    Ok(u16::from_le_bytes([value[0], value[1]]))
+}
+
+fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, AsciiStlError> {
+    let value = bytes
+        .get(offset..offset + 4)
+        .ok_or(AsciiStlError::InvalidStructure)?;
+    Ok(u32::from_le_bytes([value[0], value[1], value[2], value[3]]))
+}
+
+fn read_f32(bytes: &[u8], offset: usize) -> Result<f32, AsciiStlError> {
+    let bits = read_u32(bytes, offset)?;
+    Ok(f32::from_bits(bits))
+}
+
+fn validate_triangle(vertices: [MeshVector3; 3]) -> Result<(), AsciiStlError> {
+    let double_area = vertices[1]
+        .subtract(vertices[0])
+        .cross(vertices[2].subtract(vertices[0]))
+        .norm();
+    if !double_area.is_finite() || double_area <= DEGENERATE_AREA_EPSILON {
+        Err(AsciiStlError::DegenerateTriangle)
+    } else {
+        Ok(())
+    }
 }
 
 fn require_keyword_with_optional_name(line: &str, keyword: &str) -> Result<(), AsciiStlError> {
@@ -384,7 +524,11 @@ fn parse_number(token: &str) -> Result<f64, AsciiStlError> {
     }
 }
 
-fn analyze_triangles(triangles: &[Triangle]) -> Result<AsciiStlMeshEvidence, AsciiStlError> {
+fn analyze_triangles(
+    triangles: &[Triangle],
+    algorithm_version: &'static str,
+    encoding: StlEncoding,
+) -> Result<AsciiStlMeshEvidence, AsciiStlError> {
     let mut minimum = MeshVector3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
     let mut maximum = MeshVector3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
     let mut area = 0.0;
@@ -466,7 +610,8 @@ fn analyze_triangles(triangles: &[Triangle]) -> Result<AsciiStlMeshEvidence, Asc
     }
 
     Ok(AsciiStlMeshEvidence {
-        algorithm_version: ASCII_STL_ANALYZER_VERSION,
+        algorithm_version,
+        encoding,
         detected_format: ModelFormat::Stl,
         representation: RepresentationBasis::Mesh,
         source_units: ModelLengthUnit::Unknown,

@@ -3,8 +3,9 @@
 mod ascii_stl;
 
 pub use ascii_stl::{
-    ASCII_STL_ANALYZER_VERSION, AsciiStlError, AsciiStlLimits, AsciiStlMeshEvidence, MeshVector3,
-    analyze_ascii_stl,
+    ASCII_STL_ANALYZER_VERSION, AsciiStlError, AsciiStlLimits, AsciiStlMeshEvidence,
+    BINARY_STL_ANALYZER_VERSION, MeshVector3, StlEncoding, StlError, StlLimits, StlMeshEvidence,
+    analyze_ascii_stl, analyze_binary_stl, analyze_stl,
 };
 
 use std::collections::BTreeSet;
