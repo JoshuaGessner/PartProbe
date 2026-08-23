@@ -23,6 +23,28 @@ const INCH_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_
 const FOOT_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_foot.3mf");
 const DEFAULT_MM_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_mm.3mf");
+const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 5] = [
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_non_immediate_reference.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_object_metadata.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_relationship_traversal.3mf"),
+        ThreeMfError::UnsafePackage,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_case_ambiguous_part.3mf"),
+        ThreeMfError::UnsafePackage,
+    ),
+];
 
 fn limits() -> ThreeMfLimits {
     ThreeMfLimits::new(
@@ -407,6 +429,15 @@ fn component_limits_references_and_transform_policy_fail_closed() {
         analyze_3mf(&oversized_resource_id, limits()),
         Err(ThreeMfError::InvalidNumber)
     );
+}
+
+#[test]
+fn persisted_adversarial_packages_fail_with_exact_sanitized_diagnostics() {
+    for (package, expected) in ADVERSARIAL_THREE_MF {
+        assert_eq!(analyze_3mf(package, limits()), Err(expected));
+        assert!(expected.diagnostic_code().starts_with("THREE_MF_"));
+        assert!(!expected.to_string().contains("3D/"));
+    }
 }
 
 #[test]

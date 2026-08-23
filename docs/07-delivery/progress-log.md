@@ -8,6 +8,15 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-22 — TASK-004 persisted adversarial 3MF rejection corpus
+
+- Added deterministic public `FIX-MESH-014`–`018` for five exact rejection boundaries: a component object with two references, an outer component that skips its immediate predecessor, object-level metadata, a StartPart relationship containing parent traversal, and a second case-fold-equivalent model part.
+- Added typed schema-v1 failure expectations binding every package hash to the exact content-free diagnostic: three `THREE_MF_UNSUPPORTED_MODEL_STRUCTURE` results and two `THREE_MF_UNSAFE_PACKAGE` results. The contract requires recoverable failure and forbids a geometry snapshot, output file, or retained staged input; rejected packages cannot masquerade as successful mesh evidence.
+- Extended deterministic generation/check mode and changed-output tests across all five packages. The parser regression consumes the committed bytes directly under the governed limits, rather than relying only on runtime XML/ZIP mutation.
+- Focused validation passes seven STL tests, twelve 3MF tests, four success/failure fixture-contract tests, and eleven generator-tooling tests. The complete local gate passes 166 runtime tests, one compile-fail doctest, 65 Python tooling tests, strict workspace/native-host/WASM Clippy, offline frontend construction, planning, deterministic fixture reproduction/hashes, and diff hygiene.
+- Three-OS Rust CI run 32614545161 passes the preceding linear-chain checkpoint at exact commit `bead13f`. This checkpoint does not change the accepted v4 geometry interpretation, so the parser version stays v4 and no result migration is required.
+- TASK-004 remains In Progress. Union/general-DAG cases, item/vendor metadata, additional unsafe/archive and binary/malformed cases, self-intersection/confidence policy, independent representative geometry, and typed worker/desktop integration remain open. The persisted failures are parser-level evidence only.
+
 ## 2026-08-22 — TASK-004 bounded linear 3MF component-chain checkpoint
 
 - Advanced the parser to `partprobe-3mf-spike-v4`. One mesh object may now be followed by a bounded linear sequence of component objects, each containing exactly one reference to the immediately preceding object. Evidence replaces the prior scalar optional component fields with the complete ordered object-ID, referenced-ID, exact-transform, and applied-state chain.

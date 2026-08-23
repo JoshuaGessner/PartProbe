@@ -1,11 +1,13 @@
 """Regression tests for the deterministic governed 3MF fixture generator."""
 
-from pathlib import Path
+import hashlib
+import json
 import sys
 import tempfile
 import unittest
 import zipfile
 from io import BytesIO
+from pathlib import Path
 
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -35,6 +37,7 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
         generate_3mf_fixture.check_component_fixture()
         generate_3mf_fixture.check_nested_component_fixture()
         generate_3mf_fixture.check_metadata_fixture()
+        generate_3mf_fixture.check_adversarial_fixtures()
         generate_3mf_fixture.check_unit_fixtures()
 
     def test_metadata_package_is_bounded_public_core_evidence(self) -> None:
@@ -113,6 +116,50 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
+    def test_adversarial_corpus_pins_five_distinct_rejection_shapes(self) -> None:
+        source = generate_3mf_fixture.SOURCE.read_bytes()
+        generated = {
+            case: generate_3mf_fixture.build_adversarial_3mf(source, case)
+            for case, _ in generate_3mf_fixture.ADVERSARIAL_FIXTURES
+        }
+        self.assertEqual(len(generated), 5)
+        self.assertEqual(len(set(generated.values())), 5)
+        expected_ids = {
+            "branching_components": "FIX-MESH-014",
+            "non_immediate_reference": "FIX-MESH-015",
+            "object_metadata": "FIX-MESH-016",
+            "relationship_traversal": "FIX-MESH-017",
+            "case_ambiguous_part": "FIX-MESH-018",
+        }
+        for case, output_path in generate_3mf_fixture.ADVERSARIAL_FIXTURES:
+            self.assertEqual(generated[case], output_path.read_bytes())
+            expectation_path = (
+                generate_3mf_fixture.ROOT
+                / "fixtures"
+                / "expected"
+                / f"adversarial_3mf_{case}_rejection.json"
+            )
+            expectation = json.loads(expectation_path.read_text())
+            self.assertEqual(expectation["fixture_id"], expected_ids[case])
+            self.assertEqual(
+                expectation["source_sha256"],
+                hashlib.sha256(generated[case]).hexdigest(),
+            )
+            self.assertFalse(expectation["snapshot_expected"])
+
+        with zipfile.ZipFile(BytesIO(generated["branching_components"])) as package:
+            self.assertEqual(package.read("3D/3dmodel.model").count(b"<component "), 2)
+        with zipfile.ZipFile(BytesIO(generated["non_immediate_reference"])) as package:
+            model = package.read("3D/3dmodel.model")
+            self.assertIn(b'<object id="3"', model)
+            self.assertIn(b'<component objectid="1" transform="1 0 0 0 3', model)
+        with zipfile.ZipFile(BytesIO(generated["object_metadata"])) as package:
+            self.assertIn(b"<metadatagroup>", package.read("3D/3dmodel.model"))
+        with zipfile.ZipFile(BytesIO(generated["relationship_traversal"])) as package:
+            self.assertIn(b'Target="/../escape.model"', package.read("_rels/.rels"))
+        with zipfile.ZipFile(BytesIO(generated["case_ambiguous_part"])) as package:
+            self.assertIn("3d/3dmodel.model", package.namelist())
+
     def test_check_rejects_changed_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             changed = Path(directory) / "changed.3mf"
@@ -133,6 +180,12 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
                 generate_3mf_fixture.check_nested_component_fixture(
                     generate_3mf_fixture.SOURCE,
                     changed,
+                )
+
+            with self.assertRaisesRegex(RuntimeError, "not reproducible"):
+                generate_3mf_fixture.check_adversarial_fixtures(
+                    generate_3mf_fixture.SOURCE,
+                    (("branching_components", changed),),
                 )
 
             with self.assertRaisesRegex(RuntimeError, "not reproducible"):

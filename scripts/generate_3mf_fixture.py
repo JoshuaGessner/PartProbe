@@ -22,6 +22,28 @@ NESTED_COMPONENT_OUTPUT = (
     ROOT / "fixtures" / "models" / "cube_1cm_nested_component_chain.3mf"
 )
 METADATA_OUTPUT = ROOT / "fixtures" / "models" / "cube_10mm_3mf_metadata.3mf"
+ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
+    (
+        "branching_components",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_branching_components.3mf",
+    ),
+    (
+        "non_immediate_reference",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_non_immediate_reference.3mf",
+    ),
+    (
+        "object_metadata",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_object_metadata.3mf",
+    ),
+    (
+        "relationship_traversal",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_relationship_traversal.3mf",
+    ),
+    (
+        "case_ambiguous_part",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_case_ambiguous_part.3mf",
+    ),
+)
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
     (
@@ -216,6 +238,40 @@ def build_nested_component_3mf(source: bytes) -> bytes:
     return build_package(tuple(parts))
 
 
+def build_adversarial_3mf(source: bytes, case: str) -> bytes:
+    """Create one deterministic public package that the bounded parser must reject."""
+    parts = list(package_parts(source))
+    if case == "branching_components":
+        model = build_component_model_xml(source).decode("utf-8").replace(
+            "      </components>",
+            '        <component objectid="1" />\n      </components>',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "non_immediate_reference":
+        model = build_nested_component_model_xml(source).decode("utf-8").replace(
+            '<component objectid="2" transform="1 0 0 0 3 0 0 0 1 1 0 2" />',
+            '<component objectid="1" transform="1 0 0 0 3 0 0 0 1 1 0 2" />',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "object_metadata":
+        model = build_unit_model_xml(source, "millimeter", "1").decode("utf-8").replace(
+            "      <mesh>",
+            '      <metadatagroup><metadata name="Title">Rejected object metadata</metadata></metadatagroup>\n      <mesh>',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "relationship_traversal":
+        relationships = parts[1][1].replace(
+            b'Target="/3D/3dmodel.model"',
+            b'Target="/../escape.model"',
+        )
+        parts[1] = (parts[1][0], relationships)
+    elif case == "case_ambiguous_part":
+        parts.append(("3d/3dmodel.model", parts[-1][1]))
+    else:
+        raise ValueError(f"unsupported adversarial 3MF case: {case}")
+    return build_package(tuple(parts))
+
+
 def build_metadata_3mf(source: bytes) -> bytes:
     """Create deterministic bytes for the governed Core-metadata fixture."""
     parts = list(package_parts(source))
@@ -256,6 +312,18 @@ def check_nested_component_fixture(
         raise RuntimeError("nested component 3MF fixture is missing or not reproducible")
 
 
+def check_adversarial_fixtures(
+    source_path: Path = SOURCE,
+    fixtures: tuple[tuple[str, Path], ...] = ADVERSARIAL_FIXTURES,
+) -> None:
+    """Fail when any committed adversarial package is not reproducible."""
+    source = source_path.read_bytes()
+    for case, output_path in fixtures:
+        expected = build_adversarial_3mf(source, case)
+        if not output_path.is_file() or output_path.read_bytes() != expected:
+            raise RuntimeError("adversarial 3MF fixture is missing or not reproducible")
+
+
 def check_metadata_fixture(
     source_path: Path = SOURCE, output_path: Path = METADATA_OUTPUT
 ) -> None:
@@ -290,6 +358,10 @@ def main() -> int:
     component_expected = build_component_3mf(source)
     nested_component_expected = build_nested_component_3mf(source)
     metadata_expected = build_metadata_3mf(source)
+    adversarial_expected = tuple(
+        (output_path, build_adversarial_3mf(source, case))
+        for case, output_path in ADVERSARIAL_FIXTURES
+    )
     unit_expected = tuple(
         (
             output_path,
@@ -302,6 +374,8 @@ def main() -> int:
         COMPONENT_OUTPUT.write_bytes(component_expected)
         NESTED_COMPONENT_OUTPUT.write_bytes(nested_component_expected)
         METADATA_OUTPUT.write_bytes(metadata_expected)
+        for output_path, contents in adversarial_expected:
+            output_path.write_bytes(contents)
         for output_path, contents in unit_expected:
             output_path.write_bytes(contents)
     else:
@@ -309,6 +383,7 @@ def main() -> int:
         check_component_fixture()
         check_nested_component_fixture()
         check_metadata_fixture()
+        check_adversarial_fixtures()
         check_unit_fixtures()
     return 0
 

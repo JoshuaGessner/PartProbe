@@ -444,6 +444,176 @@ fixtures:
       - canonical_aabb_volume_area_centroid_golden
     expected: expected/cube_1cm_nested_component_chain_3mf.json
     sha256: 2212e0c767b221995a3d6a4c6016c7835dc0d1463514c785985f35c69240d94d
+  - id: FIX-MESH-014
+    title: Adversarial 3MF component object with two references
+    path: models/adversarial_3mf_branching_components.3mf
+    format: 3mf-core-1.4-invalid-for-bounded-profile
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_but_rejected_structure
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v6
+      parser: partprobe-3mf-spike-v4
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-006, GEO-007, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [branching_component_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_branching_components_rejection.json
+    sha256: 51f9109b69138c6794a6879a9efde4c805e5f657213cde708e462b1452a7045d
+  - id: FIX-MESH-015
+    title: Adversarial 3MF component with non-immediate reference
+    path: models/adversarial_3mf_non_immediate_reference.3mf
+    format: 3mf-core-1.4-invalid-for-bounded-profile
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_but_rejected_structure
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v6
+      parser: partprobe-3mf-spike-v4
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-006, GEO-007, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [non_immediate_component_reference_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_non_immediate_reference_rejection.json
+    sha256: df263fbf3bd06ab1631c1ef8314d5a56fa5d93743ded6b73171f0fd7df6f8935
+  - id: FIX-MESH-016
+    title: Adversarial 3MF object-level metadata group
+    path: models/adversarial_3mf_object_metadata.3mf
+    format: 3mf-core-1.4-outside-bounded-profile
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_but_rejected_structure
+    declared_units: mm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v6
+      parser: partprobe-3mf-spike-v4
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-006, GEO-013, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [object_metadata_rejection, metadata_not_used_as_authority, no_geometry_evidence]
+    expected: expected/adversarial_3mf_object_metadata_rejection.json
+    sha256: 228fe057166cd9d93a4044b56e817988fa6a3b68f1fe726715fd9fe161fc3130
+  - id: FIX-MESH-017
+    title: Adversarial 3MF StartPart relationship traversal
+    path: models/adversarial_3mf_relationship_traversal.3mf
+    format: 3mf-opc-unsafe
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: unavailable_unsafe_package
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v6
+      parser: partprobe-3mf-spike-v4
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-006, SEC-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [relationship_traversal_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_relationship_traversal_rejection.json
+    sha256: 022f5c5d434dc4b4f819fc29dbd7ca02405be8b7fcf0539ef53b08cf6e5cab77
+  - id: FIX-MESH-018
+    title: Adversarial 3MF package with case-ambiguous model parts
+    path: models/adversarial_3mf_case_ambiguous_part.3mf
+    format: 3mf-opc-unsafe
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: unavailable_unsafe_package
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v6
+      parser: partprobe-3mf-spike-v4
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-22
+    reviewed_date: null
+    requirements: [GEO-006, SEC-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [case_ambiguous_part_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_case_ambiguous_part_rejection.json
+    sha256: f33e8354d2454a2b9779f8988f0354b3eef4c1b10fb60557f209f53fac1b22b3
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -539,7 +709,7 @@ fixtures:
     sha256: a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138
 required_next:
   - independent_non_project_cad_tool_step
-  - 3mf_branching_union_object_item_vendor_metadata_and_unsafe_archive_corpus
+  - 3mf_union_item_vendor_metadata_and_additional_unsafe_archive_corpus
   - expanded_malformed_and_resource_limit_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts
