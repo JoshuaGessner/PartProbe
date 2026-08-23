@@ -18,8 +18,8 @@ use crate::mesh_analysis::{
     validate_triangle,
 };
 
-/// Versioned algorithm identity for the governed linear-component/metadata 3MF slice.
-pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v4";
+/// Versioned algorithm identity for the governed 3MF package-policy slice.
+pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v5";
 
 const CONTENT_TYPES_PART: &str = "[Content_Types].xml";
 const ROOT_RELATIONSHIPS_PART: &str = "_rels/.rels";
@@ -540,7 +540,7 @@ fn preflight_archive(
     let mut total_uncompressed = 0_u64;
     for index in 0..archive.len() {
         let entry = archive
-            .by_index(index)
+            .by_index_raw(index)
             .map_err(|_| ThreeMfError::InvalidPackage)?;
         let name = entry.name();
         if entry.encrypted()

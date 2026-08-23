@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-022",
+  "source_sha256": "be26b03d1f4c4ff7a17b1dca965c6958c126f9c0099c0140c802f2b956998f82",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "THREE_MF_ARCHIVE_LIMIT_EXCEEDED",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

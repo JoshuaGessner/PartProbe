@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-08-22
+- **Last updated:** 2026-08-23
 - **Related requirement IDs:** GEO-001–GEO-014, REQ-NF-011–REQ-NF-014, TEST-021–TEST-030, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Reviewed tolerance table by format/property? Fixture-owner assignments? Release resource budgets?
@@ -16,7 +16,7 @@ Prove that geometry claims are reproducible, correctly labelled by representatio
 
 Current TASK-003 evidence includes analytic STEP measurements on Apple Silicon and Ubuntu 24.04 x86_64. The Ubuntu checkpoint constructs the exact pinned kernel, verifies the runtime/link closure, and passes the governed prism through the configured desktop host under Linux parser containment. That is one cross-platform comparison point, not the three-OS corpus, tolerance scorecard, packaging result, or production importer acceptance required below.
 
-Current TASK-004 evidence adds path-free, quota-bounded ASCII/binary STL and ZIP/OPC-bounded 3MF comparison analyzers over thirteen successful public synthetic mesh fixtures plus five persisted rejected 3MF packages. All accepted formats share deterministic triangle bounds/area/manifold/closure/winding/conditional-volume measurement. STL units remain explicitly unresolved. Ten successful 3MF fixtures persist all six Core declarations/default, direct through two-link linear component-chain provenance, ordered transforms, bounded model metadata, and canonical measurements. Five adversarial packages pin exact no-evidence diagnostics for branching, a non-immediate reference, object metadata, relationship traversal, and case-ambiguous parts. The corpus derives from one analytic cube and is not independent representative geometry. Broader binary/malformed cases, general DAG/unions, item/vendor metadata, materials, self-intersection policy, approximate-confidence scoring, worker/desktop integration, representative geometry, and supported-importer acceptance remain open; see `task-004-validation.md`.
+Current TASK-004 evidence adds path-free, quota-bounded ASCII/binary STL and ZIP/OPC-bounded 3MF comparison analyzers over thirteen successful public synthetic mesh fixtures plus ten persisted rejected 3MF packages. All accepted formats share deterministic triangle bounds/area/manifold/closure/winding/conditional-volume measurement. STL units remain explicitly unresolved. Ten successful 3MF fixtures persist all six Core declarations/default, direct through two-link linear component-chain provenance, ordered transforms, bounded model metadata, and canonical measurements. Ten adversarial packages pin exact no-evidence diagnostics for branching/non-immediate references, a build union, object/item/vendor metadata, relationship traversal, case-ambiguous parts, excessive compression ratio, and unsupported compression. The corpus derives from one analytic cube and is not independent representative geometry. Broader binary/malformed cases, general DAG/material layouts, self-intersection policy, approximate-confidence scoring, worker/desktop integration, representative geometry, and supported-importer acceptance remain open; see `task-004-validation.md`.
 
 ## Validation layers
 

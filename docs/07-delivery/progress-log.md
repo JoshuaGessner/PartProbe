@@ -1,12 +1,22 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-22
+> **Last updated:** 2026-08-23
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-23 — TASK-004 adversarial 3MF structure and archive-policy corpus
+
+- Added deterministic public `FIX-MESH-019`–`023` for a two-item build union, item-level metadata, vendor-defined model metadata, a package exceeding the configured compression ratio, and a package declaring unsupported compression. The complete public synthetic CAD boundary is now twenty-six files: three STL, twenty 3MF, and three STEP; ten 3MF packages are intentional rejected inputs.
+- Added schema-v1 typed failure expectations binding every package hash to three `THREE_MF_UNSUPPORTED_MODEL_STRUCTURE`, one `THREE_MF_ARCHIVE_LIMIT_EXCEEDED`, and one `THREE_MF_UNSUPPORTED_COMPRESSION` result. All require recoverable failure and forbid a geometry snapshot, output file, or retained staged input.
+- Advanced the parser identity to `partprobe-3mf-spike-v5`. Preflight now uses raw ZIP-entry access to classify an entry's declared method before constructing a decompressor. This corrects the v4 collapse of disabled compression methods into `THREE_MF_INVALID_PACKAGE`; accepted Store/Deflate geometry, units, transforms, topology, and measurements are unchanged.
+- Recorded the migration decision: this is a diagnostic-policy change in a preproduction API with no persisted/customer results to migrate. New callers pin v5, while historical v4 failures must not be silently relabelled.
+- Focused validation passes twelve 3MF tests, four typed fixture-contract tests, and eight 3MF generator-tooling tests. The deterministic generator reproduces all twenty 3MF packages byte-for-byte, including the raw-header unsupported-compression declaration.
+- The complete local gate passes 166 runtime tests, one compile-fail doctest, 65 Python tooling tests, strict workspace/native-host/WASM Clippy, offline frontend construction, planning validation, deterministic binary/3MF reproduction and hashes, and diff hygiene.
+- Three-OS Rust CI run 32615460926 passes the preceding five-package adversarial checkpoint at exact commit `4f624e6`. TASK-004 remains In Progress: general component DAG/material cases, additional unsafe/archive and binary/malformed cases, self-intersection/confidence policy, independent representative geometry, and typed worker/desktop integration remain open. This remains parser-level evidence only.
 
 ## 2026-08-22 — TASK-004 persisted adversarial 3MF rejection corpus
 

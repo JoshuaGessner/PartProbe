@@ -99,7 +99,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v1
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -138,7 +138,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v2
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -177,7 +177,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -211,7 +211,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -245,7 +245,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -279,7 +279,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -313,7 +313,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -347,7 +347,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -381,7 +381,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v4
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -419,7 +419,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v5
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -458,7 +458,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -492,7 +492,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -526,7 +526,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -560,7 +560,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -594,7 +594,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v4
+      parser: partprobe-3mf-spike-v5
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -614,6 +614,176 @@ fixtures:
     purpose: [case_ambiguous_part_rejection, sanitized_diagnostic, no_geometry_evidence]
     expected: expected/adversarial_3mf_case_ambiguous_part_rejection.json
     sha256: f33e8354d2454a2b9779f8988f0354b3eef4c1b10fb60557f209f53fac1b22b3
+  - id: FIX-MESH-019
+    title: Adversarial 3MF build union with two items
+    path: models/adversarial_3mf_build_union.3mf
+    format: 3mf-core-1.4-outside-bounded-profile
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_but_rejected_structure
+    declared_units: mm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v7
+      parser: partprobe-3mf-spike-v5
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-23
+    reviewed_date: null
+    requirements: [GEO-006, GEO-007, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [build_union_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_build_union_rejection.json
+    sha256: c6f3f10abbca80996200f57df6d68b958e658fcf80d2bded095930d151a5556a
+  - id: FIX-MESH-020
+    title: Adversarial 3MF item-level metadata group
+    path: models/adversarial_3mf_item_metadata.3mf
+    format: 3mf-core-1.4-outside-bounded-profile
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_but_rejected_structure
+    declared_units: mm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v7
+      parser: partprobe-3mf-spike-v5
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-23
+    reviewed_date: null
+    requirements: [GEO-006, GEO-013, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [item_metadata_rejection, metadata_not_used_as_authority, no_geometry_evidence]
+    expected: expected/adversarial_3mf_item_metadata_rejection.json
+    sha256: 093eeb92c452b98c4fe1322b20fc8b0c79c6041853e88c73e84963895b35f070
+  - id: FIX-MESH-021
+    title: Adversarial 3MF vendor-defined model metadata
+    path: models/adversarial_3mf_vendor_metadata.3mf
+    format: 3mf-core-1.4-outside-bounded-profile
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_but_rejected_structure
+    declared_units: mm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v7
+      parser: partprobe-3mf-spike-v5
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-23
+    reviewed_date: null
+    requirements: [GEO-006, GEO-013, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [vendor_metadata_rejection, metadata_not_used_as_authority, no_geometry_evidence]
+    expected: expected/adversarial_3mf_vendor_metadata_rejection.json
+    sha256: feeb85b4b4a6f853f618e2ab276c8a1e7b5b1833066fd9b89a16a2d1504ef002
+  - id: FIX-MESH-022
+    title: Adversarial 3MF package exceeding compression-ratio policy
+    path: models/adversarial_3mf_high_compression_ratio.3mf
+    format: 3mf-opc-resource-limit
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: unavailable_archive_limit
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v7
+      parser: partprobe-3mf-spike-v5
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-23
+    reviewed_date: null
+    requirements: [GEO-006, SEC-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [compression_ratio_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_high_compression_ratio_rejection.json
+    sha256: be26b03d1f4c4ff7a17b1dca965c6958c126f9c0099c0140c802f2b956998f82
+  - id: FIX-MESH-023
+    title: Adversarial 3MF package declaring unsupported compression
+    path: models/adversarial_3mf_unsupported_compression.3mf
+    format: 3mf-opc-unsupported-compression
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: unavailable_unsupported_archive
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v7
+      parser: partprobe-3mf-spike-v5
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-23
+    reviewed_date: null
+    requirements: [GEO-006, SEC-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [unsupported_compression_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_unsupported_compression_rejection.json
+    sha256: a8e8513186737e5aa1c0c3d06f8fa3930dbfa7ce6665e553b0c14b5bc56efd6a
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -709,7 +879,7 @@ fixtures:
     sha256: a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138
 required_next:
   - independent_non_project_cad_tool_step
-  - 3mf_union_item_vendor_metadata_and_additional_unsafe_archive_corpus
+  - 3mf_general_dag_material_and_additional_unsafe_archive_corpus
   - expanded_malformed_and_resource_limit_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts

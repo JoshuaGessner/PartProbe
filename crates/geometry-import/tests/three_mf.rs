@@ -23,7 +23,7 @@ const INCH_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_
 const FOOT_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_foot.3mf");
 const DEFAULT_MM_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_mm.3mf");
-const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 5] = [
+const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 10] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
         ThreeMfError::UnsupportedModelStructure,
@@ -43,6 +43,26 @@ const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 5] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_case_ambiguous_part.3mf"),
         ThreeMfError::UnsafePackage,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_build_union.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_item_metadata.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_vendor_metadata.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_high_compression_ratio.3mf"),
+        ThreeMfError::ArchiveLimitExceeded,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_unsupported_compression.3mf"),
+        ThreeMfError::UnsupportedCompression,
     ),
 ];
 
@@ -270,7 +290,7 @@ fn nested_linear_component_chain_is_applied_in_leaf_to_build_order() {
 fn bounded_model_metadata_is_counted_but_never_retained_or_interpreted() {
     let evidence = analyze_3mf(METADATA_CUBE, limits()).expect("metadata 3MF cube must parse");
 
-    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v4");
+    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v5");
     assert_eq!(evidence.source_units(), ModelLengthUnit::Millimeter);
     assert_eq!(evidence.model_metadata_count(), 3);
     assert_eq!(evidence.preserved_model_metadata_count(), 1);

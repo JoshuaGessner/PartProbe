@@ -43,6 +43,26 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         "case_ambiguous_part",
         ROOT / "fixtures" / "models" / "adversarial_3mf_case_ambiguous_part.3mf",
     ),
+    (
+        "build_union",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_build_union.3mf",
+    ),
+    (
+        "item_metadata",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_item_metadata.3mf",
+    ),
+    (
+        "vendor_metadata",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_vendor_metadata.3mf",
+    ),
+    (
+        "high_compression_ratio",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_high_compression_ratio.3mf",
+    ),
+    (
+        "unsupported_compression",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_unsupported_compression.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -213,17 +233,35 @@ def build_3mf(source: bytes) -> bytes:
     return build_package(package_parts(source))
 
 
-def build_package(parts: tuple[tuple[str, bytes], ...]) -> bytes:
-    """Create deterministic Deflate-compressed bytes from ordered OPC parts."""
+def build_package(
+    parts: tuple[tuple[str, bytes], ...],
+    *,
+    compression: int = zipfile.ZIP_DEFLATED,
+) -> bytes:
+    """Create deterministic compressed bytes from ordered OPC parts."""
     output = BytesIO()
     with zipfile.ZipFile(output, "w") as package:
         for name, contents in parts:
             info = zipfile.ZipInfo(name, FIXED_TIMESTAMP)
-            info.compress_type = zipfile.ZIP_DEFLATED
+            info.compress_type = compression
             info.create_system = 3
             info.external_attr = 0o100644 << 16
-            package.writestr(info, contents, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+            package.writestr(info, contents, compress_type=compression, compresslevel=9)
     return output.getvalue()
+
+
+def declare_first_entry_compression(package: bytes, compression: int) -> bytes:
+    """Rewrite one stored entry's local and central compression declarations."""
+    declared = compression.to_bytes(2, "little")
+    output = bytearray(package)
+    if output[:4] != b"PK\x03\x04":
+        raise RuntimeError("generated ZIP is missing its first local header")
+    central_header = output.find(b"PK\x01\x02")
+    if central_header < 0:
+        raise RuntimeError("generated ZIP is missing its central directory")
+    output[8:10] = declared
+    output[central_header + 10 : central_header + 12] = declared
+    return bytes(output)
 
 
 def build_component_3mf(source: bytes) -> bytes:
@@ -267,6 +305,31 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
         parts[1] = (parts[1][0], relationships)
     elif case == "case_ambiguous_part":
         parts.append(("3d/3dmodel.model", parts[-1][1]))
+    elif case == "build_union":
+        model = build_unit_model_xml(source, "millimeter", "1").decode("utf-8").replace(
+            "    <item objectid=\"1\" />",
+            '    <item objectid="1" />\n    <item objectid="1" />',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "item_metadata":
+        model = build_unit_model_xml(source, "millimeter", "1").decode("utf-8").replace(
+            '    <item objectid="1" />',
+            '''    <item objectid="1">
+      <metadatagroup><metadata name="Title">Rejected item metadata</metadata></metadatagroup>
+    </item>''',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "vendor_metadata":
+        model = build_unit_model_xml(source, "millimeter", "1").decode("utf-8").replace(
+            "  <resources>",
+            '  <metadata name="VendorData">Rejected vendor metadata</metadata>\n  <resources>',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "high_compression_ratio":
+        parts.append(("Metadata/repeated-padding.bin", b"0" * (32 * 1024)))
+    elif case == "unsupported_compression":
+        stored = build_package(tuple(parts), compression=zipfile.ZIP_STORED)
+        return declare_first_entry_compression(stored, zipfile.ZIP_BZIP2)
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
     return build_package(tuple(parts))

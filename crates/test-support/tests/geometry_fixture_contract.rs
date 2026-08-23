@@ -44,7 +44,7 @@ const INDEPENDENT_STEP: &str =
     include_str!("../../../fixtures/expected/rectangular_prism_12x8x5_step.json");
 const INVALID_STEP: &str =
     include_str!("../../../fixtures/expected/invalid_step_entity_rejection.json");
-const THREE_MF_FAILURES: [(&str, &str, &str); 5] = [
+const THREE_MF_FAILURES: [(&str, &str, &str); 10] = [
     (
         include_str!(
             "../../../fixtures/expected/adversarial_3mf_branching_components_rejection.json"
@@ -77,6 +77,35 @@ const THREE_MF_FAILURES: [(&str, &str, &str); 5] = [
         ),
         "FIX-MESH-018",
         "THREE_MF_UNSAFE_PACKAGE",
+    ),
+    (
+        include_str!("../../../fixtures/expected/adversarial_3mf_build_union_rejection.json"),
+        "FIX-MESH-019",
+        "THREE_MF_UNSUPPORTED_MODEL_STRUCTURE",
+    ),
+    (
+        include_str!("../../../fixtures/expected/adversarial_3mf_item_metadata_rejection.json"),
+        "FIX-MESH-020",
+        "THREE_MF_UNSUPPORTED_MODEL_STRUCTURE",
+    ),
+    (
+        include_str!("../../../fixtures/expected/adversarial_3mf_vendor_metadata_rejection.json"),
+        "FIX-MESH-021",
+        "THREE_MF_UNSUPPORTED_MODEL_STRUCTURE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_high_compression_ratio_rejection.json"
+        ),
+        "FIX-MESH-022",
+        "THREE_MF_ARCHIVE_LIMIT_EXCEEDED",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_unsupported_compression_rejection.json"
+        ),
+        "FIX-MESH-023",
+        "THREE_MF_UNSUPPORTED_COMPRESSION",
     ),
 ];
 

@@ -116,20 +116,25 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
-    def test_adversarial_corpus_pins_five_distinct_rejection_shapes(self) -> None:
+    def test_adversarial_corpus_pins_ten_distinct_rejection_shapes(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()
         generated = {
             case: generate_3mf_fixture.build_adversarial_3mf(source, case)
             for case, _ in generate_3mf_fixture.ADVERSARIAL_FIXTURES
         }
-        self.assertEqual(len(generated), 5)
-        self.assertEqual(len(set(generated.values())), 5)
+        self.assertEqual(len(generated), 10)
+        self.assertEqual(len(set(generated.values())), 10)
         expected_ids = {
             "branching_components": "FIX-MESH-014",
             "non_immediate_reference": "FIX-MESH-015",
             "object_metadata": "FIX-MESH-016",
             "relationship_traversal": "FIX-MESH-017",
             "case_ambiguous_part": "FIX-MESH-018",
+            "build_union": "FIX-MESH-019",
+            "item_metadata": "FIX-MESH-020",
+            "vendor_metadata": "FIX-MESH-021",
+            "high_compression_ratio": "FIX-MESH-022",
+            "unsupported_compression": "FIX-MESH-023",
         }
         for case, output_path in generate_3mf_fixture.ADVERSARIAL_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -159,6 +164,20 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             self.assertIn(b'Target="/../escape.model"', package.read("_rels/.rels"))
         with zipfile.ZipFile(BytesIO(generated["case_ambiguous_part"])) as package:
             self.assertIn("3d/3dmodel.model", package.namelist())
+        with zipfile.ZipFile(BytesIO(generated["build_union"])) as package:
+            self.assertEqual(package.read("3D/3dmodel.model").count(b"<item "), 2)
+        with zipfile.ZipFile(BytesIO(generated["item_metadata"])) as package:
+            self.assertIn(b"<metadatagroup>", package.read("3D/3dmodel.model"))
+        with zipfile.ZipFile(BytesIO(generated["vendor_metadata"])) as package:
+            self.assertIn(b'name="VendorData"', package.read("3D/3dmodel.model"))
+        with zipfile.ZipFile(BytesIO(generated["high_compression_ratio"])) as package:
+            padding = package.getinfo("Metadata/repeated-padding.bin")
+            self.assertGreater(padding.file_size, padding.compress_size * 100)
+        with zipfile.ZipFile(BytesIO(generated["unsupported_compression"])) as package:
+            self.assertEqual(
+                package.getinfo("[Content_Types].xml").compress_type,
+                zipfile.ZIP_BZIP2,
+            )
 
     def test_check_rejects_changed_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
