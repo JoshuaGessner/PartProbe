@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "fixture_id": "FIX-MESH-013",
+  "representation": "mesh",
+  "imported_units": "centimeter",
+  "confirmed_units": "centimeter",
+  "body_count": 1,
+  "triangle_count": 12,
+  "watertight": { "state": "available", "value": true },
+  "manifold": { "state": "available", "value": true },
+  "aabb_mm": {
+    "state": "available",
+    "value": { "x": "20", "y": "30", "z": "10" }
+  },
+  "surface_area_mm2": { "state": "available", "value": "2200" },
+  "enclosed_volume_mm3": { "state": "available", "value": "6000" },
+  "center_of_mass_mm": {
+    "state": "available",
+    "value": { "x": "70", "y": "125", "z": "115" }
+  },
+  "absolute_tolerance": "0.000001",
+  "required_warnings": ["MESH_NOT_EXACT_BREP"]
+}

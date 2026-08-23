@@ -8,6 +8,15 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-22 — TASK-004 bounded linear 3MF component-chain checkpoint
+
+- Advanced the parser to `partprobe-3mf-spike-v4`. One mesh object may now be followed by a bounded linear sequence of component objects, each containing exactly one reference to the immediately preceding object. Evidence replaces the prior scalar optional component fields with the complete ordered object-ID, referenced-ID, exact-transform, and applied-state chain.
+- Added deterministic public `FIX-MESH-013`, a 1,124-byte two-link component package derived from `FIX-MESH-001`. The parser applies object 2's X-scale/translation, object 3's Y-scale/translation, then the build translation and centimetre-to-millimetre conversion, reproducing 20 × 30 × 10 mm extents, 2,200 mm² area, 6,000 mm³ volume, and `(70, 125, 115)` mm centroid.
+- Chain depth is bounded without recursive graph traversal by both the explicit object and component ceilings. Multiple references in one object, branching, non-immediate references, duplicate IDs, extra/unused objects or build items, unions, and singular/reflected transforms fail visibly; this is not general 3MF assembly/DAG support.
+- The algorithm identity and preproduction evidence API change because newly accepted structures can alter geometry and scalar provenance could not represent them. There are no persisted/customer results to migrate; callers rebuild against the ordered chain accessor, and v1–v3 results are not silently reinterpreted as v4.
+- Focused validation passes seven STL tests, eleven 3MF tests, four fixture-contract tests, and ten generator-tooling tests. The complete local gate passes 165 runtime tests, one compile-fail doctest, 64 Python tooling tests, strict workspace/native-host/WASM Clippy, offline frontend construction, planning, deterministic fixture reproduction/hashes, and diff hygiene.
+- Three-OS Rust CI run 32613812143 passes the preceding metadata checkpoint at exact commit `969def9` on macOS, Ubuntu, and Windows. TASK-004 remains In Progress. Adversarial branching/union/reference layouts, object/item/vendor metadata, binary/malformed cases, self-intersection/confidence policy, independent representative geometry, and typed worker/desktop integration remain open.
+
 ## 2026-08-22 — TASK-004 bounded 3MF Core model-metadata checkpoint
 
 - Advanced the parser to `partprobe-3mf-spike-v3`. It accepts only well-known unprefixed Core metadata directly under the model and before resources, under a new explicit positive metadata-entry ceiling. Duplicate names, unknown/vendor names, unsupported attributes/types, invalid preservation booleans, object/item metadata groups, and nested content fail visibly.

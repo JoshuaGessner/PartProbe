@@ -33,6 +33,7 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
     def test_committed_package_is_reproducible(self) -> None:
         generate_3mf_fixture.check_fixture()
         generate_3mf_fixture.check_component_fixture()
+        generate_3mf_fixture.check_nested_component_fixture()
         generate_3mf_fixture.check_metadata_fixture()
         generate_3mf_fixture.check_unit_fixtures()
 
@@ -92,6 +93,26 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
+    def test_nested_component_package_has_exact_linear_chain(self) -> None:
+        generated = generate_3mf_fixture.build_nested_component_3mf(
+            generate_3mf_fixture.SOURCE.read_bytes()
+        )
+        self.assertEqual(
+            generated, generate_3mf_fixture.NESTED_COMPONENT_OUTPUT.read_bytes()
+        )
+        with zipfile.ZipFile(BytesIO(generated)) as package:
+            model = package.read("3D/3dmodel.model")
+        self.assertEqual(model.count(b"<object "), 3)
+        self.assertEqual(model.count(b"<component "), 2)
+        self.assertIn(
+            b'objectid="2" transform="1 0 0 0 3 0 0 0 1 1 0 2"',
+            model,
+        )
+        self.assertIn(
+            b'objectid="3" transform="1 0 0 0 1 0 0 0 1 4 5 6"',
+            model,
+        )
+
     def test_check_rejects_changed_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             changed = Path(directory) / "changed.3mf"
@@ -104,6 +125,12 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "not reproducible"):
                 generate_3mf_fixture.check_component_fixture(
+                    generate_3mf_fixture.SOURCE,
+                    changed,
+                )
+
+            with self.assertRaisesRegex(RuntimeError, "not reproducible"):
+                generate_3mf_fixture.check_nested_component_fixture(
                     generate_3mf_fixture.SOURCE,
                     changed,
                 )

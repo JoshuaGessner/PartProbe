@@ -12,6 +12,8 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 const TRANSLATED_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_1cm_translated.3mf");
 const COMPONENT_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_1cm_component_scaled_translated.3mf");
+const NESTED_COMPONENT_CUBE: &[u8] =
+    include_bytes!("../../../fixtures/models/cube_1cm_nested_component_chain.3mf");
 const METADATA_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_metadata.3mf");
 const MICRON_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_micron.3mf");
 const MILLIMETER_CUBE: &[u8] =
@@ -30,8 +32,8 @@ fn limits() -> ThreeMfLimits {
         32 * 1024,
         100,
         1_000,
-        2,
-        1,
+        4,
+        3,
         8,
         100,
     )
@@ -131,10 +133,7 @@ fn centimeter_cube_applies_build_transform_and_returns_canonical_mm() {
     assert_eq!(evidence.mesh_object_count(), 1);
     assert_eq!(evidence.mesh_object_id(), 1);
     assert_eq!(evidence.component_object_count(), 0);
-    assert_eq!(evidence.component_object_id(), None);
-    assert_eq!(evidence.component_mesh_object_id(), None);
-    assert_eq!(evidence.component_transform_source_units(), None);
-    assert!(!evidence.component_transform_applied());
+    assert!(evidence.component_chain().is_empty());
     assert_eq!(evidence.build_item_count(), 1);
     assert_eq!(evidence.build_object_id(), 1);
     assert_eq!(
@@ -175,13 +174,14 @@ fn component_then_build_transform_is_applied_and_retained() {
     assert_eq!(evidence.mesh_object_count(), 1);
     assert_eq!(evidence.mesh_object_id(), 1);
     assert_eq!(evidence.component_object_count(), 1);
-    assert_eq!(evidence.component_object_id(), Some(2));
-    assert_eq!(evidence.component_mesh_object_id(), Some(1));
+    let component = &evidence.component_chain()[0];
+    assert_eq!(component.object_id(), 2);
+    assert_eq!(component.referenced_object_id(), 1);
     assert_eq!(
-        evidence.component_transform_source_units(),
-        Some([2.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 3.0])
+        component.transform_source_units(),
+        [2.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 3.0]
     );
-    assert!(evidence.component_transform_applied());
+    assert!(component.transform_applied());
     assert_eq!(evidence.build_item_count(), 1);
     assert_eq!(evidence.build_object_id(), 2);
     assert_eq!(
@@ -209,10 +209,46 @@ fn component_then_build_transform_is_applied_and_retained() {
 }
 
 #[test]
+fn nested_linear_component_chain_is_applied_in_leaf_to_build_order() {
+    let evidence =
+        analyze_3mf(NESTED_COMPONENT_CUBE, limits()).expect("nested component cube must parse");
+
+    assert_eq!(evidence.algorithm_version(), THREE_MF_ANALYZER_VERSION);
+    assert_eq!(evidence.source_units(), ModelLengthUnit::Centimeter);
+    assert_eq!(evidence.mesh_object_id(), 1);
+    assert_eq!(evidence.component_object_count(), 2);
+    assert_eq!(evidence.component_chain().len(), 2);
+    assert_eq!(evidence.component_chain()[0].object_id(), 2);
+    assert_eq!(evidence.component_chain()[0].referenced_object_id(), 1);
+    assert_eq!(
+        evidence.component_chain()[0].transform_source_units(),
+        [2.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 3.0]
+    );
+    assert!(evidence.component_chain()[0].transform_applied());
+    assert_eq!(evidence.component_chain()[1].object_id(), 3);
+    assert_eq!(evidence.component_chain()[1].referenced_object_id(), 2);
+    assert_eq!(
+        evidence.component_chain()[1].transform_source_units(),
+        [1.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 2.0]
+    );
+    assert!(evidence.component_chain()[1].transform_applied());
+    assert_eq!(evidence.build_object_id(), 3);
+    assert_eq!(evidence.triangle_count(), 12);
+    assert_eq!(evidence.aabb_extents_mm().components(), [20.0, 30.0, 10.0]);
+    assert_close(evidence.surface_area_mm2(), 2_200.0);
+    assert_close(evidence.enclosed_volume_mm3().unwrap(), 6_000.0);
+    assert_eq!(
+        evidence.center_of_mass_mm().unwrap().components(),
+        [70.0, 125.0, 115.0]
+    );
+    assert_eq!(warning_codes(&evidence), ["MESH_NOT_EXACT_BREP"]);
+}
+
+#[test]
 fn bounded_model_metadata_is_counted_but_never_retained_or_interpreted() {
     let evidence = analyze_3mf(METADATA_CUBE, limits()).expect("metadata 3MF cube must parse");
 
-    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v3");
+    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v4");
     assert_eq!(evidence.source_units(), ModelLengthUnit::Millimeter);
     assert_eq!(evidence.model_metadata_count(), 3);
     assert_eq!(evidence.preserved_model_metadata_count(), 1);
@@ -303,6 +339,24 @@ fn component_limits_references_and_transform_policy_fail_closed() {
     });
     assert_eq!(
         analyze_3mf(&second_component, limits()),
+        Err(ThreeMfError::UnsupportedModelStructure)
+    );
+
+    let component_limited = ThreeMfLimits::new(
+        64 * 1024,
+        16,
+        64 * 1024,
+        32 * 1024,
+        100,
+        1_000,
+        4,
+        1,
+        8,
+        100,
+    )
+    .unwrap();
+    assert_eq!(
+        analyze_3mf(NESTED_COMPONENT_CUBE, component_limited),
         Err(ThreeMfError::EntityLimitExceeded)
     );
 
@@ -315,6 +369,9 @@ fn component_limits_references_and_transform_policy_fail_closed() {
         }),
         rewrite_part(COMPONENT_CUBE, "3D/3dmodel.model", |xml| {
             xml.replace("<item objectid=\"2\"", "<item objectid=\"1\"")
+        }),
+        rewrite_part(NESTED_COMPONENT_CUBE, "3D/3dmodel.model", |xml| {
+            xml.replace("<component objectid=\"2\"", "<component objectid=\"1\"")
         }),
     ] {
         assert_eq!(

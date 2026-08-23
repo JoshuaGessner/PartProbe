@@ -11,7 +11,8 @@ pub use ascii_stl::{
 };
 pub use mesh_analysis::MeshVector3;
 pub use three_mf::{
-    THREE_MF_ANALYZER_VERSION, ThreeMfError, ThreeMfLimits, ThreeMfMeshEvidence, analyze_3mf,
+    THREE_MF_ANALYZER_VERSION, ThreeMfComponentEvidence, ThreeMfError, ThreeMfLimits,
+    ThreeMfMeshEvidence, analyze_3mf,
 };
 
 use std::collections::BTreeSet;

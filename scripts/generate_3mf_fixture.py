@@ -18,6 +18,9 @@ OUTPUT = ROOT / "fixtures" / "models" / "cube_1cm_translated.3mf"
 COMPONENT_OUTPUT = (
     ROOT / "fixtures" / "models" / "cube_1cm_component_scaled_translated.3mf"
 )
+NESTED_COMPONENT_OUTPUT = (
+    ROOT / "fixtures" / "models" / "cube_1cm_nested_component_chain.3mf"
+)
 METADATA_OUTPUT = ROOT / "fixtures" / "models" / "cube_10mm_3mf_metadata.3mf"
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -130,6 +133,25 @@ def build_component_model_xml(source: bytes) -> bytes:
     return model.encode("utf-8")
 
 
+def build_nested_component_model_xml(source: bytes) -> bytes:
+    """Wrap the governed mesh in a two-link linear component chain."""
+    component = build_component_model_xml(source).decode("utf-8")
+    outer_component_object = '''    <object id="3" type="model">
+      <components>
+        <component objectid="2" transform="1 0 0 0 3 0 0 0 1 1 0 2" />
+      </components>
+    </object>
+'''
+    model = component.replace(
+        "  </resources>\n  <build>",
+        f"{outer_component_object}  </resources>\n  <build>",
+    ).replace(
+        '<item objectid="2" transform="1 0 0 0 1 0 0 0 1 4 5 6" />',
+        '<item objectid="3" transform="1 0 0 0 1 0 0 0 1 4 5 6" />',
+    )
+    return model.encode("utf-8")
+
+
 def build_metadata_model_xml(source: bytes) -> bytes:
     """Add bounded public Core metadata without changing the governed cube."""
     direct = build_unit_model_xml(source, "millimeter", "1").decode("utf-8")
@@ -187,6 +209,13 @@ def build_component_3mf(source: bytes) -> bytes:
     return build_package(package_parts(source, component=True))
 
 
+def build_nested_component_3mf(source: bytes) -> bytes:
+    """Create deterministic bytes for the governed two-link component fixture."""
+    parts = list(package_parts(source))
+    parts[-1] = (parts[-1][0], build_nested_component_model_xml(source))
+    return build_package(tuple(parts))
+
+
 def build_metadata_3mf(source: bytes) -> bytes:
     """Create deterministic bytes for the governed Core-metadata fixture."""
     parts = list(package_parts(source))
@@ -216,6 +245,15 @@ def check_component_fixture(
     expected = build_component_3mf(source_path.read_bytes())
     if not output_path.is_file() or output_path.read_bytes() != expected:
         raise RuntimeError("component 3MF fixture is missing or not reproducible")
+
+
+def check_nested_component_fixture(
+    source_path: Path = SOURCE, output_path: Path = NESTED_COMPONENT_OUTPUT
+) -> None:
+    """Fail when the committed nested-component fixture is not reproducible."""
+    expected = build_nested_component_3mf(source_path.read_bytes())
+    if not output_path.is_file() or output_path.read_bytes() != expected:
+        raise RuntimeError("nested component 3MF fixture is missing or not reproducible")
 
 
 def check_metadata_fixture(
@@ -250,6 +288,7 @@ def main() -> int:
     source = SOURCE.read_bytes()
     expected = build_3mf(source)
     component_expected = build_component_3mf(source)
+    nested_component_expected = build_nested_component_3mf(source)
     metadata_expected = build_metadata_3mf(source)
     unit_expected = tuple(
         (
@@ -261,12 +300,14 @@ def main() -> int:
     if args.write:
         OUTPUT.write_bytes(expected)
         COMPONENT_OUTPUT.write_bytes(component_expected)
+        NESTED_COMPONENT_OUTPUT.write_bytes(nested_component_expected)
         METADATA_OUTPUT.write_bytes(metadata_expected)
         for output_path, contents in unit_expected:
             output_path.write_bytes(contents)
     else:
         check_fixture()
         check_component_fixture()
+        check_nested_component_fixture()
         check_metadata_fixture()
         check_unit_fixtures()
     return 0
