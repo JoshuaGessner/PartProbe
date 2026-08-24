@@ -9,7 +9,10 @@ pub use ascii_stl::{
     BINARY_STL_ANALYZER_VERSION, StlEncoding, StlError, StlLimits, StlMeshEvidence,
     analyze_ascii_stl, analyze_binary_stl, analyze_stl,
 };
-pub use mesh_analysis::MeshVector3;
+pub use mesh_analysis::{
+    MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
+    MeshSelfIntersectionState, MeshVector3,
+};
 pub use three_mf::{
     THREE_MF_ANALYZER_VERSION, ThreeMfComponentEvidence, ThreeMfError, ThreeMfLimits,
     ThreeMfMeshEvidence, analyze_3mf,

@@ -39,6 +39,8 @@ const THREE_MF_UNITS: [(&str, &str); 6] = [
     ),
 ];
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");
+const SELF_INTERSECTING: &str =
+    include_str!("../../../fixtures/expected/self_intersecting_tetrahedra.json");
 const STEP: &str = include_str!("../../../fixtures/expected/cube_10mm_step.json");
 const INDEPENDENT_STEP: &str =
     include_str!("../../../fixtures/expected/rectangular_prism_12x8x5_step.json");
@@ -216,6 +218,8 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         serde_json::from_str(OPEN).expect("open fixture expectation must be valid");
     let binary_closed: GeometryFixtureExpectation = serde_json::from_str(BINARY_CLOSED)
         .expect("binary closed fixture expectation must be valid");
+    let self_intersecting: GeometryFixtureExpectation = serde_json::from_str(SELF_INTERSECTING)
+        .expect("self-intersecting fixture expectation must be valid");
     let three_mf: GeometryFixtureExpectation =
         serde_json::from_str(THREE_MF).expect("3MF fixture expectation must be valid");
     let component_three_mf: GeometryFixtureExpectation = serde_json::from_str(COMPONENT_THREE_MF)
@@ -233,6 +237,7 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert_eq!(closed.fixture_id(), "FIX-MESH-001");
     assert_eq!(open.fixture_id(), "FIX-MESH-002");
     assert_eq!(binary_closed.fixture_id(), "FIX-MESH-003");
+    assert_eq!(self_intersecting.fixture_id(), "FIX-MESH-039");
     assert_eq!(three_mf.fixture_id(), "FIX-MESH-004");
     assert_eq!(component_three_mf.fixture_id(), "FIX-MESH-005");
     assert_eq!(nested_component_three_mf.fixture_id(), "FIX-MESH-013");
@@ -251,6 +256,10 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert!(matches!(
         binary_closed.enclosed_volume_mm3(),
         ExpectedEvidence::Available { .. }
+    ));
+    assert!(matches!(
+        self_intersecting.enclosed_volume_mm3(),
+        ExpectedEvidence::Unavailable { .. }
     ));
     assert_eq!(three_mf.representation(), RepresentationBasis::Mesh);
     assert!(matches!(
@@ -316,6 +325,20 @@ fn deserialization_rejects_false_authority_for_open_mesh_volume() {
 
     value["schema_version"] = serde_json::json!(1);
     assert!(serde_json::from_value::<GeometryFixtureExpectation>(value).is_err());
+
+    let self_intersecting: serde_json::Value =
+        serde_json::from_str(SELF_INTERSECTING).expect("fixture JSON must parse");
+    let mut false_self_intersection_volume = self_intersecting.clone();
+    false_self_intersection_volume["enclosed_volume_mm3"] =
+        serde_json::json!({"state": "available", "value": "1"});
+    assert!(
+        serde_json::from_value::<GeometryFixtureExpectation>(false_self_intersection_volume)
+            .is_err()
+    );
+
+    let mut false_mesh_confidence = self_intersecting;
+    false_mesh_confidence["confidence"]["level"] = serde_json::json!("high");
+    assert!(serde_json::from_value::<GeometryFixtureExpectation>(false_mesh_confidence).is_err());
 }
 
 #[test]

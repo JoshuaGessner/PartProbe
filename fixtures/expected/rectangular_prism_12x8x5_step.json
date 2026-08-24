@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "fixture_id": "FIX-STEP-003",
   "representation": "exact_brep",
   "imported_units": "millimeter",
@@ -13,6 +13,14 @@
   "manifold": {
     "state": "not_applicable",
     "reason_code": "EXACT_BREP_TOPOLOGY"
+  },
+  "self_intersection": {
+    "state": "not_applicable",
+    "reason_code": "MESH_SELF_INTERSECTION_NOT_APPLICABLE"
+  },
+  "confidence": {
+    "level": "high",
+    "reasons": ["VALID_EXACT_BREP"]
   },
   "aabb_mm": {
     "state": "available",

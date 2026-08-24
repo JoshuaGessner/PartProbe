@@ -6,7 +6,8 @@ use std::fmt;
 use std::io::{Cursor, Read};
 
 use partprobe_geometry_core::{
-    GeometryWarningCode, ModelFormat, ModelLengthUnit, RepresentationBasis, UnitResolutionMethod,
+    GeometryConfidence, GeometryWarningCode, ModelFormat, ModelLengthUnit, RepresentationBasis,
+    UnitResolutionMethod,
 };
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
@@ -14,12 +15,13 @@ use serde::Serialize;
 use zip::{CompressionMethod, ZipArchive};
 
 use crate::mesh_analysis::{
-    MeshAnalysisError, MeshVector3, Triangle, analyze_triangles, mesh_warning_codes,
-    validate_triangle,
+    MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION, MeshAnalysisError,
+    MeshSelfIntersectionState, MeshVector3, Triangle, analyze_triangles, mesh_confidence,
+    mesh_warning_codes, validate_triangle,
 };
 
 /// Versioned algorithm identity for the governed 3MF package-policy slice.
-pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v5";
+pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v6";
 
 const CONTENT_TYPES_PART: &str = "[Content_Types].xml";
 const ROOT_RELATIONSHIPS_PART: &str = "_rels/.rels";
@@ -93,6 +95,8 @@ impl ThreeMfLimits {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ThreeMfMeshEvidence {
     algorithm_version: &'static str,
+    self_intersection_algorithm_version: &'static str,
+    confidence_policy_version: &'static str,
     detected_format: ModelFormat,
     representation: RepresentationBasis,
     source_units: ModelLengthUnit,
@@ -112,6 +116,8 @@ pub struct ThreeMfMeshEvidence {
     manifold: bool,
     watertight: bool,
     consistently_wound: bool,
+    self_intersection: MeshSelfIntersectionState,
+    confidence: GeometryConfidence,
     aabb_extents_mm: MeshVector3,
     surface_area_mm2: f64,
     enclosed_volume_mm3: Option<f64>,
@@ -159,6 +165,18 @@ impl ThreeMfMeshEvidence {
     #[must_use]
     pub const fn algorithm_version(&self) -> &str {
         self.algorithm_version
+    }
+
+    /// Returns the self-intersection algorithm identity.
+    #[must_use]
+    pub const fn self_intersection_algorithm_version(&self) -> &str {
+        self.self_intersection_algorithm_version
+    }
+
+    /// Returns the categorical confidence-policy identity.
+    #[must_use]
+    pub const fn confidence_policy_version(&self) -> &str {
+        self.confidence_policy_version
     }
 
     /// Returns the content-detected package format.
@@ -273,6 +291,18 @@ impl ThreeMfMeshEvidence {
     #[must_use]
     pub const fn consistently_wound(&self) -> bool {
         self.consistently_wound
+    }
+
+    /// Returns the bounded exact-predicate self-intersection state.
+    #[must_use]
+    pub const fn self_intersection(&self) -> MeshSelfIntersectionState {
+        self.self_intersection
+    }
+
+    /// Returns the categorical mesh confidence and its ordered reasons.
+    #[must_use]
+    pub const fn confidence(&self) -> &GeometryConfidence {
+        &self.confidence
     }
 
     /// Returns axis-aligned extents in canonical millimetres.
@@ -492,6 +522,8 @@ pub fn analyze_3mf(
     }
     Ok(ThreeMfMeshEvidence {
         algorithm_version: THREE_MF_ANALYZER_VERSION,
+        self_intersection_algorithm_version: MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
+        confidence_policy_version: MESH_CONFIDENCE_POLICY_VERSION,
         detected_format: ModelFormat::ThreeMf,
         representation: RepresentationBasis::Mesh,
         source_units: parsed.source_units,
@@ -520,6 +552,8 @@ pub fn analyze_3mf(
         manifold: analysis.manifold,
         watertight: analysis.watertight,
         consistently_wound: analysis.consistently_wound,
+        self_intersection: analysis.self_intersection,
+        confidence: mesh_confidence(&analysis, true),
         aabb_extents_mm: analysis.aabb_extents,
         surface_area_mm2: analysis.surface_area,
         enclosed_volume_mm3: analysis.enclosed_volume,

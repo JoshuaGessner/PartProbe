@@ -98,6 +98,83 @@ diagnostic_code!(
     GeometryWarningCode,
     "geometry warning code"
 );
+diagnostic_code!(
+    /// Stable machine-readable reason for a geometry-confidence level.
+    GeometryConfidenceReasonCode,
+    "geometry confidence reason code"
+);
+
+/// Categorical geometry confidence; percentages are deliberately excluded.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GeometryConfidenceLevel {
+    /// Reviewed exact-representation evidence without a known reduction.
+    High,
+    /// Exact-representation evidence with a bounded reduction.
+    Medium,
+    /// Validated mesh evidence at its representation ceiling.
+    Low,
+    /// Evidence has a condition requiring explicit human review.
+    NeedsReview,
+}
+
+/// Validated confidence level plus deterministic reason codes.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GeometryConfidence {
+    level: GeometryConfidenceLevel,
+    reasons: Vec<GeometryConfidenceReasonCode>,
+}
+
+#[derive(Deserialize)]
+struct GeometryConfidenceWire {
+    level: GeometryConfidenceLevel,
+    reasons: Vec<GeometryConfidenceReasonCode>,
+}
+
+impl<'de> Deserialize<'de> for GeometryConfidence {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = GeometryConfidenceWire::deserialize(deserializer)?;
+        Self::new(wire.level, wire.reasons).map_err(serde::de::Error::custom)
+    }
+}
+
+impl GeometryConfidence {
+    /// Constructs confidence evidence with at least one unique reason.
+    pub fn new(
+        level: GeometryConfidenceLevel,
+        reasons: Vec<GeometryConfidenceReasonCode>,
+    ) -> Result<Self, DomainError> {
+        if reasons.is_empty() {
+            return Err(DomainError::InvalidValue {
+                field: "geometry confidence reasons",
+                reason: "at least one reason is required",
+            });
+        }
+        let mut unique = BTreeSet::new();
+        if reasons.iter().any(|reason| !unique.insert(reason.clone())) {
+            return Err(DomainError::InvalidValue {
+                field: "geometry confidence reasons",
+                reason: "reason codes must be unique",
+            });
+        }
+        Ok(Self { level, reasons })
+    }
+
+    /// Returns the categorical confidence level.
+    #[must_use]
+    pub const fn level(&self) -> GeometryConfidenceLevel {
+        self.level
+    }
+
+    /// Returns the ordered reason codes.
+    #[must_use]
+    pub fn reasons(&self) -> &[GeometryConfidenceReasonCode] {
+        &self.reasons
+    }
+}
 
 /// Lowercase hexadecimal SHA-256 digest of immutable source bytes.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]

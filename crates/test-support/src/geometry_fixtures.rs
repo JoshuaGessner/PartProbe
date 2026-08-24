@@ -4,13 +4,14 @@ use std::collections::BTreeSet;
 
 use partprobe_domain::{DomainError, SchemaVersion};
 use partprobe_geometry_core::{
-    GeometryWarningCode, ModelLengthUnit, RepresentationBasis, Sha256Digest, StageStatus,
+    GeometryConfidence, GeometryConfidenceLevel, GeometryWarningCode, ModelLengthUnit,
+    RepresentationBasis, Sha256Digest, StageStatus,
 };
 use partprobe_geometry_import::DiagnosticCode;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, Serialize};
 
-const FIXTURE_EXPECTATION_SCHEMA_VERSION: u16 = 2;
+const FIXTURE_EXPECTATION_SCHEMA_VERSION: u16 = 3;
 const IMPORT_FAILURE_EXPECTATION_SCHEMA_VERSION: u16 = 1;
 
 /// Explicit expectation state; unavailable and inapplicable never become zero.
@@ -71,6 +72,8 @@ pub struct GeometryFixtureExpectation {
     triangle_count: Option<u64>,
     watertight: ExpectedEvidence<bool>,
     manifold: ExpectedEvidence<bool>,
+    self_intersection: ExpectedEvidence<bool>,
+    confidence: GeometryConfidence,
     aabb_mm: ExpectedEvidence<ExpectedVector3>,
     surface_area_mm2: ExpectedEvidence<Decimal>,
     enclosed_volume_mm3: ExpectedEvidence<Decimal>,
@@ -91,6 +94,8 @@ struct GeometryFixtureExpectationWire {
     triangle_count: Option<u64>,
     watertight: ExpectedEvidence<bool>,
     manifold: ExpectedEvidence<bool>,
+    self_intersection: ExpectedEvidence<bool>,
+    confidence: GeometryConfidence,
     aabb_mm: ExpectedEvidence<ExpectedVector3>,
     surface_area_mm2: ExpectedEvidence<Decimal>,
     enclosed_volume_mm3: ExpectedEvidence<Decimal>,
@@ -116,6 +121,8 @@ impl<'de> Deserialize<'de> for GeometryFixtureExpectation {
             wire.triangle_count,
             wire.watertight,
             wire.manifold,
+            wire.self_intersection,
+            wire.confidence,
             wire.aabb_mm,
             wire.surface_area_mm2,
             wire.enclosed_volume_mm3,
@@ -140,6 +147,8 @@ impl GeometryFixtureExpectation {
         triangle_count: Option<u64>,
         watertight: ExpectedEvidence<bool>,
         manifold: ExpectedEvidence<bool>,
+        self_intersection: ExpectedEvidence<bool>,
+        confidence: GeometryConfidence,
         aabb_mm: ExpectedEvidence<ExpectedVector3>,
         surface_area_mm2: ExpectedEvidence<Decimal>,
         enclosed_volume_mm3: ExpectedEvidence<Decimal>,
@@ -178,6 +187,33 @@ impl GeometryFixtureExpectation {
                 reason: "mesh expectations require a triangle count",
             });
         }
+        if representation == RepresentationBasis::Mesh
+            && self_intersection.available_value().is_none()
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry fixture self-intersection",
+                reason: "mesh expectations require an explicit self-intersection state",
+            });
+        }
+        if representation != RepresentationBasis::Mesh
+            && self_intersection.available_value().is_some()
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry fixture self-intersection",
+                reason: "non-mesh expectations cannot claim mesh self-intersection evidence",
+            });
+        }
+        if representation == RepresentationBasis::Mesh
+            && !matches!(
+                confidence.level(),
+                GeometryConfidenceLevel::Low | GeometryConfidenceLevel::NeedsReview
+            )
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry fixture confidence",
+                reason: "mesh confidence cannot exceed low",
+            });
+        }
         if absolute_tolerance <= Decimal::ZERO {
             return Err(DomainError::InvalidValue {
                 field: "geometry fixture tolerance",
@@ -206,6 +242,15 @@ impl GeometryFixtureExpectation {
                 reason: "a non-watertight expectation cannot carry enclosed volume",
             });
         }
+        if matches!(self_intersection.available_value(), Some(true))
+            && (enclosed_volume_mm3.available_value().is_some()
+                || center_of_mass_mm.available_value().is_some())
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry fixture closed measurements",
+                reason: "a self-intersecting mesh cannot carry enclosed volume or centroid",
+            });
+        }
         let mut warning_codes = BTreeSet::new();
         if required_warnings
             .iter()
@@ -226,6 +271,8 @@ impl GeometryFixtureExpectation {
             triangle_count,
             watertight,
             manifold,
+            self_intersection,
+            confidence,
             aabb_mm,
             surface_area_mm2,
             enclosed_volume_mm3,
@@ -257,6 +304,18 @@ impl GeometryFixtureExpectation {
     #[must_use]
     pub const fn enclosed_volume_mm3(&self) -> &ExpectedEvidence<Decimal> {
         &self.enclosed_volume_mm3
+    }
+
+    /// Returns the expected mesh self-intersection state.
+    #[must_use]
+    pub const fn self_intersection(&self) -> &ExpectedEvidence<bool> {
+        &self.self_intersection
+    }
+
+    /// Returns the expected categorical confidence and reasons.
+    #[must_use]
+    pub const fn confidence(&self) -> &GeometryConfidence {
+        &self.confidence
     }
 
     /// Returns required warning codes.

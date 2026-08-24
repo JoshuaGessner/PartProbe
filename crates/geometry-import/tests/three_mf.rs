@@ -1,10 +1,13 @@
 use std::io::{Cursor, Read, Write};
 
 use partprobe_geometry_core::{
-    ModelFormat, ModelLengthUnit, RepresentationBasis, UnitResolutionMethod,
+    GeometryConfidenceLevel, ModelFormat, ModelLengthUnit, RepresentationBasis,
+    UnitResolutionMethod,
 };
 use partprobe_geometry_import::{
-    THREE_MF_ANALYZER_VERSION, ThreeMfError, ThreeMfLimits, ThreeMfMeshEvidence, analyze_3mf,
+    MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
+    MeshSelfIntersectionState, THREE_MF_ANALYZER_VERSION, ThreeMfError, ThreeMfLimits,
+    ThreeMfMeshEvidence, analyze_3mf,
 };
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
@@ -209,6 +212,14 @@ fn centimeter_cube_applies_build_transform_and_returns_canonical_mm() {
     let evidence = analyze_3mf(TRANSLATED_CUBE, limits()).expect("3MF cube must parse");
 
     assert_eq!(evidence.algorithm_version(), THREE_MF_ANALYZER_VERSION);
+    assert_eq!(
+        evidence.self_intersection_algorithm_version(),
+        MESH_SELF_INTERSECTION_ALGORITHM_VERSION
+    );
+    assert_eq!(
+        evidence.confidence_policy_version(),
+        MESH_CONFIDENCE_POLICY_VERSION
+    );
     assert_eq!(evidence.detected_format(), ModelFormat::ThreeMf);
     assert_eq!(evidence.representation(), RepresentationBasis::Mesh);
     assert_eq!(evidence.source_units(), ModelLengthUnit::Centimeter);
@@ -231,6 +242,15 @@ fn centimeter_cube_applies_build_transform_and_returns_canonical_mm() {
     assert!(evidence.manifold());
     assert!(evidence.watertight());
     assert!(evidence.consistently_wound());
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::NotDetected
+    );
+    assert_eq!(evidence.confidence().level(), GeometryConfidenceLevel::Low);
+    assert_eq!(
+        evidence.confidence().reasons()[0].as_str(),
+        "MESH_REPRESENTATION_CEILING"
+    );
     assert_eq!(evidence.aabb_extents_mm().components(), [10.0; 3]);
     assert_close(evidence.surface_area_mm2(), 600.0);
     assert_close(
@@ -334,7 +354,7 @@ fn nested_linear_component_chain_is_applied_in_leaf_to_build_order() {
 fn bounded_model_metadata_is_counted_but_never_retained_or_interpreted() {
     let evidence = analyze_3mf(METADATA_CUBE, limits()).expect("metadata 3MF cube must parse");
 
-    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v5");
+    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v6");
     assert_eq!(evidence.source_units(), ModelLengthUnit::Millimeter);
     assert_eq!(evidence.model_metadata_count(), 3);
     assert_eq!(evidence.preserved_model_metadata_count(), 1);

@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-08-01
+- **Last updated:** 2026-08-24
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, GEO-001–GEO-014, DATA-011–DATA-018, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Canonical tolerance policy? Required retention period for derivatives? First-slice maximum input size?
@@ -68,6 +68,8 @@ Every geometry stage returns `StageOutcome { status, outputs, warnings, confiden
 ## Confidence and review
 
 Confidence has a level and reasons, not one arithmetic score. Each body, measurement, and derived feature starts at its own representation ceiling, then has explicit reductions for unknown units, invalidity, transfer loss, healing, ambiguity, unsupported entities, and no drawing. A mixed-snapshot aggregate is constrained by the weakest representation relevant to that aggregate; exact bodies do not upgrade mesh-derived evidence. A user can accept a low-confidence input but must supply a reason; the warning and original confidence remain. Quote approval must show all unresolved blocking warnings.
+
+The TASK-004 comparison contract implements this rule with `GeometryConfidenceLevel` and validated, unique `GeometryConfidenceReasonCode` values. Mesh evidence can reach only `Low`, and only when units are resolved, topology is manifold/watertight/consistently wound, and the versioned self-intersection check returns `not_detected`. Unresolved units, any of those topology defects, detected intersection, or indeterminate coplanar overlap produces `NeedsReview`; no numeric score is calculated. Detector version `partprobe-exact-mesh-intersection-spike-v1` uses bounded pairwise AABB preflight and exact floating-point triangle predicates, treats ordinary shared-edge topology as adjacency, and returns `indeterminate` for overlapping-bounds coplanar pairs rather than inventing a welding tolerance. Detector or confidence uncertainty cannot upgrade evidence: detected or indeterminate intersection withholds enclosed volume and centroid. Confidence policy `partprobe-mesh-confidence-policy-v1` and the parser version are retained separately. This is deterministic synthetic-fixture evidence, not the reviewed production vertex-welding, near-contact, or tolerance policy.
 
 ## Boundary with drawings and requirements
 

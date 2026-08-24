@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-23
+> **Last updated:** 2026-08-24
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -90,6 +90,7 @@ These rules are mandatory for every person or agent changing this repository.
 78. The persisted 3MF unit corpus uses `FIX-MESH-004` and `FIX-MESH-006`–`011` to cover all six Core declarations plus the normative millimetre default. Derive source coordinates deterministically from the same governed 10 mm mesh, preserve explicit-versus-default evidence, reproduce every committed package/hash/expectation after unit changes, and do not present these encodings of one analytic cube as independent representative geometry.
 79. For bounded 3MF model-level metadata, retain only entry count and preservation-request count, never names or values. Emit `THREE_MF_METADATA_NOT_INTERPRETED`, preserve the original source unchanged, enforce unique well-known unprefixed Core names and the explicit metadata ceiling, and fail visibly on unknown/vendor metadata, unsupported attributes/types, invalid boolean values, object/item metadata groups, or any attempt to treat metadata as geometry or estimating authority.
 80. Persisted adversarial 3MF packages must be deterministic public synthetic data with manifest hashes, exact sanitized diagnostic expectations, and explicit no-geometry-evidence outcomes. Keep parser-level rejection evidence distinct from worker, desktop, containment, and supported-importer evidence. A changed accepted/rejected boundary or diagnostic requires a parser-version and migration decision; never relabel a rejected package as successful geometry evidence.
+81. Mesh confidence is categorical and reason-coded, never a percentage. The current mesh ceiling is `Low`; unresolved units, topology defects, detected self-intersection, or indeterminate coplanar overlap require `NeedsReview`. Detected or indeterminate self-intersection must withhold enclosed volume and centroid. Keep the exact-predicate comparison spike distinct from a reviewed welding/tolerance policy, and version both the detector and confidence policy.
 
 ## Documentation protocol
 

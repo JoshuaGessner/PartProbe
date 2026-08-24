@@ -4,19 +4,21 @@ use std::error::Error;
 use std::fmt;
 
 use partprobe_geometry_core::{
-    GeometryWarningCode, ModelFormat, ModelLengthUnit, RepresentationBasis, UnitResolutionMethod,
+    GeometryConfidence, GeometryWarningCode, ModelFormat, ModelLengthUnit, RepresentationBasis,
+    UnitResolutionMethod,
 };
 use serde::Serialize;
 
 use crate::mesh_analysis::{
-    MeshAnalysisError, MeshVector3, Triangle, analyze_triangles, mesh_warning_codes,
-    validate_triangle,
+    MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION, MeshAnalysisError,
+    MeshSelfIntersectionState, MeshVector3, Triangle, analyze_triangles, mesh_confidence,
+    mesh_warning_codes, validate_triangle,
 };
 
 /// Versioned algorithm identity for the initial ASCII STL comparison spike.
-pub const ASCII_STL_ANALYZER_VERSION: &str = "partprobe-ascii-stl-spike-v1";
+pub const ASCII_STL_ANALYZER_VERSION: &str = "partprobe-ascii-stl-spike-v2";
 /// Versioned algorithm identity for the initial binary STL comparison spike.
-pub const BINARY_STL_ANALYZER_VERSION: &str = "partprobe-binary-stl-spike-v1";
+pub const BINARY_STL_ANALYZER_VERSION: &str = "partprobe-binary-stl-spike-v2";
 
 const BINARY_HEADER_BYTES: usize = 80;
 const BINARY_COUNT_BYTES: usize = 4;
@@ -59,6 +61,8 @@ pub type StlLimits = AsciiStlLimits;
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct AsciiStlMeshEvidence {
     algorithm_version: &'static str,
+    self_intersection_algorithm_version: &'static str,
+    confidence_policy_version: &'static str,
     encoding: StlEncoding,
     detected_format: ModelFormat,
     representation: RepresentationBasis,
@@ -68,6 +72,8 @@ pub struct AsciiStlMeshEvidence {
     manifold: bool,
     watertight: bool,
     consistently_wound: bool,
+    self_intersection: MeshSelfIntersectionState,
+    confidence: GeometryConfidence,
     aabb_extents_source_units: MeshVector3,
     surface_area_source_units_squared: f64,
     enclosed_volume_source_units_cubed: Option<f64>,
@@ -80,6 +86,18 @@ impl AsciiStlMeshEvidence {
     #[must_use]
     pub const fn algorithm_version(&self) -> &str {
         self.algorithm_version
+    }
+
+    /// Returns the self-intersection algorithm identity.
+    #[must_use]
+    pub const fn self_intersection_algorithm_version(&self) -> &str {
+        self.self_intersection_algorithm_version
+    }
+
+    /// Returns the categorical confidence-policy identity.
+    #[must_use]
+    pub const fn confidence_policy_version(&self) -> &str {
+        self.confidence_policy_version
     }
 
     /// Returns the parser-confirmed STL encoding.
@@ -134,6 +152,18 @@ impl AsciiStlMeshEvidence {
     #[must_use]
     pub const fn consistently_wound(&self) -> bool {
         self.consistently_wound
+    }
+
+    /// Returns the bounded exact-predicate self-intersection state.
+    #[must_use]
+    pub const fn self_intersection(&self) -> MeshSelfIntersectionState {
+        self.self_intersection
+    }
+
+    /// Returns the categorical mesh confidence and its ordered reasons.
+    #[must_use]
+    pub const fn confidence(&self) -> &GeometryConfidence {
+        &self.confidence
     }
 
     /// Returns axis-aligned extents in unresolved STL source-coordinate units.
@@ -440,6 +470,8 @@ fn build_evidence(
 
     Ok(AsciiStlMeshEvidence {
         algorithm_version,
+        self_intersection_algorithm_version: MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
+        confidence_policy_version: MESH_CONFIDENCE_POLICY_VERSION,
         encoding,
         detected_format: ModelFormat::Stl,
         representation: RepresentationBasis::Mesh,
@@ -449,6 +481,8 @@ fn build_evidence(
         manifold: analysis.manifold,
         watertight: analysis.watertight,
         consistently_wound: analysis.consistently_wound,
+        self_intersection: analysis.self_intersection,
+        confidence: mesh_confidence(&analysis, false),
         aabb_extents_source_units: analysis.aabb_extents,
         surface_area_source_units_squared: analysis.surface_area,
         enclosed_volume_source_units_cubed: analysis.enclosed_volume,

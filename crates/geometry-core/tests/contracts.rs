@@ -1,6 +1,7 @@
 use partprobe_domain::RuleVersion;
 use partprobe_geometry_core::{
-    AnalysisProfile, AnalysisProfileId, GeometryStage, GeometryStageReport, GeometryWarning,
+    AnalysisProfile, AnalysisProfileId, GeometryConfidence, GeometryConfidenceLevel,
+    GeometryConfidenceReasonCode, GeometryStage, GeometryStageReport, GeometryWarning,
     GeometryWarningCode, ModelAssetDescriptor, ModelFormat, ProvisionalGeometryDecimal,
     ProvisionalGeometrySnapshot, Sha256Digest, StageStatus, WarningSeverity,
 };
@@ -75,6 +76,36 @@ fn profile_and_status_contracts_are_serializable() {
     assert_eq!(value["id"], "step-basic");
     assert!(StageStatus::Succeeded.permits_authoritative_output());
     assert!(!StageStatus::NeedsUserInput.permits_authoritative_output());
+}
+
+#[test]
+fn confidence_requires_unique_explicit_reasons() {
+    let ceiling = GeometryConfidenceReasonCode::new("MESH_REPRESENTATION_CEILING")
+        .expect("reason must be valid");
+    let confidence = GeometryConfidence::new(GeometryConfidenceLevel::Low, vec![ceiling.clone()])
+        .expect("confidence must be valid");
+
+    assert_eq!(confidence.level(), GeometryConfidenceLevel::Low);
+    assert_eq!(confidence.reasons().len(), 1);
+    assert_eq!(
+        confidence.reasons()[0].as_str(),
+        "MESH_REPRESENTATION_CEILING"
+    );
+    assert!(GeometryConfidence::new(GeometryConfidenceLevel::Low, Vec::new()).is_err());
+    assert!(
+        GeometryConfidence::new(
+            GeometryConfidenceLevel::NeedsReview,
+            vec![ceiling.clone(), ceiling]
+        )
+        .is_err()
+    );
+    assert!(
+        serde_json::from_value::<GeometryConfidence>(serde_json::json!({
+            "level": "low",
+            "reasons": ["MESH_REPRESENTATION_CEILING", "MESH_REPRESENTATION_CEILING"]
+        }))
+        .is_err()
+    );
 }
 
 #[test]

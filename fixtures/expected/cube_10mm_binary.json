@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "fixture_id": "FIX-MESH-003",
   "representation": "mesh",
   "imported_units": null,
@@ -8,6 +8,11 @@
   "triangle_count": 12,
   "watertight": { "state": "available", "value": true },
   "manifold": { "state": "available", "value": true },
+  "self_intersection": { "state": "available", "value": false },
+  "confidence": {
+    "level": "needs_review",
+    "reasons": ["MESH_REPRESENTATION_CEILING", "UNITS_UNRESOLVED"]
+  },
   "aabb_mm": {
     "state": "available",
     "value": { "x": "10", "y": "10", "z": "10" }

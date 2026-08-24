@@ -1,9 +1,11 @@
 use partprobe_geometry_core::{
-    ModelFormat, ModelLengthUnit, RepresentationBasis, UnitResolutionMethod,
+    GeometryConfidenceLevel, ModelFormat, ModelLengthUnit, RepresentationBasis,
+    UnitResolutionMethod,
 };
 use partprobe_geometry_import::{
-    ASCII_STL_ANALYZER_VERSION, BINARY_STL_ANALYZER_VERSION, StlEncoding, StlError, StlLimits,
-    StlMeshEvidence, analyze_ascii_stl, analyze_binary_stl, analyze_stl,
+    ASCII_STL_ANALYZER_VERSION, BINARY_STL_ANALYZER_VERSION, MESH_CONFIDENCE_POLICY_VERSION,
+    MESH_SELF_INTERSECTION_ALGORITHM_VERSION, MeshSelfIntersectionState, StlEncoding, StlError,
+    StlLimits, StlMeshEvidence, analyze_ascii_stl, analyze_binary_stl, analyze_stl,
 };
 
 const CLOSED_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_ascii.stl");
@@ -27,6 +29,8 @@ const ADVERSARIAL_BINARY_STL: [(&[u8], StlError); 4] = [
     ),
 ];
 const OPEN_CUBE: &[u8] = include_bytes!("../../../fixtures/models/open_cube_10mm_ascii.stl");
+const SELF_INTERSECTING_TETRAHEDRA: &[u8] =
+    include_bytes!("../../../fixtures/models/self_intersecting_tetrahedra_ascii.stl");
 
 fn limits() -> StlLimits {
     StlLimits::new(64 * 1024, 1_000).expect("test limits must be valid")
@@ -37,6 +41,15 @@ fn warning_codes(evidence: &StlMeshEvidence) -> Vec<&str> {
         .warnings()
         .iter()
         .map(|warning| warning.as_str())
+        .collect()
+}
+
+fn confidence_reasons(evidence: &StlMeshEvidence) -> Vec<&str> {
+    evidence
+        .confidence()
+        .reasons()
+        .iter()
+        .map(|reason| reason.as_str())
         .collect()
 }
 
@@ -52,6 +65,14 @@ fn closed_cube_matches_governed_mesh_measurements_without_unit_authority() {
     let evidence = analyze_ascii_stl(CLOSED_CUBE, limits()).expect("closed cube must parse");
 
     assert_eq!(evidence.algorithm_version(), ASCII_STL_ANALYZER_VERSION);
+    assert_eq!(
+        evidence.self_intersection_algorithm_version(),
+        MESH_SELF_INTERSECTION_ALGORITHM_VERSION
+    );
+    assert_eq!(
+        evidence.confidence_policy_version(),
+        MESH_CONFIDENCE_POLICY_VERSION
+    );
     assert_eq!(evidence.encoding(), StlEncoding::Ascii);
     assert_eq!(evidence.detected_format(), ModelFormat::Stl);
     assert_eq!(evidence.representation(), RepresentationBasis::Mesh);
@@ -61,6 +82,18 @@ fn closed_cube_matches_governed_mesh_measurements_without_unit_authority() {
     assert!(evidence.manifold());
     assert!(evidence.watertight());
     assert!(evidence.consistently_wound());
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::NotDetected
+    );
+    assert_eq!(
+        evidence.confidence().level(),
+        GeometryConfidenceLevel::NeedsReview
+    );
+    assert_eq!(
+        confidence_reasons(&evidence),
+        ["MESH_REPRESENTATION_CEILING", "UNITS_UNRESOLVED"]
+    );
     assert_eq!(evidence.aabb_extents_source_units().components(), [10.0; 3]);
     assert_close(evidence.surface_area_source_units_squared(), 600.0);
     assert_close(
@@ -96,6 +129,14 @@ fn binary_cube_matches_governed_mesh_measurements_without_unit_authority() {
     assert!(evidence.manifold());
     assert!(evidence.watertight());
     assert!(evidence.consistently_wound());
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::NotDetected
+    );
+    assert_eq!(
+        evidence.confidence().level(),
+        GeometryConfidenceLevel::NeedsReview
+    );
     assert_eq!(evidence.aabb_extents_source_units().components(), [10.0; 3]);
     assert_close(evidence.surface_area_source_units_squared(), 600.0);
     assert_close(
@@ -141,6 +182,22 @@ fn open_cube_keeps_volume_and_centroid_unavailable() {
     assert!(evidence.manifold());
     assert!(!evidence.watertight());
     assert!(!evidence.consistently_wound());
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::NotDetected
+    );
+    assert_eq!(
+        evidence.confidence().level(),
+        GeometryConfidenceLevel::NeedsReview
+    );
+    assert_eq!(
+        confidence_reasons(&evidence),
+        [
+            "MESH_REPRESENTATION_CEILING",
+            "UNITS_UNRESOLVED",
+            "OPEN_BOUNDARY",
+        ]
+    );
     assert_eq!(evidence.aabb_extents_source_units().components(), [10.0; 3]);
     assert_close(evidence.surface_area_source_units_squared(), 500.0);
     assert_eq!(evidence.enclosed_volume_source_units_cubed(), None);
@@ -153,6 +210,109 @@ fn open_cube_keeps_volume_and_centroid_unavailable() {
             "OPEN_BOUNDARY",
             "CLOSED_VOLUME_UNAVAILABLE",
         ]
+    );
+}
+
+#[test]
+fn self_intersection_withholds_closed_measurements_and_requires_review() {
+    let evidence = analyze_ascii_stl(SELF_INTERSECTING_TETRAHEDRA, limits())
+        .expect("governed intersecting tetrahedra must parse");
+
+    assert_eq!(evidence.triangle_count(), 8);
+    assert!(evidence.manifold());
+    assert!(evidence.watertight());
+    assert!(evidence.consistently_wound());
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::Detected
+    );
+    assert_eq!(evidence.aabb_extents_source_units().components(), [5.0; 3]);
+    assert_close(
+        evidence.surface_area_source_units_squared(),
+        48.0 + 16.0 * 3.0_f64.sqrt(),
+    );
+    assert_eq!(evidence.enclosed_volume_source_units_cubed(), None);
+    assert_eq!(evidence.center_of_mass_source_units(), None);
+    assert_eq!(
+        evidence.confidence().level(),
+        GeometryConfidenceLevel::NeedsReview
+    );
+    assert_eq!(
+        confidence_reasons(&evidence),
+        [
+            "MESH_REPRESENTATION_CEILING",
+            "UNITS_UNRESOLVED",
+            "SELF_INTERSECTION_DETECTED",
+        ]
+    );
+    assert_eq!(
+        warning_codes(&evidence),
+        [
+            "UNITS_MISSING_REQUIRES_CONFIRMATION",
+            "MESH_NOT_EXACT_BREP",
+            "SELF_INTERSECTION_DETECTED",
+            "CLOSED_VOLUME_UNAVAILABLE",
+        ]
+    );
+}
+
+#[test]
+fn coplanar_overlap_remains_indeterminate_without_a_tolerance_policy() {
+    let coplanar_overlap = b"solid coplanar
+facet normal 0 0 1
+outer loop
+vertex 0 0 0
+vertex 2 0 0
+vertex 0 2 0
+endloop
+endfacet
+facet normal 0 0 1
+outer loop
+vertex 0.5 0.5 0
+vertex 2.5 0.5 0
+vertex 0.5 2.5 0
+endloop
+endfacet
+endsolid coplanar
+";
+    let evidence = analyze_ascii_stl(coplanar_overlap, limits())
+        .expect("bounded coplanar mesh must remain reviewable evidence");
+
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::Indeterminate
+    );
+    assert_eq!(
+        evidence.confidence().level(),
+        GeometryConfidenceLevel::NeedsReview
+    );
+    assert!(confidence_reasons(&evidence).contains(&"SELF_INTERSECTION_INDETERMINATE"));
+    assert!(warning_codes(&evidence).contains(&"SELF_INTERSECTION_INDETERMINATE"));
+    assert_eq!(evidence.enclosed_volume_source_units_cubed(), None);
+    assert_eq!(evidence.center_of_mass_source_units(), None);
+
+    let shared_edge_overlap = b"solid shared-edge-overlap
+facet normal 0 0 1
+outer loop
+vertex 0 0 0
+vertex 2 0 0
+vertex 0 2 0
+endloop
+endfacet
+facet normal 0 0 1
+outer loop
+vertex 0 0 0
+vertex 2 0 0
+vertex 1 1 0
+endloop
+endfacet
+endsolid shared-edge-overlap
+";
+    let evidence = analyze_ascii_stl(shared_edge_overlap, limits())
+        .expect("same-side shared-edge overlap must remain reviewable evidence");
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::Indeterminate
     );
 }
 

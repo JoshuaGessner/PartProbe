@@ -1,0 +1,58 @@
+solid self_intersecting_tetrahedra
+  facet normal 0 0 -1
+    outer loop
+      vertex 0 0 0
+      vertex 0 4 0
+      vertex 4 0 0
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 0 0 0
+      vertex 4 0 0
+      vertex 0 0 4
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 0 0 0
+      vertex 0 0 4
+      vertex 0 4 0
+    endloop
+  endfacet
+  facet normal 0.5773502691896258 0.5773502691896258 0.5773502691896258
+    outer loop
+      vertex 4 0 0
+      vertex 0 4 0
+      vertex 0 0 4
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 1 1 1
+      vertex 1 5 1
+      vertex 5 1 1
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 1 1 1
+      vertex 5 1 1
+      vertex 1 1 5
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 1 1 1
+      vertex 1 1 5
+      vertex 1 5 1
+    endloop
+  endfacet
+  facet normal 0.5773502691896258 0.5773502691896258 0.5773502691896258
+    outer loop
+      vertex 5 1 1
+      vertex 1 5 1
+      vertex 1 1 5
+    endloop
+  endfacet
+endsolid self_intersecting_tetrahedra
