@@ -12,6 +12,16 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "fixtures" / "models" / "cube_10mm_ascii.stl"
 OUTPUT = ROOT / "fixtures" / "models" / "cube_10mm_binary.stl"
 HEADER = b"PartProbe FIX-MESH-003 derived from governed FIX-MESH-001"
+ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
+    (
+        "truncated_record",
+        ROOT / "fixtures" / "models" / "adversarial_binary_stl_truncated_record.stl",
+    ),
+    (
+        "attribute_data",
+        ROOT / "fixtures" / "models" / "adversarial_binary_stl_attribute_data.stl",
+    ),
+)
 
 
 def parse_ascii_triangles(source: bytes) -> list[tuple[tuple[float, float, float], ...]]:
@@ -66,11 +76,38 @@ def build_binary_stl(source: bytes) -> bytes:
     return bytes(output)
 
 
+def build_adversarial_binary_stl(source: bytes, case: str) -> bytes:
+    """Derive one deterministic malformed binary STL from the governed cube."""
+    output = bytearray(build_binary_stl(source))
+    if case == "truncated_record":
+        output.pop()
+    elif case == "attribute_data":
+        first_attribute_offset = 84 + 48
+        output[first_attribute_offset : first_attribute_offset + 2] = b"\x01\x00"
+    else:
+        raise ValueError(f"unsupported adversarial binary STL case: {case}")
+    return bytes(output)
+
+
 def check_fixture(source_path: Path = SOURCE, output_path: Path = OUTPUT) -> None:
     """Fail when the committed binary fixture differs from deterministic output."""
     expected = build_binary_stl(source_path.read_bytes())
     if not output_path.is_file() or output_path.read_bytes() != expected:
         raise RuntimeError("binary STL fixture is missing or not reproducible")
+
+
+def check_adversarial_fixtures(
+    source_path: Path = SOURCE,
+    fixtures: tuple[tuple[str, Path], ...] = ADVERSARIAL_FIXTURES,
+) -> None:
+    """Fail when any malformed binary STL fixture is not reproducible."""
+    source = source_path.read_bytes()
+    for case, output_path in fixtures:
+        expected = build_adversarial_binary_stl(source, case)
+        if not output_path.is_file() or output_path.read_bytes() != expected:
+            raise RuntimeError(
+                "adversarial binary STL fixture is missing or not reproducible"
+            )
 
 
 def main() -> int:
@@ -81,11 +118,19 @@ def main() -> int:
         help="replace only the governed binary STL output with deterministic bytes",
     )
     args = parser.parse_args()
-    expected = build_binary_stl(SOURCE.read_bytes())
+    source = SOURCE.read_bytes()
+    expected = build_binary_stl(source)
+    adversarial_expected = tuple(
+        (output_path, build_adversarial_binary_stl(source, case))
+        for case, output_path in ADVERSARIAL_FIXTURES
+    )
     if args.write:
         OUTPUT.write_bytes(expected)
+        for output_path, contents in adversarial_expected:
+            output_path.write_bytes(contents)
     else:
         check_fixture()
+        check_adversarial_fixtures()
     return 0
 
 

@@ -8,6 +8,16 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-24 — TASK-004 unsafe-entry and malformed binary-STL rejection corpus
+
+- Added deterministic public `FIX-MESH-029`–`033`: 3MF packages containing an absolute entry name, a backslash entry name, and a directory entry, plus binary STL inputs with a truncated final triangle record and unsupported nonzero per-facet attribute data. The public synthetic CAD boundary is now thirty-six files: five STL, twenty-eight 3MF, and three STEP; twenty mesh inputs are intentional rejections.
+- Added schema-v1 typed failure expectations binding each source hash to three `THREE_MF_UNSAFE_PACKAGE`, one `STL_INVALID_STRUCTURE`, and one `STL_UNSUPPORTED_ATTRIBUTE_DATA` result. All require recoverable failure and forbid a geometry snapshot, output file, or retained staged input.
+- Extended deterministic generation/check mode, direct committed-byte parser regressions, and typed fixture-contract coverage across eighteen rejected 3MF packages and two rejected binary STL derivatives. The fixtures contain only public synthetic bytes derived from the governed cube.
+- The accepted/rejected boundaries and exact diagnostics already existed under `partprobe-3mf-spike-v5` and `partprobe-binary-stl-spike-v1`; no parser behavior, geometry interpretation, dependency, or migration changed in this checkpoint.
+- Focused validation passes eight STL tests, twelve 3MF tests, four typed fixture-contract tests, and twelve generator-tooling tests. Deterministic check modes reproduce all thirty-one derived binary/package artifacts byte-for-byte and the manifest hashes pass.
+- The complete local gate passes 167 runtime tests, one compile-fail doctest, 66 Python tooling tests, strict workspace/native-host/WASM Clippy, offline frontend construction, planning validation, deterministic fixture reproduction/hashes, formatting, and diff hygiene.
+- Three-OS Rust CI run 32734198822 passes the preceding `FIX-MESH-024`–`028` checkpoint at exact commit `bd23ef5` on rerun attempt 2 after GitHub cancelled attempt 1 before executing steps. TASK-004 remains In Progress: broader malformed numeric/resource-limit cases, supported general DAG/material semantics, self-intersection/confidence policy, independent representative geometry, and typed worker/desktop integration remain open. This remains parser-level evidence only.
+
 ## 2026-08-24 — TASK-004 graph, material, extension, and encryption rejection corpus
 
 - Added deterministic public `FIX-MESH-024`–`028` for a forward component reference, a build that leaves the final component object unused, a triangle material property attribute, an unsupported required extension, and an encrypted ZIP-entry declaration. The public synthetic CAD boundary is now thirty-one files: three STL, twenty-five 3MF, and three STEP; fifteen 3MF packages are intentional rejected inputs.

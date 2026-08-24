@@ -116,14 +116,14 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
-    def test_adversarial_corpus_pins_fifteen_distinct_rejection_shapes(self) -> None:
+    def test_adversarial_corpus_pins_eighteen_distinct_rejection_shapes(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()
         generated = {
             case: generate_3mf_fixture.build_adversarial_3mf(source, case)
             for case, _ in generate_3mf_fixture.ADVERSARIAL_FIXTURES
         }
-        self.assertEqual(len(generated), 15)
-        self.assertEqual(len(set(generated.values())), 15)
+        self.assertEqual(len(generated), 18)
+        self.assertEqual(len(set(generated.values())), 18)
         expected_ids = {
             "branching_components": "FIX-MESH-014",
             "non_immediate_reference": "FIX-MESH-015",
@@ -140,6 +140,9 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             "material_attribute": "FIX-MESH-026",
             "required_extension": "FIX-MESH-027",
             "encrypted_entry": "FIX-MESH-028",
+            "absolute_entry_name": "FIX-MESH-029",
+            "backslash_entry_name": "FIX-MESH-030",
+            "directory_entry": "FIX-MESH-031",
         }
         for case, output_path in generate_3mf_fixture.ADVERSARIAL_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -199,6 +202,12 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             self.assertIn(b'requiredextensions="foo"', package.read("3D/3dmodel.model"))
         with zipfile.ZipFile(BytesIO(generated["encrypted_entry"])) as package:
             self.assertTrue(package.getinfo("[Content_Types].xml").flag_bits & 1)
+        with zipfile.ZipFile(BytesIO(generated["absolute_entry_name"])) as package:
+            self.assertIn("/Metadata/absolute.xml", package.namelist())
+        with zipfile.ZipFile(BytesIO(generated["backslash_entry_name"])) as package:
+            self.assertIn(r"Metadata\backslash.xml", package.namelist())
+        with zipfile.ZipFile(BytesIO(generated["directory_entry"])) as package:
+            self.assertTrue(package.getinfo("Metadata/").is_dir())
 
     def test_check_rejects_changed_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

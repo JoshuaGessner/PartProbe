@@ -83,6 +83,18 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         "encrypted_entry",
         ROOT / "fixtures" / "models" / "adversarial_3mf_encrypted_entry.3mf",
     ),
+    (
+        "absolute_entry_name",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_absolute_entry_name.3mf",
+    ),
+    (
+        "backslash_entry_name",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_backslash_entry_name.3mf",
+    ),
+    (
+        "directory_entry",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_directory_entry.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -394,6 +406,12 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
         parts[-1] = (parts[-1][0], model.encode("utf-8"))
     elif case == "encrypted_entry":
         return declare_first_entry_encrypted(build_package(tuple(parts)))
+    elif case == "absolute_entry_name":
+        parts.append(("/Metadata/absolute.xml", b"unsafe absolute entry name"))
+    elif case == "backslash_entry_name":
+        parts.append((r"Metadata\backslash.xml", b"unsafe backslash entry name"))
+    elif case == "directory_entry":
+        parts.append(("Metadata/", b""))
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
     return build_package(tuple(parts))

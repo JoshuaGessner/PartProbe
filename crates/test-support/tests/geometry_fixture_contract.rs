@@ -44,7 +44,7 @@ const INDEPENDENT_STEP: &str =
     include_str!("../../../fixtures/expected/rectangular_prism_12x8x5_step.json");
 const INVALID_STEP: &str =
     include_str!("../../../fixtures/expected/invalid_step_entity_rejection.json");
-const THREE_MF_FAILURES: [(&str, &str, &str); 15] = [
+const THREE_MF_FAILURES: [(&str, &str, &str); 18] = [
     (
         include_str!(
             "../../../fixtures/expected/adversarial_3mf_branching_components_rejection.json"
@@ -139,6 +139,41 @@ const THREE_MF_FAILURES: [(&str, &str, &str); 15] = [
         include_str!("../../../fixtures/expected/adversarial_3mf_encrypted_entry_rejection.json"),
         "FIX-MESH-028",
         "THREE_MF_UNSAFE_PACKAGE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_absolute_entry_name_rejection.json"
+        ),
+        "FIX-MESH-029",
+        "THREE_MF_UNSAFE_PACKAGE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_backslash_entry_name_rejection.json"
+        ),
+        "FIX-MESH-030",
+        "THREE_MF_UNSAFE_PACKAGE",
+    ),
+    (
+        include_str!("../../../fixtures/expected/adversarial_3mf_directory_entry_rejection.json"),
+        "FIX-MESH-031",
+        "THREE_MF_UNSAFE_PACKAGE",
+    ),
+];
+const BINARY_STL_FAILURES: [(&str, &str, &str); 2] = [
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_binary_stl_truncated_record_rejection.json"
+        ),
+        "FIX-MESH-032",
+        "STL_INVALID_STRUCTURE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_binary_stl_attribute_data_rejection.json"
+        ),
+        "FIX-MESH-033",
+        "STL_UNSUPPORTED_ATTRIBUTE_DATA",
     ),
 ];
 
@@ -266,7 +301,9 @@ fn committed_failure_expectations_require_controlled_recoverable_failures() {
     assert!(!expectation.output_file_expected());
     assert!(!expectation.staged_input_retained());
 
-    for (source, fixture_id, diagnostic_code) in THREE_MF_FAILURES {
+    for (source, fixture_id, diagnostic_code) in
+        THREE_MF_FAILURES.into_iter().chain(BINARY_STL_FAILURES)
+    {
         let expectation: GeometryImportFailureExpectation =
             serde_json::from_str(source).expect("adversarial 3MF expectation must be valid");
         assert_eq!(expectation.fixture_id(), fixture_id);

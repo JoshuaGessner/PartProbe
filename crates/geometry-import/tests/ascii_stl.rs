@@ -8,6 +8,16 @@ use partprobe_geometry_import::{
 
 const CLOSED_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_ascii.stl");
 const BINARY_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_binary.stl");
+const ADVERSARIAL_BINARY_STL: [(&[u8], StlError); 2] = [
+    (
+        include_bytes!("../../../fixtures/models/adversarial_binary_stl_truncated_record.stl"),
+        StlError::InvalidStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_binary_stl_attribute_data.stl"),
+        StlError::UnsupportedAttributeData,
+    ),
+];
 const OPEN_CUBE: &[u8] = include_bytes!("../../../fixtures/models/open_cube_10mm_ascii.stl");
 
 fn limits() -> StlLimits {
@@ -248,4 +258,13 @@ fn binary_framing_attributes_numbers_and_quotas_fail_closed() {
         analyze_binary_stl(&non_finite, limits()),
         Err(StlError::InvalidNumber)
     );
+}
+
+#[test]
+fn persisted_adversarial_binary_stl_fails_with_exact_sanitized_diagnostics() {
+    for (source, expected) in ADVERSARIAL_BINARY_STL {
+        let actual = analyze_binary_stl(source, limits()).expect_err("fixture must fail closed");
+        assert_eq!(actual, expected);
+        assert_eq!(actual.to_string(), expected.diagnostic_code());
+    }
 }

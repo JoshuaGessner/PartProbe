@@ -954,6 +954,160 @@ fixtures:
     purpose: [encrypted_entry_rejection, sanitized_diagnostic, no_geometry_evidence]
     expected: expected/adversarial_3mf_encrypted_entry_rejection.json
     sha256: d4dc9572393cbd9172d53b4eaba666d9cab96b5efff7595de2df8fe027ee2883
+  - id: FIX-MESH-029
+    title: Adversarial 3MF package with an absolute entry name
+    path: models/adversarial_3mf_absolute_entry_name.3mf
+    format: 3mf-opc-unsafe-entry-name
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: unavailable_unsafe_package
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v9
+      parser: partprobe-3mf-spike-v5
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-006, SEC-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [absolute_entry_name_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_absolute_entry_name_rejection.json
+    sha256: 85ac30dcf683c35055e0b5a05fbadff46102ef44221206823958cba3808e74d5
+  - id: FIX-MESH-030
+    title: Adversarial 3MF package with a backslash entry name
+    path: models/adversarial_3mf_backslash_entry_name.3mf
+    format: 3mf-opc-unsafe-entry-name
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: unavailable_unsafe_package
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v9
+      parser: partprobe-3mf-spike-v5
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-006, SEC-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [backslash_entry_name_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_backslash_entry_name_rejection.json
+    sha256: e91583770bc68c01b7f25862e62c533ed1b6e5943a75df4023601497f4ed88f3
+  - id: FIX-MESH-031
+    title: Adversarial 3MF package containing a directory entry
+    path: models/adversarial_3mf_directory_entry.3mf
+    format: 3mf-opc-special-entry
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: unavailable_unsafe_package
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v9
+      parser: partprobe-3mf-spike-v5
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-006, SEC-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [directory_entry_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_3mf_directory_entry_rejection.json
+    sha256: 5dd5c8c56a73eb2f06eb417ba5c5b6ee395dc753db1cfc60e2675967885c7722
+  - id: FIX-MESH-032
+    title: Adversarial binary STL with a truncated triangle record
+    path: models/adversarial_binary_stl_truncated_record.stl
+    format: stl-binary-malformed
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-003
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_rejected_format
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-binary-stl-fixture-generator-v2
+      parser: partprobe-binary-stl-spike-v1
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-002, GEO-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [truncated_binary_record_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_binary_stl_truncated_record_rejection.json
+    sha256: 90179eaaa95607b2d38d82251ee2856b82403872c4413ed48dca7786f813cae7
+  - id: FIX-MESH-033
+    title: Adversarial binary STL with per-facet attribute data
+    path: models/adversarial_binary_stl_attribute_data.stl
+    format: stl-binary-unsupported-attribute-data
+    representation: unknown
+    source: project-generated-public-adversarial-derived-from-FIX-MESH-003
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_rejected_format
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-binary-stl-fixture-generator-v2
+      parser: partprobe-binary-stl-spike-v1
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-002, GEO-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [binary_attribute_data_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_binary_stl_attribute_data_rejection.json
+    sha256: 27aab9e23258b90e1fe75548efd6351ab69de29ad07fc992935a15901e61ed6a
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -1049,8 +1203,7 @@ fixtures:
     sha256: a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138
 required_next:
   - independent_non_project_cad_tool_step
-  - 3mf_additional_unsafe_archive_and_binary_malformed_corpus
-  - expanded_malformed_and_resource_limit_corpus
+  - expanded_malformed_numeric_and_resource_limit_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts
   - shop_reviewed_private_parts

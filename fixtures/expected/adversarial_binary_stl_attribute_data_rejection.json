@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-033",
+  "source_sha256": "27aab9e23258b90e1fe75548efd6351ab69de29ad07fc992935a15901e61ed6a",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "STL_UNSUPPORTED_ATTRIBUTE_DATA",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

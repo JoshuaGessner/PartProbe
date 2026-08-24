@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
+import json
 import struct
 import sys
 import tempfile
@@ -25,6 +27,40 @@ class BinaryStlFixtureTests(unittest.TestCase):
 
     def test_committed_fixture_is_reproducible(self) -> None:
         generate_binary_stl_fixture.check_fixture()
+        generate_binary_stl_fixture.check_adversarial_fixtures()
+
+    def test_adversarial_binary_corpus_pins_two_distinct_failures(self) -> None:
+        source = generate_binary_stl_fixture.SOURCE.read_bytes()
+        expected_ids = {
+            "truncated_record": "FIX-MESH-032",
+            "attribute_data": "FIX-MESH-033",
+        }
+        generated = {}
+        for case, output_path in generate_binary_stl_fixture.ADVERSARIAL_FIXTURES:
+            contents = generate_binary_stl_fixture.build_adversarial_binary_stl(
+                source, case
+            )
+            generated[case] = contents
+            self.assertEqual(contents, output_path.read_bytes())
+            expectation_path = (
+                generate_binary_stl_fixture.ROOT
+                / "fixtures"
+                / "expected"
+                / f"adversarial_binary_stl_{case}_rejection.json"
+            )
+            expectation = json.loads(expectation_path.read_text())
+            self.assertEqual(expectation["fixture_id"], expected_ids[case])
+            self.assertEqual(
+                expectation["source_sha256"], hashlib.sha256(contents).hexdigest()
+            )
+            self.assertFalse(expectation["snapshot_expected"])
+
+        self.assertEqual(len(generated), 2)
+        self.assertEqual(len(set(generated.values())), 2)
+        self.assertEqual(
+            len(generated["truncated_record"]), len(generated["attribute_data"]) - 1
+        )
+        self.assertEqual(struct.unpack_from("<H", generated["attribute_data"], 132)[0], 1)
 
     def test_check_rejects_changed_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -34,6 +70,11 @@ class BinaryStlFixtureTests(unittest.TestCase):
                 generate_binary_stl_fixture.check_fixture(
                     generate_binary_stl_fixture.SOURCE,
                     changed,
+                )
+            with self.assertRaisesRegex(RuntimeError, "not reproducible"):
+                generate_binary_stl_fixture.check_adversarial_fixtures(
+                    generate_binary_stl_fixture.SOURCE,
+                    (("truncated_record", changed),),
                 )
 
 
