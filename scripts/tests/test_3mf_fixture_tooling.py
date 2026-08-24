@@ -207,9 +207,12 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             self.assertTrue(package.getinfo("[Content_Types].xml").flag_bits & 1)
         with zipfile.ZipFile(BytesIO(generated["absolute_entry_name"])) as package:
             self.assertIn("/Metadata/absolute.xml", package.namelist())
-        with zipfile.ZipFile(BytesIO(generated["backslash_entry_name"])) as package:
-            self.assertIn(r"Metadata\backslash.xml", package.namelist())
-            self.assertNotIn("Metadata/backslash.xml", package.namelist())
+        # ZipInfo.filename normalizes the host separator on Windows, so the
+        # governed archive-policy evidence is the two raw ZIP filename fields.
+        backslash_name = rb"Metadata\backslash.xml"
+        portable_name = b"Metadata/backslash.xml"
+        self.assertEqual(generated["backslash_entry_name"].count(backslash_name), 2)
+        self.assertNotIn(portable_name, generated["backslash_entry_name"])
         with zipfile.ZipFile(BytesIO(generated["directory_entry"])) as package:
             self.assertTrue(package.getinfo("Metadata/").is_dir())
         with zipfile.ZipFile(BytesIO(generated["malformed_model_xml"])) as package:
