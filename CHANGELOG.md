@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-08-23
+> **Last updated:** 2026-08-24
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -42,7 +42,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - Analysis-revision-bound geometry review confirmations and a distinct retryable cancellation state, with focused regressions preventing stale confirmations or user cancellation from being presented as generic analysis failure.
 - Opt-in Windows Server 2022/Visual Studio 2022 x64 OCCT construction tooling with DLL-correct fingerprints, app-local runtime closure, manifest-bound desktop verification, explicit PE/import auditing, and a passing configured-host smoke gate in run 31613259785.
 - Bounded TASK-004 ASCII/binary STL and in-memory 3MF comparison analyzers with shared deterministic mesh measurements, thirteen governed synthetic mesh fixtures, persisted deterministic packages for every Core 3MF unit declaration and the normative default, ZIP/OPC/XML/entity limits, and `partprobe-3mf-spike-v5` direct or bounded linear-component-chain transform/provenance plus bounded model-metadata presence evidence. Raw ZIP headers are now inspected before decompression so unsupported methods receive their dedicated diagnostic. Metadata names/values are not retained or interpreted; branching, unions, and non-immediate component references fail closed; and the packages remain alternate encodings of one analytic cube. These are internal mesh-only spikes, not supported importers.
-- Ten deterministic public adversarial 3MF packages with typed failure expectations for branching and non-immediate component references, build unions, object/item/vendor metadata, relationship traversal, case-ambiguous parts, excessive compression ratio, and unsupported compression. Each pins an exact sanitized v5 diagnostic and forbids geometry evidence; this is parser-level rejection coverage, not worker/desktop or production-importer evidence.
+- Fifteen deterministic public adversarial 3MF packages with typed failure expectations for branching, non-immediate and forward component references, unused component objects, build unions, object/item/vendor metadata, triangle material attributes, required extensions, relationship traversal, case-ambiguous parts, excessive compression ratio, unsupported compression, and encrypted entries. Each pins an exact sanitized v5 diagnostic and forbids geometry evidence; this is parser-level rejection coverage, not worker/desktop or production-importer evidence.
 - Passing full native Linux package evidence in run 32610311910 for the corrected exact application-owned source/geometry labels after pinned OCCT/runtime/package construction, retained-session analysis, and real portal selection on one virtual Ubuntu configuration.
 
 ### Security

@@ -1,12 +1,22 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-23
+> **Last updated:** 2026-08-24
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-24 — TASK-004 graph, material, extension, and encryption rejection corpus
+
+- Added deterministic public `FIX-MESH-024`–`028` for a forward component reference, a build that leaves the final component object unused, a triangle material property attribute, an unsupported required extension, and an encrypted ZIP-entry declaration. The public synthetic CAD boundary is now thirty-one files: three STL, twenty-five 3MF, and three STEP; fifteen 3MF packages are intentional rejected inputs.
+- Added schema-v1 typed failure expectations binding every package hash to three `THREE_MF_UNSUPPORTED_MODEL_STRUCTURE`, one `THREE_MF_UNSUPPORTED_REQUIRED_EXTENSION`, and one `THREE_MF_UNSAFE_PACKAGE` result. All require recoverable failure and forbid a geometry snapshot, output file, or retained staged input.
+- Extended deterministic generation/check mode, direct committed-byte parser regression, and typed fixture-contract coverage across all fifteen rejected packages. The encrypted case sets only the governed header flag and contains no password, secret, private input, or extracted content.
+- The accepted/rejected boundary and exact diagnostics already existed under `partprobe-3mf-spike-v5`; no parser behavior, geometry interpretation, or migration changed in this checkpoint.
+- Focused validation passes twelve 3MF tests, four typed fixture-contract tests, and eight 3MF generator-tooling tests. The deterministic generator reproduces all twenty-five 3MF packages byte-for-byte.
+- The complete local gate passes 166 runtime tests, one compile-fail doctest, 65 Python tooling tests, strict workspace/native-host/WASM Clippy, offline frontend construction, planning validation, deterministic binary/3MF reproduction and hashes, and diff hygiene.
+- Three-OS Rust CI run 32662053161 passes the preceding v5 archive-policy checkpoint at exact commit `023e985`. TASK-004 remains In Progress: additional unsafe/archive and binary/malformed cases, supported general DAG/material semantics, self-intersection/confidence policy, independent representative geometry, and typed worker/desktop integration remain open. This remains parser-level evidence only.
 
 ## 2026-08-23 — TASK-004 adversarial 3MF structure and archive-policy corpus
 

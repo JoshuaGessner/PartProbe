@@ -44,7 +44,7 @@ const INDEPENDENT_STEP: &str =
     include_str!("../../../fixtures/expected/rectangular_prism_12x8x5_step.json");
 const INVALID_STEP: &str =
     include_str!("../../../fixtures/expected/invalid_step_entity_rejection.json");
-const THREE_MF_FAILURES: [(&str, &str, &str); 10] = [
+const THREE_MF_FAILURES: [(&str, &str, &str); 15] = [
     (
         include_str!(
             "../../../fixtures/expected/adversarial_3mf_branching_components_rejection.json"
@@ -106,6 +106,39 @@ const THREE_MF_FAILURES: [(&str, &str, &str); 10] = [
         ),
         "FIX-MESH-023",
         "THREE_MF_UNSUPPORTED_COMPRESSION",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_forward_component_reference_rejection.json"
+        ),
+        "FIX-MESH-024",
+        "THREE_MF_UNSUPPORTED_MODEL_STRUCTURE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_unused_component_object_rejection.json"
+        ),
+        "FIX-MESH-025",
+        "THREE_MF_UNSUPPORTED_MODEL_STRUCTURE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_material_attribute_rejection.json"
+        ),
+        "FIX-MESH-026",
+        "THREE_MF_UNSUPPORTED_MODEL_STRUCTURE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_required_extension_rejection.json"
+        ),
+        "FIX-MESH-027",
+        "THREE_MF_UNSUPPORTED_REQUIRED_EXTENSION",
+    ),
+    (
+        include_str!("../../../fixtures/expected/adversarial_3mf_encrypted_entry_rejection.json"),
+        "FIX-MESH-028",
+        "THREE_MF_UNSAFE_PACKAGE",
     ),
 ];
 

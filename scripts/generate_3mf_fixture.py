@@ -63,6 +63,26 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         "unsupported_compression",
         ROOT / "fixtures" / "models" / "adversarial_3mf_unsupported_compression.3mf",
     ),
+    (
+        "forward_component_reference",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_forward_component_reference.3mf",
+    ),
+    (
+        "unused_component_object",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_unused_component_object.3mf",
+    ),
+    (
+        "material_attribute",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_material_attribute.3mf",
+    ),
+    (
+        "required_extension",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_required_extension.3mf",
+    ),
+    (
+        "encrypted_entry",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_encrypted_entry.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -264,6 +284,25 @@ def declare_first_entry_compression(package: bytes, compression: int) -> bytes:
     return bytes(output)
 
 
+def declare_first_entry_encrypted(package: bytes) -> bytes:
+    """Set the encryption flag on one deterministic entry without adding secrets."""
+    output = bytearray(package)
+    if output[:4] != b"PK\x03\x04":
+        raise RuntimeError("generated ZIP is missing its first local header")
+    central_header = output.find(b"PK\x01\x02")
+    if central_header < 0:
+        raise RuntimeError("generated ZIP is missing its central directory")
+    local_flags = int.from_bytes(output[6:8], "little") | 1
+    central_flags = int.from_bytes(
+        output[central_header + 8 : central_header + 10], "little"
+    ) | 1
+    output[6:8] = local_flags.to_bytes(2, "little")
+    output[central_header + 8 : central_header + 10] = central_flags.to_bytes(
+        2, "little"
+    )
+    return bytes(output)
+
+
 def build_component_3mf(source: bytes) -> bytes:
     """Create deterministic bytes for the governed component-transform fixture."""
     return build_package(package_parts(source, component=True))
@@ -330,6 +369,31 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
     elif case == "unsupported_compression":
         stored = build_package(tuple(parts), compression=zipfile.ZIP_STORED)
         return declare_first_entry_compression(stored, zipfile.ZIP_BZIP2)
+    elif case == "forward_component_reference":
+        model = build_nested_component_model_xml(source).decode("utf-8").replace(
+            '<component objectid="1" transform="2 0 0 0 1 0 0 0 1 1 2 3" />',
+            '<component objectid="3" transform="2 0 0 0 1 0 0 0 1 1 2 3" />',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "unused_component_object":
+        model = build_component_model_xml(source).decode("utf-8").replace(
+            '<item objectid="2" transform="1 0 0 0 1 0 0 0 1 4 5 6" />',
+            '<item objectid="1" transform="1 0 0 0 1 0 0 0 1 4 5 6" />',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "material_attribute":
+        model = build_unit_model_xml(source, "millimeter", "1").decode("utf-8").replace(
+            "<triangle ", '<triangle pid="2" ', 1
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "required_extension":
+        model = build_model_xml(source).decode("utf-8").replace(
+            '<model unit="centimeter"',
+            '<model requiredextensions="foo" xmlns:foo="urn:example" unit="centimeter"',
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "encrypted_entry":
+        return declare_first_entry_encrypted(build_package(tuple(parts)))
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
     return build_package(tuple(parts))

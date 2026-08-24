@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-026",
+  "source_sha256": "3654b4d40f73a8af0cb99f203b2b0d4e8f1b43179e3e92ad0344064419834bd4",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "THREE_MF_UNSUPPORTED_MODEL_STRUCTURE",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

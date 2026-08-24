@@ -23,7 +23,7 @@ const INCH_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_
 const FOOT_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_foot.3mf");
 const DEFAULT_MM_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_mm.3mf");
-const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 10] = [
+const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 15] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
         ThreeMfError::UnsupportedModelStructure,
@@ -63,6 +63,26 @@ const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 10] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_unsupported_compression.3mf"),
         ThreeMfError::UnsupportedCompression,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_forward_component_reference.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_unused_component_object.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_material_attribute.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_required_extension.3mf"),
+        ThreeMfError::UnsupportedRequiredExtension,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_encrypted_entry.3mf"),
+        ThreeMfError::UnsafePackage,
     ),
 ];
 
