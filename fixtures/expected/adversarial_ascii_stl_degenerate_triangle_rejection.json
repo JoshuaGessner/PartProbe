@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-043",
+  "source_sha256": "082130ac066b1b87143b618c39a6269c5cffc013234d51fa9614c019a521f7c5",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "STL_DEGENERATE_TRIANGLE",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

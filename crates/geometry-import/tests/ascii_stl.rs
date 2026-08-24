@@ -10,6 +10,24 @@ use partprobe_geometry_import::{
 
 const CLOSED_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_ascii.stl");
 const BINARY_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_binary.stl");
+const ADVERSARIAL_ASCII_STL: [(&[u8], StlError); 4] = [
+    (
+        include_bytes!("../../../fixtures/models/adversarial_ascii_stl_invalid_utf8.stl"),
+        StlError::InvalidText,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_ascii_stl_malformed_facet.stl"),
+        StlError::InvalidStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_ascii_stl_empty_solid.stl"),
+        StlError::EmptyMesh,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_ascii_stl_degenerate_triangle.stl"),
+        StlError::DegenerateTriangle,
+    ),
+];
 const ADVERSARIAL_BINARY_STL: [(&[u8], StlError); 4] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_binary_stl_truncated_record.stl"),
@@ -432,6 +450,15 @@ fn binary_framing_attributes_numbers_and_quotas_fail_closed() {
 fn persisted_adversarial_binary_stl_fails_with_exact_sanitized_diagnostics() {
     for (source, expected) in ADVERSARIAL_BINARY_STL {
         let actual = analyze_binary_stl(source, limits()).expect_err("fixture must fail closed");
+        assert_eq!(actual, expected);
+        assert_eq!(actual.to_string(), expected.diagnostic_code());
+    }
+}
+
+#[test]
+fn persisted_adversarial_ascii_stl_fails_with_exact_sanitized_diagnostics() {
+    for (source, expected) in ADVERSARIAL_ASCII_STL {
+        let actual = analyze_stl(source, limits()).expect_err("fixture must fail closed");
         assert_eq!(actual, expected);
         assert_eq!(actual.to_string(), expected.diagnostic_code());
     }

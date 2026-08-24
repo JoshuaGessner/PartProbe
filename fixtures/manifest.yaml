@@ -1292,6 +1292,110 @@ fixtures:
       - closed_volume_and_centroid_withholding
     expected: expected/self_intersecting_tetrahedra.json
     sha256: ee0d75458135b961de2300b638d880f824a0bf69f6ae6beeb1c03ca0569a107f
+  - id: FIX-MESH-040
+    title: Adversarial ASCII STL containing invalid UTF-8
+    path: models/adversarial_ascii_stl_invalid_utf8.stl
+    format: stl-ascii-invalid-text
+    representation: unknown
+    source: project-generated-public-adversarial
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_rejected_format
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-ascii-stl-adversarial-fixture-generator-v1
+      parser: partprobe-ascii-stl-spike-v2
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-002, GEO-006, SEC-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [invalid_text_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_ascii_stl_invalid_utf8_rejection.json
+    sha256: 53b117ca3ae61779a158287188df630c42179ff1aaf4ebc84ad39a40a75741fc
+  - id: FIX-MESH-041
+    title: Adversarial ASCII STL with malformed facet grammar
+    path: models/adversarial_ascii_stl_malformed_facet.stl
+    format: stl-ascii-malformed-structure
+    representation: unknown
+    source: project-generated-public-adversarial
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_rejected_format
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-ascii-stl-adversarial-fixture-generator-v1
+      parser: partprobe-ascii-stl-spike-v2
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-002, GEO-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [malformed_facet_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_ascii_stl_malformed_facet_rejection.json
+    sha256: 5e895d55eb8520e9553508ea754f0a2a335aeaa0fc5e598db6505e2eb773f75c
+  - id: FIX-MESH-042
+    title: Adversarial empty ASCII STL solid
+    path: models/adversarial_ascii_stl_empty_solid.stl
+    format: stl-ascii-empty-solid
+    representation: unknown
+    source: project-generated-public-adversarial
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_rejected_format
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-ascii-stl-adversarial-fixture-generator-v1
+      parser: partprobe-ascii-stl-spike-v2
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-002, GEO-006, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [empty_mesh_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_ascii_stl_empty_solid_rejection.json
+    sha256: cae5bfc3f6f573c0b068c554e6f065779f715d2624a4c69a557b38750f00cf3c
+  - id: FIX-MESH-043
+    title: Adversarial ASCII STL with one degenerate triangle
+    path: models/adversarial_ascii_stl_degenerate_triangle.stl
+    format: stl-ascii-degenerate-geometry
+    representation: unknown
+    source: project-generated-public-adversarial
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_in_rejected_format
+    declared_units: null
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-ascii-stl-adversarial-fixture-generator-v1
+      parser: partprobe-ascii-stl-spike-v2
+    expected_worker_outcome: comparison_analyzer_rejected
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-24
+    reviewed_date: null
+    requirements: [GEO-002, GEO-006, GEO-008, REQ-NF-005, TEST-003, TEST-024, TEST-025]
+    purpose: [degenerate_geometry_rejection, sanitized_diagnostic, no_geometry_evidence]
+    expected: expected/adversarial_ascii_stl_degenerate_triangle_rejection.json
+    sha256: 082130ac066b1b87143b618c39a6269c5cffc013234d51fa9614c019a521f7c5
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -1387,7 +1491,7 @@ fixtures:
     sha256: a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138
 required_next:
   - independent_non_project_cad_tool_step
-  - broader_malformed_entity_and_geometry_corpus
+  - broader_representative_malformed_entity_and_geometry_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts
   - shop_reviewed_private_parts

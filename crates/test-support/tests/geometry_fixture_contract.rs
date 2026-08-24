@@ -209,6 +209,34 @@ const BINARY_STL_FAILURES: [(&str, &str, &str); 4] = [
         "STL_TRIANGLE_LIMIT_EXCEEDED",
     ),
 ];
+const ASCII_STL_FAILURES: [(&str, &str, &str); 4] = [
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_ascii_stl_invalid_utf8_rejection.json"
+        ),
+        "FIX-MESH-040",
+        "STL_INVALID_TEXT",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_ascii_stl_malformed_facet_rejection.json"
+        ),
+        "FIX-MESH-041",
+        "STL_INVALID_STRUCTURE",
+    ),
+    (
+        include_str!("../../../fixtures/expected/adversarial_ascii_stl_empty_solid_rejection.json"),
+        "FIX-MESH-042",
+        "STL_EMPTY_MESH",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_ascii_stl_degenerate_triangle_rejection.json"
+        ),
+        "FIX-MESH-043",
+        "STL_DEGENERATE_TRIANGLE",
+    ),
+];
 
 #[test]
 fn committed_mesh_expectations_satisfy_the_versioned_contract() {
@@ -355,11 +383,13 @@ fn committed_failure_expectations_require_controlled_recoverable_failures() {
     assert!(!expectation.output_file_expected());
     assert!(!expectation.staged_input_retained());
 
-    for (source, fixture_id, diagnostic_code) in
-        THREE_MF_FAILURES.into_iter().chain(BINARY_STL_FAILURES)
+    for (source, fixture_id, diagnostic_code) in THREE_MF_FAILURES
+        .into_iter()
+        .chain(BINARY_STL_FAILURES)
+        .chain(ASCII_STL_FAILURES)
     {
-        let expectation: GeometryImportFailureExpectation =
-            serde_json::from_str(source).expect("adversarial 3MF expectation must be valid");
+        let expectation: GeometryImportFailureExpectation = serde_json::from_str(source)
+            .expect("geometry import failure expectation must be valid");
         assert_eq!(expectation.fixture_id(), fixture_id);
         assert_eq!(
             expectation.expected_diagnostic_code().as_str(),

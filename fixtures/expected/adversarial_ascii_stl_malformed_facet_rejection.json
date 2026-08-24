@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-041",
+  "source_sha256": "5e895d55eb8520e9553508ea754f0a2a335aeaa0fc5e598db6505e2eb773f75c",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "STL_INVALID_STRUCTURE",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

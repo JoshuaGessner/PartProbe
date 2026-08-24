@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-042",
+  "source_sha256": "cae5bfc3f6f573c0b068c554e6f065779f715d2624a4c69a557b38750f00cf3c",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "STL_EMPTY_MESH",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

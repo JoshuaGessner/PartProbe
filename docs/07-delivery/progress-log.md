@@ -8,6 +8,14 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-24 — TASK-004 persisted malformed ASCII STL rejection corpus
+
+- Added deterministic public `FIX-MESH-040`–`043`: a 43-byte invalid-UTF-8 stream, a 120-byte facet missing its third vertex, a 27-byte empty solid, and a 123-byte collinear triangle. A dedicated generator reproduces every exact byte stream; the public synthetic CAD boundary is now forty-six files: twelve STL, thirty-one 3MF, and three STEP.
+- Added schema-v1 typed failure expectations binding the exact source hashes to `STL_INVALID_TEXT`, `STL_INVALID_STRUCTURE`, `STL_EMPTY_MESH`, and `STL_DEGENERATE_TRIANGLE`. Every case requires recoverable failure and forbids a geometry snapshot, output file, or retained staged input.
+- The persisted tests use the public content-based STL entry point, proving these malformed inputs do not bypass encoding selection. The parser remains STL v2: no accepted syntax, calculation, geometry interpretation, diagnostic boundary, dependency, customer data, production rate, or external-transfer policy changed, so no migration applies.
+- Focused validation passes eleven STL tests, twelve 3MF tests, eight geometry-core contract tests, four fixture-contract tests, and fifteen generator-tooling tests. The complete local gate passes 171 runtime tests, one compile-fail doctest, 69 Python tooling tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, deterministic reproduction of all forty generator-derived mesh artifacts, all forty-six fixture hashes, 144-file planning validation, formatting, and diff hygiene.
+- Three-OS Rust CI run 32748331215 passes Windows, macOS, and Ubuntu at exact preceding commit `e82c6a3`, closing the self-intersection/confidence checkpoint. TASK-004 remains In Progress: broader representative malformed geometry/alternate legal packages, supported general DAG/material semantics, production mesh tolerance, independent representative geometry, and typed worker/desktop integration remain open.
+
 ## 2026-08-24 — TASK-004 self-intersection and categorical mesh-confidence checkpoint
 
 - Added public project-authored `FIX-MESH-039`, a 1,109-byte ASCII STL containing two analytically defined, individually closed and consistently wound tetrahedral shells whose surfaces intersect. SHA-256 `ee0d75458135b961de2300b638d880f824a0bf69f6ae6beeb1c03ca0569a107f` binds eight triangles, 5 × 5 × 5 source-coordinate extents, and surface area `48 + 16√3`; the public CAD boundary is now forty-two files: eight STL, thirty-one 3MF, and three STEP.
