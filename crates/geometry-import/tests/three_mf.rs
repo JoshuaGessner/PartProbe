@@ -23,7 +23,7 @@ const INCH_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_
 const FOOT_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_foot.3mf");
 const DEFAULT_MM_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_mm.3mf");
-const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 18] = [
+const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 21] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
         ThreeMfError::UnsupportedModelStructure,
@@ -95,6 +95,18 @@ const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 18] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_directory_entry.3mf"),
         ThreeMfError::UnsafePackage,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_malformed_model_xml.3mf"),
+        ThreeMfError::InvalidXml,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_document_type.3mf"),
+        ThreeMfError::InvalidXml,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_entry_count_limit.3mf"),
+        ThreeMfError::ArchiveLimitExceeded,
     ),
 ];
 

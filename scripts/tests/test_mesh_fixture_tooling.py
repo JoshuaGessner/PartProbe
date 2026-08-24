@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 import json
+import math
 import struct
 import sys
 import tempfile
@@ -29,11 +30,13 @@ class BinaryStlFixtureTests(unittest.TestCase):
         generate_binary_stl_fixture.check_fixture()
         generate_binary_stl_fixture.check_adversarial_fixtures()
 
-    def test_adversarial_binary_corpus_pins_two_distinct_failures(self) -> None:
+    def test_adversarial_binary_corpus_pins_four_distinct_failures(self) -> None:
         source = generate_binary_stl_fixture.SOURCE.read_bytes()
         expected_ids = {
             "truncated_record": "FIX-MESH-032",
             "attribute_data": "FIX-MESH-033",
+            "non_finite_normal": "FIX-MESH-037",
+            "triangle_count_limit": "FIX-MESH-038",
         }
         generated = {}
         for case, output_path in generate_binary_stl_fixture.ADVERSARIAL_FIXTURES:
@@ -55,12 +58,21 @@ class BinaryStlFixtureTests(unittest.TestCase):
             )
             self.assertFalse(expectation["snapshot_expected"])
 
-        self.assertEqual(len(generated), 2)
-        self.assertEqual(len(set(generated.values())), 2)
+        self.assertEqual(len(generated), 4)
+        self.assertEqual(len(set(generated.values())), 4)
         self.assertEqual(
             len(generated["truncated_record"]), len(generated["attribute_data"]) - 1
         )
         self.assertEqual(struct.unpack_from("<H", generated["attribute_data"], 132)[0], 1)
+        self.assertTrue(
+            math.isnan(
+                struct.unpack_from("<f", generated["non_finite_normal"], 84)[0]
+            )
+        )
+        self.assertEqual(
+            struct.unpack_from("<I", generated["triangle_count_limit"], 80)[0],
+            1_001,
+        )
 
     def test_check_rejects_changed_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

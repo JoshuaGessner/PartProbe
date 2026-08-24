@@ -21,6 +21,14 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         "attribute_data",
         ROOT / "fixtures" / "models" / "adversarial_binary_stl_attribute_data.stl",
     ),
+    (
+        "non_finite_normal",
+        ROOT / "fixtures" / "models" / "adversarial_binary_stl_non_finite_normal.stl",
+    ),
+    (
+        "triangle_count_limit",
+        ROOT / "fixtures" / "models" / "adversarial_binary_stl_triangle_count_limit.stl",
+    ),
 )
 
 
@@ -84,6 +92,10 @@ def build_adversarial_binary_stl(source: bytes, case: str) -> bytes:
     elif case == "attribute_data":
         first_attribute_offset = 84 + 48
         output[first_attribute_offset : first_attribute_offset + 2] = b"\x01\x00"
+    elif case == "non_finite_normal":
+        output[84:88] = b"\x00\x00\xc0\x7f"
+    elif case == "triangle_count_limit":
+        output[80:84] = (1_001).to_bytes(4, "little")
     else:
         raise ValueError(f"unsupported adversarial binary STL case: {case}")
     return bytes(output)

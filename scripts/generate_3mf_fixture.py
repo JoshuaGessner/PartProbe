@@ -95,6 +95,18 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         "directory_entry",
         ROOT / "fixtures" / "models" / "adversarial_3mf_directory_entry.3mf",
     ),
+    (
+        "malformed_model_xml",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_malformed_model_xml.3mf",
+    ),
+    (
+        "document_type",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_document_type.3mf",
+    ),
+    (
+        "entry_count_limit",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_entry_count_limit.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -315,6 +327,17 @@ def declare_first_entry_encrypted(package: bytes) -> bytes:
     return bytes(output)
 
 
+def replace_entry_name_bytes(package: bytes, current: str, replacement: str) -> bytes:
+    """Rewrite equal-length local/central ZIP names without host path semantics."""
+    current_bytes = current.encode("ascii")
+    replacement_bytes = replacement.encode("ascii")
+    if len(current_bytes) != len(replacement_bytes):
+        raise ValueError("ZIP entry-name replacement must preserve byte length")
+    if package.count(current_bytes) != 2:
+        raise RuntimeError("generated ZIP entry name is not present exactly twice")
+    return package.replace(current_bytes, replacement_bytes)
+
+
 def build_component_3mf(source: bytes) -> bytes:
     """Create deterministic bytes for the governed component-transform fixture."""
     return build_package(package_parts(source, component=True))
@@ -409,9 +432,26 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
     elif case == "absolute_entry_name":
         parts.append(("/Metadata/absolute.xml", b"unsafe absolute entry name"))
     elif case == "backslash_entry_name":
-        parts.append((r"Metadata\backslash.xml", b"unsafe backslash entry name"))
+        portable_name = "Metadata/backslash.xml"
+        parts.append((portable_name, b"unsafe backslash entry name"))
+        return replace_entry_name_bytes(
+            build_package(tuple(parts)), portable_name, r"Metadata\backslash.xml"
+        )
     elif case == "directory_entry":
         parts.append(("Metadata/", b""))
+    elif case == "malformed_model_xml":
+        parts[-1] = (parts[-1][0], parts[-1][1].replace(b"</model>", b"</broken>"))
+    elif case == "document_type":
+        parts[-1] = (
+            parts[-1][0],
+            parts[-1][1].replace(
+                b'<?xml version="1.0" encoding="UTF-8"?>',
+                b'<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE model>',
+            ),
+        )
+    elif case == "entry_count_limit":
+        for index in range(14):
+            parts.append((f"Metadata/entry-{index:02d}.bin", b"bounded entry"))
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
     return build_package(tuple(parts))

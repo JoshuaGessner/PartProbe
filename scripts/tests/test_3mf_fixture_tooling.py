@@ -116,14 +116,14 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
-    def test_adversarial_corpus_pins_eighteen_distinct_rejection_shapes(self) -> None:
+    def test_adversarial_corpus_pins_twenty_one_distinct_rejection_shapes(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()
         generated = {
             case: generate_3mf_fixture.build_adversarial_3mf(source, case)
             for case, _ in generate_3mf_fixture.ADVERSARIAL_FIXTURES
         }
-        self.assertEqual(len(generated), 18)
-        self.assertEqual(len(set(generated.values())), 18)
+        self.assertEqual(len(generated), 21)
+        self.assertEqual(len(set(generated.values())), 21)
         expected_ids = {
             "branching_components": "FIX-MESH-014",
             "non_immediate_reference": "FIX-MESH-015",
@@ -143,6 +143,9 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             "absolute_entry_name": "FIX-MESH-029",
             "backslash_entry_name": "FIX-MESH-030",
             "directory_entry": "FIX-MESH-031",
+            "malformed_model_xml": "FIX-MESH-034",
+            "document_type": "FIX-MESH-035",
+            "entry_count_limit": "FIX-MESH-036",
         }
         for case, output_path in generate_3mf_fixture.ADVERSARIAL_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -206,8 +209,20 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             self.assertIn("/Metadata/absolute.xml", package.namelist())
         with zipfile.ZipFile(BytesIO(generated["backslash_entry_name"])) as package:
             self.assertIn(r"Metadata\backslash.xml", package.namelist())
+            self.assertNotIn("Metadata/backslash.xml", package.namelist())
         with zipfile.ZipFile(BytesIO(generated["directory_entry"])) as package:
             self.assertTrue(package.getinfo("Metadata/").is_dir())
+        with zipfile.ZipFile(BytesIO(generated["malformed_model_xml"])) as package:
+            self.assertIn(b"</broken>", package.read("3D/3dmodel.model"))
+        with zipfile.ZipFile(BytesIO(generated["document_type"])) as package:
+            self.assertIn(b"<!DOCTYPE model>", package.read("3D/3dmodel.model"))
+        with zipfile.ZipFile(BytesIO(generated["entry_count_limit"])) as package:
+            self.assertEqual(len(package.namelist()), 17)
+
+        with self.assertRaisesRegex(ValueError, "preserve byte length"):
+            generate_3mf_fixture.replace_entry_name_bytes(b"package", "a", "long")
+        with self.assertRaisesRegex(RuntimeError, "present exactly twice"):
+            generate_3mf_fixture.replace_entry_name_bytes(b"pkg", "a", "b")
 
     def test_check_rejects_changed_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

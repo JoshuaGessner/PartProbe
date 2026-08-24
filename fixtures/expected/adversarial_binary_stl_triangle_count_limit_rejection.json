@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-038",
+  "source_sha256": "38349d654bc704abc0380ad3e8cfd3a45fd7330266cd14dd3b18cc0b918305e7",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "STL_TRIANGLE_LIMIT_EXCEEDED",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

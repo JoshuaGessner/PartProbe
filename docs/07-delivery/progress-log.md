@@ -8,6 +8,16 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-24 — TASK-004 malformed XML, numeric, and resource-limit rejection corpus
+
+- Added deterministic public `FIX-MESH-034`–`038`: 3MF packages with malformed model XML, a forbidden document type, and seventeen entries against the configured sixteen-entry ceiling, plus binary STL inputs with an explicit quiet-NaN normal component and a declared 1,001 triangles against the configured 1,000-triangle ceiling. The public synthetic CAD boundary is now forty-one files: seven STL, thirty-one 3MF, and three STEP; twenty-five mesh inputs are intentional rejections.
+- Added schema-v1 typed failure expectations binding each source hash to two `THREE_MF_INVALID_XML`, one `THREE_MF_ARCHIVE_LIMIT_EXCEEDED`, one `STL_INVALID_NUMBER`, and one `STL_TRIANGLE_LIMIT_EXCEEDED` result. Every case requires recoverable failure and forbids geometry, output, or retained staged-input evidence.
+- Extended deterministic generation/check mode, direct committed-byte parser regressions, and typed fixture-contract coverage across twenty-one rejected 3MF packages and four rejected binary STL derivatives. All thirty-six derived binary/package artifacts reproduce byte-for-byte from public synthetic inputs.
+- Corrected a Windows-only fixture-generation defect exposed by Rust CI run 32737358886: Python's ZIP writer normalized a requested backslash entry to a slash on Windows. The generator now writes the portable equal-length slash name and rewrites the two raw ZIP filename fields to the governed backslash bytes, preserving the existing `FIX-MESH-030` package hash on every host.
+- The accepted/rejected boundaries and exact diagnostics already existed under `partprobe-3mf-spike-v5` and `partprobe-binary-stl-spike-v1`; no parser behavior, geometry interpretation, dependency, or migration changed in this checkpoint.
+- Focused validation passes eight STL tests, twelve 3MF tests, four typed fixture-contract tests, and twelve generator-tooling tests. The complete local gate passes 167 runtime tests, one compile-fail doctest, 66 Python tooling tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, deterministic reproduction of all thirty-six derived binary/package artifacts, all forty-one fixture hashes, 144-file planning validation, formatting, and diff hygiene.
+- TASK-004 remains In Progress. Broader malformed entity/geometry cases, supported general DAG/material semantics, self-intersection/confidence policy, independent representative geometry, and typed worker/desktop integration remain open. This remains parser-level evidence only.
+
 ## 2026-08-24 — TASK-004 unsafe-entry and malformed binary-STL rejection corpus
 
 - Added deterministic public `FIX-MESH-029`–`033`: 3MF packages containing an absolute entry name, a backslash entry name, and a directory entry, plus binary STL inputs with a truncated final triangle record and unsupported nonzero per-facet attribute data. The public synthetic CAD boundary is now thirty-six files: five STL, twenty-eight 3MF, and three STEP; twenty mesh inputs are intentional rejections.

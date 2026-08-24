@@ -8,7 +8,7 @@ use partprobe_geometry_import::{
 
 const CLOSED_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_ascii.stl");
 const BINARY_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_binary.stl");
-const ADVERSARIAL_BINARY_STL: [(&[u8], StlError); 2] = [
+const ADVERSARIAL_BINARY_STL: [(&[u8], StlError); 4] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_binary_stl_truncated_record.stl"),
         StlError::InvalidStructure,
@@ -16,6 +16,14 @@ const ADVERSARIAL_BINARY_STL: [(&[u8], StlError); 2] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_binary_stl_attribute_data.stl"),
         StlError::UnsupportedAttributeData,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_binary_stl_non_finite_normal.stl"),
+        StlError::InvalidNumber,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_binary_stl_triangle_count_limit.stl"),
+        StlError::TriangleLimitExceeded,
     ),
 ];
 const OPEN_CUBE: &[u8] = include_bytes!("../../../fixtures/models/open_cube_10mm_ascii.stl");
