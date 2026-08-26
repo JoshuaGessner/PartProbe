@@ -14,6 +14,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 
 ### Added
 
+- `FIX-MESH-047/048`, deterministic successful-warning ASCII STL fixtures for one reversed cube facet and two tetrahedra sharing a non-manifold edge. Both preserve unresolved-unit `NeedsReview` evidence and withhold volume/centroid under the existing STL-v2 topology/confidence policy; no parser, schema, dependency, or migration change applies.
 - `FIX-MESH-044`–`046`, three deterministic positive 3MF/OPC interoperability fixtures that independently prove a default `.model` content-type declaration, an alternate internal StartPart/model-part path, and Store compression while preserving the governed translated 10 mm cube evidence. Parser v6 and success schema v3 remain unchanged because this persists already-implemented accepted behavior; it is not general exporter, worker/desktop, or supported-importer evidence.
 
 - Phase 0 repository governance and planning documentation baseline.

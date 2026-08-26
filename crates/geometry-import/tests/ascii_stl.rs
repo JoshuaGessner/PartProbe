@@ -49,6 +49,10 @@ const ADVERSARIAL_BINARY_STL: [(&[u8], StlError); 4] = [
 const OPEN_CUBE: &[u8] = include_bytes!("../../../fixtures/models/open_cube_10mm_ascii.stl");
 const SELF_INTERSECTING_TETRAHEDRA: &[u8] =
     include_bytes!("../../../fixtures/models/self_intersecting_tetrahedra_ascii.stl");
+const REVERSED_FACET_CUBE: &[u8] =
+    include_bytes!("../../../fixtures/models/cube_10mm_ascii_reversed_facet.stl");
+const NON_MANIFOLD_SHARED_EDGE: &[u8] =
+    include_bytes!("../../../fixtures/models/two_tetrahedra_shared_edge_ascii.stl");
 
 fn limits() -> StlLimits {
     StlLimits::new(64 * 1024, 1_000).expect("test limits must be valid")
@@ -225,6 +229,86 @@ fn open_cube_keeps_volume_and_centroid_unavailable() {
         [
             "UNITS_MISSING_REQUIRES_CONFIRMATION",
             "MESH_NOT_EXACT_BREP",
+            "OPEN_BOUNDARY",
+            "CLOSED_VOLUME_UNAVAILABLE",
+        ]
+    );
+}
+
+#[test]
+fn reversed_facet_withholds_closed_measurements_and_requires_review() {
+    let evidence =
+        analyze_ascii_stl(REVERSED_FACET_CUBE, limits()).expect("reversed cube must parse");
+
+    assert_eq!(evidence.triangle_count(), 12);
+    assert!(evidence.manifold());
+    assert!(evidence.watertight());
+    assert!(!evidence.consistently_wound());
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::NotDetected
+    );
+    assert_eq!(evidence.aabb_extents_source_units().components(), [10.0; 3]);
+    assert_close(evidence.surface_area_source_units_squared(), 600.0);
+    assert_eq!(evidence.enclosed_volume_source_units_cubed(), None);
+    assert_eq!(evidence.center_of_mass_source_units(), None);
+    assert_eq!(
+        confidence_reasons(&evidence),
+        [
+            "MESH_REPRESENTATION_CEILING",
+            "UNITS_UNRESOLVED",
+            "INCONSISTENT_WINDING",
+        ]
+    );
+    assert_eq!(
+        warning_codes(&evidence),
+        [
+            "UNITS_MISSING_REQUIRES_CONFIRMATION",
+            "MESH_NOT_EXACT_BREP",
+            "INCONSISTENT_WINDING",
+            "CLOSED_VOLUME_UNAVAILABLE",
+        ]
+    );
+}
+
+#[test]
+fn non_manifold_shared_edge_withholds_closed_measurements_and_requires_review() {
+    let evidence = analyze_ascii_stl(NON_MANIFOLD_SHARED_EDGE, limits())
+        .expect("non-manifold tetrahedra must parse");
+
+    assert_eq!(evidence.triangle_count(), 8);
+    assert!(!evidence.manifold());
+    assert!(!evidence.watertight());
+    assert!(!evidence.consistently_wound());
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::NotDetected
+    );
+    assert_eq!(
+        evidence.aabb_extents_source_units().components(),
+        [2.0, 4.0, 4.0]
+    );
+    assert_close(
+        evidence.surface_area_source_units_squared(),
+        6.0 + 2.0 * 3.0_f64.sqrt() + 2.0 * 5.0_f64.sqrt() + 11.0_f64.sqrt(),
+    );
+    assert_eq!(evidence.enclosed_volume_source_units_cubed(), None);
+    assert_eq!(evidence.center_of_mass_source_units(), None);
+    assert_eq!(
+        confidence_reasons(&evidence),
+        [
+            "MESH_REPRESENTATION_CEILING",
+            "UNITS_UNRESOLVED",
+            "NON_MANIFOLD_EDGE",
+            "OPEN_BOUNDARY",
+        ]
+    );
+    assert_eq!(
+        warning_codes(&evidence),
+        [
+            "UNITS_MISSING_REQUIRES_CONFIRMATION",
+            "MESH_NOT_EXACT_BREP",
+            "NON_MANIFOLD_EDGE",
             "OPEN_BOUNDARY",
             "CLOSED_VOLUME_UNAVAILABLE",
         ]

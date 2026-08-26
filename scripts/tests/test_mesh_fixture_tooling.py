@@ -14,6 +14,7 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
 import generate_ascii_stl_adversarial_fixtures  # noqa: E402
+import generate_ascii_stl_topology_fixtures  # noqa: E402
 import generate_binary_stl_fixture  # noqa: E402
 
 
@@ -140,6 +141,67 @@ class AsciiStlAdversarialFixtureTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "not reproducible"):
                 generate_ascii_stl_adversarial_fixtures.check_fixtures(
                     (("invalid_utf8", changed),)
+                )
+
+
+class AsciiStlTopologyFixtureTests(unittest.TestCase):
+    def test_committed_ascii_topology_corpus_is_reproducible(self) -> None:
+        generate_ascii_stl_topology_fixtures.check_fixtures()
+
+    def test_ascii_topology_corpus_is_isolated_and_pins_expectations(self) -> None:
+        source = generate_ascii_stl_topology_fixtures.SOURCE.read_bytes()
+        expected = {
+            "reversed_facet": (
+                "FIX-MESH-047",
+                "a22b5219977b9b8a3a520d617db86c9d6890cc0759d9289eb918c28c9c815052",
+                "INCONSISTENT_WINDING",
+            ),
+            "non_manifold_edge": (
+                "FIX-MESH-048",
+                "670fd6d1725f589e5d2192dfb1be2910a8ad494a763a4339a158d57bc222895e",
+                "NON_MANIFOLD_EDGE",
+            ),
+        }
+        generated = {}
+        for case, output_path in generate_ascii_stl_topology_fixtures.TOPOLOGY_FIXTURES:
+            contents = (
+                generate_ascii_stl_topology_fixtures.build_ascii_stl_topology_fixture(
+                    source, case
+                )
+            )
+            generated[case] = contents
+            self.assertEqual(contents, output_path.read_bytes())
+            expectation_path = (
+                generate_ascii_stl_topology_fixtures.ROOT
+                / "fixtures"
+                / "expected"
+                / f"ascii_stl_{case}.json"
+            )
+            expectation = json.loads(expectation_path.read_text())
+            fixture_id, source_hash, topology_warning = expected[case]
+            self.assertEqual(expectation["fixture_id"], fixture_id)
+            self.assertEqual(hashlib.sha256(contents).hexdigest(), source_hash)
+            self.assertIn(topology_warning, expectation["required_warnings"])
+            self.assertEqual(expectation["confidence"]["level"], "needs_review")
+            self.assertEqual(expectation["enclosed_volume_mm3"]["state"], "unavailable")
+
+        self.assertEqual(len(generated), 2)
+        self.assertEqual(len(set(generated.values())), 2)
+        self.assertEqual(generated["reversed_facet"].count(b"facet normal"), 12)
+        self.assertEqual(generated["non_manifold_edge"].count(b"facet normal"), 8)
+        self.assertEqual(
+            generated["non_manifold_edge"].count(b"vertex 0 0 0"),
+            6,
+        )
+
+    def test_ascii_topology_check_rejects_changed_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            changed = Path(temporary) / "changed.stl"
+            changed.write_bytes(b"not the governed fixture")
+            with self.assertRaisesRegex(RuntimeError, "not reproducible"):
+                generate_ascii_stl_topology_fixtures.check_fixtures(
+                    generate_ascii_stl_topology_fixtures.SOURCE,
+                    (("reversed_facet", changed),),
                 )
 
 

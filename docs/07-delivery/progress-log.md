@@ -8,6 +8,14 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-26 — TASK-004 persisted STL topology-warning checkpoint
+
+- Added deterministic public `FIX-MESH-047/048`: a 1,486-byte derivative of the governed cube with exactly one reversed facet, and a 1,019-byte analytic pair of tetrahedra sharing exactly one edge. Their SHA-256 values are `a22b5219977b9b8a3a520d617db86c9d6890cc0759d9289eb918c28c9c815052` and `670fd6d1725f589e5d2192dfb1be2910a8ad494a763a4339a158d57bc222895e`. The public synthetic CAD boundary is now fifty-one files: fourteen STL, thirty-four 3MF, and three STEP.
+- The reversed cube remains manifold/watertight but is inconsistently wound. The shared-edge fixture is non-manifold/open, and its generic separated orientation keeps self-intersection `not_detected` rather than conflating topology with coplanar-overlap uncertainty. Both remain unresolved-unit `NeedsReview` and withhold volume/centroid with exact ordered warning/confidence evidence.
+- A dedicated generator reproduces both exact byte streams and validates their schema-v3 expectations. This persists existing STL-v2, detector-v1, and confidence-v1 behavior without changing calculation, accepted syntax, dependency, customer data, or migration policy. These synthetic cases do not establish exporter prevalence, representative machining accuracy, production welding/tolerance, worker/desktop integration, or support.
+- Complete local closeout passes 174 runtime tests, one compile-fail doctest, 73 Python tooling tests, thirteen STL tests, thirteen 3MF tests, eight geometry-core contract tests, four fixture-contract tests, and nineteen generator-tooling tests. Strict workspace/native-host/WASM Clippy, the offline release frontend build, all forty-five generated mesh artifacts, all fifty-one fixture hashes, 144-file planning validation, formatting, and diff hygiene also pass.
+- Three-OS Rust CI run 32971021045 passes Windows, macOS, and Ubuntu at exact preceding commit `33ccc18`, closing the alternate-OPC checkpoint. TASK-004 remains In Progress: broader representative/exporter geometry, production mesh tolerance, general DAG/material semantics, and typed worker/desktop integration remain open.
+
 ## 2026-08-26 — TASK-004 alternate legal 3MF/OPC fixture checkpoint
 
 - Added deterministic public `FIX-MESH-044`–`046`, isolating three already-accepted package variations over the translated 10 mm cube: a `.model` `<Default>` content-type mapping, an alternate `/3D/primary.model` StartPart with explicit `TargetMode="Internal"`, and Store compression. The public synthetic CAD boundary is now forty-nine files: twelve STL, thirty-four 3MF, and three STEP.

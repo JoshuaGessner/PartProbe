@@ -1504,6 +1504,69 @@ fixtures:
     purpose: [3mf_alternate_opc_corpus, stored_zip_compression, canonical_mesh_golden]
     expected: expected/cube_10mm_3mf_stored_compression.json
     sha256: 16944c712b4c851c374f2a39d13b66fd5fc32ecebf570e342ccf24e192338198
+  - id: FIX-MESH-047
+    title: Closed synthetic ASCII STL cube with one reversed facet
+    path: models/cube_10mm_ascii_reversed_facet.stl
+    format: stl-ascii
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_fixture_convention_mm_requires_confirmation
+    declared_units: null
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-ascii-stl-topology-fixture-generator-v1
+      parser: partprobe-ascii-stl-spike-v2
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+    expected_worker_outcome: comparison_analyzer_success_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-26
+    reviewed_date: null
+    requirements: [GEO-003, GEO-004, GEO-006, GEO-008, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - inconsistent_winding_detection
+      - mesh_confidence_reason
+      - closed_volume_and_centroid_withholding
+    expected: expected/ascii_stl_reversed_facet.json
+    sha256: a22b5219977b9b8a3a520d617db86c9d6890cc0759d9289eb918c28c9c815052
+  - id: FIX-MESH-048
+    title: Two synthetic tetrahedra sharing a non-manifold edge
+    path: models/two_tetrahedra_shared_edge_ascii.stl
+    format: stl-ascii
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-analytic
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_fixture_convention_mm_requires_confirmation
+    declared_units: null
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-ascii-stl-topology-fixture-generator-v1
+      parser: partprobe-ascii-stl-spike-v2
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+    expected_worker_outcome: comparison_analyzer_success_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-26
+    reviewed_date: null
+    requirements: [GEO-003, GEO-004, GEO-006, GEO-008, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - non_manifold_edge_detection
+      - open_boundary_detection
+      - mesh_confidence_reason
+      - closed_volume_and_centroid_withholding
+    expected: expected/ascii_stl_non_manifold_edge.json
+    sha256: 670fd6d1725f589e5d2192dfb1be2910a8ad494a763a4339a158d57bc222895e
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -1601,6 +1664,7 @@ required_next:
   - independent_non_project_cad_tool_step
   - broader_representative_malformed_entity_and_geometry_corpus
   - broader_alternate_legal_opc_layout_corpus
+  - representative_exporter_reversed_winding_and_nonmanifold_meshes
   - multi_body_step
   - thin_wall_and_undercut_parts
   - shop_reviewed_private_parts

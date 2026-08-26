@@ -55,6 +55,10 @@ const ALTERNATE_OPC_THREE_MF: [(&str, &str); 3] = [
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");
 const SELF_INTERSECTING: &str =
     include_str!("../../../fixtures/expected/self_intersecting_tetrahedra.json");
+const REVERSED_FACET: &str =
+    include_str!("../../../fixtures/expected/ascii_stl_reversed_facet.json");
+const NON_MANIFOLD_EDGE: &str =
+    include_str!("../../../fixtures/expected/ascii_stl_non_manifold_edge.json");
 const STEP: &str = include_str!("../../../fixtures/expected/cube_10mm_step.json");
 const INDEPENDENT_STEP: &str =
     include_str!("../../../fixtures/expected/rectangular_prism_12x8x5_step.json");
@@ -262,6 +266,10 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         .expect("binary closed fixture expectation must be valid");
     let self_intersecting: GeometryFixtureExpectation = serde_json::from_str(SELF_INTERSECTING)
         .expect("self-intersecting fixture expectation must be valid");
+    let reversed_facet: GeometryFixtureExpectation = serde_json::from_str(REVERSED_FACET)
+        .expect("reversed-facet fixture expectation must be valid");
+    let non_manifold_edge: GeometryFixtureExpectation = serde_json::from_str(NON_MANIFOLD_EDGE)
+        .expect("non-manifold fixture expectation must be valid");
     let three_mf: GeometryFixtureExpectation =
         serde_json::from_str(THREE_MF).expect("3MF fixture expectation must be valid");
     let component_three_mf: GeometryFixtureExpectation = serde_json::from_str(COMPONENT_THREE_MF)
@@ -280,6 +288,8 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert_eq!(open.fixture_id(), "FIX-MESH-002");
     assert_eq!(binary_closed.fixture_id(), "FIX-MESH-003");
     assert_eq!(self_intersecting.fixture_id(), "FIX-MESH-039");
+    assert_eq!(reversed_facet.fixture_id(), "FIX-MESH-047");
+    assert_eq!(non_manifold_edge.fixture_id(), "FIX-MESH-048");
     assert_eq!(three_mf.fixture_id(), "FIX-MESH-004");
     assert_eq!(component_three_mf.fixture_id(), "FIX-MESH-005");
     assert_eq!(nested_component_three_mf.fixture_id(), "FIX-MESH-013");
@@ -301,6 +311,14 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     ));
     assert!(matches!(
         self_intersecting.enclosed_volume_mm3(),
+        ExpectedEvidence::Unavailable { .. }
+    ));
+    assert!(matches!(
+        reversed_facet.enclosed_volume_mm3(),
+        ExpectedEvidence::Unavailable { .. }
+    ));
+    assert!(matches!(
+        non_manifold_edge.enclosed_volume_mm3(),
         ExpectedEvidence::Unavailable { .. }
     ));
     assert_eq!(three_mf.representation(), RepresentationBasis::Mesh);
