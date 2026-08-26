@@ -39,6 +39,72 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
         generate_3mf_fixture.check_metadata_fixture()
         generate_3mf_fixture.check_adversarial_fixtures()
         generate_3mf_fixture.check_unit_fixtures()
+        generate_3mf_fixture.check_alternate_opc_fixtures()
+
+    def test_alternate_opc_corpus_is_isolated_and_reproducible(self) -> None:
+        source = generate_3mf_fixture.SOURCE.read_bytes()
+        generated = {
+            case: generate_3mf_fixture.build_alternate_opc_3mf(source, case)
+            for case, _ in generate_3mf_fixture.ALTERNATE_OPC_FIXTURES
+        }
+        self.assertEqual(len(generated), 3)
+        self.assertEqual(len(set(generated.values())), 3)
+        with zipfile.ZipFile(
+            BytesIO(generate_3mf_fixture.build_3mf(source))
+        ) as baseline_package:
+            baseline_model = baseline_package.read("3D/3dmodel.model")
+
+        expected_ids = {
+            "default_content_type": "FIX-MESH-044",
+            "alternate_model_part": "FIX-MESH-045",
+            "stored_compression": "FIX-MESH-046",
+        }
+        expected_hashes = {
+            "default_content_type": "9483eefe0b2f39489b6ac19a17fea9b80bfd8040e6ac538e4e7cb095fa0220d4",
+            "alternate_model_part": "6e6b281e971dd2871f06ed5ba9f62cff07f4d51efe515801137f05e821a52b54",
+            "stored_compression": "16944c712b4c851c374f2a39d13b66fd5fc32ecebf570e342ccf24e192338198",
+        }
+        for case, output_path in generate_3mf_fixture.ALTERNATE_OPC_FIXTURES:
+            self.assertEqual(generated[case], output_path.read_bytes())
+            expectation_path = (
+                generate_3mf_fixture.ROOT
+                / "fixtures"
+                / "expected"
+                / f"cube_10mm_3mf_{case}.json"
+            )
+            expectation = json.loads(expectation_path.read_text())
+            self.assertEqual(expectation["fixture_id"], expected_ids[case])
+            self.assertEqual(
+                hashlib.sha256(generated[case]).hexdigest(),
+                expected_hashes[case],
+            )
+
+        with zipfile.ZipFile(BytesIO(generated["default_content_type"])) as package:
+            content_types = package.read("[Content_Types].xml")
+            self.assertIn(b'<Default Extension="model"', content_types)
+            self.assertNotIn(b"<Override ", content_types)
+            self.assertEqual(package.read("3D/3dmodel.model"), baseline_model)
+
+        with zipfile.ZipFile(BytesIO(generated["alternate_model_part"])) as package:
+            self.assertEqual(
+                package.namelist(),
+                ["[Content_Types].xml", "_rels/.rels", "3D/primary.model"],
+            )
+            self.assertIn(
+                b'PartName="/3D/primary.model"',
+                package.read("[Content_Types].xml"),
+            )
+            relationships = package.read("_rels/.rels")
+            self.assertIn(b'Target="/3D/primary.model"', relationships)
+            self.assertIn(b'TargetMode="Internal"', relationships)
+            self.assertEqual(package.read("3D/primary.model"), baseline_model)
+
+        with zipfile.ZipFile(BytesIO(generated["stored_compression"])) as package:
+            self.assertEqual(
+                {entry.compress_type for entry in package.infolist()},
+                {zipfile.ZIP_STORED},
+            )
+            self.assertEqual(package.read("3D/3dmodel.model"), baseline_model)
 
     def test_metadata_package_is_bounded_public_core_evidence(self) -> None:
         generated = generate_3mf_fixture.build_metadata_3mf(
@@ -265,6 +331,12 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
                 generate_3mf_fixture.check_unit_fixtures(
                     generate_3mf_fixture.SOURCE,
                     (("millimeter", "1", changed),),
+                )
+
+            with self.assertRaisesRegex(RuntimeError, "not reproducible"):
+                generate_3mf_fixture.check_alternate_opc_fixtures(
+                    generate_3mf_fixture.SOURCE,
+                    (("stored_compression", changed),),
                 )
 
 

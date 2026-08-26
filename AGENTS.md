@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-24
+> **Last updated:** 2026-08-26
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -92,6 +92,7 @@ These rules are mandatory for every person or agent changing this repository.
 80. Persisted adversarial 3MF packages must be deterministic public synthetic data with manifest hashes, exact sanitized diagnostic expectations, and explicit no-geometry-evidence outcomes. Keep parser-level rejection evidence distinct from worker, desktop, containment, and supported-importer evidence. A changed accepted/rejected boundary or diagnostic requires a parser-version and migration decision; never relabel a rejected package as successful geometry evidence.
 81. Mesh confidence is categorical and reason-coded, never a percentage. The current mesh ceiling is `Low`; unresolved units, topology defects, detected self-intersection, or indeterminate coplanar overlap require `NeedsReview`. Detected or indeterminate self-intersection must withhold enclosed volume and centroid. Keep the exact-predicate comparison spike distinct from a reviewed welding/tolerance policy, and version both the detector and confidence policy.
 82. Persisted adversarial ASCII STL inputs must be deterministic public synthetic bytes with manifest hashes, exact content-free diagnostics, reproducible construction, and explicit no-geometry outcomes. Exercise them through content-based STL selection, keep invalid text/grammar/empty/degenerate cases distinct, and require a parser-version and migration decision before changing an accepted/rejected boundary or diagnostic.
+83. Persisted positive 3MF interoperability fixtures must be deterministic public synthetic packages that isolate one reviewed OPC variation at a time, retain the same governed geometry and canonical evidence, and pin exact package hashes. Evidence for a default content-type mapping, alternate internal StartPart target, or stored ZIP compression does not establish general exporter compatibility, arbitrary package-layout support, worker/desktop integration, or a representative corpus. Any accepted-package-boundary change requires an explicit parser-version and migration decision.
 
 ## Documentation protocol
 

@@ -1,12 +1,20 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-24
+> **Last updated:** 2026-08-26
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-26 — TASK-004 alternate legal 3MF/OPC fixture checkpoint
+
+- Added deterministic public `FIX-MESH-044`–`046`, isolating three already-accepted package variations over the translated 10 mm cube: a `.model` `<Default>` content-type mapping, an alternate `/3D/primary.model` StartPart with explicit `TargetMode="Internal"`, and Store compression. The public synthetic CAD boundary is now forty-nine files: twelve STL, thirty-four 3MF, and three STEP.
+- Each schema-v3 expectation preserves 10 mm extents, 600 mm² area, 1,000 mm³ volume, translated `(25, 35, 45)` mm centroid, no detected self-intersection, `Low` mesh confidence, and `MESH_NOT_EXACT_BREP`. The generator pins exact entry order, bytes, timestamps, permissions, layout, and compression, and its check mode reproduces all three packages.
+- The slice is consistent with the [3MF Core Specification](https://github.com/3MFConsortium/spec_core/blob/master/3MF%20Core%20Specification.md) StartPart/content-type package model. It adds no parser behavior, calculation, accepted-package boundary, dependency, customer data, production rate, or external transfer; parser v6 and success schema v3 therefore remain unchanged and no migration applies.
+- Focused validation passes eleven STL tests, thirteen 3MF tests, eight geometry-core contract tests, four fixture-contract tests, and sixteen generator-tooling tests. The complete local gate passes 172 runtime tests, one compile-fail doctest, 70 Python tooling tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, deterministic reproduction of all forty-three generator-derived mesh artifacts, all forty-nine fixture hashes, 144-file planning validation, formatting, and diff hygiene.
+- Three-OS Rust CI run 32751472560 passes Windows, macOS, and Ubuntu at exact preceding commit `36b1b58`, closing the malformed-ASCII checkpoint. TASK-004 remains In Progress: broader exporter/legal-package and representative malformed geometry evidence, supported general DAG/material semantics, production mesh tolerance, independent representative geometry, and typed worker/desktop integration remain open.
 
 ## 2026-08-24 — TASK-004 persisted malformed ASCII STL rejection corpus
 

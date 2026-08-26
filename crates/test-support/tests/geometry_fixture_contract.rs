@@ -38,6 +38,20 @@ const THREE_MF_UNITS: [(&str, &str); 6] = [
         "FIX-MESH-011",
     ),
 ];
+const ALTERNATE_OPC_THREE_MF: [(&str, &str); 3] = [
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_default_content_type.json"),
+        "FIX-MESH-044",
+    ),
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_alternate_model_part.json"),
+        "FIX-MESH-045",
+    ),
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_stored_compression.json"),
+        "FIX-MESH-046",
+    ),
+];
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");
 const SELF_INTERSECTING: &str =
     include_str!("../../../fixtures/expected/self_intersecting_tetrahedra.json");
@@ -325,6 +339,19 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         assert_eq!(unit_fixture.representation(), RepresentationBasis::Mesh);
         assert!(matches!(
             unit_fixture.enclosed_volume_mm3(),
+            ExpectedEvidence::Available { .. }
+        ));
+    }
+    for (source, fixture_id) in ALTERNATE_OPC_THREE_MF {
+        let alternate_fixture: GeometryFixtureExpectation = serde_json::from_str(source)
+            .expect("alternate OPC 3MF fixture expectation must be valid");
+        assert_eq!(alternate_fixture.fixture_id(), fixture_id);
+        assert_eq!(
+            alternate_fixture.representation(),
+            RepresentationBasis::Mesh
+        );
+        assert!(matches!(
+            alternate_fixture.enclosed_volume_mm3(),
             ExpectedEvidence::Available { .. }
         ));
     }

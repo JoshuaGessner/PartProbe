@@ -120,6 +120,20 @@ UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("foot", "304.8", ROOT / "fixtures" / "models" / "cube_10mm_3mf_foot.3mf"),
     (None, "1", ROOT / "fixtures" / "models" / "cube_10mm_3mf_default_mm.3mf"),
 )
+ALTERNATE_OPC_FIXTURES: tuple[tuple[str, Path], ...] = (
+    (
+        "default_content_type",
+        ROOT / "fixtures" / "models" / "cube_10mm_3mf_default_content_type.3mf",
+    ),
+    (
+        "alternate_model_part",
+        ROOT / "fixtures" / "models" / "cube_10mm_3mf_alternate_model_part.3mf",
+    ),
+    (
+        "stored_compression",
+        ROOT / "fixtures" / "models" / "cube_10mm_3mf_stored_compression.3mf",
+    ),
+)
 FIXED_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
 
 
@@ -472,6 +486,37 @@ def build_unit_3mf(source: bytes, unit: str | None, millimeters_per_unit: str) -
     return build_package(tuple(parts))
 
 
+def build_alternate_opc_3mf(source: bytes, case: str) -> bytes:
+    """Create one deterministic package-layout variant of the 10 mm cube."""
+    parts = list(package_parts(source))
+    if case == "default_content_type":
+        parts[0] = (
+            parts[0][0],
+            b'''<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml" />
+</Types>
+''',
+        )
+    elif case == "alternate_model_part":
+        parts[0] = (
+            parts[0][0],
+            parts[0][1].replace(b"/3D/3dmodel.model", b"/3D/primary.model"),
+        )
+        parts[1] = (
+            parts[1][0],
+            parts[1][1]
+            .replace(b"/3D/3dmodel.model", b"/3D/primary.model")
+            .replace(b" />", b' TargetMode="Internal" />'),
+        )
+        parts[2] = ("3D/primary.model", parts[2][1])
+    elif case == "stored_compression":
+        return build_package(tuple(parts), compression=zipfile.ZIP_STORED)
+    else:
+        raise ValueError(f"unsupported alternate OPC case: {case}")
+    return build_package(tuple(parts))
+
+
 def check_fixture(source_path: Path = SOURCE, output_path: Path = OUTPUT) -> None:
     """Fail when the committed 3MF fixture differs from deterministic output."""
     expected = build_3mf(source_path.read_bytes())
@@ -530,6 +575,18 @@ def check_unit_fixtures(
             raise RuntimeError("3MF unit fixture is missing or not reproducible")
 
 
+def check_alternate_opc_fixtures(
+    source_path: Path = SOURCE,
+    fixtures: tuple[tuple[str, Path], ...] = ALTERNATE_OPC_FIXTURES,
+) -> None:
+    """Fail when any committed alternate OPC fixture is not reproducible."""
+    source = source_path.read_bytes()
+    for case, output_path in fixtures:
+        expected = build_alternate_opc_3mf(source, case)
+        if not output_path.is_file() or output_path.read_bytes() != expected:
+            raise RuntimeError("alternate OPC fixture is missing or not reproducible")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -554,6 +611,10 @@ def main() -> int:
         )
         for unit, millimeters_per_unit, output_path in UNIT_FIXTURES
     )
+    alternate_opc_expected = tuple(
+        (output_path, build_alternate_opc_3mf(source, case))
+        for case, output_path in ALTERNATE_OPC_FIXTURES
+    )
     if args.write:
         OUTPUT.write_bytes(expected)
         COMPONENT_OUTPUT.write_bytes(component_expected)
@@ -563,6 +624,8 @@ def main() -> int:
             output_path.write_bytes(contents)
         for output_path, contents in unit_expected:
             output_path.write_bytes(contents)
+        for output_path, contents in alternate_opc_expected:
+            output_path.write_bytes(contents)
     else:
         check_fixture()
         check_component_fixture()
@@ -570,6 +633,7 @@ def main() -> int:
         check_metadata_fixture()
         check_adversarial_fixtures()
         check_unit_fixtures()
+        check_alternate_opc_fixtures()
     return 0
 
 

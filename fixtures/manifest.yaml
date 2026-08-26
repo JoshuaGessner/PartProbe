@@ -1396,6 +1396,114 @@ fixtures:
     purpose: [degenerate_geometry_rejection, sanitized_diagnostic, no_geometry_evidence]
     expected: expected/adversarial_ascii_stl_degenerate_triangle_rejection.json
     sha256: 082130ac066b1b87143b618c39a6269c5cffc013234d51fa9614c019a521f7c5
+  - id: FIX-MESH-044
+    title: Translated 3MF cube using a default model content type
+    path: models/cube_10mm_3mf_default_content_type.3mf
+    format: 3mf-core-1.4-opc-default-content-type
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm
+    declared_units: cm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v11
+      parser: partprobe-3mf-spike-v6
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-26
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose: [3mf_alternate_opc_corpus, default_extension_content_type, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_default_content_type.json
+    sha256: 9483eefe0b2f39489b6ac19a17fea9b80bfd8040e6ac538e4e7cb095fa0220d4
+  - id: FIX-MESH-045
+    title: Translated 3MF cube using an alternate internal model part
+    path: models/cube_10mm_3mf_alternate_model_part.3mf
+    format: 3mf-core-1.4-opc-alternate-model-part
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm
+    declared_units: cm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v11
+      parser: partprobe-3mf-spike-v6
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-26
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose: [3mf_alternate_opc_corpus, alternate_internal_model_part, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_alternate_model_part.json
+    sha256: 6e6b281e971dd2871f06ed5ba9f62cff07f4d51efe515801137f05e821a52b54
+  - id: FIX-MESH-046
+    title: Translated 3MF cube using stored ZIP compression
+    path: models/cube_10mm_3mf_stored_compression.3mf
+    format: 3mf-core-1.4-opc-stored-compression
+    representation: triangle_mesh
+    source: project-generated-synthetic-derived-from-FIX-MESH-001
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm
+    declared_units: cm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v11
+      parser: partprobe-3mf-spike-v6
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-26
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose: [3mf_alternate_opc_corpus, stored_zip_compression, canonical_mesh_golden]
+    expected: expected/cube_10mm_3mf_stored_compression.json
+    sha256: 16944c712b4c851c374f2a39d13b66fd5fc32ecebf570e342ccf24e192338198
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
@@ -1492,6 +1600,7 @@ fixtures:
 required_next:
   - independent_non_project_cad_tool_step
   - broader_representative_malformed_entity_and_geometry_corpus
+  - broader_alternate_legal_opc_layout_corpus
   - multi_body_step
   - thin_wall_and_undercut_parts
   - shop_reviewed_private_parts

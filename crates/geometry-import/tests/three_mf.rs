@@ -26,6 +26,11 @@ const INCH_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_
 const FOOT_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_foot.3mf");
 const DEFAULT_MM_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_mm.3mf");
+const ALTERNATE_OPC_CUBES: [&[u8]; 3] = [
+    include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_content_type.3mf"),
+    include_bytes!("../../../fixtures/models/cube_10mm_3mf_alternate_model_part.3mf"),
+    include_bytes!("../../../fixtures/models/cube_10mm_3mf_stored_compression.3mf"),
+];
 const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 21] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
@@ -267,6 +272,39 @@ fn centimeter_cube_applies_build_transform_and_returns_canonical_mm() {
         [25.0, 35.0, 45.0]
     );
     assert_eq!(warning_codes(&evidence), ["MESH_NOT_EXACT_BREP"]);
+}
+
+#[test]
+fn persisted_alternate_opc_layouts_preserve_the_same_geometry_evidence() {
+    for package in ALTERNATE_OPC_CUBES {
+        let evidence =
+            analyze_3mf(package, limits()).expect("alternate OPC fixture must parse safely");
+
+        assert_eq!(evidence.algorithm_version(), THREE_MF_ANALYZER_VERSION);
+        assert_eq!(evidence.source_units(), ModelLengthUnit::Centimeter);
+        assert_eq!(evidence.unit_resolution(), UnitResolutionMethod::Declared);
+        assert!(evidence.unit_was_explicit());
+        assert_eq!(evidence.mesh_object_count(), 1);
+        assert_eq!(evidence.component_object_count(), 0);
+        assert_eq!(evidence.build_item_count(), 1);
+        assert_eq!(evidence.triangle_count(), 12);
+        assert!(evidence.manifold());
+        assert!(evidence.watertight());
+        assert!(evidence.consistently_wound());
+        assert_eq!(
+            evidence.self_intersection(),
+            MeshSelfIntersectionState::NotDetected
+        );
+        assert_eq!(evidence.confidence().level(), GeometryConfidenceLevel::Low);
+        assert_eq!(evidence.aabb_extents_mm().components(), [10.0; 3]);
+        assert_close(evidence.surface_area_mm2(), 600.0);
+        assert_close(evidence.enclosed_volume_mm3().unwrap(), 1_000.0);
+        assert_eq!(
+            evidence.center_of_mass_mm().unwrap().components(),
+            [25.0, 35.0, 45.0]
+        );
+        assert_eq!(warning_codes(&evidence), ["MESH_NOT_EXACT_BREP"]);
+    }
 }
 
 #[test]
