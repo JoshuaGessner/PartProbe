@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-050",
+  "source_sha256": "75f256020a7b6e092e215fd22e689ad4bcc66710868ba465e6179c1c8293c21d",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "THREE_MF_UNSUPPORTED_TRANSFORM",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

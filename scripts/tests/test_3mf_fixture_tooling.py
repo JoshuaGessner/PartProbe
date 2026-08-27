@@ -182,14 +182,14 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
-    def test_adversarial_corpus_pins_twenty_one_distinct_rejection_shapes(self) -> None:
+    def test_adversarial_corpus_pins_twenty_three_distinct_rejection_shapes(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()
         generated = {
             case: generate_3mf_fixture.build_adversarial_3mf(source, case)
             for case, _ in generate_3mf_fixture.ADVERSARIAL_FIXTURES
         }
-        self.assertEqual(len(generated), 21)
-        self.assertEqual(len(set(generated.values())), 21)
+        self.assertEqual(len(generated), 23)
+        self.assertEqual(len(set(generated.values())), 23)
         expected_ids = {
             "branching_components": "FIX-MESH-014",
             "non_immediate_reference": "FIX-MESH-015",
@@ -212,6 +212,8 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             "malformed_model_xml": "FIX-MESH-034",
             "document_type": "FIX-MESH-035",
             "entry_count_limit": "FIX-MESH-036",
+            "reflected_component_transform": "FIX-MESH-050",
+            "singular_component_transform": "FIX-MESH-051",
         }
         for case, output_path in generate_3mf_fixture.ADVERSARIAL_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -287,6 +289,34 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             self.assertIn(b"<!DOCTYPE model>", package.read("3D/3dmodel.model"))
         with zipfile.ZipFile(BytesIO(generated["entry_count_limit"])) as package:
             self.assertEqual(len(package.namelist()), 17)
+        with zipfile.ZipFile(
+            BytesIO(generated["reflected_component_transform"])
+        ) as package:
+            reflected_model = package.read("3D/3dmodel.model")
+            reflected_transform = b'-2 0 0 0 1 0 0 0 1 1 2 3'
+            self.assertIn(
+                b'transform="' + reflected_transform + b'"',
+                reflected_model,
+            )
+        with zipfile.ZipFile(
+            BytesIO(generated["singular_component_transform"])
+        ) as package:
+            singular_model = package.read("3D/3dmodel.model")
+            singular_transform = b'0 0 0 0 1 0 0 0 1 1 2 3'
+            self.assertIn(
+                b'transform="' + singular_transform + b'"',
+                singular_model,
+            )
+        baseline_component_model = generate_3mf_fixture.build_component_model_xml(source)
+        positive_transform = b'2 0 0 0 1 0 0 0 1 1 2 3'
+        self.assertEqual(
+            reflected_model.replace(reflected_transform, positive_transform),
+            baseline_component_model,
+        )
+        self.assertEqual(
+            singular_model.replace(singular_transform, positive_transform),
+            baseline_component_model,
+        )
 
         with self.assertRaisesRegex(ValueError, "preserve byte length"):
             generate_3mf_fixture.replace_entry_name_bytes(b"package", "a", "long")

@@ -107,6 +107,20 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         "entry_count_limit",
         ROOT / "fixtures" / "models" / "adversarial_3mf_entry_count_limit.3mf",
     ),
+    (
+        "reflected_component_transform",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_reflected_component_transform.3mf",
+    ),
+    (
+        "singular_component_transform",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_singular_component_transform.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -466,6 +480,19 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
     elif case == "entry_count_limit":
         for index in range(14):
             parts.append((f"Metadata/entry-{index:02d}.bin", b"bounded entry"))
+    elif case in {
+        "reflected_component_transform",
+        "singular_component_transform",
+    }:
+        replacement = {
+            "reflected_component_transform": "-2 0 0 0 1 0 0 0 1 1 2 3",
+            "singular_component_transform": "0 0 0 0 1 0 0 0 1 1 2 3",
+        }[case]
+        model = build_component_model_xml(source).decode("utf-8").replace(
+            "2 0 0 0 1 0 0 0 1 1 2 3",
+            replacement,
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
     return build_package(tuple(parts))

@@ -31,7 +31,7 @@ const ALTERNATE_OPC_CUBES: [&[u8]; 3] = [
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_alternate_model_part.3mf"),
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_stored_compression.3mf"),
 ];
-const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 21] = [
+const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 23] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
         ThreeMfError::UnsupportedModelStructure,
@@ -115,6 +115,16 @@ const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 21] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_entry_count_limit.3mf"),
         ThreeMfError::ArchiveLimitExceeded,
+    ),
+    (
+        include_bytes!(
+            "../../../fixtures/models/adversarial_3mf_reflected_component_transform.3mf"
+        ),
+        ThreeMfError::UnsupportedTransform,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_singular_component_transform.3mf"),
+        ThreeMfError::UnsupportedTransform,
     ),
 ];
 
@@ -521,26 +531,6 @@ fn component_limits_references_and_transform_policy_fail_closed() {
         assert_eq!(
             analyze_3mf(&invalid_reference, limits()),
             Err(ThreeMfError::UnsupportedModelStructure)
-        );
-    }
-
-    for unsupported_transform in [
-        rewrite_part(COMPONENT_CUBE, "3D/3dmodel.model", |xml| {
-            xml.replace(
-                "transform=\"2 0 0 0 1 0 0 0 1 1 2 3\"",
-                "transform=\"-2 0 0 0 1 0 0 0 1 1 2 3\"",
-            )
-        }),
-        rewrite_part(COMPONENT_CUBE, "3D/3dmodel.model", |xml| {
-            xml.replace(
-                "transform=\"2 0 0 0 1 0 0 0 1 1 2 3\"",
-                "transform=\"0 0 0 0 1 0 0 0 1 1 2 3\"",
-            )
-        }),
-    ] {
-        assert_eq!(
-            analyze_3mf(&unsupported_transform, limits()),
-            Err(ThreeMfError::UnsupportedTransform)
         );
     }
 

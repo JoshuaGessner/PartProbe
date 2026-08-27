@@ -1599,6 +1599,80 @@ fixtures:
       - closed_volume_and_centroid_withholding
     expected: expected/ascii_stl_coplanar_overlap.json
     sha256: 0a0adf3740c1204a4b218ac0d5b4594a38c9b211584066599a7b99b86266a895
+  - id: FIX-MESH-050
+    title: 3MF component cube with unsupported reflected transform
+    path: models/adversarial_3mf_reflected_component_transform.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-005
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm_but_analysis_rejected
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v11
+      parser: partprobe-3mf-spike-v6
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-27
+    reviewed_date: null
+    requirements: [GEO-003, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - unsupported_reflected_component_transform_rejection
+      - sanitized_diagnostic
+      - no_geometry_evidence
+    expected: expected/adversarial_3mf_reflected_component_transform_rejection.json
+    sha256: 75f256020a7b6e092e215fd22e689ad4bcc66710868ba465e6179c1c8293c21d
+  - id: FIX-MESH-051
+    title: 3MF component cube with unsupported singular transform
+    path: models/adversarial_3mf_singular_component_transform.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-005
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm_but_analysis_rejected
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v11
+      parser: partprobe-3mf-spike-v6
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-27
+    reviewed_date: null
+    requirements: [GEO-003, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - unsupported_singular_component_transform_rejection
+      - sanitized_diagnostic
+      - no_geometry_evidence
+    expected: expected/adversarial_3mf_singular_component_transform_rejection.json
+    sha256: ee76d45b021899cfbfb46cc0e2084e1383a0230fd21a9826e8bcad3425cd5646
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step

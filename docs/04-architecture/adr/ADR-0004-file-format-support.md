@@ -3,10 +3,10 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-08-27
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, GEO-001–GEO-009, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0005
-- **Open questions:** Shop format distribution, target max size, assembly scope, licensed translator budget
+- **Open questions:** Shop format distribution, target max size, assembly scope, licensed translator budget, supported negative-determinant 3MF orientation/volume policy
 - **Dependencies:** Format fixture scorecard, OCCT worker, 3MF/STL parser choice, legal review
 - **Supersedes / superseded by:** None / none
 
@@ -19,6 +19,8 @@ Propose support for **STEP, STL, and 3MF** in the first vertical slice, pending 
 ## Consequences
 
 The scope delivers useful RFQ coverage while avoiding unsupported proprietary-format promises. Users receive a clear request for STEP AP242/AP214 (and drawing) when a native file arrives. All imports retain original source hash, declared/detected format, unit resolution, transfer/healing report and algorithm versions. Format enablement is feature-gated, not extension-gated.
+
+The current TASK-004 comparison parser is deliberately narrower than Core 1.4 for transforms: it fails closed on singular matrices and on negative determinants because it does not yet implement and validate the required orientation/volume-sign behavior. A negative determinant is not classified as malformed or Core-invalid. Enabling it requires a reviewed geometry rule, parser-version/migration decision, positive fixtures with exact oriented-volume evidence, regression coverage, and downstream confidence behavior.
 
 ## Approval evidence required
 

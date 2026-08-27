@@ -8,6 +8,13 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-08-27 — TASK-004 unsupported 3MF transform-policy fixtures
+
+- Added deterministic public `FIX-MESH-050/051`, 1,108-byte and 1,106-byte derivatives of the governed component cube. SHA-256 values `75f256020a7b6e092e215fd22e689ad4bcc66710868ba465e6179c1c8293c21d` and `ee76d45b021899cfbfb46cc0e2084e1383a0230fd21a9826e8bcad3425cd5646` bind component transforms with linear determinant `-2` and `0`. The public synthetic CAD boundary is now fifty-four files: fifteen STL, thirty-six 3MF, and three STEP.
+- Both packages return recoverable `THREE_MF_UNSUPPORTED_TRANSFORM`, and typed schema-v1 expectations forbid geometry snapshots, output files, or retained staged input. Core 1.4 permits negative-determinant transforms when orientation/volume-sign handling is preserved, so `FIX-MESH-050` records a deliberately narrower PartProbe capability boundary—not malformed/Core-invalid input. `FIX-MESH-051` records the current fail-closed singular-matrix policy.
+- This persists existing parser-v6 behavior without changing accepted syntax, diagnostics, calculations, dependencies, customer data, or failure schema. A future decision to interpret either transform requires an explicit parser-version and migration decision plus governed orientation/volume evidence.
+- Complete local closeout passes 174 runtime tests, one compile-fail doctest, 73 Python tooling tests, thirteen STL tests, thirteen 3MF tests, eight geometry-core contract tests, four fixture-contract tests, and nineteen generator-tooling tests. Strict workspace/native-host/WASM Clippy, the offline release frontend build, all forty-eight generated mesh artifacts, all fifty-four fixture hashes, 144-file planning validation, formatting, and diff hygiene also pass. Three-OS Rust CI run 33070616896 passes the preceding schema-v4 checkpoint at exact commit `9351235`; exact-commit hosted evidence for this slice is pending. The cases remain synthetic parser evidence, not representative exporter, worker/desktop, supported-importer, or release evidence.
+
 ## 2026-08-27 — TASK-004 three-state intersection expectation checkpoint
 
 - Added deterministic public `FIX-MESH-049`, a 293-byte ASCII STL containing two overlapping coplanar triangles. SHA-256 `0a0adf3740c1204a4b218ac0d5b4594a38c9b211584066599a7b99b86266a895` binds two triangles, 2.5 × 2.5 × 0 source-coordinate extents, and four square source units. The public synthetic CAD boundary is now fifty-two files: fifteen STL, thirty-four 3MF, and three STEP.
