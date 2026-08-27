@@ -31,7 +31,7 @@ const ALTERNATE_OPC_CUBES: [&[u8]; 3] = [
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_alternate_model_part.3mf"),
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_stored_compression.3mf"),
 ];
-const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 23] = [
+const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 26] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
         ThreeMfError::UnsupportedModelStructure,
@@ -125,6 +125,18 @@ const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 23] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_singular_component_transform.3mf"),
         ThreeMfError::UnsupportedTransform,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_non_finite_vertex.3mf"),
+        ThreeMfError::InvalidNumber,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_degenerate_triangle.3mf"),
+        ThreeMfError::DegenerateTriangle,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_empty_triangle_set.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
     ),
 ];
 
@@ -663,14 +675,6 @@ fn unsupported_extensions_structures_and_numbers_do_not_succeed_silently() {
     assert_eq!(
         analyze_3mf(&component, limits()),
         Err(ThreeMfError::UnsupportedModelStructure)
-    );
-
-    let non_finite = rewrite_part(TRANSLATED_CUBE, "3D/3dmodel.model", |xml| {
-        xml.replacen("x=\"0\"", "x=\"NaN\"", 1)
-    });
-    assert_eq!(
-        analyze_3mf(&non_finite, limits()),
-        Err(ThreeMfError::InvalidNumber)
     );
 
     let material_attribute = rewrite_part(TRANSLATED_CUBE, "3D/3dmodel.model", |xml| {

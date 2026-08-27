@@ -182,14 +182,14 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
-    def test_adversarial_corpus_pins_twenty_three_distinct_rejection_shapes(self) -> None:
+    def test_adversarial_corpus_pins_twenty_six_distinct_rejection_shapes(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()
         generated = {
             case: generate_3mf_fixture.build_adversarial_3mf(source, case)
             for case, _ in generate_3mf_fixture.ADVERSARIAL_FIXTURES
         }
-        self.assertEqual(len(generated), 23)
-        self.assertEqual(len(set(generated.values())), 23)
+        self.assertEqual(len(generated), 26)
+        self.assertEqual(len(set(generated.values())), 26)
         expected_ids = {
             "branching_components": "FIX-MESH-014",
             "non_immediate_reference": "FIX-MESH-015",
@@ -214,6 +214,9 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             "entry_count_limit": "FIX-MESH-036",
             "reflected_component_transform": "FIX-MESH-050",
             "singular_component_transform": "FIX-MESH-051",
+            "non_finite_vertex": "FIX-MESH-052",
+            "degenerate_triangle": "FIX-MESH-053",
+            "empty_triangle_set": "FIX-MESH-054",
         }
         for case, output_path in generate_3mf_fixture.ADVERSARIAL_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -317,6 +320,30 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             singular_model.replace(singular_transform, positive_transform),
             baseline_component_model,
         )
+        baseline_model = generate_3mf_fixture.build_model_xml(source)
+        with zipfile.ZipFile(BytesIO(generated["non_finite_vertex"])) as package:
+            non_finite_model = package.read("3D/3dmodel.model")
+        self.assertEqual(non_finite_model.count(b'x="NaN"'), 1)
+        self.assertEqual(
+            non_finite_model.replace(b'x="NaN"', b'x="0"'),
+            baseline_model,
+        )
+        with zipfile.ZipFile(BytesIO(generated["degenerate_triangle"])) as package:
+            degenerate_model = package.read("3D/3dmodel.model")
+        degenerate_triangle = b'<triangle v1="0" v2="1" v3="1" />'
+        self.assertEqual(degenerate_model.count(degenerate_triangle), 1)
+        self.assertEqual(
+            degenerate_model.replace(
+                degenerate_triangle,
+                b'<triangle v1="0" v2="1" v3="2" />',
+            ),
+            baseline_model,
+        )
+        with zipfile.ZipFile(BytesIO(generated["empty_triangle_set"])) as package:
+            empty_model = package.read("3D/3dmodel.model")
+        self.assertEqual(empty_model.count(b"<vertex "), 8)
+        self.assertEqual(empty_model.count(b"<triangle "), 0)
+        self.assertIn(b"<triangles>\n\n        </triangles>", empty_model)
 
         with self.assertRaisesRegex(ValueError, "preserve byte length"):
             generate_3mf_fixture.replace_entry_name_bytes(b"package", "a", "long")

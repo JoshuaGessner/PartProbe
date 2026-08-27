@@ -1673,6 +1673,117 @@ fixtures:
       - no_geometry_evidence
     expected: expected/adversarial_3mf_singular_component_transform_rejection.json
     sha256: ee76d45b021899cfbfb46cc0e2084e1383a0230fd21a9826e8bcad3425cd5646
+  - id: FIX-MESH-052
+    title: 3MF cube with a non-finite vertex coordinate
+    path: models/adversarial_3mf_non_finite_vertex.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-004
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm_but_analysis_rejected
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v11
+      parser: partprobe-3mf-spike-v6
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-27
+    reviewed_date: null
+    requirements: [GEO-003, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - non_finite_vertex_rejection
+      - sanitized_diagnostic
+      - no_geometry_evidence
+    expected: expected/adversarial_3mf_non_finite_vertex_rejection.json
+    sha256: c9a8c233ae5c2181ca09692c7e9a874258ef2acfa5f65e48e45d461b915a6bfd
+  - id: FIX-MESH-053
+    title: 3MF cube with one degenerate repeated-index triangle
+    path: models/adversarial_3mf_degenerate_triangle.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-004
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm_but_analysis_rejected
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v11
+      parser: partprobe-3mf-spike-v6
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-27
+    reviewed_date: null
+    requirements: [GEO-003, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - degenerate_triangle_rejection
+      - sanitized_diagnostic
+      - no_geometry_evidence
+    expected: expected/adversarial_3mf_degenerate_triangle_rejection.json
+    sha256: 366b82b457c13940326ecdcc2aa36e278eab227466139adf984fd9995849ff42
+  - id: FIX-MESH-054
+    title: 3MF cube mesh with no triangle elements
+    path: models/adversarial_3mf_empty_triangle_set.3mf
+    format: 3mf-core-1.4
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-004
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm_but_analysis_rejected
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v11
+      parser: partprobe-3mf-spike-v6
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-27
+    reviewed_date: null
+    requirements: [GEO-003, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - empty_triangle_set_rejection
+      - unsupported_model_structure_diagnostic
+      - no_geometry_evidence
+    expected: expected/adversarial_3mf_empty_triangle_set_rejection.json
+    sha256: 562ec8b042a58bf5f8647eb6f61645b7cb00b7bf105746b71a07f1557176733f
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-053",
+  "source_sha256": "366b82b457c13940326ecdcc2aa36e278eab227466139adf984fd9995849ff42",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "THREE_MF_DEGENERATE_TRIANGLE",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

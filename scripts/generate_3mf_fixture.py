@@ -121,6 +121,18 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         / "models"
         / "adversarial_3mf_singular_component_transform.3mf",
     ),
+    (
+        "non_finite_vertex",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_non_finite_vertex.3mf",
+    ),
+    (
+        "degenerate_triangle",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_degenerate_triangle.3mf",
+    ),
+    (
+        "empty_triangle_set",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_empty_triangle_set.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -492,6 +504,27 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
             "2 0 0 0 1 0 0 0 1 1 2 3",
             replacement,
         )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "non_finite_vertex":
+        model = build_model_xml(source).decode("utf-8").replace(
+            'x="0"',
+            'x="NaN"',
+            1,
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "degenerate_triangle":
+        model = build_model_xml(source).decode("utf-8").replace(
+            '<triangle v1="0" v2="1" v3="2" />',
+            '<triangle v1="0" v2="1" v3="1" />',
+            1,
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "empty_triangle_set":
+        model = build_model_xml(source).decode("utf-8")
+        triangle_lines = [line for line in model.splitlines() if "<triangle " in line]
+        if len(triangle_lines) != 12:
+            raise RuntimeError("governed cube must contain exactly twelve triangles")
+        model = model.replace("\n".join(triangle_lines), "")
         parts[-1] = (parts[-1][0], model.encode("utf-8"))
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
