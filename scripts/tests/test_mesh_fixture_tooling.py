@@ -155,11 +155,19 @@ class AsciiStlTopologyFixtureTests(unittest.TestCase):
                 "FIX-MESH-047",
                 "a22b5219977b9b8a3a520d617db86c9d6890cc0759d9289eb918c28c9c815052",
                 "INCONSISTENT_WINDING",
+                "not_detected",
             ),
             "non_manifold_edge": (
                 "FIX-MESH-048",
                 "670fd6d1725f589e5d2192dfb1be2910a8ad494a763a4339a158d57bc222895e",
                 "NON_MANIFOLD_EDGE",
+                "not_detected",
+            ),
+            "coplanar_overlap": (
+                "FIX-MESH-049",
+                "0a0adf3740c1204a4b218ac0d5b4594a38c9b211584066599a7b99b86266a895",
+                "SELF_INTERSECTION_INDETERMINATE",
+                "indeterminate",
             ),
         }
         generated = {}
@@ -178,17 +186,22 @@ class AsciiStlTopologyFixtureTests(unittest.TestCase):
                 / f"ascii_stl_{case}.json"
             )
             expectation = json.loads(expectation_path.read_text())
-            fixture_id, source_hash, topology_warning = expected[case]
+            fixture_id, source_hash, topology_warning, self_intersection = expected[case]
+            self.assertEqual(expectation["schema_version"], 4)
             self.assertEqual(expectation["fixture_id"], fixture_id)
             self.assertEqual(hashlib.sha256(contents).hexdigest(), source_hash)
             self.assertIn(topology_warning, expectation["required_warnings"])
+            self.assertEqual(
+                expectation["self_intersection"]["value"], self_intersection
+            )
             self.assertEqual(expectation["confidence"]["level"], "needs_review")
             self.assertEqual(expectation["enclosed_volume_mm3"]["state"], "unavailable")
 
-        self.assertEqual(len(generated), 2)
-        self.assertEqual(len(set(generated.values())), 2)
+        self.assertEqual(len(generated), 3)
+        self.assertEqual(len(set(generated.values())), 3)
         self.assertEqual(generated["reversed_facet"].count(b"facet normal"), 12)
         self.assertEqual(generated["non_manifold_edge"].count(b"facet normal"), 8)
+        self.assertEqual(generated["coplanar_overlap"].count(b"facet normal"), 2)
         self.assertEqual(
             generated["non_manifold_edge"].count(b"vertex 0 0 0"),
             6,

@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "fixture_id": "FIX-MESH-010",
   "representation": "mesh",
   "imported_units": "foot",
@@ -8,7 +8,7 @@
   "triangle_count": 12,
   "watertight": { "state": "available", "value": true },
   "manifold": { "state": "available", "value": true },
-  "self_intersection": { "state": "available", "value": false },
+  "self_intersection": { "state": "available", "value": "not_detected" },
   "confidence": {
     "level": "low",
     "reasons": ["MESH_REPRESENTATION_CEILING"]

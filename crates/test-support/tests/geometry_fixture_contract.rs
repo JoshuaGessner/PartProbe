@@ -1,6 +1,7 @@
 use partprobe_geometry_core::RepresentationBasis;
 use partprobe_test_support::geometry_fixtures::{
-    ExpectedEvidence, GeometryFixtureExpectation, GeometryImportFailureExpectation,
+    ExpectedEvidence, ExpectedMeshSelfIntersectionState, GeometryFixtureExpectation,
+    GeometryImportFailureExpectation,
 };
 
 const CLOSED: &str = include_str!("../../../fixtures/expected/cube_10mm.json");
@@ -59,6 +60,8 @@ const REVERSED_FACET: &str =
     include_str!("../../../fixtures/expected/ascii_stl_reversed_facet.json");
 const NON_MANIFOLD_EDGE: &str =
     include_str!("../../../fixtures/expected/ascii_stl_non_manifold_edge.json");
+const COPLANAR_OVERLAP: &str =
+    include_str!("../../../fixtures/expected/ascii_stl_coplanar_overlap.json");
 const STEP: &str = include_str!("../../../fixtures/expected/cube_10mm_step.json");
 const INDEPENDENT_STEP: &str =
     include_str!("../../../fixtures/expected/rectangular_prism_12x8x5_step.json");
@@ -270,6 +273,8 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
         .expect("reversed-facet fixture expectation must be valid");
     let non_manifold_edge: GeometryFixtureExpectation = serde_json::from_str(NON_MANIFOLD_EDGE)
         .expect("non-manifold fixture expectation must be valid");
+    let coplanar_overlap: GeometryFixtureExpectation = serde_json::from_str(COPLANAR_OVERLAP)
+        .expect("coplanar-overlap fixture expectation must be valid");
     let three_mf: GeometryFixtureExpectation =
         serde_json::from_str(THREE_MF).expect("3MF fixture expectation must be valid");
     let component_three_mf: GeometryFixtureExpectation = serde_json::from_str(COMPONENT_THREE_MF)
@@ -290,6 +295,7 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert_eq!(self_intersecting.fixture_id(), "FIX-MESH-039");
     assert_eq!(reversed_facet.fixture_id(), "FIX-MESH-047");
     assert_eq!(non_manifold_edge.fixture_id(), "FIX-MESH-048");
+    assert_eq!(coplanar_overlap.fixture_id(), "FIX-MESH-049");
     assert_eq!(three_mf.fixture_id(), "FIX-MESH-004");
     assert_eq!(component_three_mf.fixture_id(), "FIX-MESH-005");
     assert_eq!(nested_component_three_mf.fixture_id(), "FIX-MESH-013");
@@ -319,6 +325,16 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     ));
     assert!(matches!(
         non_manifold_edge.enclosed_volume_mm3(),
+        ExpectedEvidence::Unavailable { .. }
+    ));
+    assert!(matches!(
+        coplanar_overlap.self_intersection(),
+        ExpectedEvidence::Available {
+            value: ExpectedMeshSelfIntersectionState::Indeterminate
+        }
+    ));
+    assert!(matches!(
+        coplanar_overlap.enclosed_volume_mm3(),
         ExpectedEvidence::Unavailable { .. }
     ));
     assert_eq!(three_mf.representation(), RepresentationBasis::Mesh);
@@ -396,8 +412,15 @@ fn deserialization_rejects_false_authority_for_open_mesh_volume() {
         serde_json::json!({"state": "available", "value": "1000"});
     assert!(serde_json::from_value::<GeometryFixtureExpectation>(false_volume).is_err());
 
-    value["schema_version"] = serde_json::json!(1);
+    value["schema_version"] = serde_json::json!(3);
     assert!(serde_json::from_value::<GeometryFixtureExpectation>(value).is_err());
+
+    let mut boolean_self_intersection: serde_json::Value =
+        serde_json::from_str(CLOSED).expect("fixture JSON must parse");
+    boolean_self_intersection["self_intersection"]["value"] = serde_json::json!(false);
+    assert!(
+        serde_json::from_value::<GeometryFixtureExpectation>(boolean_self_intersection).is_err()
+    );
 
     let self_intersecting: serde_json::Value =
         serde_json::from_str(SELF_INTERSECTING).expect("fixture JSON must parse");
@@ -406,6 +429,26 @@ fn deserialization_rejects_false_authority_for_open_mesh_volume() {
         serde_json::json!({"state": "available", "value": "1"});
     assert!(
         serde_json::from_value::<GeometryFixtureExpectation>(false_self_intersection_volume)
+            .is_err()
+    );
+
+    let coplanar_overlap: serde_json::Value =
+        serde_json::from_str(COPLANAR_OVERLAP).expect("fixture JSON must parse");
+    let mut false_indeterminate_volume = coplanar_overlap;
+    false_indeterminate_volume["enclosed_volume_mm3"] =
+        serde_json::json!({"state": "available", "value": "1"});
+    assert!(
+        serde_json::from_value::<GeometryFixtureExpectation>(false_indeterminate_volume).is_err()
+    );
+
+    let mut missing_indeterminate_warning: serde_json::Value =
+        serde_json::from_str(COPLANAR_OVERLAP).expect("fixture JSON must parse");
+    missing_indeterminate_warning["required_warnings"]
+        .as_array_mut()
+        .expect("warnings must be an array")
+        .retain(|warning| warning != "SELF_INTERSECTION_INDETERMINATE");
+    assert!(
+        serde_json::from_value::<GeometryFixtureExpectation>(missing_indeterminate_warning)
             .is_err()
     );
 

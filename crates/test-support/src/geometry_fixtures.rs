@@ -11,7 +11,7 @@ use partprobe_geometry_import::DiagnosticCode;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, Serialize};
 
-const FIXTURE_EXPECTATION_SCHEMA_VERSION: u16 = 3;
+const FIXTURE_EXPECTATION_SCHEMA_VERSION: u16 = 4;
 const IMPORT_FAILURE_EXPECTATION_SCHEMA_VERSION: u16 = 1;
 
 /// Explicit expectation state; unavailable and inapplicable never become zero.
@@ -33,6 +33,18 @@ pub enum ExpectedEvidence<T> {
         /// Stable reason code.
         reason_code: GeometryWarningCode,
     },
+}
+
+/// Explicit mesh self-intersection state retained by successful fixture evidence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpectedMeshSelfIntersectionState {
+    /// The governed detector found no intersection.
+    NotDetected,
+    /// The governed detector found an intersection.
+    Detected,
+    /// The governed detector cannot decide the coplanar case without a tolerance policy.
+    Indeterminate,
 }
 
 impl<T> ExpectedEvidence<T> {
@@ -72,7 +84,7 @@ pub struct GeometryFixtureExpectation {
     triangle_count: Option<u64>,
     watertight: ExpectedEvidence<bool>,
     manifold: ExpectedEvidence<bool>,
-    self_intersection: ExpectedEvidence<bool>,
+    self_intersection: ExpectedEvidence<ExpectedMeshSelfIntersectionState>,
     confidence: GeometryConfidence,
     aabb_mm: ExpectedEvidence<ExpectedVector3>,
     surface_area_mm2: ExpectedEvidence<Decimal>,
@@ -94,7 +106,7 @@ struct GeometryFixtureExpectationWire {
     triangle_count: Option<u64>,
     watertight: ExpectedEvidence<bool>,
     manifold: ExpectedEvidence<bool>,
-    self_intersection: ExpectedEvidence<bool>,
+    self_intersection: ExpectedEvidence<ExpectedMeshSelfIntersectionState>,
     confidence: GeometryConfidence,
     aabb_mm: ExpectedEvidence<ExpectedVector3>,
     surface_area_mm2: ExpectedEvidence<Decimal>,
@@ -147,7 +159,7 @@ impl GeometryFixtureExpectation {
         triangle_count: Option<u64>,
         watertight: ExpectedEvidence<bool>,
         manifold: ExpectedEvidence<bool>,
-        self_intersection: ExpectedEvidence<bool>,
+        self_intersection: ExpectedEvidence<ExpectedMeshSelfIntersectionState>,
         confidence: GeometryConfidence,
         aabb_mm: ExpectedEvidence<ExpectedVector3>,
         surface_area_mm2: ExpectedEvidence<Decimal>,
@@ -214,6 +226,31 @@ impl GeometryFixtureExpectation {
                 reason: "mesh confidence cannot exceed low",
             });
         }
+        match self_intersection.available_value().copied() {
+            Some(ExpectedMeshSelfIntersectionState::Detected) => {
+                require_intersection_review_evidence(
+                    &confidence,
+                    &required_warnings,
+                    "SELF_INTERSECTION_DETECTED",
+                )?;
+            }
+            Some(ExpectedMeshSelfIntersectionState::Indeterminate) => {
+                require_intersection_review_evidence(
+                    &confidence,
+                    &required_warnings,
+                    "SELF_INTERSECTION_INDETERMINATE",
+                )?;
+            }
+            Some(ExpectedMeshSelfIntersectionState::NotDetected) => {
+                if has_intersection_code(&confidence, &required_warnings) {
+                    return Err(DomainError::InvalidValue {
+                        field: "geometry fixture self-intersection evidence",
+                        reason: "not-detected state cannot carry detected or indeterminate evidence",
+                    });
+                }
+            }
+            None => {}
+        }
         if absolute_tolerance <= Decimal::ZERO {
             return Err(DomainError::InvalidValue {
                 field: "geometry fixture tolerance",
@@ -242,13 +279,18 @@ impl GeometryFixtureExpectation {
                 reason: "a non-watertight expectation cannot carry enclosed volume",
             });
         }
-        if matches!(self_intersection.available_value(), Some(true))
-            && (enclosed_volume_mm3.available_value().is_some()
-                || center_of_mass_mm.available_value().is_some())
+        if matches!(
+            self_intersection.available_value(),
+            Some(
+                ExpectedMeshSelfIntersectionState::Detected
+                    | ExpectedMeshSelfIntersectionState::Indeterminate
+            )
+        ) && (enclosed_volume_mm3.available_value().is_some()
+            || center_of_mass_mm.available_value().is_some())
         {
             return Err(DomainError::InvalidValue {
                 field: "geometry fixture closed measurements",
-                reason: "a self-intersecting mesh cannot carry enclosed volume or centroid",
+                reason: "detected or indeterminate intersection cannot carry closed measurements",
             });
         }
         let mut warning_codes = BTreeSet::new();
@@ -308,7 +350,7 @@ impl GeometryFixtureExpectation {
 
     /// Returns the expected mesh self-intersection state.
     #[must_use]
-    pub const fn self_intersection(&self) -> &ExpectedEvidence<bool> {
+    pub const fn self_intersection(&self) -> &ExpectedEvidence<ExpectedMeshSelfIntersectionState> {
         &self.self_intersection
     }
 
@@ -323,6 +365,47 @@ impl GeometryFixtureExpectation {
     pub fn required_warnings(&self) -> &[GeometryWarningCode] {
         &self.required_warnings
     }
+}
+
+fn require_intersection_review_evidence(
+    confidence: &GeometryConfidence,
+    required_warnings: &[GeometryWarningCode],
+    expected_code: &str,
+) -> Result<(), DomainError> {
+    let has_confidence_reason = confidence
+        .reasons()
+        .iter()
+        .any(|reason| reason.as_str() == expected_code);
+    let has_warning = required_warnings
+        .iter()
+        .any(|warning| warning.as_str() == expected_code);
+    if confidence.level() != GeometryConfidenceLevel::NeedsReview
+        || !has_confidence_reason
+        || !has_warning
+    {
+        return Err(DomainError::InvalidValue {
+            field: "geometry fixture self-intersection evidence",
+            reason: "detected or indeterminate state requires matching review evidence",
+        });
+    }
+    Ok(())
+}
+
+fn has_intersection_code(
+    confidence: &GeometryConfidence,
+    required_warnings: &[GeometryWarningCode],
+) -> bool {
+    const INTERSECTION_CODES: [&str; 2] = [
+        "SELF_INTERSECTION_DETECTED",
+        "SELF_INTERSECTION_INDETERMINATE",
+    ];
+    confidence
+        .reasons()
+        .iter()
+        .any(|reason| INTERSECTION_CODES.contains(&reason.as_str()))
+        || required_warnings
+            .iter()
+            .any(|warning| INTERSECTION_CODES.contains(&warning.as_str()))
 }
 
 /// Expected controlled outcome for an import that must fail without producing geometry evidence.

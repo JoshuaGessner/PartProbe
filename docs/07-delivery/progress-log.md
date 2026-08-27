@@ -1,12 +1,19 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-26
+> **Last updated:** 2026-08-27
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-27 — TASK-004 three-state intersection expectation checkpoint
+
+- Added deterministic public `FIX-MESH-049`, a 293-byte ASCII STL containing two overlapping coplanar triangles. SHA-256 `0a0adf3740c1204a4b218ac0d5b4594a38c9b211584066599a7b99b86266a895` binds two triangles, 2.5 × 2.5 × 0 source-coordinate extents, and four square source units. The public synthetic CAD boundary is now fifty-two files: fifteen STL, thirty-four 3MF, and three STEP.
+- The existing STL-v2/detector-v1/confidence-v1 path returns explicit `indeterminate`, `NeedsReview`, ordered open-boundary/intersection warnings, and no volume or centroid. This preserves uncertainty without selecting a coplanar, near-contact, or vertex-welding tolerance.
+- Migrated all twenty-one successful geometry expectations from schema v3 to v4. Mesh self-intersection is now `not_detected`, `detected`, or `indeterminate`; legacy booleans and v1–v3 success records fail validation, and detected/indeterminate records cannot claim closed measurements. Failure schema v1, parser behavior, accepted syntax, calculations, dependencies, production/customer data, and external-transfer policy are unchanged; no persisted-customer migration applies.
+- Complete local closeout passes 174 runtime tests, one compile-fail doctest, 73 Python tooling tests, thirteen STL tests, thirteen 3MF tests, eight geometry-core contract tests, four fixture-contract tests, and nineteen generator-tooling tests. Strict workspace/native-host/WASM Clippy, the offline release frontend build, all forty-six generated mesh artifacts, all fifty-two fixture hashes, 144-file planning validation, formatting, and diff hygiene also pass. Three-OS run 32973302026 passes the preceding topology checkpoint at exact commit `2ba55ea`; exact-commit hosted evidence for this schema-v4 slice is pending. The fixture remains synthetic parser/test-contract evidence, not representative exporter, worker/desktop, production-tolerance, supported-importer, or release evidence.
 
 ## 2026-08-26 — TASK-004 persisted STL topology-warning checkpoint
 

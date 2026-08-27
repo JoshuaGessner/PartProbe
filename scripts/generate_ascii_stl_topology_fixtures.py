@@ -18,6 +18,10 @@ TOPOLOGY_FIXTURES: tuple[tuple[str, Path], ...] = (
         "non_manifold_edge",
         ROOT / "fixtures" / "models" / "two_tetrahedra_shared_edge_ascii.stl",
     ),
+    (
+        "coplanar_overlap",
+        ROOT / "fixtures" / "models" / "coplanar_overlap_ascii.stl",
+    ),
 )
 
 FIRST_FACET = b"""  facet normal 0 0 -1
@@ -97,6 +101,24 @@ NON_MANIFOLD_SHARED_EDGE = b"""solid two_tetrahedra_shared_edge
 endsolid two_tetrahedra_shared_edge
 """
 
+COPLANAR_OVERLAP = b"""solid coplanar_overlap
+  facet normal 0 0 1
+    outer loop
+      vertex 0 0 0
+      vertex 2 0 0
+      vertex 0 2 0
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0.5 0.5 0
+      vertex 2.5 0.5 0
+      vertex 0.5 2.5 0
+    endloop
+  endfacet
+endsolid coplanar_overlap
+"""
+
 
 def build_ascii_stl_topology_fixture(source: bytes, case: str) -> bytes:
     """Return one deterministic topology-warning ASCII STL byte stream."""
@@ -106,6 +128,8 @@ def build_ascii_stl_topology_fixture(source: bytes, case: str) -> bytes:
         return source.replace(FIRST_FACET, REVERSED_FIRST_FACET, 1)
     if case == "non_manifold_edge":
         return NON_MANIFOLD_SHARED_EDGE
+    if case == "coplanar_overlap":
+        return COPLANAR_OVERLAP
     raise ValueError(f"unsupported ASCII STL topology case: {case}")
 
 

@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-08-26
+> **Last updated:** 2026-08-27
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -14,6 +14,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 
 ### Added
 
+- `FIX-MESH-049`, a deterministic coplanar-overlap ASCII STL fixture, plus successful expectation schema v4 with explicit `not_detected`/`detected`/`indeterminate` mesh self-intersection evidence. The migration changes test contracts only; parser/detector/confidence behavior, production data, and the unresolved tolerance policy remain unchanged.
 - `FIX-MESH-047/048`, deterministic successful-warning ASCII STL fixtures for one reversed cube facet and two tetrahedra sharing a non-manifold edge. Both preserve unresolved-unit `NeedsReview` evidence and withhold volume/centroid under the existing STL-v2 topology/confidence policy; no parser, schema, dependency, or migration change applies.
 - `FIX-MESH-044`–`046`, three deterministic positive 3MF/OPC interoperability fixtures that independently prove a default `.model` content-type declaration, an alternate internal StartPart/model-part path, and Store compression while preserving the governed translated 10 mm cube evidence. Parser v6 and success schema v3 remain unchanged because this persists already-implemented accepted behavior; it is not general exporter, worker/desktop, or supported-importer evidence.
 

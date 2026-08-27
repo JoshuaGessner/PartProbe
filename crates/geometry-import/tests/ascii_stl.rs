@@ -53,6 +53,8 @@ const REVERSED_FACET_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_ascii_reversed_facet.stl");
 const NON_MANIFOLD_SHARED_EDGE: &[u8] =
     include_bytes!("../../../fixtures/models/two_tetrahedra_shared_edge_ascii.stl");
+const COPLANAR_OVERLAP: &[u8] =
+    include_bytes!("../../../fixtures/models/coplanar_overlap_ascii.stl");
 
 fn limits() -> StlLimits {
     StlLimits::new(64 * 1024, 1_000).expect("test limits must be valid")
@@ -360,26 +362,13 @@ fn self_intersection_withholds_closed_measurements_and_requires_review() {
 
 #[test]
 fn coplanar_overlap_remains_indeterminate_without_a_tolerance_policy() {
-    let coplanar_overlap = b"solid coplanar
-facet normal 0 0 1
-outer loop
-vertex 0 0 0
-vertex 2 0 0
-vertex 0 2 0
-endloop
-endfacet
-facet normal 0 0 1
-outer loop
-vertex 0.5 0.5 0
-vertex 2.5 0.5 0
-vertex 0.5 2.5 0
-endloop
-endfacet
-endsolid coplanar
-";
-    let evidence = analyze_ascii_stl(coplanar_overlap, limits())
+    let evidence = analyze_ascii_stl(COPLANAR_OVERLAP, limits())
         .expect("bounded coplanar mesh must remain reviewable evidence");
 
+    assert_eq!(evidence.triangle_count(), 2);
+    assert!(evidence.manifold());
+    assert!(!evidence.watertight());
+    assert!(!evidence.consistently_wound());
     assert_eq!(
         evidence.self_intersection(),
         MeshSelfIntersectionState::Indeterminate
@@ -388,10 +377,32 @@ endsolid coplanar
         evidence.confidence().level(),
         GeometryConfidenceLevel::NeedsReview
     );
-    assert!(confidence_reasons(&evidence).contains(&"SELF_INTERSECTION_INDETERMINATE"));
-    assert!(warning_codes(&evidence).contains(&"SELF_INTERSECTION_INDETERMINATE"));
+    assert_eq!(
+        evidence.aabb_extents_source_units().components(),
+        [2.5, 2.5, 0.0]
+    );
+    assert_close(evidence.surface_area_source_units_squared(), 4.0);
     assert_eq!(evidence.enclosed_volume_source_units_cubed(), None);
     assert_eq!(evidence.center_of_mass_source_units(), None);
+    assert_eq!(
+        confidence_reasons(&evidence),
+        [
+            "MESH_REPRESENTATION_CEILING",
+            "UNITS_UNRESOLVED",
+            "OPEN_BOUNDARY",
+            "SELF_INTERSECTION_INDETERMINATE",
+        ]
+    );
+    assert_eq!(
+        warning_codes(&evidence),
+        [
+            "UNITS_MISSING_REQUIRES_CONFIRMATION",
+            "MESH_NOT_EXACT_BREP",
+            "OPEN_BOUNDARY",
+            "SELF_INTERSECTION_INDETERMINATE",
+            "CLOSED_VOLUME_UNAVAILABLE",
+        ]
+    );
 
     let shared_edge_overlap = b"solid shared-edge-overlap
 facet normal 0 0 1

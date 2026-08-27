@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-26
+> **Last updated:** 2026-08-27
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -94,6 +94,7 @@ These rules are mandatory for every person or agent changing this repository.
 82. Persisted adversarial ASCII STL inputs must be deterministic public synthetic bytes with manifest hashes, exact content-free diagnostics, reproducible construction, and explicit no-geometry outcomes. Exercise them through content-based STL selection, keep invalid text/grammar/empty/degenerate cases distinct, and require a parser-version and migration decision before changing an accepted/rejected boundary or diagnostic.
 83. Persisted positive 3MF interoperability fixtures must be deterministic public synthetic packages that isolate one reviewed OPC variation at a time, retain the same governed geometry and canonical evidence, and pin exact package hashes. Evidence for a default content-type mapping, alternate internal StartPart target, or stored ZIP compression does not establish general exporter compatibility, arbitrary package-layout support, worker/desktop integration, or a representative corpus. Any accepted-package-boundary change requires an explicit parser-version and migration decision.
 84. Persisted topology-warning mesh fixtures must isolate the intended defect, pin exact warning/confidence ordering and conditional-measurement behavior, and distinguish topology failure from self-intersection uncertainty. A synthetic reversed facet or shared non-manifold edge is parser-level evidence only; it does not establish exporter prevalence, a production welding/tolerance policy, representative machining accuracy, worker/desktop integration, or supported import. Withhold volume and centroid whenever the governed topology/winding policy does not authorize closed measurements.
+85. Successful geometry-fixture expectation schema v4 uses explicit `not_detected`, `detected`, or `indeterminate` mesh self-intersection values. Reject legacy boolean/v1–v3 success records, require detected and indeterminate states to withhold enclosed volume and centroid, and keep this test-contract migration distinct from parser, persisted-customer, or production tolerance policy.
 
 ## Documentation protocol
 

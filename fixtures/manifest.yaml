@@ -1567,6 +1567,38 @@ fixtures:
       - closed_volume_and_centroid_withholding
     expected: expected/ascii_stl_non_manifold_edge.json
     sha256: 670fd6d1725f589e5d2192dfb1be2910a8ad494a763a4339a158d57bc222895e
+  - id: FIX-MESH-049
+    title: Two overlapping coplanar synthetic ASCII STL triangles
+    path: models/coplanar_overlap_ascii.stl
+    format: stl-ascii
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-analytic
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: absent_fixture_convention_mm_requires_confirmation
+    declared_units: null
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-ascii-stl-topology-fixture-generator-v1
+      parser: partprobe-ascii-stl-spike-v2
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+    expected_worker_outcome: comparison_analyzer_success_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_triangles: 1000
+    owner: unassigned
+    recorded_date: 2026-08-27
+    reviewed_date: null
+    requirements: [GEO-003, GEO-004, GEO-006, GEO-008, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - coplanar_overlap_indeterminate_detection
+      - explicit_three_state_self_intersection_expectation
+      - mesh_confidence_reason
+      - closed_volume_and_centroid_withholding
+    expected: expected/ascii_stl_coplanar_overlap.json
+    sha256: 0a0adf3740c1204a4b218ac0d5b4594a38c9b211584066599a7b99b86266a895
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
