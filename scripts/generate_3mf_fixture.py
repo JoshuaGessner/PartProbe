@@ -174,8 +174,16 @@ ALTERNATE_OPC_FIXTURES: tuple[tuple[str, Path], ...] = (
         "stored_compression",
         ROOT / "fixtures" / "models" / "cube_10mm_3mf_stored_compression.3mf",
     ),
+    (
+        "package_thumbnail",
+        ROOT / "fixtures" / "models" / "cube_10mm_3mf_package_thumbnail.3mf",
+    ),
 )
 FIXED_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
+PACKAGE_THUMBNAIL_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000b4944415478da636000020000050001e9fadcd80000000049454e44ae426082"
+)
 
 
 def _format_source_coordinate(millimeters: float, millimeters_per_unit: str) -> str:
@@ -613,6 +621,24 @@ def build_alternate_opc_3mf(source: bytes, case: str) -> bytes:
         parts[2] = ("3D/primary.model", parts[2][1])
     elif case == "stored_compression":
         return build_package(tuple(parts), compression=zipfile.ZIP_STORED)
+    elif case == "package_thumbnail":
+        parts[0] = (
+            parts[0][0],
+            parts[0][1].replace(
+                b"</Types>",
+                b'  <Override PartName="/Metadata/thumbnail.png" ContentType="image/png" />\n'
+                b"</Types>",
+            ),
+        )
+        parts[1] = (
+            parts[1][0],
+            parts[1][1].replace(
+                b"</Relationships>",
+                b'  <Relationship Id="rel1" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="/Metadata/thumbnail.png" TargetMode="Internal" />\n'
+                b"</Relationships>",
+            ),
+        )
+        parts.append(("Metadata/thumbnail.png", PACKAGE_THUMBNAIL_PNG))
     else:
         raise ValueError(f"unsupported alternate OPC case: {case}")
     return build_package(tuple(parts))

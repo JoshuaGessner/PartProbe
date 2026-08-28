@@ -47,8 +47,8 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             case: generate_3mf_fixture.build_alternate_opc_3mf(source, case)
             for case, _ in generate_3mf_fixture.ALTERNATE_OPC_FIXTURES
         }
-        self.assertEqual(len(generated), 3)
-        self.assertEqual(len(set(generated.values())), 3)
+        self.assertEqual(len(generated), 4)
+        self.assertEqual(len(set(generated.values())), 4)
         with zipfile.ZipFile(
             BytesIO(generate_3mf_fixture.build_3mf(source))
         ) as baseline_package:
@@ -58,11 +58,13 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             "default_content_type": "FIX-MESH-044",
             "alternate_model_part": "FIX-MESH-045",
             "stored_compression": "FIX-MESH-046",
+            "package_thumbnail": "FIX-MESH-058",
         }
         expected_hashes = {
             "default_content_type": "9483eefe0b2f39489b6ac19a17fea9b80bfd8040e6ac538e4e7cb095fa0220d4",
             "alternate_model_part": "6e6b281e971dd2871f06ed5ba9f62cff07f4d51efe515801137f05e821a52b54",
             "stored_compression": "16944c712b4c851c374f2a39d13b66fd5fc32ecebf570e342ccf24e192338198",
+            "package_thumbnail": "40a575b863331e5bce4976a5f97b00959d6916fd4a8218cc65aa8dc937dda4cc",
         }
         for case, output_path in generate_3mf_fixture.ALTERNATE_OPC_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -103,6 +105,33 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             self.assertEqual(
                 {entry.compress_type for entry in package.infolist()},
                 {zipfile.ZIP_STORED},
+            )
+            self.assertEqual(package.read("3D/3dmodel.model"), baseline_model)
+
+        with zipfile.ZipFile(BytesIO(generated["package_thumbnail"])) as package:
+            self.assertEqual(
+                package.namelist(),
+                [
+                    "[Content_Types].xml",
+                    "_rels/.rels",
+                    "3D/3dmodel.model",
+                    "Metadata/thumbnail.png",
+                ],
+            )
+            self.assertIn(
+                b'PartName="/Metadata/thumbnail.png" ContentType="image/png"',
+                package.read("[Content_Types].xml"),
+            )
+            relationships = package.read("_rels/.rels")
+            self.assertIn(
+                b'Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"',
+                relationships,
+            )
+            self.assertIn(b'Target="/Metadata/thumbnail.png"', relationships)
+            self.assertIn(b'TargetMode="Internal"', relationships)
+            self.assertEqual(
+                package.read("Metadata/thumbnail.png"),
+                generate_3mf_fixture.PACKAGE_THUMBNAIL_PNG,
             )
             self.assertEqual(package.read("3D/3dmodel.model"), baseline_model)
 

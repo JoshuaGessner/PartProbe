@@ -39,7 +39,7 @@ const THREE_MF_UNITS: [(&str, &str); 6] = [
         "FIX-MESH-011",
     ),
 ];
-const ALTERNATE_OPC_THREE_MF: [(&str, &str); 3] = [
+const ALTERNATE_OPC_THREE_MF: [(&str, &str); 4] = [
     (
         include_str!("../../../fixtures/expected/cube_10mm_3mf_default_content_type.json"),
         "FIX-MESH-044",
@@ -51,6 +51,10 @@ const ALTERNATE_OPC_THREE_MF: [(&str, &str); 3] = [
     (
         include_str!("../../../fixtures/expected/cube_10mm_3mf_stored_compression.json"),
         "FIX-MESH-046",
+    ),
+    (
+        include_str!("../../../fixtures/expected/cube_10mm_3mf_package_thumbnail.json"),
+        "FIX-MESH-058",
     ),
 ];
 const OPEN: &str = include_str!("../../../fixtures/expected/open_cube_10mm.json");

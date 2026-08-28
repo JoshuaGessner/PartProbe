@@ -1895,6 +1895,45 @@ fixtures:
       - no_geometry_evidence
     expected: expected/adversarial_3mf_vertex_limit_exceeded_rejection.json
     sha256: 833594cdc59861ba91d1fcd91df80800f299968da721dde64f8f2d68a9abe930
+  - id: FIX-MESH-058
+    title: Translated 3MF cube with a standard package thumbnail
+    path: models/cube_10mm_3mf_package_thumbnail.3mf
+    format: 3mf-core-1.4-opc-package-thumbnail
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-004
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm
+    declared_units: cm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v12
+      parser: partprobe-3mf-spike-v6
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-28
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - 3mf_alternate_opc_corpus
+      - standard_internal_package_thumbnail
+      - canonical_mesh_golden
+    expected: expected/cube_10mm_3mf_package_thumbnail.json
+    sha256: 40a575b863331e5bce4976a5f97b00959d6916fd4a8218cc65aa8dc937dda4cc
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step
