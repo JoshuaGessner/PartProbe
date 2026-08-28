@@ -99,7 +99,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v1
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -138,7 +138,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v2
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -177,7 +177,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -211,7 +211,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -245,7 +245,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -279,7 +279,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -313,7 +313,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -347,7 +347,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v3
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -381,7 +381,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v4
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -419,7 +419,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v5
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: succeeded_with_warnings
     resource_ceiling:
       max_input_bytes: 65536
@@ -458,7 +458,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -492,7 +492,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -526,7 +526,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -560,7 +560,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -594,7 +594,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v6
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -628,7 +628,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v7
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -662,7 +662,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v7
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -696,7 +696,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v7
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -730,7 +730,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v7
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -764,7 +764,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v7
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -798,7 +798,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v8
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -832,7 +832,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v8
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -866,7 +866,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v8
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -900,7 +900,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v8
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -934,7 +934,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v8
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -968,7 +968,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v9
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -1002,7 +1002,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v9
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -1036,7 +1036,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v9
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -1122,7 +1122,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v10
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -1156,7 +1156,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v10
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -1190,7 +1190,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v10
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: comparison_analyzer_rejected
     resource_ceiling:
       max_input_bytes: 65536
@@ -1410,7 +1410,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
       self_intersection: partprobe-exact-mesh-intersection-spike-v1
       confidence_policy: partprobe-mesh-confidence-policy-v1
     expected_worker_outcome: succeeded_with_warnings
@@ -1446,7 +1446,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
       self_intersection: partprobe-exact-mesh-intersection-spike-v1
       confidence_policy: partprobe-mesh-confidence-policy-v1
     expected_worker_outcome: succeeded_with_warnings
@@ -1482,7 +1482,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
       self_intersection: partprobe-exact-mesh-intersection-spike-v1
       confidence_policy: partprobe-mesh-confidence-policy-v1
     expected_worker_outcome: succeeded_with_warnings
@@ -1613,7 +1613,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: failed_recoverable
     resource_ceiling:
       max_input_bytes: 65536
@@ -1650,7 +1650,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: failed_recoverable
     resource_ceiling:
       max_input_bytes: 65536
@@ -1687,7 +1687,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: failed_recoverable
     resource_ceiling:
       max_input_bytes: 65536
@@ -1724,7 +1724,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: failed_recoverable
     resource_ceiling:
       max_input_bytes: 65536
@@ -1761,7 +1761,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: failed_recoverable
     resource_ceiling:
       max_input_bytes: 65536
@@ -1798,7 +1798,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: failed_recoverable
     resource_ceiling:
       max_input_bytes: 65536
@@ -1835,7 +1835,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: failed_recoverable
     resource_ceiling:
       max_input_bytes: 65536
@@ -1872,7 +1872,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v11
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
     expected_worker_outcome: failed_recoverable
     resource_ceiling:
       max_input_bytes: 65536
@@ -1909,7 +1909,7 @@ fixtures:
     analysis_profile: bootstrap_geometry_v0
     algorithm_versions:
       generator: partprobe-3mf-fixture-generator-v12
-      parser: partprobe-3mf-spike-v6
+      parser: partprobe-3mf-spike-v7
       self_intersection: partprobe-exact-mesh-intersection-spike-v1
       confidence_policy: partprobe-mesh-confidence-policy-v1
     expected_worker_outcome: succeeded_with_warnings
@@ -1934,6 +1934,46 @@ fixtures:
       - canonical_mesh_golden
     expected: expected/cube_10mm_3mf_package_thumbnail.json
     sha256: 40a575b863331e5bce4976a5f97b00959d6916fd4a8218cc65aa8dc937dda4cc
+  - id: FIX-MESH-059
+    title: 10 mm 3MF cube with an index-defined open seam
+    path: models/cube_10mm_3mf_split_index_seam.3mf
+    format: 3mf-core-1.4-index-defined-topology
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-007
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_mm
+    declared_units: mm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v13
+      parser: partprobe-3mf-spike-v7
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-08-28
+    reviewed_date: null
+    requirements: [GEO-003, GEO-004, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - 3mf_index_defined_topology
+      - split_index_open_seam
+      - mesh_topology_warning
+      - closed_measurements_withheld
+    expected: expected/cube_10mm_3mf_split_index_seam.json
+    sha256: e496e7aec4b6bb3911ab5680c80384e451aedf885d27af4689c036682e190342
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step

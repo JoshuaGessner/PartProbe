@@ -37,6 +37,7 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
         generate_3mf_fixture.check_component_fixture()
         generate_3mf_fixture.check_nested_component_fixture()
         generate_3mf_fixture.check_metadata_fixture()
+        generate_3mf_fixture.check_split_index_seam_fixture()
         generate_3mf_fixture.check_adversarial_fixtures()
         generate_3mf_fixture.check_unit_fixtures()
         generate_3mf_fixture.check_alternate_opc_fixtures()
@@ -148,6 +149,35 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
         self.assertNotIn(b"customer", model.lower())
         self.assertEqual(model.count(b"<vertex "), 8)
         self.assertEqual(model.count(b"<triangle "), 12)
+
+    def test_split_index_seam_preserves_geometry_but_not_topology_identity(self) -> None:
+        source = generate_3mf_fixture.SOURCE.read_bytes()
+        generated = generate_3mf_fixture.build_split_index_seam_3mf(source)
+        self.assertEqual(
+            generated,
+            generate_3mf_fixture.SPLIT_INDEX_SEAM_OUTPUT.read_bytes(),
+        )
+        self.assertEqual(
+            hashlib.sha256(generated).hexdigest(),
+            "e496e7aec4b6bb3911ab5680c80384e451aedf885d27af4689c036682e190342",
+        )
+        with zipfile.ZipFile(BytesIO(generated)) as package:
+            model = package.read("3D/3dmodel.model")
+        self.assertEqual(model.count(b"<vertex "), 9)
+        self.assertEqual(model.count(b"<triangle "), 12)
+        self.assertEqual(model.count(b'<vertex x="0" y="0" z="0" />'), 2)
+        self.assertIn(b'<triangle v1="8" v2="1" v3="2" />', model)
+        expectation = json.loads(
+            (
+                generate_3mf_fixture.ROOT
+                / "fixtures"
+                / "expected"
+                / "cube_10mm_3mf_split_index_seam.json"
+            ).read_text()
+        )
+        self.assertEqual(expectation["fixture_id"], "FIX-MESH-059")
+        self.assertFalse(expectation["watertight"]["value"])
+        self.assertEqual(expectation["self_intersection"]["value"], "detected")
 
     def test_unit_corpus_has_every_remaining_declaration_and_default(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()

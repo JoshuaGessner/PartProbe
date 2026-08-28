@@ -13,6 +13,8 @@ const NESTED_COMPONENT_THREE_MF: &str =
     include_str!("../../../fixtures/expected/cube_1cm_nested_component_chain_3mf.json");
 const METADATA_THREE_MF: &str =
     include_str!("../../../fixtures/expected/cube_10mm_3mf_metadata.json");
+const SPLIT_INDEX_SEAM_THREE_MF: &str =
+    include_str!("../../../fixtures/expected/cube_10mm_3mf_split_index_seam.json");
 const THREE_MF_UNITS: [(&str, &str); 6] = [
     (
         include_str!("../../../fixtures/expected/cube_10mm_3mf_micron.json"),
@@ -342,6 +344,9 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
             .expect("nested component 3MF fixture expectation must be valid");
     let metadata_three_mf: GeometryFixtureExpectation = serde_json::from_str(METADATA_THREE_MF)
         .expect("metadata 3MF fixture expectation must be valid");
+    let split_index_seam_three_mf: GeometryFixtureExpectation =
+        serde_json::from_str(SPLIT_INDEX_SEAM_THREE_MF)
+            .expect("split-index-seam 3MF fixture expectation must be valid");
     let step: GeometryFixtureExpectation =
         serde_json::from_str(STEP).expect("STEP fixture expectation must be valid");
     let independent_step: GeometryFixtureExpectation = serde_json::from_str(INDEPENDENT_STEP)
@@ -358,6 +363,7 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert_eq!(component_three_mf.fixture_id(), "FIX-MESH-005");
     assert_eq!(nested_component_three_mf.fixture_id(), "FIX-MESH-013");
     assert_eq!(metadata_three_mf.fixture_id(), "FIX-MESH-012");
+    assert_eq!(split_index_seam_three_mf.fixture_id(), "FIX-MESH-059");
     assert_eq!(step.fixture_id(), "FIX-STEP-001");
     assert_eq!(independent_step.fixture_id(), "FIX-STEP-003");
     assert_eq!(closed.representation(), RepresentationBasis::Mesh);
@@ -423,6 +429,16 @@ fn committed_mesh_expectations_satisfy_the_versioned_contract() {
     assert!(matches!(
         metadata_three_mf.enclosed_volume_mm3(),
         ExpectedEvidence::Available { .. }
+    ));
+    assert!(matches!(
+        split_index_seam_three_mf.self_intersection(),
+        ExpectedEvidence::Available {
+            value: ExpectedMeshSelfIntersectionState::Detected
+        }
+    ));
+    assert!(matches!(
+        split_index_seam_three_mf.enclosed_volume_mm3(),
+        ExpectedEvidence::Unavailable { .. }
     ));
     for (source, fixture_id) in THREE_MF_UNITS {
         let unit_fixture: GeometryFixtureExpectation = serde_json::from_str(source)

@@ -22,6 +22,9 @@ NESTED_COMPONENT_OUTPUT = (
     ROOT / "fixtures" / "models" / "cube_1cm_nested_component_chain.3mf"
 )
 METADATA_OUTPUT = ROOT / "fixtures" / "models" / "cube_10mm_3mf_metadata.3mf"
+SPLIT_INDEX_SEAM_OUTPUT = (
+    ROOT / "fixtures" / "models" / "cube_10mm_3mf_split_index_seam.3mf"
+)
 ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
     (
         "branching_components",
@@ -311,6 +314,25 @@ def build_metadata_model_xml(source: bytes) -> bytes:
     return direct.replace("  <resources>", f"{metadata}  <resources>").encode("utf-8")
 
 
+def build_split_index_seam_model_xml(source: bytes) -> bytes:
+    """Split one geometric cube corner across two distinct Core vertex indices."""
+    direct = build_unit_model_xml(source, "millimeter", "1").decode("utf-8")
+    first_vertex = '          <vertex x="0" y="0" z="0" />'
+    first_triangle = '          <triangle v1="0" v2="1" v3="2" />'
+    if direct.count(first_vertex) != 1 or direct.count(first_triangle) != 1:
+        raise RuntimeError("governed cube topology changed unexpectedly")
+    with_duplicate = direct.replace(
+        "        </vertices>",
+        f"{first_vertex}\n        </vertices>",
+        1,
+    )
+    return with_duplicate.replace(
+        first_triangle,
+        '          <triangle v1="8" v2="1" v3="2" />',
+        1,
+    ).encode("utf-8")
+
+
 def package_parts(
     source: bytes, *, component: bool = False
 ) -> tuple[tuple[str, bytes], ...]:
@@ -338,6 +360,13 @@ def package_parts(
 def build_3mf(source: bytes) -> bytes:
     """Create deterministic Deflate-compressed 3MF bytes."""
     return build_package(package_parts(source))
+
+
+def build_split_index_seam_3mf(source: bytes) -> bytes:
+    """Create the deterministic index-defined open-seam 3MF package."""
+    parts = list(package_parts(source))
+    parts[2] = (parts[2][0], build_split_index_seam_model_xml(source))
+    return build_package(tuple(parts))
 
 
 def build_package(
@@ -690,6 +719,15 @@ def check_metadata_fixture(
         raise RuntimeError("metadata 3MF fixture is missing or not reproducible")
 
 
+def check_split_index_seam_fixture(
+    source_path: Path = SOURCE, output_path: Path = SPLIT_INDEX_SEAM_OUTPUT
+) -> None:
+    """Fail when the committed index-defined seam fixture is not reproducible."""
+    expected = build_split_index_seam_3mf(source_path.read_bytes())
+    if not output_path.is_file() or output_path.read_bytes() != expected:
+        raise RuntimeError("split-index-seam 3MF fixture is missing or not reproducible")
+
+
 def check_unit_fixtures(
     source_path: Path = SOURCE,
     fixtures: tuple[tuple[str | None, str, Path], ...] = UNIT_FIXTURES,
@@ -727,6 +765,7 @@ def main() -> int:
     component_expected = build_component_3mf(source)
     nested_component_expected = build_nested_component_3mf(source)
     metadata_expected = build_metadata_3mf(source)
+    split_index_seam_expected = build_split_index_seam_3mf(source)
     adversarial_expected = tuple(
         (output_path, build_adversarial_3mf(source, case))
         for case, output_path in ADVERSARIAL_FIXTURES
@@ -747,6 +786,7 @@ def main() -> int:
         COMPONENT_OUTPUT.write_bytes(component_expected)
         NESTED_COMPONENT_OUTPUT.write_bytes(nested_component_expected)
         METADATA_OUTPUT.write_bytes(metadata_expected)
+        SPLIT_INDEX_SEAM_OUTPUT.write_bytes(split_index_seam_expected)
         for output_path, contents in adversarial_expected:
             output_path.write_bytes(contents)
         for output_path, contents in unit_expected:
@@ -758,6 +798,7 @@ def main() -> int:
         check_component_fixture()
         check_nested_component_fixture()
         check_metadata_fixture()
+        check_split_index_seam_fixture()
         check_adversarial_fixtures()
         check_unit_fixtures()
         check_alternate_opc_fixtures()

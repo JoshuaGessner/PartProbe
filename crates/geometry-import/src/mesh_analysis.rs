@@ -87,6 +87,7 @@ pub enum MeshSelfIntersectionState {
 pub(crate) enum MeshAnalysisError {
     DegenerateTriangle,
     InvalidNumber,
+    InvalidTopology,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -119,7 +120,16 @@ fn canonical_float_bits(value: f64) -> u64 {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct EdgeKey(VertexKey, VertexKey);
+enum VertexIdentity {
+    Coordinate(VertexKey),
+    Index(usize),
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TriangleTopology([VertexIdentity; 3]);
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct EdgeKey(VertexIdentity, VertexIdentity);
 
 #[derive(Clone, Copy, Debug, Default)]
 struct EdgeUses {
@@ -151,6 +161,40 @@ pub(crate) fn validate_triangle(triangle: Triangle) -> Result<(), MeshAnalysisEr
 }
 
 pub(crate) fn analyze_triangles(triangles: &[Triangle]) -> Result<MeshAnalysis, MeshAnalysisError> {
+    let topology = triangles
+        .iter()
+        .map(|triangle| {
+            TriangleTopology(
+                triangle
+                    .0
+                    .map(|vertex| VertexIdentity::Coordinate(VertexKey::from(vertex))),
+            )
+        })
+        .collect::<Vec<_>>();
+    analyze_triangles_with_topology(triangles, &topology)
+}
+
+pub(crate) fn analyze_indexed_triangles(
+    triangles: &[Triangle],
+    triangle_indices: &[[usize; 3]],
+) -> Result<MeshAnalysis, MeshAnalysisError> {
+    if triangles.len() != triangle_indices.len() {
+        return Err(MeshAnalysisError::InvalidTopology);
+    }
+    let topology = triangle_indices
+        .iter()
+        .map(|indices| TriangleTopology(indices.map(VertexIdentity::Index)))
+        .collect::<Vec<_>>();
+    analyze_triangles_with_topology(triangles, &topology)
+}
+
+fn analyze_triangles_with_topology(
+    triangles: &[Triangle],
+    topology: &[TriangleTopology],
+) -> Result<MeshAnalysis, MeshAnalysisError> {
+    if triangles.len() != topology.len() {
+        return Err(MeshAnalysisError::InvalidTopology);
+    }
     let mut minimum = MeshVector3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
     let mut maximum = MeshVector3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
     let mut area = 0.0;
@@ -158,7 +202,7 @@ pub(crate) fn analyze_triangles(triangles: &[Triangle]) -> Result<MeshAnalysis, 
     let mut centroid_numerator = MeshVector3::new(0.0, 0.0, 0.0);
     let mut edges = BTreeMap::<EdgeKey, EdgeUses>::new();
 
-    for triangle in triangles {
+    for (triangle, triangle_topology) in triangles.iter().zip(topology) {
         let [a, b, c] = triangle.0;
         for vertex in [a, b, c] {
             minimum.x = minimum.x.min(vertex.x);
@@ -172,9 +216,8 @@ pub(crate) fn analyze_triangles(triangles: &[Triangle]) -> Result<MeshAnalysis, 
         let determinant = a.dot(b.cross(c));
         determinant_sum += determinant;
         centroid_numerator = centroid_numerator.add(a.add(b).add(c).scale(determinant));
-        for (from, to) in [(a, b), (b, c), (c, a)] {
-            let from = VertexKey::from(from);
-            let to = VertexKey::from(to);
+        let [a_id, b_id, c_id] = triangle_topology.0;
+        for (from, to) in [(a_id, b_id), (b_id, c_id), (c_id, a_id)] {
             let (key, forward) = if from < to {
                 (EdgeKey(from, to), true)
             } else {
@@ -195,7 +238,7 @@ pub(crate) fn analyze_triangles(triangles: &[Triangle]) -> Result<MeshAnalysis, 
         && edges
             .values()
             .all(|uses| uses.forward == 1 && uses.reverse == 1);
-    let self_intersection = analyze_self_intersections(triangles);
+    let self_intersection = analyze_self_intersections(triangles, topology);
     let extents = maximum.subtract(minimum);
     if !extents.is_finite()
         || !area.is_finite()
@@ -228,11 +271,17 @@ pub(crate) fn analyze_triangles(triangles: &[Triangle]) -> Result<MeshAnalysis, 
     })
 }
 
-fn analyze_self_intersections(triangles: &[Triangle]) -> MeshSelfIntersectionState {
+fn analyze_self_intersections(
+    triangles: &[Triangle],
+    topology: &[TriangleTopology],
+) -> MeshSelfIntersectionState {
     let mut indeterminate = false;
     for (left_index, left) in triangles.iter().enumerate() {
-        for right in &triangles[left_index + 1..] {
-            match triangle_pair_intersection(*left, *right) {
+        for (right, right_topology) in triangles[left_index + 1..]
+            .iter()
+            .zip(&topology[left_index + 1..])
+        {
+            match triangle_pair_intersection(*left, topology[left_index], *right, *right_topology) {
                 TrianglePairIntersection::Detected => {
                     return MeshSelfIntersectionState::Detected;
                 }
@@ -248,21 +297,26 @@ fn analyze_self_intersections(triangles: &[Triangle]) -> MeshSelfIntersectionSta
     }
 }
 
-fn triangle_pair_intersection(left: Triangle, right: Triangle) -> TrianglePairIntersection {
+fn triangle_pair_intersection(
+    left: Triangle,
+    left_topology: TriangleTopology,
+    right: Triangle,
+    right_topology: TriangleTopology,
+) -> TrianglePairIntersection {
     if !aabbs_overlap(left, right) {
         return TrianglePairIntersection::None;
     }
 
+    let shared_identities: Vec<_> = left_topology
+        .0
+        .into_iter()
+        .filter(|identity| right_topology.0.contains(identity))
+        .collect();
     let shared_vertices: Vec<_> = left
         .0
         .into_iter()
-        .filter(|vertex| {
-            right
-                .0
-                .into_iter()
-                .map(VertexKey::from)
-                .any(|other| other == VertexKey::from(*vertex))
-        })
+        .zip(left_topology.0)
+        .filter_map(|(vertex, identity)| shared_identities.contains(&identity).then_some(vertex))
         .collect();
     if shared_vertices.len() == 3 {
         return TrianglePairIntersection::Indeterminate;
@@ -283,19 +337,17 @@ fn triangle_pair_intersection(left: Triangle, right: Triangle) -> TrianglePairIn
             let left_opposite = left
                 .0
                 .into_iter()
-                .find(|vertex| {
-                    !shared_vertices
-                        .iter()
-                        .any(|shared| VertexKey::from(*shared) == VertexKey::from(*vertex))
+                .zip(left_topology.0)
+                .find_map(|(vertex, identity)| {
+                    (!shared_identities.contains(&identity)).then_some(vertex)
                 })
                 .expect("a nondegenerate triangle sharing one edge has one opposite vertex");
             let right_opposite = right
                 .0
                 .into_iter()
-                .find(|vertex| {
-                    !shared_vertices
-                        .iter()
-                        .any(|shared| VertexKey::from(*shared) == VertexKey::from(*vertex))
+                .zip(right_topology.0)
+                .find_map(|(vertex, identity)| {
+                    (!shared_identities.contains(&identity)).then_some(vertex)
                 })
                 .expect("a nondegenerate triangle sharing one edge has one opposite vertex");
             let left_side = shared_edge

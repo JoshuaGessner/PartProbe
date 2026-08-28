@@ -16,12 +16,12 @@ use zip::{CompressionMethod, ZipArchive};
 
 use crate::mesh_analysis::{
     MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION, MeshAnalysisError,
-    MeshSelfIntersectionState, MeshVector3, Triangle, analyze_triangles, mesh_confidence,
+    MeshSelfIntersectionState, MeshVector3, Triangle, analyze_indexed_triangles, mesh_confidence,
     mesh_warning_codes, validate_triangle,
 };
 
 /// Versioned algorithm identity for the governed 3MF package-policy slice.
-pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v6";
+pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v7";
 
 const CONTENT_TYPES_PART: &str = "[Content_Types].xml";
 const ROOT_RELATIONSHIPS_PART: &str = "_rels/.rels";
@@ -490,9 +490,9 @@ pub fn analyze_3mf(
 
     let millimetres_per_unit = millimetres_per_unit(parsed.source_units)?;
     let mut triangles = Vec::with_capacity(parsed.triangle_indices.len());
-    for indices in parsed.triangle_indices {
+    for indices in &parsed.triangle_indices {
         let mut vertices = [MeshVector3::new(0.0, 0.0, 0.0); 3];
-        for (target, source_index) in vertices.iter_mut().zip(indices) {
+        for (target, source_index) in vertices.iter_mut().zip(*indices) {
             let source = parsed
                 .vertices
                 .get(source_index)
@@ -515,7 +515,8 @@ pub fn analyze_3mf(
         return Err(ThreeMfError::EmptyMesh);
     }
 
-    let analysis = analyze_triangles(&triangles).map_err(map_mesh_error)?;
+    let analysis =
+        analyze_indexed_triangles(&triangles, &parsed.triangle_indices).map_err(map_mesh_error)?;
     let mut warnings = mesh_warning_codes(&analysis);
     if parsed.model_metadata_count > 0 {
         warnings.push(warning("THREE_MF_METADATA_NOT_INTERPRETED"));
@@ -1252,6 +1253,7 @@ const fn map_mesh_error(error: MeshAnalysisError) -> ThreeMfError {
     match error {
         MeshAnalysisError::DegenerateTriangle => ThreeMfError::DegenerateTriangle,
         MeshAnalysisError::InvalidNumber => ThreeMfError::InvalidNumber,
+        MeshAnalysisError::InvalidTopology => ThreeMfError::UnsupportedModelStructure,
     }
 }
 

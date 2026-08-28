@@ -18,6 +18,8 @@ const COMPONENT_CUBE: &[u8] =
 const NESTED_COMPONENT_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_1cm_nested_component_chain.3mf");
 const METADATA_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_metadata.3mf");
+const SPLIT_INDEX_SEAM_CUBE: &[u8] =
+    include_bytes!("../../../fixtures/models/cube_10mm_3mf_split_index_seam.3mf");
 const MICRON_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_micron.3mf");
 const MILLIMETER_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_millimeter.3mf");
@@ -174,6 +176,15 @@ fn warning_codes(evidence: &ThreeMfMeshEvidence) -> Vec<&str> {
         .warnings()
         .iter()
         .map(|warning| warning.as_str())
+        .collect()
+}
+
+fn confidence_reasons(evidence: &ThreeMfMeshEvidence) -> Vec<&str> {
+    evidence
+        .confidence()
+        .reasons()
+        .iter()
+        .map(|reason| reason.as_str())
         .collect()
 }
 
@@ -427,7 +438,7 @@ fn nested_linear_component_chain_is_applied_in_leaf_to_build_order() {
 fn bounded_model_metadata_is_counted_but_never_retained_or_interpreted() {
     let evidence = analyze_3mf(METADATA_CUBE, limits()).expect("metadata 3MF cube must parse");
 
-    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v6");
+    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v7");
     assert_eq!(evidence.source_units(), ModelLengthUnit::Millimeter);
     assert_eq!(evidence.model_metadata_count(), 3);
     assert_eq!(evidence.preserved_model_metadata_count(), 1);
@@ -488,6 +499,47 @@ fn bounded_model_metadata_is_counted_but_never_retained_or_interpreted() {
             Err(ThreeMfError::UnsupportedModelStructure)
         );
     }
+}
+
+#[test]
+fn distinct_vertex_indices_at_equal_coordinates_form_an_open_reviewable_seam() {
+    let evidence = analyze_3mf(SPLIT_INDEX_SEAM_CUBE, limits())
+        .expect("bounded split-index seam must remain reviewable geometry evidence");
+
+    assert_eq!(evidence.algorithm_version(), THREE_MF_ANALYZER_VERSION);
+    assert_eq!(evidence.triangle_count(), 12);
+    assert!(evidence.manifold());
+    assert!(!evidence.watertight());
+    assert!(!evidence.consistently_wound());
+    assert_eq!(
+        evidence.self_intersection(),
+        MeshSelfIntersectionState::Detected
+    );
+    assert_eq!(
+        evidence.confidence().level(),
+        GeometryConfidenceLevel::NeedsReview
+    );
+    assert_eq!(evidence.aabb_extents_mm().components(), [10.0; 3]);
+    assert_close(evidence.surface_area_mm2(), 600.0);
+    assert_eq!(evidence.enclosed_volume_mm3(), None);
+    assert_eq!(evidence.center_of_mass_mm(), None);
+    assert_eq!(
+        confidence_reasons(&evidence),
+        [
+            "MESH_REPRESENTATION_CEILING",
+            "OPEN_BOUNDARY",
+            "SELF_INTERSECTION_DETECTED",
+        ]
+    );
+    assert_eq!(
+        warning_codes(&evidence),
+        [
+            "MESH_NOT_EXACT_BREP",
+            "OPEN_BOUNDARY",
+            "SELF_INTERSECTION_DETECTED",
+            "CLOSED_VOLUME_UNAVAILABLE",
+        ]
+    );
 }
 
 #[test]

@@ -76,7 +76,7 @@ That inspection closes the demonstrated multi-file aggregate-output gap only at 
 
 ## Kernel adapter boundary
 
-`geometry-core` owns neutral types, units, measurement/validation rules, and pure algorithms. `geometry-import` owns format sniffing and worker protocol. `geometry-occt-adapter` owns all C++ calls, allocation/lifetime conversion and translation/healing reports. `mesh-analysis` owns mesh validation and approximate properties. No domain crate imports OCCT or a renderer. This keeps a commercial replacement possible and confines unsafe FFI; Rust identifies FFI declarations as unsafe. [Rust `extern`](https://doc.rust-lang.org/std/keyword.extern.html)
+`geometry-core` owns neutral types, units, measurement/validation rules, and pure algorithms. `geometry-import` owns format sniffing and worker protocol. `geometry-occt-adapter` owns all C++ calls, allocation/lifetime conversion and translation/healing reports. `mesh-analysis` owns mesh validation and approximate properties while accepting a format-owned topology identity: retained vertex indices for 3MF and exact canonical source-coordinate identity for the current indexless STL spike. The common geometry predicates never manufacture 3MF adjacency by coordinate welding. No domain crate imports OCCT or a renderer. This keeps a commercial replacement possible and confines unsafe FFI; Rust identifies FFI declarations as unsafe. [Rust `extern`](https://doc.rust-lang.org/std/keyword.extern.html)
 
 ## Performance and reliability expectations
 

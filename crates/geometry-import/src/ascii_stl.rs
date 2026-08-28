@@ -495,6 +495,7 @@ const fn map_mesh_error(error: MeshAnalysisError) -> AsciiStlError {
     match error {
         MeshAnalysisError::DegenerateTriangle => AsciiStlError::DegenerateTriangle,
         MeshAnalysisError::InvalidNumber => AsciiStlError::InvalidNumber,
+        MeshAnalysisError::InvalidTopology => AsciiStlError::InvalidStructure,
     }
 }
 

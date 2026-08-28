@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-08-27
+- **Last updated:** 2026-08-28
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, GEO-001–GEO-009, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0005
 - **Open questions:** Shop format distribution, target max size, assembly scope, licensed translator budget, supported negative-determinant 3MF orientation/volume policy
@@ -21,6 +21,8 @@ Propose support for **STEP, STL, and 3MF** in the first vertical slice, pending 
 The scope delivers useful RFQ coverage while avoiding unsupported proprietary-format promises. Users receive a clear request for STEP AP242/AP214 (and drawing) when a native file arrives. All imports retain original source hash, declared/detected format, unit resolution, transfer/healing report and algorithm versions. Format enablement is feature-gated, not extension-gated.
 
 The current TASK-004 comparison parser is deliberately narrower than Core 1.4 for transforms: it fails closed on singular matrices and on negative determinants because it does not yet implement and validate the required orientation/volume-sign behavior. A negative determinant is not classified as malformed or Core-invalid. Enabling it requires a reviewed geometry rule, parser-version/migration decision, positive fixtures with exact oriented-volume evidence, regression coverage, and downstream confidence behavior.
+
+Core mesh topology is index-defined. The comparison parser therefore retains 3MF triangle vertex indices as adjacency authority even when two indices contain identical coordinates; transforms change positions, not identity. STL supplies triangle coordinates without this index authority, so its current exact-coordinate comparison remains a separate provisional rule. A future welding/near-contact policy must be format-aware, versioned, and validated rather than silently merging these semantics.
 
 ## Approval evidence required
 
