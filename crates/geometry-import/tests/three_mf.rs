@@ -31,7 +31,7 @@ const ALTERNATE_OPC_CUBES: [&[u8]; 3] = [
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_alternate_model_part.3mf"),
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_stored_compression.3mf"),
 ];
-const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 26] = [
+const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 29] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
         ThreeMfError::UnsupportedModelStructure,
@@ -137,6 +137,18 @@ const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 26] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_empty_triangle_set.3mf"),
         ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_missing_vertex_coordinate.3mf"),
+        ThreeMfError::InvalidXml,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_out_of_range_triangle_index.3mf"),
+        ThreeMfError::UnsupportedModelStructure,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_vertex_limit_exceeded.3mf"),
+        ThreeMfError::EntityLimitExceeded,
     ),
 ];
 

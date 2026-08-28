@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-057",
+  "source_sha256": "833594cdc59861ba91d1fcd91df80800f299968da721dde64f8f2d68a9abe930",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "THREE_MF_ENTITY_LIMIT_EXCEEDED",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

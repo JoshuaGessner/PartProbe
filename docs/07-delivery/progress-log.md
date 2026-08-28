@@ -1,12 +1,18 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-27
+> **Last updated:** 2026-08-28
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-28 — TASK-004 3MF vertex/reference boundary fixtures
+
+- Added deterministic public `FIX-MESH-055`–`057`, 1,073-byte, 1,073-byte, and 1,316-byte derivatives of the governed direct-mesh 3MF cube. SHA-256 values `f37532833aca7dbaf725237b4271818adcf0ceebc9df80d4df7cca214d0feb22`, `fd04720a89eb97f6e736c1c93d4f9e2b58d3967931833aa5fd499317d4221725`, and `833594cdc59861ba91d1fcd91df80800f299968da721dde64f8f2d68a9abe930` bind removal of the first vertex's required `x` coordinate, one first-triangle index changed from `2` to `99`, and ninety-three extra vertices that make the 101st vertex exceed the configured 100-vertex ceiling. The public synthetic CAD boundary is now sixty files: fifteen STL, forty-two 3MF, and three STEP.
+- Parser v6 returns recoverable `THREE_MF_INVALID_XML`, `THREE_MF_UNSUPPORTED_MODEL_STRUCTURE`, and `THREE_MF_ENTITY_LIMIT_EXCEEDED`; typed schema-v1 expectations forbid geometry snapshots, output files, or retained staged input. This persists existing accepted/rejected and diagnostic behavior without changing calculations, dependencies, customer data, or failure schema. Changing a boundary, diagnostic, or ceiling requires an explicit parser-version and migration decision.
+- Complete local closeout passes 174 runtime tests, one compile-fail doctest, 73 Python tooling tests, thirteen STL tests, thirteen 3MF tests, eight geometry-core contract tests, four fixture-contract tests, and nineteen generator-tooling tests. Strict workspace/native-host/WASM Clippy, the offline release frontend build, all fifty-four generated mesh artifacts, all sixty fixture hashes, 144-file planning validation, formatting, and diff hygiene also pass. Three-OS Rust CI run 33078366484 passes the preceding malformed-geometry checkpoint at exact commit `0260434`; exact-commit hosted evidence for this slice is pending. These cases remain synthetic parser evidence, not a production resource budget, representative malicious/exporter input, worker/desktop containment, supported importer, or release evidence.
 
 ## 2026-08-27 — TASK-004 malformed 3MF geometry fixtures
 

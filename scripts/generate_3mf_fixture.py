@@ -133,6 +133,21 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         "empty_triangle_set",
         ROOT / "fixtures" / "models" / "adversarial_3mf_empty_triangle_set.3mf",
     ),
+    (
+        "missing_vertex_coordinate",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_missing_vertex_coordinate.3mf",
+    ),
+    (
+        "out_of_range_triangle_index",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_out_of_range_triangle_index.3mf",
+    ),
+    (
+        "vertex_limit_exceeded",
+        ROOT / "fixtures" / "models" / "adversarial_3mf_vertex_limit_exceeded.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -525,6 +540,32 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
         if len(triangle_lines) != 12:
             raise RuntimeError("governed cube must contain exactly twelve triangles")
         model = model.replace("\n".join(triangle_lines), "")
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "missing_vertex_coordinate":
+        model = build_model_xml(source).decode("utf-8").replace(
+            '<vertex x="0" y="0" z="0" />',
+            '<vertex y="0" z="0" />',
+            1,
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "out_of_range_triangle_index":
+        model = build_model_xml(source).decode("utf-8").replace(
+            '<triangle v1="0" v2="1" v3="2" />',
+            '<triangle v1="0" v2="1" v3="99" />',
+            1,
+        )
+        parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "vertex_limit_exceeded":
+        model = build_model_xml(source).decode("utf-8")
+        extra_vertices = "\n".join(
+            f'          <vertex x="{index}" y="0" z="0" />'
+            for index in range(100, 193)
+        )
+        model = model.replace(
+            "        </vertices>",
+            f"{extra_vertices}\n        </vertices>",
+            1,
+        )
         parts[-1] = (parts[-1][0], model.encode("utf-8"))
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
