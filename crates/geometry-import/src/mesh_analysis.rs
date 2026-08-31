@@ -15,6 +15,26 @@ pub const MESH_SELF_INTERSECTION_ALGORITHM_VERSION: &str =
     "partprobe-exact-mesh-intersection-spike-v1";
 /// Versioned identity for categorical mesh confidence and reason selection.
 pub const MESH_CONFIDENCE_POLICY_VERSION: &str = "partprobe-mesh-confidence-policy-v1";
+/// Versioned identity for format-aware topology identity and welding disclosure.
+pub const MESH_TOPOLOGY_POLICY_VERSION: &str = "partprobe-mesh-topology-policy-v1";
+
+/// Source identity used to determine mesh adjacency and ordinary shared vertices.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeshTopologyIdentity {
+    /// Indexless STL vertices compare by canonicalized exact source-coordinate bits.
+    ExactSourceCoordinates,
+    /// 3MF vertices remain distinct according to their retained Core vertex indices.
+    SourceVertexIndices,
+}
+
+/// Whether a geometry-mutating vertex-welding policy was applied.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeshWeldingStatus {
+    /// No automatic vertex welding or near-contact repair was performed.
+    NotApplied,
+}
 
 /// Three-dimensional mesh coordinate or measurement vector.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]

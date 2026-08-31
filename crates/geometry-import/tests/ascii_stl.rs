@@ -4,7 +4,8 @@ use partprobe_geometry_core::{
 };
 use partprobe_geometry_import::{
     ASCII_STL_ANALYZER_VERSION, BINARY_STL_ANALYZER_VERSION, MESH_CONFIDENCE_POLICY_VERSION,
-    MESH_SELF_INTERSECTION_ALGORITHM_VERSION, MeshSelfIntersectionState, StlEncoding, StlError,
+    MESH_SELF_INTERSECTION_ALGORITHM_VERSION, MESH_TOPOLOGY_POLICY_VERSION,
+    MeshSelfIntersectionState, MeshTopologyIdentity, MeshWeldingStatus, StlEncoding, StlError,
     StlLimits, StlMeshEvidence, analyze_ascii_stl, analyze_binary_stl, analyze_stl,
 };
 
@@ -97,6 +98,22 @@ fn closed_cube_matches_governed_mesh_measurements_without_unit_authority() {
         evidence.confidence_policy_version(),
         MESH_CONFIDENCE_POLICY_VERSION
     );
+    assert_eq!(
+        evidence.topology_policy_version(),
+        MESH_TOPOLOGY_POLICY_VERSION
+    );
+    assert_eq!(
+        evidence.topology_identity(),
+        MeshTopologyIdentity::ExactSourceCoordinates
+    );
+    assert_eq!(evidence.welding_status(), MeshWeldingStatus::NotApplied);
+    let wire = serde_json::to_value(&evidence).expect("STL evidence must serialize");
+    assert_eq!(
+        wire["topology_policy_version"],
+        MESH_TOPOLOGY_POLICY_VERSION
+    );
+    assert_eq!(wire["topology_identity"], "exact_source_coordinates");
+    assert_eq!(wire["welding_status"], "not_applied");
     assert_eq!(evidence.encoding(), StlEncoding::Ascii);
     assert_eq!(evidence.detected_format(), ModelFormat::Stl);
     assert_eq!(evidence.representation(), RepresentationBasis::Mesh);
@@ -144,6 +161,15 @@ fn binary_cube_matches_governed_mesh_measurements_without_unit_authority() {
     let evidence = analyze_binary_stl(BINARY_CUBE, limits()).expect("binary cube must parse");
 
     assert_eq!(evidence.algorithm_version(), BINARY_STL_ANALYZER_VERSION);
+    assert_eq!(
+        evidence.topology_policy_version(),
+        MESH_TOPOLOGY_POLICY_VERSION
+    );
+    assert_eq!(
+        evidence.topology_identity(),
+        MeshTopologyIdentity::ExactSourceCoordinates
+    );
+    assert_eq!(evidence.welding_status(), MeshWeldingStatus::NotApplied);
     assert_eq!(evidence.encoding(), StlEncoding::Binary);
     assert_eq!(evidence.detected_format(), ModelFormat::Stl);
     assert_eq!(evidence.representation(), RepresentationBasis::Mesh);

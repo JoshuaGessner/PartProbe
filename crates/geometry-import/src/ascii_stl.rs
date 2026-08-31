@@ -10,15 +10,16 @@ use partprobe_geometry_core::{
 use serde::Serialize;
 
 use crate::mesh_analysis::{
-    MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION, MeshAnalysisError,
-    MeshSelfIntersectionState, MeshVector3, Triangle, analyze_triangles, mesh_confidence,
-    mesh_warning_codes, validate_triangle,
+    MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
+    MESH_TOPOLOGY_POLICY_VERSION, MeshAnalysisError, MeshSelfIntersectionState,
+    MeshTopologyIdentity, MeshVector3, MeshWeldingStatus, Triangle, analyze_triangles,
+    mesh_confidence, mesh_warning_codes, validate_triangle,
 };
 
 /// Versioned algorithm identity for the initial ASCII STL comparison spike.
-pub const ASCII_STL_ANALYZER_VERSION: &str = "partprobe-ascii-stl-spike-v2";
+pub const ASCII_STL_ANALYZER_VERSION: &str = "partprobe-ascii-stl-spike-v3";
 /// Versioned algorithm identity for the initial binary STL comparison spike.
-pub const BINARY_STL_ANALYZER_VERSION: &str = "partprobe-binary-stl-spike-v2";
+pub const BINARY_STL_ANALYZER_VERSION: &str = "partprobe-binary-stl-spike-v3";
 
 const BINARY_HEADER_BYTES: usize = 80;
 const BINARY_COUNT_BYTES: usize = 4;
@@ -63,6 +64,9 @@ pub struct AsciiStlMeshEvidence {
     algorithm_version: &'static str,
     self_intersection_algorithm_version: &'static str,
     confidence_policy_version: &'static str,
+    topology_policy_version: &'static str,
+    topology_identity: MeshTopologyIdentity,
+    welding_status: MeshWeldingStatus,
     encoding: StlEncoding,
     detected_format: ModelFormat,
     representation: RepresentationBasis,
@@ -98,6 +102,24 @@ impl AsciiStlMeshEvidence {
     #[must_use]
     pub const fn confidence_policy_version(&self) -> &str {
         self.confidence_policy_version
+    }
+
+    /// Returns the format-aware topology-policy identity.
+    #[must_use]
+    pub const fn topology_policy_version(&self) -> &str {
+        self.topology_policy_version
+    }
+
+    /// Returns how source vertices establish adjacency and shared topology.
+    #[must_use]
+    pub const fn topology_identity(&self) -> MeshTopologyIdentity {
+        self.topology_identity
+    }
+
+    /// Returns whether automatic vertex welding was applied.
+    #[must_use]
+    pub const fn welding_status(&self) -> MeshWeldingStatus {
+        self.welding_status
     }
 
     /// Returns the parser-confirmed STL encoding.
@@ -472,6 +494,9 @@ fn build_evidence(
         algorithm_version,
         self_intersection_algorithm_version: MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
         confidence_policy_version: MESH_CONFIDENCE_POLICY_VERSION,
+        topology_policy_version: MESH_TOPOLOGY_POLICY_VERSION,
+        topology_identity: MeshTopologyIdentity::ExactSourceCoordinates,
+        welding_status: MeshWeldingStatus::NotApplied,
         encoding,
         detected_format: ModelFormat::Stl,
         representation: RepresentationBasis::Mesh,

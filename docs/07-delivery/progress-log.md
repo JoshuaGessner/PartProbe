@@ -1,12 +1,19 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-28
+> **Last updated:** 2026-08-31
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-08-31 — TASK-004 explicit mesh topology-policy evidence
+
+- Added typed topology policy `partprobe-mesh-topology-policy-v1` to successful STL and 3MF evidence. STL reports `exact_source_coordinates`, 3MF reports `source_vertex_indices`, and both report `welding_status: not_applied`. Direct getter and serialized-wire assertions cover the exact values; all twenty-two successful fixture manifest records pin the policy.
+- Migrated ASCII/binary STL parser identities from v2 to v3 and 3MF from v7 to v8 because the serialized evidence contract expanded. Detector v1, confidence policy v1, expectation schema v4, fixture bytes/hashes, measurements, warnings, confidence, and accepted/rejected boundaries are unchanged. No production/customer records exist; older v2/v7 evidence must not be silently described as if it contained welding provenance.
+- Added the governed mesh-tolerance research record. It deliberately selects no universal numeric welding default: 3MF supplies index authority, STL remains unitless, and repair operations change topology. A future numeric profile requires explicit canonical-unit thresholds, diagnostic-versus-mutation separation, retained source/derivative provenance, below/equal/above-threshold fixtures, counterexamples, confidence behavior, and a new policy/migration decision. The next integration slice is an additive typed mesh-result envelope through worker/application/desktop; it must preserve optional measurements, unit blocking, the pathless bridge, and unavailable estimates rather than coercing mesh into the exact-B-rep contract.
+- Complete local closeout passes 175 runtime tests, one compile-fail doctest, 74 Python tooling tests, thirteen STL tests, fourteen 3MF tests, four fixture-contract tests, and twenty generator-tooling tests. Strict workspace/native-host/WASM Clippy, the offline release frontend build, all fifty-six generated mesh artifacts, all sixty-two fixture hashes, 145-file planning validation, formatting, and diff hygiene also pass. Three-OS Rust CI run 33185702204 passes the preceding index-topology checkpoint at exact commit `d1b5482`; hosted evidence for this topology-policy checkpoint will follow its push.
 
 ## 2026-08-28 — TASK-004 3MF index-defined topology correction
 

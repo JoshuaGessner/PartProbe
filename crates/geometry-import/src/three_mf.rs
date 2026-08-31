@@ -15,13 +15,14 @@ use serde::Serialize;
 use zip::{CompressionMethod, ZipArchive};
 
 use crate::mesh_analysis::{
-    MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION, MeshAnalysisError,
-    MeshSelfIntersectionState, MeshVector3, Triangle, analyze_indexed_triangles, mesh_confidence,
-    mesh_warning_codes, validate_triangle,
+    MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
+    MESH_TOPOLOGY_POLICY_VERSION, MeshAnalysisError, MeshSelfIntersectionState,
+    MeshTopologyIdentity, MeshVector3, MeshWeldingStatus, Triangle, analyze_indexed_triangles,
+    mesh_confidence, mesh_warning_codes, validate_triangle,
 };
 
 /// Versioned algorithm identity for the governed 3MF package-policy slice.
-pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v7";
+pub const THREE_MF_ANALYZER_VERSION: &str = "partprobe-3mf-spike-v8";
 
 const CONTENT_TYPES_PART: &str = "[Content_Types].xml";
 const ROOT_RELATIONSHIPS_PART: &str = "_rels/.rels";
@@ -97,6 +98,9 @@ pub struct ThreeMfMeshEvidence {
     algorithm_version: &'static str,
     self_intersection_algorithm_version: &'static str,
     confidence_policy_version: &'static str,
+    topology_policy_version: &'static str,
+    topology_identity: MeshTopologyIdentity,
+    welding_status: MeshWeldingStatus,
     detected_format: ModelFormat,
     representation: RepresentationBasis,
     source_units: ModelLengthUnit,
@@ -177,6 +181,24 @@ impl ThreeMfMeshEvidence {
     #[must_use]
     pub const fn confidence_policy_version(&self) -> &str {
         self.confidence_policy_version
+    }
+
+    /// Returns the format-aware topology-policy identity.
+    #[must_use]
+    pub const fn topology_policy_version(&self) -> &str {
+        self.topology_policy_version
+    }
+
+    /// Returns how source vertices establish adjacency and shared topology.
+    #[must_use]
+    pub const fn topology_identity(&self) -> MeshTopologyIdentity {
+        self.topology_identity
+    }
+
+    /// Returns whether automatic vertex welding was applied.
+    #[must_use]
+    pub const fn welding_status(&self) -> MeshWeldingStatus {
+        self.welding_status
     }
 
     /// Returns the content-detected package format.
@@ -525,6 +547,9 @@ pub fn analyze_3mf(
         algorithm_version: THREE_MF_ANALYZER_VERSION,
         self_intersection_algorithm_version: MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
         confidence_policy_version: MESH_CONFIDENCE_POLICY_VERSION,
+        topology_policy_version: MESH_TOPOLOGY_POLICY_VERSION,
+        topology_identity: MeshTopologyIdentity::SourceVertexIndices,
+        welding_status: MeshWeldingStatus::NotApplied,
         detected_format: ModelFormat::ThreeMf,
         representation: RepresentationBasis::Mesh,
         source_units: parsed.source_units,

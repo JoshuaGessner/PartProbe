@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-08-12
+- **Last updated:** 2026-08-31
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, REQ-NF-011–REQ-NF-014, GEO-001–GEO-014, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Target-specific sandbox/resource enforcement? Canonical tolerance defaults? Which exact fixtures establish release tolerances?
@@ -76,7 +76,9 @@ That inspection closes the demonstrated multi-file aggregate-output gap only at 
 
 ## Kernel adapter boundary
 
-`geometry-core` owns neutral types, units, measurement/validation rules, and pure algorithms. `geometry-import` owns format sniffing and worker protocol. `geometry-occt-adapter` owns all C++ calls, allocation/lifetime conversion and translation/healing reports. `mesh-analysis` owns mesh validation and approximate properties while accepting a format-owned topology identity: retained vertex indices for 3MF and exact canonical source-coordinate identity for the current indexless STL spike. The common geometry predicates never manufacture 3MF adjacency by coordinate welding. No domain crate imports OCCT or a renderer. This keeps a commercial replacement possible and confines unsafe FFI; Rust identifies FFI declarations as unsafe. [Rust `extern`](https://doc.rust-lang.org/std/keyword.extern.html)
+`geometry-core` owns neutral types, units, measurement/validation rules, and pure algorithms. `geometry-import` owns format sniffing and worker protocol. `geometry-occt-adapter` owns all C++ calls, allocation/lifetime conversion and translation/healing reports. `mesh-analysis` owns mesh validation and approximate properties while accepting a format-owned topology identity: retained vertex indices for 3MF and exact canonical source-coordinate identity for the current indexless STL spike. It emits a separately versioned topology policy and explicit welding status; the common predicates never manufacture 3MF adjacency by coordinate welding. No domain crate imports OCCT or a renderer. This keeps a commercial replacement possible and confines unsafe FFI; Rust identifies FFI declarations as unsafe. [Rust `extern`](https://doc.rust-lang.org/std/keyword.extern.html)
+
+The next worker/application/desktop mesh slice uses an additive discriminated result envelope rather than weakening the exact-B-rep snapshot. Mesh units, optional measurements, topology policy, confidence, and warnings remain typed through the application service; STL dimension-dependent estimating remains blocked until unit confirmation. The five desktop commands and pathless selection boundary do not change.
 
 ## Performance and reliability expectations
 

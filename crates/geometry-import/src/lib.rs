@@ -11,7 +11,8 @@ pub use ascii_stl::{
 };
 pub use mesh_analysis::{
     MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
-    MeshSelfIntersectionState, MeshVector3,
+    MESH_TOPOLOGY_POLICY_VERSION, MeshSelfIntersectionState, MeshTopologyIdentity, MeshVector3,
+    MeshWeldingStatus,
 };
 pub use three_mf::{
     THREE_MF_ANALYZER_VERSION, ThreeMfComponentEvidence, ThreeMfError, ThreeMfLimits,

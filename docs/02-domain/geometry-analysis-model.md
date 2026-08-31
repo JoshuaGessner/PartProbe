@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-08-28
+- **Last updated:** 2026-08-31
 - **Related requirement IDs:** REQ-F-021–REQ-F-024, GEO-001–GEO-014, DATA-011–DATA-018, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0004, ADR-0005
 - **Open questions:** Canonical tolerance policy? Required retention period for derivatives? First-slice maximum input size?
@@ -52,7 +52,7 @@ PartRevision
 - **OBB:** named algorithm and candidate orientation, never a claim of globally minimum stock unless that exact algorithm is used and recorded.
 - **Exact volume/area/centroid:** only an accepted valid solid/closed exact topology. Surface area is not a machining-area estimate.
 - **Mesh volume:** only a closed, consistently oriented, non-self-intersecting mesh under an explicitly named signed-volume method; label `approximate_mesh`.
-- **Mesh topology identity:** 3MF adjacency, edge use, winding, and ordinary shared-vertex exclusions use the model's retained Core vertex indices after structure validation; equal coordinates at distinct indices remain distinct topology. Indexless STL triangle soup currently uses canonicalized exact source-coordinate bits as its explicit no-tolerance comparison identity. Neither rule is a production welding/near-contact tolerance.
+- **Mesh topology identity:** Every mesh result records topology-policy version, identity, and welding status. Policy `partprobe-mesh-topology-policy-v1` uses retained Core vertex indices for 3MF adjacency, edge use, winding, and ordinary shared-vertex exclusions; equal coordinates at distinct indices remain distinct topology. Indexless STL triangle soup uses canonicalized exact source-coordinate bits. Both report `welding_status: not_applied`; neither rule is a production welding/near-contact tolerance.
 - **Mass:** `volume × selected density`; density, material condition and source must be explicit. Missing density produces no mass.
 - **Removed volume:** `stock volume − part volume` only if the approved stock envelope encloses the part in the recorded coordinate frame. A negative result is a validation error, not a signed manufacturing fact.
 

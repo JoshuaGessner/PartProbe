@@ -6,8 +6,9 @@ use partprobe_geometry_core::{
 };
 use partprobe_geometry_import::{
     MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
-    MeshSelfIntersectionState, THREE_MF_ANALYZER_VERSION, ThreeMfError, ThreeMfLimits,
-    ThreeMfMeshEvidence, analyze_3mf,
+    MESH_TOPOLOGY_POLICY_VERSION, MeshSelfIntersectionState, MeshTopologyIdentity,
+    MeshWeldingStatus, THREE_MF_ANALYZER_VERSION, ThreeMfError, ThreeMfLimits, ThreeMfMeshEvidence,
+    analyze_3mf,
 };
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
@@ -271,6 +272,22 @@ fn centimeter_cube_applies_build_transform_and_returns_canonical_mm() {
         evidence.confidence_policy_version(),
         MESH_CONFIDENCE_POLICY_VERSION
     );
+    assert_eq!(
+        evidence.topology_policy_version(),
+        MESH_TOPOLOGY_POLICY_VERSION
+    );
+    assert_eq!(
+        evidence.topology_identity(),
+        MeshTopologyIdentity::SourceVertexIndices
+    );
+    assert_eq!(evidence.welding_status(), MeshWeldingStatus::NotApplied);
+    let wire = serde_json::to_value(&evidence).expect("3MF evidence must serialize");
+    assert_eq!(
+        wire["topology_policy_version"],
+        MESH_TOPOLOGY_POLICY_VERSION
+    );
+    assert_eq!(wire["topology_identity"], "source_vertex_indices");
+    assert_eq!(wire["welding_status"], "not_applied");
     assert_eq!(evidence.detected_format(), ModelFormat::ThreeMf);
     assert_eq!(evidence.representation(), RepresentationBasis::Mesh);
     assert_eq!(evidence.source_units(), ModelLengthUnit::Centimeter);
@@ -438,7 +455,7 @@ fn nested_linear_component_chain_is_applied_in_leaf_to_build_order() {
 fn bounded_model_metadata_is_counted_but_never_retained_or_interpreted() {
     let evidence = analyze_3mf(METADATA_CUBE, limits()).expect("metadata 3MF cube must parse");
 
-    assert_eq!(evidence.algorithm_version(), "partprobe-3mf-spike-v7");
+    assert_eq!(evidence.algorithm_version(), THREE_MF_ANALYZER_VERSION);
     assert_eq!(evidence.source_units(), ModelLengthUnit::Millimeter);
     assert_eq!(evidence.model_metadata_count(), 3);
     assert_eq!(evidence.preserved_model_metadata_count(), 1);
