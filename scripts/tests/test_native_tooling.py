@@ -581,7 +581,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
         )
         self.assertEqual(
             smoke_linux_desktop_package.PORTAL_WINDOW_TITLE,
-            "Select STEP model",
+            "Select model file",
         )
         self.assertEqual(
             smoke_linux_desktop_package.SELECTED_SOURCE_LABEL,
@@ -632,7 +632,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 mock.sentinel.focused,
             )
 
-        focus_window.assert_called_once_with("Select STEP model")
+        focus_window.assert_called_once_with("Select model file")
         focus.assert_called_once_with(
             focus_anchor,
             "Portal file list",
@@ -704,7 +704,7 @@ class LinuxDesktopPackageSmokeTests(unittest.TestCase):
                 ("6", "4", "2.5"),
                 "OCCT 8.0.0",
             ),
-            "Provisional geometry available: surface area 392 square millimeters; "
+            "Provisional exact B-rep geometry available: surface area 392 square millimeters; "
             "enclosed volume 480 cubic millimeters; centroid 6, 4, 2.5 "
             "millimeters; engine OCCT 8.0.0",
         )

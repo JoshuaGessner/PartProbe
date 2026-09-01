@@ -4,15 +4,18 @@ use partprobe_desktop_contract::{
     COMMAND_CANCEL_MODEL_ANALYSIS, COMMAND_EVALUATE_DRAFT_ESTIMATE, COMMAND_SELECT_MODEL_SOURCE,
     CancelModelAnalysisRequest, DeveloperPricingInputFields, DeveloperRateInputFields,
     DraftEstimateEvaluation, DraftEstimateEvaluationState, DraftEstimateInputFields,
-    EvaluateDraftEstimateRequest, GeometryReviewInput, HostCommandError, ModelAnalysisResult,
-    ModelSourceSelection, SelectedModelSource,
+    EvaluateDraftEstimateRequest, GeometryConfidenceLevel, GeometryReviewInput, HostCommandError,
+    MeshMeasurementBasis, MeshSelfIntersectionState, MeshTopologyIdentity, ModelAnalysisResult,
+    ModelSourceSelection, ProvisionalGeometryFacts, SelectedModelSource, StlEncoding,
+    UnitResolution,
 };
 use wasm_bindgen::prelude::*;
 
 use crate::{
     AnalysisPanelState, DraftEstimatePanelState, GeometryReviewConfirmation, ModelPanelState,
+    analysis_supports_draft_estimate, length_unit_label,
     provisional_analysis_failure_accessible_label, provisional_geometry_accessible_label,
-    selected_source_accessible_label,
+    selected_source_accessible_label, source_format_label,
 };
 
 #[wasm_bindgen(inline_js = r#"
@@ -292,7 +295,7 @@ fn App() -> impl IntoView {
                         <p class="section-index">"01 / SOURCE"</p>
                         <h2 id="model-heading">"Model intake"</h2>
                     </div>
-                    <span class="status-chip">"STEP only"</span>
+                    <span class="status-chip">"STEP · STL · 3MF"</span>
                 </div>
 
                 <div class="drop-zone">
@@ -317,7 +320,7 @@ fn App() -> impl IntoView {
                         disabled=move || is_selecting.get()
                         on:click=select_model
                     >
-                        {move || if is_selecting.get() { "Picker open" } else { "Choose STEP model" }}
+                        {move || if is_selecting.get() { "Picker open" } else { "Choose model" }}
                     </button>
                 </div>
 
@@ -373,13 +376,74 @@ fn SelectedSource(state: ReadSignal<ModelPanelState>) -> impl IntoView {
 #[component]
 fn SourceSummary(source: SelectedModelSource) -> impl IntoView {
     let accessible_label = selected_source_accessible_label(&source.display_name);
+    let format = source_format_label(source.format);
     view! {
         <dl class="source-summary" aria-label=accessible_label>
             <div><dt>"File"</dt><dd>{source.display_name}</dd></div>
-            <div><dt>"Format"</dt><dd>"STEP"</dd></div>
+            <div><dt>"Selected format"</dt><dd>{format}</dd></div>
             <div><dt>"Authority"</dt><dd>"Native session token"</dd></div>
             <div><dt>"Storage"</dt><dd>"Session only"</dd></div>
         </dl>
+    }
+}
+
+const fn unit_resolution_label(resolution: UnitResolution) -> &'static str {
+    match resolution {
+        UnitResolution::Declared => "Declared by the format",
+        UnitResolution::Confirmed => "Confirmed by the user",
+        UnitResolution::Inferred => "Inferred; review required",
+        UnitResolution::Unresolved => "Unresolved; confirmation required",
+    }
+}
+
+const fn measurement_basis_label(basis: MeshMeasurementBasis) -> &'static str {
+    match basis {
+        MeshMeasurementBasis::SourceCoordinates => "Unresolved source coordinates",
+        MeshMeasurementBasis::CanonicalMillimeters => "Canonical millimeters",
+    }
+}
+
+const fn confidence_label(level: GeometryConfidenceLevel) -> &'static str {
+    match level {
+        GeometryConfidenceLevel::High => "High",
+        GeometryConfidenceLevel::Medium => "Medium",
+        GeometryConfidenceLevel::Low => "Low",
+        GeometryConfidenceLevel::NeedsReview => "Needs review",
+    }
+}
+
+const fn topology_identity_label(identity: MeshTopologyIdentity) -> &'static str {
+    match identity {
+        MeshTopologyIdentity::ExactSourceCoordinates => "Exact source coordinates; no welding",
+        MeshTopologyIdentity::SourceVertexIndices => "Retained source vertex indices",
+    }
+}
+
+const fn self_intersection_label(state: MeshSelfIntersectionState) -> &'static str {
+    match state {
+        MeshSelfIntersectionState::NotDetected => "Not detected",
+        MeshSelfIntersectionState::Detected => "Detected",
+        MeshSelfIntersectionState::Indeterminate => "Indeterminate",
+    }
+}
+
+const fn yes_no(value: bool) -> &'static str {
+    if value { "Yes" } else { "No" }
+}
+
+const fn stl_encoding_label(encoding: Option<StlEncoding>) -> &'static str {
+    match encoding {
+        Some(StlEncoding::Ascii) => "ASCII STL",
+        Some(StlEncoding::Binary) => "Binary STL",
+        None => "3MF package",
+    }
+}
+
+const fn unit_declaration_label(unit_was_explicit: Option<bool>) -> &'static str {
+    match unit_was_explicit {
+        Some(true) => "Explicit 3MF declaration",
+        Some(false) => "3MF normative default",
+        None => "Not declared by STL",
     }
 }
 
@@ -387,47 +451,110 @@ fn SourceSummary(source: SelectedModelSource) -> impl IntoView {
 fn AnalysisEvidence(state: ReadSignal<AnalysisPanelState>) -> impl IntoView {
     move || match state.get() {
         AnalysisPanelState::Available(result) => {
-            let geometry = result.geometry;
-            let centroid = geometry.center_of_mass_mm.join(", ");
-            let accessible_label = provisional_geometry_accessible_label(
-                &geometry.surface_area_mm2,
-                &geometry.enclosed_volume_mm3,
-                geometry.center_of_mass_mm.each_ref().map(String::as_str),
-                &geometry.geometry_engine,
-            );
+            let accessible_label = provisional_geometry_accessible_label(&result.geometry);
             let warning_count = result
                 .stages
                 .iter()
                 .map(|stage| stage.warning_codes.len())
                 .sum::<usize>();
-            view! {
-                <section
-                    class="analysis-evidence"
-                    aria-label=accessible_label
-                >
-                    <div class="analysis-evidence-heading">
-                        <div>
-                            <p class="section-index">"PROVISIONAL / SESSION ONLY"</p>
-                            <h3 id="analysis-evidence-heading">"Geometry evidence"</h3>
-                        </div>
-                        <span class="status-chip">"Review required"</span>
-                    </div>
-                    <dl class="geometry-facts">
-                        <div><dt>"Surface area"</dt><dd>{geometry.surface_area_mm2}" mm²"</dd></div>
-                        <div><dt>"Enclosed volume"</dt><dd>{geometry.enclosed_volume_mm3}" mm³"</dd></div>
-                        <div><dt>"Centroid"</dt><dd>{centroid}" mm"</dd></div>
-                        <div><dt>"Solid bodies"</dt><dd>{geometry.solid_body_count}</dd></div>
-                        <div><dt>"Canonical units"</dt><dd>"Millimeter"</dd></div>
-                        <div><dt>"Warnings"</dt><dd>{warning_count}</dd></div>
-                        <div><dt>"Engine"</dt><dd>{geometry.geometry_engine}</dd></div>
-                        <div><dt>"Analysis ID"</dt><dd>{result.analysis_id}</dd></div>
-                    </dl>
-                    <p class="evidence-note">
-                        "These exact-B-rep measurements are provisional spike evidence. They are not a supported importer result or an approved estimate."
-                    </p>
-                </section>
+            match result.geometry {
+                ProvisionalGeometryFacts::ExactBrep(geometry) => {
+                    let centroid = geometry.center_of_mass_mm.join(", ");
+                    view! {
+                        <section class="analysis-evidence" aria-label=accessible_label>
+                            <div class="analysis-evidence-heading">
+                                <div>
+                                    <p class="section-index">"PROVISIONAL / SESSION ONLY"</p>
+                                    <h3 id="analysis-evidence-heading">"Exact-B-rep geometry evidence"</h3>
+                                </div>
+                                <span class="status-chip">"Review required"</span>
+                            </div>
+                            <dl class="geometry-facts">
+                                <div><dt>"Surface area"</dt><dd>{geometry.surface_area_mm2}" mm²"</dd></div>
+                                <div><dt>"Enclosed volume"</dt><dd>{geometry.enclosed_volume_mm3}" mm³"</dd></div>
+                                <div><dt>"Centroid"</dt><dd>{centroid}" mm"</dd></div>
+                                <div><dt>"Solid bodies"</dt><dd>{geometry.solid_body_count}</dd></div>
+                                <div><dt>"Canonical units"</dt><dd>"Millimeter"</dd></div>
+                                <div><dt>"Warnings"</dt><dd>{warning_count}</dd></div>
+                                <div><dt>"Engine"</dt><dd>{geometry.geometry_engine}</dd></div>
+                                <div><dt>"Analysis ID"</dt><dd>{result.analysis_id}</dd></div>
+                            </dl>
+                            <p class="evidence-note">
+                                "These exact-B-rep measurements are provisional spike evidence. They are not a supported importer result or an approved estimate."
+                            </p>
+                        </section>
+                    }
+                    .into_any()
+                }
+                ProvisionalGeometryFacts::Mesh(geometry) => {
+                    let format = source_format_label(geometry.detected_format);
+                    let encoding = stl_encoding_label(geometry.stl_encoding);
+                    let units = length_unit_label(geometry.source_units);
+                    let resolution = unit_resolution_label(geometry.unit_resolution);
+                    let unit_declaration = unit_declaration_label(geometry.unit_was_explicit);
+                    let basis = measurement_basis_label(geometry.measurement_basis);
+                    let extents = geometry.aabb_extents.join(", ");
+                    let volume = geometry
+                        .enclosed_volume
+                        .as_deref()
+                        .map_or_else(|| "Unavailable / withheld".to_owned(), str::to_owned);
+                    let centroid = geometry.center_of_mass.as_ref().map_or_else(
+                        || "Unavailable / withheld".to_owned(),
+                        |value| value.join(", "),
+                    );
+                    let confidence = confidence_label(geometry.confidence_level);
+                    let reasons = geometry.confidence_reason_codes.join(", ");
+                    let warnings = if geometry.warning_codes.is_empty() {
+                        "None".to_owned()
+                    } else {
+                        geometry.warning_codes.join(", ")
+                    };
+                    let topology = topology_identity_label(geometry.topology_identity);
+                    let intersection = self_intersection_label(geometry.self_intersection);
+                    view! {
+                        <section class="analysis-evidence" aria-label=accessible_label>
+                            <div class="analysis-evidence-heading">
+                                <div>
+                                    <p class="section-index">"PROVISIONAL MESH / SESSION ONLY"</p>
+                                    <h3 id="analysis-evidence-heading">"Mesh geometry evidence"</h3>
+                                </div>
+                                <span class="status-chip">"Estimate unavailable"</span>
+                            </div>
+                            <dl class="geometry-facts">
+                                <div><dt>"Detected format"</dt><dd>{format}</dd></div>
+                                <div><dt>"Encoding"</dt><dd>{encoding}</dd></div>
+                                <div><dt>"Source units"</dt><dd>{units}</dd></div>
+                                <div><dt>"Unit resolution"</dt><dd>{resolution}</dd></div>
+                                <div><dt>"Unit declaration"</dt><dd>{unit_declaration}</dd></div>
+                                <div><dt>"Measurement basis"</dt><dd>{basis}</dd></div>
+                                <div><dt>"Bounds extents"</dt><dd>{extents}</dd></div>
+                                <div><dt>"Surface area"</dt><dd>{geometry.surface_area}</dd></div>
+                                <div><dt>"Enclosed volume"</dt><dd>{volume}</dd></div>
+                                <div><dt>"Centroid"</dt><dd>{centroid}</dd></div>
+                                <div><dt>"Triangles"</dt><dd>{geometry.triangle_count}</dd></div>
+                                <div><dt>"Manifold"</dt><dd>{yes_no(geometry.manifold)}</dd></div>
+                                <div><dt>"Watertight"</dt><dd>{yes_no(geometry.watertight)}</dd></div>
+                                <div><dt>"Consistently wound"</dt><dd>{yes_no(geometry.consistently_wound)}</dd></div>
+                                <div><dt>"Self-intersection"</dt><dd>{intersection}</dd></div>
+                                <div><dt>"Confidence"</dt><dd>{confidence}</dd></div>
+                                <div><dt>"Confidence reasons"</dt><dd>{reasons}</dd></div>
+                                <div><dt>"Topology identity"</dt><dd>{topology}</dd></div>
+                                <div><dt>"Topology policy"</dt><dd>{geometry.topology_policy_version}</dd></div>
+                                <div><dt>"Welding"</dt><dd>"Not applied"</dd></div>
+                                <div><dt>"Warnings"</dt><dd>{warnings}</dd></div>
+                                <div><dt>"Parser"</dt><dd>{geometry.algorithm_version}</dd></div>
+                                <div><dt>"Intersection detector"</dt><dd>{geometry.self_intersection_algorithm_version}</dd></div>
+                                <div><dt>"Confidence policy"</dt><dd>{geometry.confidence_policy_version}</dd></div>
+                                <div><dt>"Analysis ID"</dt><dd>{result.analysis_id}</dd></div>
+                            </dl>
+                            <p class="evidence-note">
+                                "Mesh measurements are provisional comparison evidence. Missing measurements remain withheld, and this representation cannot authorize a deterministic draft estimate."
+                            </p>
+                        </section>
+                    }
+                    .into_any()
+                }
             }
-            .into_any()
         }
         AnalysisPanelState::Failed(error) => {
             let accessible_label =
@@ -537,7 +664,7 @@ fn EstimateWorkspace(
                 </span>
             </div>
 
-            {move || if matches!(analysis_state.get(), AnalysisPanelState::Available(_)) {
+            {move || if analysis_supports_draft_estimate(&analysis_state.get()) {
                 view! {
                     <form class="estimate-form" on:submit=submit>
                         <fieldset>
@@ -658,7 +785,7 @@ fn EstimateWorkspace(
                 view! {
                     <div class="blocked-state" aria-live="polite">
                         <p class="blocked-title">"Provisional geometry required"</p>
-                        <p>"Analyze a selected STEP model before reviewing units or entering estimate inputs."</p>
+                        <p>{analysis_state.get().status_detail().to_owned()}</p>
                         <dl>
                             <div><dt>"Geometry"</dt><dd>"Not available"</dd></div>
                             <div><dt>"Units"</dt><dd>"Not reviewed"</dd></div>

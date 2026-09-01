@@ -21,8 +21,10 @@ use partprobe_geometry_core::{
     AnalysisProfile, AnalysisProfileId, GeometryStage, ProvisionalGeometryDecimal,
 };
 use partprobe_geometry_import::{
-    AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
-    LocalAssetRoot, ProvisionalGeometrySnapshot, ResourceQuotas, Sha256Digest, SnapshotReference,
+    AssetCapability, AssetReadGrant, ControlledGeometryResult, CorrelationId, GeometryJobId,
+    GeometryWorkerRequest, LocalAssetRoot, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+    ProvisionalGeometrySnapshot, ProvisionalMeshGeometrySnapshot, ResourceQuotas, Sha256Digest,
+    SnapshotReference, StlLimits, analyze_stl,
 };
 use partprobe_security::{
     AuditAppendError, AuditCorrelationId, AuthorizationAuditEvent, AuthorizationAuditSink,
@@ -121,12 +123,53 @@ fn authorized_analysis_starts_ephemeral_session_with_no_numeric_defaults() {
     session.set_geometry_review(DraftGeometryReview::new(true, true));
     assert!(matches!(session.evaluate(), ValueState::Unavailable { .. }));
     assert_eq!(
-        session.geometry().snapshot.source_hash().as_str(),
+        session
+            .geometry()
+            .exact_snapshot()
+            .expect("STEP fixture must retain exact evidence")
+            .source_hash()
+            .as_str(),
         SOURCE_HASH
     );
     drop(session);
     drop(root);
     remove_test_root(&test_directory);
+}
+
+#[test]
+fn mesh_analysis_starts_a_reviewable_session_but_cannot_authorize_an_estimate() {
+    let test_directory = create_test_root("mesh-start");
+    let root = local_root(&test_directory, "root-mesh-start");
+    let application = DraftEstimateApplication::new(
+        LocalAssetReadService::new(AllowPolicy, RecordingAudit::default()),
+        StaticAnalyzer {
+            calls: Rc::new(Cell::new(0)),
+            expected_source_hash: SOURCE_HASH,
+            evidence: mesh_geometry_evidence(),
+        },
+    );
+
+    let mut session = application
+        .start_session(
+            subject(),
+            &root,
+            &request(),
+            Path::new("part.step"),
+            &AtomicBool::new(false),
+        )
+        .expect("authorized mesh evidence must start a provisional session");
+
+    assert!(session.geometry().exact_snapshot().is_none());
+    assert!(session.geometry().mesh_snapshot().is_some());
+    session.set_geometry_review(DraftGeometryReview::new(true, true));
+    assert_eq!(
+        session.evaluate(),
+        ValueState::Unavailable {
+            reason: "mesh-derived geometry is not authorized for deterministic draft estimating"
+                .to_owned(),
+        }
+    );
+    std::fs::remove_dir_all(test_directory).expect("test directory must be removed");
 }
 
 #[test]
@@ -156,7 +199,12 @@ fn authorized_source_is_fingerprinted_before_the_pathless_worker_request_is_buil
     assert_eq!(calls.get(), 1);
     assert_eq!(application.asset_reads().audit().events.borrow().len(), 1);
     assert_eq!(
-        session.geometry().snapshot.source_hash().as_str(),
+        session
+            .geometry()
+            .exact_snapshot()
+            .expect("STEP fixture must retain exact evidence")
+            .source_hash()
+            .as_str(),
         SYNTHETIC_SOURCE_HASH
     );
     assert!(matches!(session.evaluate(), ValueState::Unavailable { .. }));
@@ -312,7 +360,15 @@ fn deterministic_recalculation_matches_golden_engine_trace_and_tracks_edits() {
         first.trace.resolved_rates.setup_labor.card_version.value(),
         1
     );
-    assert_eq!(first.trace.geometry.snapshot.occt_version(), "8.0.0");
+    assert_eq!(
+        first
+            .trace
+            .geometry
+            .exact_snapshot()
+            .expect("STEP fixture must retain exact evidence")
+            .occt_version(),
+        "8.0.0"
+    );
     assert!(first.trace.calculation_rule_ids.contains(&"CALC-018"));
 
     let mut edited = explicit_inputs();
@@ -430,11 +486,33 @@ fn geometry_evidence_for(source_hash: &str) -> AnalyzedGeometryEvidence {
         SnapshotReference::new("geometry-snapshot-v1").expect("reference must be valid"),
         digest(OUTPUT_HASH),
         256,
-        snapshot,
+        ControlledGeometryResult::ExactBrep(Box::new(snapshot)),
         None,
         None,
     )
     .expect("analyzed geometry evidence must be valid")
+}
+
+fn mesh_geometry_evidence() -> AnalyzedGeometryEvidence {
+    let source = include_bytes!("../../../fixtures/models/cube_10mm_ascii.stl");
+    let evidence = analyze_stl(
+        source,
+        StlLimits::new(64 * 1024, 1_000).expect("mesh limits must be valid"),
+    )
+    .expect("governed STL fixture must analyze");
+    let snapshot = ProvisionalMeshGeometrySnapshot::from_stl(digest(SOURCE_HASH), evidence);
+    AnalyzedGeometryEvidence::new(
+        partprobe_geometry_core::StageStatus::SucceededWithWarnings,
+        Vec::new(),
+        SnapshotReference::new(PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE)
+            .expect("mesh reference must be valid"),
+        digest(OUTPUT_HASH),
+        512,
+        ControlledGeometryResult::Mesh(Box::new(snapshot)),
+        None,
+        None,
+    )
+    .expect("mesh geometry evidence must be valid")
 }
 
 fn request() -> GeometryWorkerRequest {

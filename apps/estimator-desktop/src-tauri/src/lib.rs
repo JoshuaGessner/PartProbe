@@ -88,7 +88,11 @@ impl DesktopSessionState {
             analysis_status: AnalysisStatus::NotStarted,
             persistence: PersistenceAvailability::SessionOnly,
         };
-        let retained = RetainedModelSource { selection_id, path };
+        let retained = RetainedModelSource {
+            selection_id,
+            path,
+            format,
+        };
         *self
             .selected_source
             .lock()
@@ -152,7 +156,13 @@ impl DesktopSessionState {
                 cancellation: Arc::clone(&cancellation),
             });
         }
-        let outcome = adapter.analyze(selection_id, &selected.path, analysis_number, &cancellation);
+        let outcome = adapter.analyze(
+            selection_id,
+            selected.format,
+            &selected.path,
+            analysis_number,
+            &cancellation,
+        );
         self.finish_analysis(analysis_number)?;
         let (session, result) = outcome?;
 
@@ -262,6 +272,7 @@ impl DesktopSessionState {
 struct RetainedModelSource {
     selection_id: String,
     path: PathBuf,
+    format: ModelSourceFormat,
 }
 
 #[derive(Clone, Debug)]
@@ -309,6 +320,7 @@ mod tests {
 
         assert_eq!(summary.selection_id, "selection-1");
         assert_eq!(summary.display_name, "gearbox.step");
+        assert_eq!(summary.format, ModelSourceFormat::Step);
         assert_eq!(summary.analysis_status, AnalysisStatus::NotStarted);
         assert_eq!(summary.persistence, PersistenceAvailability::SessionOnly);
         assert_eq!(state.retained_path(&summary.selection_id), Some(path));
@@ -320,10 +332,28 @@ mod tests {
     }
 
     #[test]
+    fn governed_mesh_extensions_are_retained_only_behind_native_tokens() {
+        for (name, expected_format) in [
+            ("fixture.stl", ModelSourceFormat::Stl),
+            ("fixture.3mf", ModelSourceFormat::ThreeMf),
+        ] {
+            let state = DesktopSessionState::default();
+            let path = PathBuf::from(format!("/sensitive/customer/{name}"));
+            let summary = state.retain_selected_path(path.clone()).unwrap();
+
+            assert_eq!(summary.format, expected_format);
+            assert_eq!(state.retained_path(&summary.selection_id), Some(path));
+            let serialized = serde_json::to_string(&summary).unwrap();
+            assert!(!serialized.contains("/sensitive"));
+            assert!(!serialized.contains("customer"));
+        }
+    }
+
+    #[test]
     fn unsupported_source_is_rejected_without_retaining_a_path() {
         let state = DesktopSessionState::default();
         let error = state
-            .retain_selected_path(PathBuf::from("/private/customer/mesh.stl"))
+            .retain_selected_path(PathBuf::from("/private/customer/mesh.obj"))
             .unwrap_err();
 
         assert_eq!(
@@ -425,7 +455,7 @@ mod tests {
         assert!(RUNTIME.contains("async fn select_model_source"));
         assert!(RUNTIME.contains(".pick_file("));
         assert!(RUNTIME.contains(".set_title(MODEL_SOURCE_DIALOG_TITLE)"));
-        assert!(RUNTIME.contains("Select STEP model"));
+        assert!(RUNTIME.contains("Select model file"));
         assert!(!RUNTIME.contains("blocking_pick_file"));
     }
 
@@ -591,9 +621,14 @@ mod tests {
             .analyze_selected_source(&source.selection_id)
             .expect("configured worker must analyze the real STEP fixture");
 
-        assert_eq!(analysis.geometry.surface_area_mm2, "392");
-        assert_eq!(analysis.geometry.enclosed_volume_mm3, "480");
-        assert_eq!(analysis.geometry.center_of_mass_mm, ["6", "4", "2.5"]);
+        let partprobe_desktop_contract::ProvisionalGeometryFacts::ExactBrep(geometry) =
+            &analysis.geometry
+        else {
+            panic!("configured STEP analysis must retain exact-B-rep evidence");
+        };
+        assert_eq!(geometry.surface_area_mm2, "392");
+        assert_eq!(geometry.enclosed_volume_mm3, "480");
+        assert_eq!(geometry.center_of_mass_mm, ["6", "4", "2.5"]);
         let request =
             crate::estimate::complete_test_request(&source.selection_id, &analysis.analysis_id);
         let evaluation = state

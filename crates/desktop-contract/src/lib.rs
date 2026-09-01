@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const DESKTOP_CONTRACT_VERSION: u16 = 3;
+pub const DESKTOP_CONTRACT_VERSION: u16 = 4;
 pub const COMMAND_DESKTOP_CONTRACT: &str = "desktop_contract";
 pub const COMMAND_SELECT_MODEL_SOURCE: &str = "select_model_source";
 pub const COMMAND_ANALYZE_MODEL_SOURCE: &str = "analyze_model_source";
@@ -74,6 +74,8 @@ pub struct SelectedModelSource {
 #[serde(rename_all = "snake_case")]
 pub enum ModelSourceFormat {
     Step,
+    Stl,
+    ThreeMf,
 }
 
 impl ModelSourceFormat {
@@ -81,6 +83,8 @@ impl ModelSourceFormat {
     pub fn from_extension(extension: &str) -> Option<Self> {
         match extension.to_ascii_lowercase().as_str() {
             "step" | "stp" => Some(Self::Step),
+            "stl" => Some(Self::Stl),
+            "3mf" => Some(Self::ThreeMf),
             _ => None,
         }
     }
@@ -291,15 +295,23 @@ pub struct ModelAnalysisResult {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GeometryEvidenceState {
-    ProvisionalSpike,
+    ProvisionalExactBrepSpike,
+    ProvisionalMeshSpike,
 }
 
-/// Exact, path-free geometry facts validated by the application service.
+/// Path-free geometry facts validated and content-minimized by the native adapter.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "representation", content = "facts", rename_all = "snake_case")]
+pub enum ProvisionalGeometryFacts {
+    ExactBrep(ProvisionalExactBrepFacts),
+    Mesh(ProvisionalMeshFacts),
+}
+
+/// Exact-B-rep measurements retained by the existing STEP developer path.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ProvisionalGeometryFacts {
+pub struct ProvisionalExactBrepFacts {
     pub canonical_units: CanonicalLengthUnit,
-    pub representation: GeometryRepresentation,
     pub surface_area_mm2: String,
     pub enclosed_volume_mm3: String,
     pub center_of_mass_mm: [String; 3],
@@ -318,10 +330,102 @@ pub enum CanonicalLengthUnit {
     Millimeter,
 }
 
+/// Content-minimized, non-authoritative mesh facts for review in the WebView.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ProvisionalMeshFacts {
+    pub detected_format: ModelSourceFormat,
+    pub stl_encoding: Option<StlEncoding>,
+    pub source_units: ModelLengthUnit,
+    pub unit_resolution: UnitResolution,
+    pub unit_was_explicit: Option<bool>,
+    pub measurement_basis: MeshMeasurementBasis,
+    pub aabb_extents: [String; 3],
+    pub surface_area: String,
+    pub enclosed_volume: Option<String>,
+    pub center_of_mass: Option<[String; 3]>,
+    pub triangle_count: u64,
+    pub manifold: bool,
+    pub watertight: bool,
+    pub consistently_wound: bool,
+    pub self_intersection: MeshSelfIntersectionState,
+    pub confidence_level: GeometryConfidenceLevel,
+    pub confidence_reason_codes: Vec<String>,
+    pub algorithm_version: String,
+    pub self_intersection_algorithm_version: String,
+    pub confidence_policy_version: String,
+    pub topology_policy_version: String,
+    pub topology_identity: MeshTopologyIdentity,
+    pub welding_status: MeshWeldingStatus,
+    pub warning_codes: Vec<String>,
+    pub source_hash_sha256: String,
+    pub output_hash_sha256: String,
+    pub output_byte_length: u64,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum GeometryRepresentation {
-    ExactBrep,
+pub enum StlEncoding {
+    Ascii,
+    Binary,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelLengthUnit {
+    Micrometer,
+    Millimeter,
+    Centimeter,
+    Meter,
+    Inch,
+    Foot,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnitResolution {
+    Declared,
+    Confirmed,
+    Inferred,
+    Unresolved,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeshMeasurementBasis {
+    SourceCoordinates,
+    CanonicalMillimeters,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GeometryConfidenceLevel {
+    High,
+    Medium,
+    Low,
+    NeedsReview,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeshTopologyIdentity {
+    ExactSourceCoordinates,
+    SourceVertexIndices,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeshWeldingStatus {
+    NotApplied,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeshSelfIntersectionState {
+    NotDetected,
+    Detected,
+    Indeterminate,
 }
 
 /// Content-minimized outcome of one requested geometry stage.
@@ -366,7 +470,7 @@ impl HostCommandError {
     pub fn unsupported_model_format(diagnostic_id: impl Into<String>) -> Self {
         Self {
             code: HostErrorCode::UnsupportedModelFormat,
-            message: "Choose a STEP model with a .step or .stp extension.".to_owned(),
+            message: "Choose a STEP, STL, or 3MF model with a supported extension.".to_owned(),
             diagnostic_id: diagnostic_id.into(),
         }
     }
@@ -375,7 +479,7 @@ impl HostCommandError {
     pub fn invalid_selection(diagnostic_id: impl Into<String>) -> Self {
         Self {
             code: HostErrorCode::InvalidSelection,
-            message: "The selected model could not be accepted. Choose another local STEP file."
+            message: "The selected model could not be accepted. Choose another local model file."
                 .to_owned(),
             diagnostic_id: diagnostic_id.into(),
         }
@@ -406,7 +510,7 @@ impl HostCommandError {
     pub fn analysis_unavailable(diagnostic_id: impl Into<String>) -> Self {
         Self {
             code: HostErrorCode::AnalysisUnavailable,
-            message: "Provisional STEP analysis is not configured for this developer session."
+            message: "Provisional geometry analysis is not configured for this developer session."
                 .to_owned(),
             diagnostic_id: diagnostic_id.into(),
         }
@@ -475,6 +579,7 @@ mod tests {
         let contract = DesktopContract::current();
 
         assert_eq!(contract.contract_version, DESKTOP_CONTRACT_VERSION);
+        assert_eq!(contract.contract_version, 4);
         assert_eq!(contract.commands, APPLICATION_COMMANDS);
         assert_eq!(contract.events, APPLICATION_EVENTS);
         assert_eq!(
@@ -485,7 +590,7 @@ mod tests {
     }
 
     #[test]
-    fn only_step_extensions_are_recognized() {
+    fn governed_model_extensions_are_recognized() {
         assert_eq!(
             ModelSourceFormat::from_extension("STEP"),
             Some(ModelSourceFormat::Step)
@@ -494,7 +599,14 @@ mod tests {
             ModelSourceFormat::from_extension("stp"),
             Some(ModelSourceFormat::Step)
         );
-        assert_eq!(ModelSourceFormat::from_extension("stl"), None);
+        assert_eq!(
+            ModelSourceFormat::from_extension("stl"),
+            Some(ModelSourceFormat::Stl)
+        );
+        assert_eq!(
+            ModelSourceFormat::from_extension("3MF"),
+            Some(ModelSourceFormat::ThreeMf)
+        );
         assert_eq!(ModelSourceFormat::from_extension(""), None);
     }
 
@@ -517,11 +629,10 @@ mod tests {
             selection_id: "selection-1".to_owned(),
             analysis_id: "analysis-1".to_owned(),
             analysis_status: AnalysisStatus::ProvisionalAvailable,
-            evidence_state: GeometryEvidenceState::ProvisionalSpike,
+            evidence_state: GeometryEvidenceState::ProvisionalExactBrepSpike,
             persistence: PersistenceAvailability::SessionOnly,
-            geometry: ProvisionalGeometryFacts {
+            geometry: ProvisionalGeometryFacts::ExactBrep(ProvisionalExactBrepFacts {
                 canonical_units: CanonicalLengthUnit::Millimeter,
-                representation: GeometryRepresentation::ExactBrep,
                 surface_area_mm2: "600".to_owned(),
                 enclosed_volume_mm3: "1000".to_owned(),
                 center_of_mass_mm: ["5".to_owned(), "5".to_owned(), "5".to_owned()],
@@ -532,7 +643,7 @@ mod tests {
                 output_byte_length: 256,
                 geometry_engine: "OCCT 8.0.0".to_owned(),
                 adapter_abi_version: 3,
-            },
+            }),
             stages: vec![GeometryStageSummary {
                 stage: "basic_properties".to_owned(),
                 status: "succeeded".to_owned(),
@@ -547,7 +658,52 @@ mod tests {
         let serialized = serde_json::to_string(&result).expect("analysis result must serialize");
         assert!(!serialized.contains("/sensitive"));
         assert!(!serialized.contains("source_path"));
-        assert!(serialized.contains("provisional_spike"));
+        assert!(serialized.contains("provisional_exact_brep_spike"));
         assert!(serialized.contains("unavailable"));
+    }
+
+    #[test]
+    fn mesh_analysis_contract_keeps_withheld_measurements_absent_and_path_free() {
+        let facts = ProvisionalGeometryFacts::Mesh(ProvisionalMeshFacts {
+            detected_format: ModelSourceFormat::Stl,
+            stl_encoding: Some(StlEncoding::Ascii),
+            source_units: ModelLengthUnit::Unknown,
+            unit_resolution: UnitResolution::Unresolved,
+            unit_was_explicit: None,
+            measurement_basis: MeshMeasurementBasis::SourceCoordinates,
+            aabb_extents: ["10".to_owned(), "10".to_owned(), "0".to_owned()],
+            surface_area: "100".to_owned(),
+            enclosed_volume: None,
+            center_of_mass: None,
+            triangle_count: 2,
+            manifold: true,
+            watertight: false,
+            consistently_wound: false,
+            self_intersection: MeshSelfIntersectionState::NotDetected,
+            confidence_level: GeometryConfidenceLevel::NeedsReview,
+            confidence_reason_codes: vec!["MESH_UNITS_UNRESOLVED".to_owned()],
+            algorithm_version: "partprobe-ascii-stl-spike-v3".to_owned(),
+            self_intersection_algorithm_version: "partprobe-exact-mesh-intersection-spike-v1"
+                .to_owned(),
+            confidence_policy_version: "partprobe-mesh-confidence-policy-v1".to_owned(),
+            topology_policy_version: "partprobe-mesh-topology-policy-v1".to_owned(),
+            topology_identity: MeshTopologyIdentity::ExactSourceCoordinates,
+            welding_status: MeshWeldingStatus::NotApplied,
+            warning_codes: vec!["UNITS_MISSING_REQUIRES_CONFIRMATION".to_owned()],
+            source_hash_sha256: "a".repeat(64),
+            output_hash_sha256: "b".repeat(64),
+            output_byte_length: 512,
+        });
+
+        let serialized = serde_json::to_string(&facts).expect("mesh facts must serialize");
+        assert!(serialized.contains("\"representation\":\"mesh\""));
+        assert!(serialized.contains("\"enclosed_volume\":null"));
+        assert!(serialized.contains("\"center_of_mass\":null"));
+        assert!(!serialized.contains("source_path"));
+        assert!(!serialized.contains("/private"));
+        assert_eq!(
+            serde_json::from_str::<ProvisionalGeometryFacts>(&serialized).unwrap(),
+            facts
+        );
     }
 }

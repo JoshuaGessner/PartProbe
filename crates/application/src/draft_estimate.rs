@@ -15,10 +15,12 @@ use partprobe_estimation_engine::{
 };
 use partprobe_geometry_core::{GeometryStageReport, StageStatus};
 use partprobe_geometry_import::{
-    AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
-    GeometryWorkerSupervisor, LocalAssetRoot, ProvisionalGeometrySnapshot, ResourceQuotas,
-    Sha256Digest, SnapshotReference, WorkerAssetFallbackReason, WorkerAssetTransport,
-    decode_provisional_geometry_snapshot,
+    AssetCapability, AssetReadGrant, ControlledGeometryResult, CorrelationId, GeometryJobId,
+    GeometryWorkerRequest, GeometryWorkerSupervisor, LocalAssetRoot,
+    PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+    ProvisionalGeometrySnapshot, ProvisionalMeshGeometrySnapshot, ResourceQuotas, Sha256Digest,
+    SnapshotReference, WorkerAssetFallbackReason, WorkerAssetTransport,
+    decode_controlled_geometry_result,
 };
 use partprobe_security::{AuthorizationAuditSink, AuthorizationPolicy};
 use rust_decimal::Decimal;
@@ -135,9 +137,8 @@ impl GeometryAnalysisPort for GeometryWorkerSupervisor {
             });
         }
         let output = output.ok_or(GeometryAnalysisFailure::ControlledOutputMissing)?;
-        let snapshot =
-            decode_provisional_geometry_snapshot(&output, request.expected_source_hash())
-                .map_err(|_| GeometryAnalysisFailure::ControlledOutputInvalid)?;
+        let result = decode_controlled_geometry_result(&output, request.expected_source_hash())
+            .map_err(|_| GeometryAnalysisFailure::ControlledOutputInvalid)?;
         let snapshot_reference = response
             .snapshot_reference()
             .cloned()
@@ -148,7 +149,7 @@ impl GeometryAnalysisPort for GeometryWorkerSupervisor {
             snapshot_reference,
             output.content_hash().clone(),
             output.byte_length(),
-            snapshot,
+            result,
             asset_transport,
             fallback_reason,
         )
@@ -157,7 +158,7 @@ impl GeometryAnalysisPort for GeometryWorkerSupervisor {
 }
 
 /// Validated, provisional geometry and worker lineage retained by a draft-estimate session.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AnalyzedGeometryEvidence {
     /// Overall worker status.
     pub status: StageStatus,
@@ -169,8 +170,8 @@ pub struct AnalyzedGeometryEvidence {
     pub output_hash: Sha256Digest,
     /// Exact controlled-output byte count.
     pub output_byte_length: u64,
-    /// Validated provisional exact-B-rep measurements.
-    pub snapshot: ProvisionalGeometrySnapshot,
+    /// Validated provisional exact-B-rep or mesh result.
+    pub result: ControlledGeometryResult,
     /// Transport selected by the supervisor.
     pub asset_transport: Option<WorkerAssetTransport>,
     /// Explicit direct-transport fallback reason, when applicable.
@@ -186,11 +187,18 @@ impl AnalyzedGeometryEvidence {
         snapshot_reference: SnapshotReference,
         output_hash: Sha256Digest,
         output_byte_length: u64,
-        snapshot: ProvisionalGeometrySnapshot,
+        result: ControlledGeometryResult,
         asset_transport: Option<WorkerAssetTransport>,
         fallback_reason: Option<WorkerAssetFallbackReason>,
     ) -> Result<Self, DomainError> {
-        if !status.permits_authoritative_output() || output_byte_length == 0 {
+        let expected_reference = match &result {
+            ControlledGeometryResult::ExactBrep(_) => PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE,
+            ControlledGeometryResult::Mesh(_) => PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+        };
+        if !status.permits_authoritative_output()
+            || output_byte_length == 0
+            || snapshot_reference.as_str() != expected_reference
+        {
             return Err(DomainError::InvalidValue {
                 field: "analyzed geometry evidence",
                 reason: "successful status and nonempty controlled output are required",
@@ -202,10 +210,28 @@ impl AnalyzedGeometryEvidence {
             snapshot_reference,
             output_hash,
             output_byte_length,
-            snapshot,
+            result,
             asset_transport,
             fallback_reason,
         })
+    }
+
+    /// Returns exact-B-rep evidence when this analysis used the retained STEP contract.
+    #[must_use]
+    pub fn exact_snapshot(&self) -> Option<&ProvisionalGeometrySnapshot> {
+        match &self.result {
+            ControlledGeometryResult::ExactBrep(snapshot) => Some(snapshot),
+            ControlledGeometryResult::Mesh(_) => None,
+        }
+    }
+
+    /// Returns mesh evidence when this analysis used the additive mesh contract.
+    #[must_use]
+    pub fn mesh_snapshot(&self) -> Option<&ProvisionalMeshGeometrySnapshot> {
+        match &self.result {
+            ControlledGeometryResult::ExactBrep(_) => None,
+            ControlledGeometryResult::Mesh(snapshot) => Some(snapshot),
+        }
     }
 }
 
@@ -347,7 +373,7 @@ pub struct DraftResolvedRates {
 }
 
 /// Replay-relevant source, input, rate, policy, and rule evidence.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DraftEstimateTrace {
     pub geometry: AnalyzedGeometryEvidence,
     pub inputs: DraftEstimateInputs,
@@ -357,7 +383,7 @@ pub struct DraftEstimateTrace {
 }
 
 /// Deterministic GUI-2 draft output. This is session-only and not an approved quote.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DraftEstimateResult {
     pub net_part_volume: VolumeCubicMillimeters,
     pub part_mass: MassKilograms,
@@ -379,7 +405,7 @@ pub struct DraftEstimateResult {
 }
 
 /// In-memory draft session that never persists or silently approves an estimate.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DraftEstimateSession {
     geometry: AnalyzedGeometryEvidence,
     geometry_review: Option<DraftGeometryReview>,
@@ -428,6 +454,11 @@ impl DraftEstimateSession {
     /// Recalculates solely through deterministic domain and estimation-engine rules.
     #[must_use]
     pub fn evaluate(&self) -> ValueState<DraftEstimateResult> {
+        if self.geometry.mesh_snapshot().is_some() {
+            return unavailable(
+                "mesh-derived geometry is not authorized for deterministic draft estimating",
+            );
+        }
         let Some(review) = self.geometry_review else {
             return unavailable("geometry units and warnings have not been reviewed");
         };
@@ -622,13 +653,16 @@ fn calculate(
         }
         .into());
     }
-    let net_volume_decimal =
-        Decimal::from_str(geometry.snapshot.enclosed_volume_mm3()).map_err(|_| {
-            DomainError::InvalidValue {
-                field: "provisional enclosed volume",
-                reason: "must be an exact decimal",
-            }
-        })?;
+    let snapshot = geometry.exact_snapshot().ok_or(DomainError::InvalidValue {
+        field: "provisional geometry result",
+        reason: "must be exact B-rep for deterministic draft estimating",
+    })?;
+    let net_volume_decimal = Decimal::from_str(snapshot.enclosed_volume_mm3()).map_err(|_| {
+        DomainError::InvalidValue {
+            field: "provisional enclosed volume",
+            reason: "must be an exact decimal",
+        }
+    })?;
     let net_part_volume = VolumeCubicMillimeters::new(net_volume_decimal)?;
     let calculated_part_mass = part_mass(net_part_volume, inputs.stock.density)?;
     let calculated_stock_mass = part_mass(inputs.stock.stock_volume, inputs.stock.density)?;
@@ -637,7 +671,7 @@ fn calculate(
         net_part_volume,
         GeometryBasis {
             enclosed: true,
-            multi_body_resolved: geometry.snapshot.solid_body_count() == 1,
+            multi_body_resolved: snapshot.solid_body_count() == 1,
         },
     )?;
     let make_quantity = make_quantity(

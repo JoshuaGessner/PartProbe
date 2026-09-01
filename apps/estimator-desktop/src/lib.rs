@@ -1,8 +1,9 @@
 #![forbid(unsafe_code)]
 
 use partprobe_desktop_contract::{
-    DraftEstimateEvaluation, HostCommandError, HostErrorCode, ModelAnalysisResult,
-    ModelSourceSelection, SelectedModelSource,
+    DraftEstimateEvaluation, GeometryConfidenceLevel, HostCommandError, HostErrorCode,
+    ModelAnalysisResult, ModelLengthUnit, ModelSourceFormat, ModelSourceSelection,
+    ProvisionalGeometryFacts, SelectedModelSource,
 };
 
 #[must_use]
@@ -11,18 +12,64 @@ pub fn selected_source_accessible_label(display_name: &str) -> String {
 }
 
 #[must_use]
-pub fn provisional_geometry_accessible_label(
-    surface_area_mm2: &str,
-    enclosed_volume_mm3: &str,
-    center_of_mass_mm: [&str; 3],
-    geometry_engine: &str,
-) -> String {
-    format!(
-        "Provisional geometry available: surface area {surface_area_mm2} square millimeters; \
-         enclosed volume {enclosed_volume_mm3} cubic millimeters; centroid {} millimeters; \
-         engine {geometry_engine}",
-        center_of_mass_mm.join(", ")
-    )
+pub fn provisional_geometry_accessible_label(geometry: &ProvisionalGeometryFacts) -> String {
+    match geometry {
+        ProvisionalGeometryFacts::ExactBrep(facts) => format!(
+            "Provisional exact B-rep geometry available: surface area {} square millimeters; \
+             enclosed volume {} cubic millimeters; centroid {} millimeters; engine {}",
+            facts.surface_area_mm2,
+            facts.enclosed_volume_mm3,
+            facts.center_of_mass_mm.join(", "),
+            facts.geometry_engine,
+        ),
+        ProvisionalGeometryFacts::Mesh(facts) => {
+            let format = source_format_label(facts.detected_format);
+            let units = length_unit_label(facts.source_units);
+            let volume = facts
+                .enclosed_volume
+                .as_deref()
+                .map_or("withheld".to_owned(), |value| value.to_owned());
+            format!(
+                "Provisional mesh geometry available: detected format {format}; source units \
+                 {units}; surface area {}; enclosed volume {volume}; confidence {}; warnings {}",
+                facts.surface_area,
+                confidence_level_label(facts.confidence_level),
+                facts.warning_codes.len(),
+            )
+        }
+    }
+}
+
+#[must_use]
+pub const fn confidence_level_label(level: GeometryConfidenceLevel) -> &'static str {
+    match level {
+        GeometryConfidenceLevel::High => "high",
+        GeometryConfidenceLevel::Medium => "medium",
+        GeometryConfidenceLevel::Low => "low",
+        GeometryConfidenceLevel::NeedsReview => "needs review",
+    }
+}
+
+#[must_use]
+pub const fn source_format_label(format: ModelSourceFormat) -> &'static str {
+    match format {
+        ModelSourceFormat::Step => "STEP",
+        ModelSourceFormat::Stl => "STL",
+        ModelSourceFormat::ThreeMf => "3MF",
+    }
+}
+
+#[must_use]
+pub const fn length_unit_label(unit: ModelLengthUnit) -> &'static str {
+    match unit {
+        ModelLengthUnit::Micrometer => "micrometer",
+        ModelLengthUnit::Millimeter => "millimeter",
+        ModelLengthUnit::Centimeter => "centimeter",
+        ModelLengthUnit::Meter => "meter",
+        ModelLengthUnit::Inch => "inch",
+        ModelLengthUnit::Foot => "foot",
+        ModelLengthUnit::Unknown => "unknown; confirmation required",
+    }
 }
 
 #[must_use]
@@ -66,12 +113,14 @@ impl ModelPanelState {
     #[must_use]
     pub const fn status_detail(&self) -> &'static str {
         match self {
-            Self::Empty => "Choose a local STEP file to begin the provisional analysis workflow.",
+            Self::Empty => {
+                "Choose a local STEP, STL, or 3MF file to begin the provisional analysis workflow."
+            }
             Self::Selected(_) => {
                 "The source is retained only for this session. Analysis requires the explicit local worker, and estimating requires complete reviewed inputs."
             }
             Self::Failed => {
-                "PartProbe did not retain a source path. Choose another local STEP file or restart the session."
+                "PartProbe did not retain a source path. Choose another local model file or restart the session."
             }
         }
     }
@@ -145,6 +194,15 @@ impl AnalysisPanelState {
     }
 }
 
+#[must_use]
+pub fn analysis_supports_draft_estimate(state: &AnalysisPanelState) -> bool {
+    matches!(
+        state,
+        AnalysisPanelState::Available(result)
+            if matches!(result.geometry, ProvisionalGeometryFacts::ExactBrep(_))
+    )
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum DraftEstimatePanelState {
     #[default]
@@ -191,7 +249,11 @@ pub use web::mount;
 
 #[cfg(test)]
 mod tests {
-    use partprobe_desktop_contract::{AnalysisStatus, ModelSourceFormat, PersistenceAvailability};
+    use partprobe_desktop_contract::{
+        AnalysisStatus, CanonicalLengthUnit, MeshMeasurementBasis, MeshSelfIntersectionState,
+        MeshTopologyIdentity, MeshWeldingStatus, ModelSourceFormat, PersistenceAvailability,
+        ProvisionalExactBrepFacts, ProvisionalMeshFacts, StlEncoding, UnitResolution,
+    };
 
     use super::*;
 
@@ -226,9 +288,22 @@ mod tests {
 
     #[test]
     fn provisional_geometry_accessible_label_carries_exact_path_free_evidence() {
+        let geometry = ProvisionalGeometryFacts::ExactBrep(ProvisionalExactBrepFacts {
+            canonical_units: CanonicalLengthUnit::Millimeter,
+            surface_area_mm2: "392".to_owned(),
+            enclosed_volume_mm3: "480".to_owned(),
+            center_of_mass_mm: ["6".to_owned(), "4".to_owned(), "2.5".to_owned()],
+            solid_body_count: 1,
+            transferred_roots: 1,
+            source_hash_sha256: "a".repeat(64),
+            output_hash_sha256: "b".repeat(64),
+            output_byte_length: 256,
+            geometry_engine: "OCCT 8.0.0".to_owned(),
+            adapter_abi_version: 3,
+        });
         assert_eq!(
-            provisional_geometry_accessible_label("392", "480", ["6", "4", "2.5"], "OCCT 8.0.0",),
-            "Provisional geometry available: surface area 392 square millimeters; enclosed volume \
+            provisional_geometry_accessible_label(&geometry),
+            "Provisional exact B-rep geometry available: surface area 392 square millimeters; enclosed volume \
              480 cubic millimeters; centroid 6, 4, 2.5 millimeters; engine OCCT 8.0.0"
         );
     }
@@ -239,6 +314,46 @@ mod tests {
             provisional_analysis_failure_accessible_label("GUI4-ANALYSIS-TEST"),
             "Provisional analysis failed safely: diagnostic GUI4-ANALYSIS-TEST"
         );
+    }
+
+    #[test]
+    fn mesh_accessible_label_preserves_unknown_units_and_withheld_volume() {
+        let geometry = ProvisionalGeometryFacts::Mesh(ProvisionalMeshFacts {
+            detected_format: ModelSourceFormat::Stl,
+            stl_encoding: Some(StlEncoding::Ascii),
+            source_units: ModelLengthUnit::Unknown,
+            unit_resolution: UnitResolution::Unresolved,
+            unit_was_explicit: None,
+            measurement_basis: MeshMeasurementBasis::SourceCoordinates,
+            aabb_extents: ["10".to_owned(), "10".to_owned(), "0".to_owned()],
+            surface_area: "100".to_owned(),
+            enclosed_volume: None,
+            center_of_mass: None,
+            triangle_count: 2,
+            manifold: true,
+            watertight: false,
+            consistently_wound: false,
+            self_intersection: MeshSelfIntersectionState::NotDetected,
+            confidence_level: GeometryConfidenceLevel::NeedsReview,
+            confidence_reason_codes: vec!["MESH_UNITS_UNRESOLVED".to_owned()],
+            algorithm_version: "stl-v3".to_owned(),
+            self_intersection_algorithm_version: "intersection-v1".to_owned(),
+            confidence_policy_version: "confidence-v1".to_owned(),
+            topology_policy_version: "topology-v1".to_owned(),
+            topology_identity: MeshTopologyIdentity::ExactSourceCoordinates,
+            welding_status: MeshWeldingStatus::NotApplied,
+            warning_codes: vec!["UNITS_MISSING_REQUIRES_CONFIRMATION".to_owned()],
+            source_hash_sha256: "a".repeat(64),
+            output_hash_sha256: "b".repeat(64),
+            output_byte_length: 512,
+        });
+
+        let label = provisional_geometry_accessible_label(&geometry);
+        assert!(label.contains("detected format STL"));
+        assert!(label.contains("source units unknown; confirmation required"));
+        assert!(label.contains("enclosed volume withheld"));
+        assert!(!label.contains("cubic millimeters"));
+        assert!(!label.contains("source path"));
     }
 
     #[test]

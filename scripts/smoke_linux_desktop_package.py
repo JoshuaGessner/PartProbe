@@ -15,9 +15,9 @@ from typing import Any, Iterable
 
 PORTAL_CHOOSER_NAME = "File Chooser Widget"
 PORTAL_FILES_LABEL = "Files"
-PORTAL_WINDOW_TITLE = "Select STEP model"
+PORTAL_WINDOW_TITLE = "Select model file"
 SELECTED_SOURCE_LABEL = "Selected model source"
-PROVISIONAL_GEOMETRY_LABEL = "Provisional geometry available"
+PROVISIONAL_GEOMETRY_LABEL = "Provisional exact B-rep geometry available"
 PROVISIONAL_ANALYSIS_FAILURE_LABEL = "Provisional analysis failed safely"
 
 
@@ -444,7 +444,7 @@ def main() -> int:
     try:
         choose_button = wait_for_unique_node(
             pyatspi,
-            "Choose STEP model",
+            "Choose model",
             deadline,
             {"push button", "button"},
             exact=True,
@@ -457,7 +457,7 @@ def main() -> int:
         focus_window("PartProbe")
         focus(
             choose_button,
-            "Choose STEP model",
+            "Choose model",
             focused_state=pyatspi.STATE_FOCUSED,
         )
         key("Return")
