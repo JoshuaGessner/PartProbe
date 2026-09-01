@@ -11,14 +11,14 @@ use partprobe_geometry_core::{
 };
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 use zip::{CompressionMethod, ZipArchive};
 
 use crate::mesh_analysis::{
     MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
     MESH_TOPOLOGY_POLICY_VERSION, MeshAnalysisError, MeshSelfIntersectionState,
     MeshTopologyIdentity, MeshVector3, MeshWeldingStatus, Triangle, analyze_indexed_triangles,
-    mesh_confidence, mesh_warning_codes, validate_triangle,
+    mesh_confidence, mesh_warning_codes, validate_serialized_mesh_analysis, validate_triangle,
 };
 
 /// Versioned algorithm identity for the governed 3MF package-policy slice.
@@ -129,8 +129,54 @@ pub struct ThreeMfMeshEvidence {
     warnings: Vec<GeometryWarningCode>,
 }
 
+#[derive(Deserialize)]
+struct ThreeMfMeshEvidenceWire {
+    algorithm_version: String,
+    self_intersection_algorithm_version: String,
+    confidence_policy_version: String,
+    topology_policy_version: String,
+    topology_identity: MeshTopologyIdentity,
+    welding_status: MeshWeldingStatus,
+    detected_format: ModelFormat,
+    representation: RepresentationBasis,
+    source_units: ModelLengthUnit,
+    unit_resolution: UnitResolutionMethod,
+    unit_was_explicit: bool,
+    model_metadata_count: usize,
+    preserved_model_metadata_count: usize,
+    mesh_object_count: usize,
+    mesh_object_id: u32,
+    component_object_count: usize,
+    component_chain: Vec<ThreeMfComponentEvidence>,
+    build_item_count: usize,
+    build_object_id: u32,
+    build_transform_source_units: [f64; 12],
+    build_transform_applied: bool,
+    triangle_count: usize,
+    manifold: bool,
+    watertight: bool,
+    consistently_wound: bool,
+    self_intersection: MeshSelfIntersectionState,
+    confidence: GeometryConfidence,
+    aabb_extents_mm: MeshVector3,
+    surface_area_mm2: f64,
+    enclosed_volume_mm3: Option<f64>,
+    center_of_mass_mm: Option<MeshVector3>,
+    warnings: Vec<GeometryWarningCode>,
+}
+
+impl<'de> Deserialize<'de> for ThreeMfMeshEvidence {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = ThreeMfMeshEvidenceWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
 /// One retained link in the leaf-to-build linear 3MF component chain.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ThreeMfComponentEvidence {
     object_id: u32,
     referenced_object_id: u32,
@@ -164,7 +210,109 @@ impl ThreeMfComponentEvidence {
     }
 }
 
+fn transform_is_valid(transform: [f64; 12], applied: bool) -> bool {
+    const IDENTITY: [f64; 12] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0];
+    Transform(transform).has_positive_determinant() && applied == (transform != IDENTITY)
+}
+
 impl ThreeMfMeshEvidence {
+    fn from_wire(wire: ThreeMfMeshEvidenceWire) -> Result<Self, &'static str> {
+        let analysis = crate::mesh_analysis::MeshAnalysis {
+            manifold: wire.manifold,
+            watertight: wire.watertight,
+            consistently_wound: wire.consistently_wound,
+            self_intersection: wire.self_intersection,
+            aabb_extents: wire.aabb_extents_mm,
+            surface_area: wire.surface_area_mm2,
+            enclosed_volume: wire.enclosed_volume_mm3,
+            center_of_mass: wire.center_of_mass_mm,
+        };
+        let mut expected_warnings = mesh_warning_codes(&analysis);
+        if wire.model_metadata_count > 0 {
+            expected_warnings.push(warning("THREE_MF_METADATA_NOT_INTERPRETED"));
+        }
+        let mut object_ids = BTreeSet::from([wire.mesh_object_id]);
+        let mut referenced_object_id = wire.mesh_object_id;
+        let component_chain_valid = wire.component_chain.iter().all(|component| {
+            let valid = component.object_id > 0
+                && object_ids.insert(component.object_id)
+                && component.referenced_object_id == referenced_object_id
+                && transform_is_valid(
+                    component.transform_source_units,
+                    component.transform_applied,
+                );
+            referenced_object_id = component.object_id;
+            valid
+        });
+        let expected_build_object_id = wire
+            .component_chain
+            .last()
+            .map_or(wire.mesh_object_id, |component| component.object_id);
+        if wire.algorithm_version != THREE_MF_ANALYZER_VERSION
+            || wire.self_intersection_algorithm_version != MESH_SELF_INTERSECTION_ALGORITHM_VERSION
+            || wire.confidence_policy_version != MESH_CONFIDENCE_POLICY_VERSION
+            || wire.topology_policy_version != MESH_TOPOLOGY_POLICY_VERSION
+            || wire.topology_identity != MeshTopologyIdentity::SourceVertexIndices
+            || wire.welding_status != MeshWeldingStatus::NotApplied
+            || wire.detected_format != ModelFormat::ThreeMf
+            || wire.representation != RepresentationBasis::Mesh
+            || wire.source_units == ModelLengthUnit::Unknown
+            || wire.unit_resolution != UnitResolutionMethod::Declared
+            || (!wire.unit_was_explicit && wire.source_units != ModelLengthUnit::Millimeter)
+            || wire.preserved_model_metadata_count > wire.model_metadata_count
+            || wire.mesh_object_count != 1
+            || wire.mesh_object_id == 0
+            || wire.component_object_count != wire.component_chain.len()
+            || !component_chain_valid
+            || wire.build_item_count != 1
+            || wire.build_object_id != expected_build_object_id
+            || !transform_is_valid(
+                wire.build_transform_source_units,
+                wire.build_transform_applied,
+            )
+            || wire.triangle_count == 0
+            || !validate_serialized_mesh_analysis(&analysis)
+            || wire.confidence != mesh_confidence(&analysis, true)
+            || wire.warnings != expected_warnings
+        {
+            return Err("3MF mesh evidence violates the governed analysis contract");
+        }
+        Ok(Self {
+            algorithm_version: THREE_MF_ANALYZER_VERSION,
+            self_intersection_algorithm_version: MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
+            confidence_policy_version: MESH_CONFIDENCE_POLICY_VERSION,
+            topology_policy_version: MESH_TOPOLOGY_POLICY_VERSION,
+            topology_identity: wire.topology_identity,
+            welding_status: wire.welding_status,
+            detected_format: wire.detected_format,
+            representation: wire.representation,
+            source_units: wire.source_units,
+            unit_resolution: wire.unit_resolution,
+            unit_was_explicit: wire.unit_was_explicit,
+            model_metadata_count: wire.model_metadata_count,
+            preserved_model_metadata_count: wire.preserved_model_metadata_count,
+            mesh_object_count: wire.mesh_object_count,
+            mesh_object_id: wire.mesh_object_id,
+            component_object_count: wire.component_object_count,
+            component_chain: wire.component_chain,
+            build_item_count: wire.build_item_count,
+            build_object_id: wire.build_object_id,
+            build_transform_source_units: wire.build_transform_source_units,
+            build_transform_applied: wire.build_transform_applied,
+            triangle_count: wire.triangle_count,
+            manifold: wire.manifold,
+            watertight: wire.watertight,
+            consistently_wound: wire.consistently_wound,
+            self_intersection: wire.self_intersection,
+            confidence: wire.confidence,
+            aabb_extents_mm: wire.aabb_extents_mm,
+            surface_area_mm2: wire.surface_area_mm2,
+            enclosed_volume_mm3: wire.enclosed_volume_mm3,
+            center_of_mass_mm: wire.center_of_mass_mm,
+            warnings: wire.warnings,
+        })
+    }
+
     /// Returns the parser algorithm identity.
     #[must_use]
     pub const fn algorithm_version(&self) -> &str {

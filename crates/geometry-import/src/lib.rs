@@ -1,6 +1,7 @@
 //! Versioned, path-free protocol for the isolated geometry worker.
 
 mod ascii_stl;
+mod controlled_result;
 mod mesh_analysis;
 mod three_mf;
 
@@ -8,6 +9,12 @@ pub use ascii_stl::{
     ASCII_STL_ANALYZER_VERSION, AsciiStlError, AsciiStlLimits, AsciiStlMeshEvidence,
     BINARY_STL_ANALYZER_VERSION, StlEncoding, StlError, StlLimits, StlMeshEvidence,
     analyze_ascii_stl, analyze_binary_stl, analyze_stl,
+};
+pub use controlled_result::{
+    ControlledGeometryResult, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+    PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_SCHEMA_VERSION, ProvisionalMeshEvidence,
+    ProvisionalMeshGeometrySnapshot, decode_controlled_geometry_result,
+    decode_provisional_mesh_geometry_snapshot,
 };
 pub use mesh_analysis::{
     MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,

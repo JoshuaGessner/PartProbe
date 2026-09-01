@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-08-28
+> **Last updated:** 2026-09-01
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -97,6 +97,7 @@ These rules are mandatory for every person or agent changing this repository.
 85. Successful geometry-fixture expectation schema v4 uses explicit `not_detected`, `detected`, or `indeterminate` mesh self-intersection values. Reject legacy boolean/v1–v3 success records, require detected and indeterminate states to withhold enclosed volume and centroid, and keep this test-contract migration distinct from parser, persisted-customer, or production tolerance policy.
 86. 3MF mesh adjacency, edge use, winding, and shared-vertex self-intersection exclusions are defined by the Core vertex indices retained from the authorized model; never weld distinct 3MF indices merely because their coordinates compare equal. STL remains indexless triangle-soup evidence under the explicit exact-source-coordinate/no-welding spike policy until a separately versioned production welding/tolerance rule and fixtures are approved.
 87. Every successful mesh analysis must expose a topology-policy version, format-specific topology identity, and explicit welding status. Never collapse missing welding policy into zero, infer that exact-coordinate comparison is a physical tolerance, or present `not_applied` as repaired geometry. A welding/near-contact change requires a new policy version, migration decision, fixtures, confidence behavior, and retained source/derivative provenance.
+88. Controlled mesh worker output must use the additive `geometry-mesh-snapshot-v1` reference, bind the authorized source hash, and retain the complete validated format-owned evidence including optional measurements, units, confidence, topology identity/policy, welding status, and warnings. Keep `geometry-snapshot-v1` unchanged for exact STEP replay; never relabel mesh evidence as exact B-rep, fill withheld measurements with zero, or accept a result under the wrong controlled-output reference.
 
 ## Documentation protocol
 

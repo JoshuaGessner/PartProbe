@@ -1,12 +1,19 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-08-31
+> **Last updated:** 2026-09-01
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-09-01 — TASK-004 controlled mesh-worker integration
+
+- Added additive source-bound `geometry-mesh-snapshot-v1` controlled output while retaining the exact STEP `geometry-snapshot-v1` contract unchanged. The mesh result discriminates complete STL-v3 and 3MF-v8 evidence and preserves optional measurements, unit state, confidence/reasons, topology policy/identity, not-applied welding status, warnings, and format-specific provenance instead of coercing mesh into mandatory exact-B-rep fields.
+- Added fail-closed deserialization and decoding. Format-owned validators recompute warnings/confidence and enforce governed algorithm/policy identities, finite values, topology implications, component-chain provenance, and conditional volume/centroid authority; the controlled decoder additionally requires the matching opaque reference and authorized source hash. New tests reject wrong references, wrong hashes, altered topology policy, and fabricated closed measurements on an open mesh. This is additive preproduction schema v1 with no customer/persisted records; future incompatible mesh-result changes require a new version/reference and replay decision.
+- Connected the bounded analyzers to the real isolated worker after authorization, asset transport, independent byte verification, immutable claiming, and parser-containment setup. Content framing selects ISO-10303-21 STEP, ZIP/OPC 3MF, or strict binary/ASCII STL. Governed mesh ceilings are the lower of request quotas and 64 KiB input, 100 vertices, and 1,000 triangles; 3MF also retains 16 entries, 64 KiB expansion, 32 KiB model XML, four objects, three component references, eight metadata entries, and a 100:1 ratio. Successful mesh warnings are stage-bound and parser failures remain recoverable with no output. Feature-off STEP remains terminal-unavailable.
+- Complete local closeout passes 181 runtime tests, one compile-fail doctest, and 74 Python tooling tests. Focused evidence includes thirteen STL, fourteen 3MF, fifteen protocol, and twenty-four default worker process tests, including explicit open-mesh withholding and malformed-mesh no-output behavior. Strict workspace/native-host/WASM Clippy, offline release frontend construction, deterministic reproduction of all fifty-six generated mesh artifacts, all sixty-two fixture hashes, 145-file planning validation, formatting, and diff hygiene pass. Hosted exact-commit evidence follows the push; this checkpoint does not establish application/desktop mesh presentation, estimating authority, persistence, representative import, or release support.
 
 ## 2026-08-31 — TASK-004 explicit mesh topology-policy evidence
 

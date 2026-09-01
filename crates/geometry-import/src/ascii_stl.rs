@@ -7,13 +7,13 @@ use partprobe_geometry_core::{
     GeometryConfidence, GeometryWarningCode, ModelFormat, ModelLengthUnit, RepresentationBasis,
     UnitResolutionMethod,
 };
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::mesh_analysis::{
     MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
     MESH_TOPOLOGY_POLICY_VERSION, MeshAnalysisError, MeshSelfIntersectionState,
     MeshTopologyIdentity, MeshVector3, MeshWeldingStatus, Triangle, analyze_triangles,
-    mesh_confidence, mesh_warning_codes, validate_triangle,
+    mesh_confidence, mesh_warning_codes, validate_serialized_mesh_analysis, validate_triangle,
 };
 
 /// Versioned algorithm identity for the initial ASCII STL comparison spike.
@@ -33,7 +33,7 @@ pub struct AsciiStlLimits {
 }
 
 /// STL byte encoding established from parser framing.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StlEncoding {
     /// Line-oriented ASCII STL grammar.
@@ -85,7 +85,103 @@ pub struct AsciiStlMeshEvidence {
     warnings: Vec<GeometryWarningCode>,
 }
 
+#[derive(Deserialize)]
+struct AsciiStlMeshEvidenceWire {
+    algorithm_version: String,
+    self_intersection_algorithm_version: String,
+    confidence_policy_version: String,
+    topology_policy_version: String,
+    topology_identity: MeshTopologyIdentity,
+    welding_status: MeshWeldingStatus,
+    encoding: StlEncoding,
+    detected_format: ModelFormat,
+    representation: RepresentationBasis,
+    source_units: ModelLengthUnit,
+    unit_resolution: UnitResolutionMethod,
+    triangle_count: usize,
+    manifold: bool,
+    watertight: bool,
+    consistently_wound: bool,
+    self_intersection: MeshSelfIntersectionState,
+    confidence: GeometryConfidence,
+    aabb_extents_source_units: MeshVector3,
+    surface_area_source_units_squared: f64,
+    enclosed_volume_source_units_cubed: Option<f64>,
+    center_of_mass_source_units: Option<MeshVector3>,
+    warnings: Vec<GeometryWarningCode>,
+}
+
+impl<'de> Deserialize<'de> for AsciiStlMeshEvidence {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = AsciiStlMeshEvidenceWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
 impl AsciiStlMeshEvidence {
+    fn from_wire(wire: AsciiStlMeshEvidenceWire) -> Result<Self, &'static str> {
+        let expected_algorithm = match wire.encoding {
+            StlEncoding::Ascii => ASCII_STL_ANALYZER_VERSION,
+            StlEncoding::Binary => BINARY_STL_ANALYZER_VERSION,
+        };
+        let analysis = crate::mesh_analysis::MeshAnalysis {
+            manifold: wire.manifold,
+            watertight: wire.watertight,
+            consistently_wound: wire.consistently_wound,
+            self_intersection: wire.self_intersection,
+            aabb_extents: wire.aabb_extents_source_units,
+            surface_area: wire.surface_area_source_units_squared,
+            enclosed_volume: wire.enclosed_volume_source_units_cubed,
+            center_of_mass: wire.center_of_mass_source_units,
+        };
+        let mut expected_warnings = vec![warning("UNITS_MISSING_REQUIRES_CONFIRMATION")];
+        expected_warnings.extend(mesh_warning_codes(&analysis));
+        if wire.algorithm_version != expected_algorithm
+            || wire.self_intersection_algorithm_version != MESH_SELF_INTERSECTION_ALGORITHM_VERSION
+            || wire.confidence_policy_version != MESH_CONFIDENCE_POLICY_VERSION
+            || wire.topology_policy_version != MESH_TOPOLOGY_POLICY_VERSION
+            || wire.topology_identity != MeshTopologyIdentity::ExactSourceCoordinates
+            || wire.welding_status != MeshWeldingStatus::NotApplied
+            || wire.detected_format != ModelFormat::Stl
+            || wire.representation != RepresentationBasis::Mesh
+            || wire.source_units != ModelLengthUnit::Unknown
+            || wire.unit_resolution != UnitResolutionMethod::Unresolved
+            || wire.triangle_count == 0
+            || !validate_serialized_mesh_analysis(&analysis)
+            || wire.confidence != mesh_confidence(&analysis, false)
+            || wire.warnings != expected_warnings
+        {
+            return Err("STL mesh evidence violates the governed analysis contract");
+        }
+        Ok(Self {
+            algorithm_version: expected_algorithm,
+            self_intersection_algorithm_version: MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
+            confidence_policy_version: MESH_CONFIDENCE_POLICY_VERSION,
+            topology_policy_version: MESH_TOPOLOGY_POLICY_VERSION,
+            topology_identity: wire.topology_identity,
+            welding_status: wire.welding_status,
+            encoding: wire.encoding,
+            detected_format: wire.detected_format,
+            representation: wire.representation,
+            source_units: wire.source_units,
+            unit_resolution: wire.unit_resolution,
+            triangle_count: wire.triangle_count,
+            manifold: wire.manifold,
+            watertight: wire.watertight,
+            consistently_wound: wire.consistently_wound,
+            self_intersection: wire.self_intersection,
+            confidence: wire.confidence,
+            aabb_extents_source_units: wire.aabb_extents_source_units,
+            surface_area_source_units_squared: wire.surface_area_source_units_squared,
+            enclosed_volume_source_units_cubed: wire.enclosed_volume_source_units_cubed,
+            center_of_mass_source_units: wire.center_of_mass_source_units,
+            warnings: wire.warnings,
+        })
+    }
+
     /// Returns the parser algorithm identity.
     #[must_use]
     pub const fn algorithm_version(&self) -> &str {

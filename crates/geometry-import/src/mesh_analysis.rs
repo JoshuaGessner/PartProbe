@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use partprobe_geometry_core::{
     GeometryConfidence, GeometryConfidenceLevel, GeometryConfidenceReasonCode, GeometryWarningCode,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const DEGENERATE_AREA_EPSILON: f64 = 1.0e-12;
 const ZERO_VOLUME_EPSILON: f64 = 1.0e-12;
@@ -19,7 +19,7 @@ pub const MESH_CONFIDENCE_POLICY_VERSION: &str = "partprobe-mesh-confidence-poli
 pub const MESH_TOPOLOGY_POLICY_VERSION: &str = "partprobe-mesh-topology-policy-v1";
 
 /// Source identity used to determine mesh adjacency and ordinary shared vertices.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MeshTopologyIdentity {
     /// Indexless STL vertices compare by canonicalized exact source-coordinate bits.
@@ -29,7 +29,7 @@ pub enum MeshTopologyIdentity {
 }
 
 /// Whether a geometry-mutating vertex-welding policy was applied.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MeshWeldingStatus {
     /// No automatic vertex welding or near-contact repair was performed.
@@ -37,7 +37,7 @@ pub enum MeshWeldingStatus {
 }
 
 /// Three-dimensional mesh coordinate or measurement vector.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MeshVector3 {
     pub(crate) x: f64,
     pub(crate) y: f64,
@@ -92,7 +92,7 @@ impl MeshVector3 {
 pub(crate) struct Triangle(pub(crate) [MeshVector3; 3]);
 
 /// Result of the bounded exact-predicate mesh self-intersection comparison.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MeshSelfIntersectionState {
     /// No intersection was found under the governed exact-predicate policy.
@@ -120,6 +120,35 @@ pub(crate) struct MeshAnalysis {
     pub(crate) surface_area: f64,
     pub(crate) enclosed_volume: Option<f64>,
     pub(crate) center_of_mass: Option<MeshVector3>,
+}
+
+pub(crate) fn validate_serialized_mesh_analysis(analysis: &MeshAnalysis) -> bool {
+    let extents_valid = analysis
+        .aabb_extents
+        .components()
+        .into_iter()
+        .all(|value| value.is_finite() && value >= 0.0);
+    let topology_valid = (!analysis.watertight || analysis.manifold)
+        && (!analysis.consistently_wound || analysis.watertight);
+    let measurements_paired =
+        analysis.enclosed_volume.is_some() == analysis.center_of_mass.is_some();
+    let measurements_valid = match (analysis.enclosed_volume, analysis.center_of_mass) {
+        (Some(volume), Some(center)) => {
+            analysis.consistently_wound
+                && analysis.self_intersection == MeshSelfIntersectionState::NotDetected
+                && volume.is_finite()
+                && volume > 0.0
+                && center.is_finite()
+        }
+        (None, None) => true,
+        _ => false,
+    };
+    extents_valid
+        && topology_valid
+        && measurements_paired
+        && measurements_valid
+        && analysis.surface_area.is_finite()
+        && analysis.surface_area > 0.0
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

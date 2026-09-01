@@ -1,31 +1,48 @@
 //! Minimal isolated worker host with an optional developer-only native geometry adapter.
 
+use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-#[cfg(feature = "native-occt")]
-use std::fs::OpenOptions;
-
-use partprobe_geometry_core::StageStatus;
-#[cfg(feature = "native-occt")]
-use partprobe_geometry_core::{GeometryStage, GeometryStageReport};
+use partprobe_geometry_core::{
+    GeometryStage, GeometryStageReport, GeometryWarning, GeometryWarningCode, StageStatus,
+    WarningSeverity,
+};
 #[cfg(any(unix, windows))]
 use partprobe_geometry_import::verify_worker_asset_direct;
 use partprobe_geometry_import::{
     DiagnosticCode, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerResponse,
-    VerifiedWorkerAsset, WorkerAssetManifest, WorkerAssetTransport, WorkerCancellationReason,
-    WorkerTermination, recoverable_termination_response, verify_worker_asset_copy,
+    ProvisionalMeshGeometrySnapshot, SnapshotReference, StlLimits, ThreeMfLimits,
+    VerifiedWorkerAsset, WORKER_OUTPUT_FILENAME, WorkerAssetManifest, WorkerAssetTransport,
+    WorkerCancellationReason, WorkerTermination, analyze_3mf, analyze_stl,
+    recoverable_termination_response, verify_worker_asset_copy,
 };
-#[cfg(feature = "native-occt")]
-use partprobe_geometry_import::{SnapshotReference, WORKER_OUTPUT_FILENAME};
 
 const MAX_CONTROL_MESSAGE_BYTES: usize = 1_048_576;
 const CANCELLATION_NONE: u8 = 0;
 const CANCELLATION_USER_REQUESTED: u8 = 1;
 const CANCELLATION_DEADLINE_EXCEEDED: u8 = 2;
 const CANCELLATION_PROTOCOL_INVALID: u8 = 3;
+const SUPPORTED_STAGES: [GeometryStage; 6] = [
+    GeometryStage::Intake,
+    GeometryStage::Identify,
+    GeometryStage::Parse,
+    GeometryStage::UnitResolution,
+    GeometryStage::Validation,
+    GeometryStage::BasicProperties,
+];
+const THREE_MF_MAX_ENTRIES: usize = 16;
+const MESH_SPIKE_MAX_INPUT_BYTES: usize = 64 * 1024;
+const THREE_MF_MAX_EXPANDED_BYTES: u64 = 64 * 1024;
+const THREE_MF_MAX_MODEL_XML_BYTES: usize = 32 * 1024;
+const MESH_SPIKE_MAX_VERTICES: usize = 100;
+const MESH_SPIKE_MAX_TRIANGLES: usize = 1_000;
+const THREE_MF_MAX_OBJECTS: usize = 4;
+const THREE_MF_MAX_COMPONENTS: usize = 3;
+const THREE_MF_MAX_METADATA: usize = 8;
+const THREE_MF_MAX_COMPRESSION_RATIO: u64 = 100;
 
 fn main() -> ExitCode {
     match run() {
@@ -196,8 +213,121 @@ fn cancellation_response(
     .map_err(|_| ())
 }
 
-#[cfg(not(feature = "native-occt"))]
 fn build_response(
+    request: &GeometryWorkerRequest,
+    asset: &VerifiedWorkerAsset,
+    cancellation: &AtomicU8,
+) -> Result<GeometryWorkerResponse, ()> {
+    if request.stages() != SUPPORTED_STAGES {
+        return failed_response(request, "UNSUPPORTED_STAGE_REQUEST");
+    }
+    if let Some(response) = cancellation_response(request, cancellation)? {
+        return Ok(response);
+    }
+    if looks_like_step(asset.bytes()) {
+        return build_step_response(request, asset, cancellation);
+    }
+    build_mesh_response(request, asset, cancellation)
+}
+
+fn looks_like_step(bytes: &[u8]) -> bool {
+    bytes
+        .iter()
+        .position(|byte| !byte.is_ascii_whitespace())
+        .is_some_and(|start| bytes[start..].starts_with(b"ISO-10303-21;"))
+}
+
+fn looks_like_three_mf(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"PK\x03\x04")
+        || bytes.starts_with(b"PK\x05\x06")
+        || bytes.starts_with(b"PK\x07\x08")
+}
+
+fn build_mesh_response(
+    request: &GeometryWorkerRequest,
+    asset: &VerifiedWorkerAsset,
+    cancellation: &AtomicU8,
+) -> Result<GeometryWorkerResponse, ()> {
+    let max_input_bytes = usize::try_from(request.quotas().max_input_bytes())
+        .map_err(|_| ())?
+        .min(MESH_SPIKE_MAX_INPUT_BYTES);
+    let max_entities = usize::try_from(request.quotas().max_entities()).map_err(|_| ())?;
+    let (snapshot, warning_codes) = if looks_like_three_mf(asset.bytes()) {
+        let limits = ThreeMfLimits::new(
+            max_input_bytes,
+            THREE_MF_MAX_ENTRIES,
+            request
+                .quotas()
+                .max_input_bytes()
+                .min(THREE_MF_MAX_EXPANDED_BYTES),
+            max_input_bytes.min(THREE_MF_MAX_MODEL_XML_BYTES),
+            max_entities.min(MESH_SPIKE_MAX_VERTICES),
+            max_entities.min(MESH_SPIKE_MAX_TRIANGLES),
+            THREE_MF_MAX_OBJECTS,
+            THREE_MF_MAX_COMPONENTS,
+            THREE_MF_MAX_METADATA,
+            THREE_MF_MAX_COMPRESSION_RATIO,
+        )
+        .map_err(|_| ())?;
+        let evidence = match analyze_3mf(asset.bytes(), limits) {
+            Ok(evidence) => evidence,
+            Err(error) => return failed_response(request, error.diagnostic_code()),
+        };
+        let warning_codes = evidence.warnings().to_vec();
+        (
+            ProvisionalMeshGeometrySnapshot::from_three_mf(
+                request.expected_source_hash().clone(),
+                evidence,
+            ),
+            warning_codes,
+        )
+    } else {
+        let limits = StlLimits::new(max_input_bytes, max_entities.min(MESH_SPIKE_MAX_TRIANGLES))
+            .map_err(|_| ())?;
+        let evidence = match analyze_stl(asset.bytes(), limits) {
+            Ok(evidence) => evidence,
+            Err(error) => return failed_response(request, error.diagnostic_code()),
+        };
+        let warning_codes = evidence.warnings().to_vec();
+        (
+            ProvisionalMeshGeometrySnapshot::from_stl(
+                request.expected_source_hash().clone(),
+                evidence,
+            ),
+            warning_codes,
+        )
+    };
+    if let Some(response) = cancellation_response(request, cancellation)? {
+        return Ok(response);
+    }
+    let warnings = warning_codes
+        .into_iter()
+        .map(mesh_warning)
+        .collect::<Vec<_>>();
+    write_snapshot_response(
+        request,
+        cancellation,
+        serde_json::to_vec(&snapshot).map_err(|_| ())?,
+        partprobe_geometry_import::PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+        warnings,
+    )
+}
+
+fn mesh_warning(code: GeometryWarningCode) -> GeometryWarning {
+    let stage = match code.as_str() {
+        "UNITS_MISSING_REQUIRES_CONFIRMATION" => GeometryStage::UnitResolution,
+        "THREE_MF_METADATA_NOT_INTERPRETED" => GeometryStage::Parse,
+        _ => GeometryStage::Validation,
+    };
+    GeometryWarning {
+        code,
+        stage,
+        severity: WarningSeverity::Warning,
+    }
+}
+
+#[cfg(not(feature = "native-occt"))]
+fn build_step_response(
     request: &GeometryWorkerRequest,
     _asset: &VerifiedWorkerAsset,
     cancellation: &AtomicU8,
@@ -221,22 +351,11 @@ fn build_response(
 }
 
 #[cfg(feature = "native-occt")]
-fn build_response(
+fn build_step_response(
     request: &GeometryWorkerRequest,
     asset: &VerifiedWorkerAsset,
     cancellation: &AtomicU8,
 ) -> Result<GeometryWorkerResponse, ()> {
-    const SUPPORTED_STAGES: [GeometryStage; 6] = [
-        GeometryStage::Intake,
-        GeometryStage::Identify,
-        GeometryStage::Parse,
-        GeometryStage::UnitResolution,
-        GeometryStage::Validation,
-        GeometryStage::BasicProperties,
-    ];
-    if request.stages() != SUPPORTED_STAGES {
-        return failed_response(request, "UNSUPPORTED_STAGE_REQUEST");
-    }
     if let Some(response) = cancellation_response(request, cancellation)? {
         return Ok(response);
     }
@@ -265,7 +384,22 @@ fn build_response(
         provisional_centroid(properties.center_of_mass_mm)?,
     )
     .map_err(|_| ())?;
-    let snapshot_bytes = serde_json::to_vec(&snapshot).map_err(|_| ())?;
+    write_snapshot_response(
+        request,
+        cancellation,
+        serde_json::to_vec(&snapshot).map_err(|_| ())?,
+        partprobe_geometry_import::PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE,
+        Vec::new(),
+    )
+}
+
+fn write_snapshot_response(
+    request: &GeometryWorkerRequest,
+    cancellation: &AtomicU8,
+    snapshot_bytes: Vec<u8>,
+    snapshot_reference: &str,
+    warnings: Vec<GeometryWarning>,
+) -> Result<GeometryWorkerResponse, ()> {
     if u64::try_from(snapshot_bytes.len()).map_err(|_| ())? > request.quotas().max_output_bytes() {
         return failed_response(request, "OUTPUT_QUOTA_EXCEEDED");
     }
@@ -293,21 +427,33 @@ fn build_response(
         .stages()
         .iter()
         .copied()
-        .map(|stage| GeometryStageReport::new(stage, StageStatus::Succeeded, Vec::new()))
+        .map(|stage| {
+            let stage_warnings = warnings
+                .iter()
+                .filter(|warning| warning.stage == stage)
+                .cloned()
+                .collect::<Vec<_>>();
+            let status = if stage_warnings.is_empty() {
+                StageStatus::Succeeded
+            } else {
+                StageStatus::SucceededWithWarnings
+            };
+            GeometryStageReport::new(stage, status, stage_warnings)
+        })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ())?;
+    let status = if warnings.is_empty() {
+        StageStatus::Succeeded
+    } else {
+        StageStatus::SucceededWithWarnings
+    };
     GeometryWorkerResponse::new(
         request.schema_version(),
         request.job_id().clone(),
         request.correlation_id().clone(),
-        StageStatus::Succeeded,
+        status,
         stage_reports,
-        Some(
-            SnapshotReference::new(
-                partprobe_geometry_import::PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE,
-            )
-            .map_err(|_| ())?,
-        ),
+        Some(SnapshotReference::new(snapshot_reference).map_err(|_| ())?),
         Vec::new(),
     )
     .map_err(|_| ())
@@ -348,7 +494,6 @@ fn provisional_centroid(
     ])
 }
 
-#[cfg(feature = "native-occt")]
 fn failed_response(
     request: &GeometryWorkerRequest,
     diagnostic_code: &str,

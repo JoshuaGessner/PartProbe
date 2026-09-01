@@ -7,13 +7,15 @@ use partprobe_geometry_core::{
     AnalysisProfile, AnalysisProfileId, GeometryStage, Sha256Digest, StageStatus,
 };
 use partprobe_geometry_import::{
-    AssetCapability, ControlledWorkerOutput, CorrelationId, GeometryJobId,
-    GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerSupervisor, LocalAssetRoot,
-    ResourceQuotas, SnapshotReference, SupervisorPolicy, WORKER_ASSET_TRANSPORT_SCHEMA_VERSION,
-    WORKER_CONTROL_SCHEMA_VERSION, WorkerAssetManifest, WorkerAssetTransport,
-    WorkerAssetTransportPolicy, WorkerCancellationReason, WorkerTermination,
-    decode_provisional_geometry_snapshot, open_local_source_read_only,
-    recoverable_termination_response,
+    AssetCapability, ControlledGeometryResult, ControlledWorkerOutput, CorrelationId,
+    GeometryJobId, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerSupervisor,
+    LocalAssetRoot, ProvisionalMeshEvidence, ProvisionalMeshGeometrySnapshot, ResourceQuotas,
+    SnapshotReference, StlLimits, SupervisorPolicy, ThreeMfLimits,
+    WORKER_ASSET_TRANSPORT_SCHEMA_VERSION, WORKER_CONTROL_SCHEMA_VERSION, WorkerAssetManifest,
+    WorkerAssetTransport, WorkerAssetTransportPolicy, WorkerCancellationReason, WorkerTermination,
+    analyze_3mf, analyze_stl, decode_controlled_geometry_result,
+    decode_provisional_geometry_snapshot, decode_provisional_mesh_geometry_snapshot,
+    open_local_source_read_only, recoverable_termination_response,
 };
 use sha2::{Digest, Sha256};
 
@@ -38,6 +40,24 @@ fn request() -> GeometryWorkerRequest {
     .expect("request must be valid")
 }
 
+fn sha256_digest(bytes: &[u8]) -> Sha256Digest {
+    let mut hash = String::with_capacity(64);
+    for byte in Sha256::digest(bytes) {
+        write!(&mut hash, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    Sha256Digest::new(hash).expect("content hash must be valid")
+}
+
+fn claimed_output(reference: &str, bytes: Vec<u8>) -> ControlledWorkerOutput {
+    let content_hash = sha256_digest(&bytes);
+    ControlledWorkerOutput::from_claimed_parts(
+        SnapshotReference::new(reference).expect("reference must be valid"),
+        content_hash,
+        bytes.into_boxed_slice(),
+    )
+    .expect("claimed output must be valid")
+}
+
 #[test]
 fn provisional_snapshot_decoder_binds_schema_reference_and_source_hash() {
     let source_hash = Sha256Digest::new("a".repeat(64)).expect("source hash must be valid");
@@ -58,21 +78,16 @@ fn provisional_snapshot_decoder_binds_schema_reference_and_source_hash() {
     }))
     .expect("snapshot fixture must serialize")
     .into_boxed_slice();
-    let mut hash = String::with_capacity(64);
-    for byte in Sha256::digest(&bytes) {
-        write!(&mut hash, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    let content_hash = Sha256Digest::new(hash).expect("content hash must be valid");
-    let output = ControlledWorkerOutput::from_claimed_parts(
-        SnapshotReference::new("geometry-snapshot-v1").expect("reference must be valid"),
-        content_hash,
-        bytes,
-    )
-    .expect("claimed output must be valid");
+    let output = claimed_output("geometry-snapshot-v1", bytes.into_vec());
 
     let decoded = decode_provisional_geometry_snapshot(&output, &source_hash)
         .expect("schema and source binding must pass");
     assert_eq!(decoded.enclosed_volume_mm3(), "1000");
+    assert!(matches!(
+        decode_controlled_geometry_result(&output, &source_hash)
+            .expect("generic controlled decoder must retain exact STEP v1"),
+        ControlledGeometryResult::ExactBrep(_)
+    ));
     assert!(
         decode_provisional_geometry_snapshot(
             &output,
@@ -80,6 +95,112 @@ fn provisional_snapshot_decoder_binds_schema_reference_and_source_hash() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn provisional_mesh_decoder_binds_variant_reference_and_source_hash() {
+    let stl_bytes = include_bytes!("../../../fixtures/models/cube_10mm_ascii.stl");
+    let stl_source_hash = sha256_digest(stl_bytes);
+    let stl = analyze_stl(
+        stl_bytes,
+        StlLimits::new(64 * 1024, 1_000).expect("STL limits must be valid"),
+    )
+    .expect("governed STL fixture must analyze");
+    let stl_snapshot = ProvisionalMeshGeometrySnapshot::from_stl(stl_source_hash.clone(), stl);
+    let stl_output = claimed_output(
+        partprobe_geometry_import::PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+        serde_json::to_vec(&stl_snapshot).expect("mesh snapshot must serialize"),
+    );
+
+    let decoded = decode_provisional_mesh_geometry_snapshot(&stl_output, &stl_source_hash)
+        .expect("STL mesh schema and source binding must pass");
+    assert!(matches!(
+        decoded.evidence(),
+        ProvisionalMeshEvidence::Stl(_)
+    ));
+    assert!(matches!(
+        decode_controlled_geometry_result(&stl_output, &stl_source_hash)
+            .expect("generic controlled decoder must accept mesh v1"),
+        ControlledGeometryResult::Mesh(_)
+    ));
+    assert!(
+        decode_provisional_mesh_geometry_snapshot(
+            &stl_output,
+            &Sha256Digest::new("b".repeat(64)).expect("alternate hash must be valid")
+        )
+        .is_err()
+    );
+
+    let wrong_reference = claimed_output(
+        partprobe_geometry_import::PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE,
+        stl_output.bytes().to_vec(),
+    );
+    assert!(decode_controlled_geometry_result(&wrong_reference, &stl_source_hash).is_err());
+
+    let three_mf_bytes = include_bytes!("../../../fixtures/models/cube_10mm_3mf_millimeter.3mf");
+    let three_mf_source_hash = sha256_digest(three_mf_bytes);
+    let three_mf = analyze_3mf(
+        three_mf_bytes,
+        ThreeMfLimits::new(
+            64 * 1024,
+            16,
+            64 * 1024,
+            32 * 1024,
+            100,
+            1_000,
+            4,
+            3,
+            8,
+            100,
+        )
+        .expect("3MF limits must be valid"),
+    )
+    .expect("governed 3MF fixture must analyze");
+    let three_mf_snapshot =
+        ProvisionalMeshGeometrySnapshot::from_three_mf(three_mf_source_hash.clone(), three_mf);
+    let three_mf_output = claimed_output(
+        partprobe_geometry_import::PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+        serde_json::to_vec(&three_mf_snapshot).expect("mesh snapshot must serialize"),
+    );
+    let decoded =
+        decode_provisional_mesh_geometry_snapshot(&three_mf_output, &three_mf_source_hash)
+            .expect("3MF mesh schema and source binding must pass");
+    assert!(matches!(
+        decoded.evidence(),
+        ProvisionalMeshEvidence::ThreeMf(_)
+    ));
+}
+
+#[test]
+fn provisional_mesh_schema_rejects_false_policy_and_measurement_authority() {
+    let source_bytes = include_bytes!("../../../fixtures/models/open_cube_10mm_ascii.stl");
+    let source_hash = sha256_digest(source_bytes);
+    let evidence = analyze_stl(
+        source_bytes,
+        StlLimits::new(64 * 1024, 1_000).expect("STL limits must be valid"),
+    )
+    .expect("governed open STL fixture must analyze");
+    assert!(evidence.enclosed_volume_source_units_cubed().is_none());
+    let snapshot = ProvisionalMeshGeometrySnapshot::from_stl(source_hash.clone(), evidence);
+    let mut value = serde_json::to_value(snapshot).expect("mesh snapshot must serialize");
+    value["evidence"]["analysis"]["enclosed_volume_source_units_cubed"] =
+        serde_json::json!(1_000.0);
+    value["evidence"]["analysis"]["center_of_mass_source_units"] =
+        serde_json::json!({"x": 5.0, "y": 5.0, "z": 5.0});
+    let false_measurements = claimed_output(
+        partprobe_geometry_import::PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+        serde_json::to_vec(&value).expect("tampered snapshot must serialize"),
+    );
+    assert!(decode_provisional_mesh_geometry_snapshot(&false_measurements, &source_hash).is_err());
+
+    value["evidence"]["analysis"]["enclosed_volume_source_units_cubed"] = serde_json::Value::Null;
+    value["evidence"]["analysis"]["center_of_mass_source_units"] = serde_json::Value::Null;
+    value["evidence"]["analysis"]["topology_policy_version"] = serde_json::json!("unreviewed");
+    let false_policy = claimed_output(
+        partprobe_geometry_import::PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+        serde_json::to_vec(&value).expect("tampered snapshot must serialize"),
+    );
+    assert!(decode_provisional_mesh_geometry_snapshot(&false_policy, &source_hash).is_err());
 }
 
 #[cfg(any(unix, windows))]

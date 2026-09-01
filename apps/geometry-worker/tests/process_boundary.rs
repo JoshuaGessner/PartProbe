@@ -28,25 +28,76 @@ use partprobe_geometry_import::{
 use partprobe_test_support::geometry_fixtures::GeometryImportFailureExpectation;
 
 fn request() -> GeometryWorkerRequest {
+    mesh_request(
+        "c46f940641e08eb3cbcaed5e1d90191c089651dd8d42064ecdaaa7a8b3e069ab",
+        "process-job-1",
+        "process-correlation-1",
+    )
+}
+
+fn mesh_request(expected_hash: &str, job_id: &str, correlation_id: &str) -> GeometryWorkerRequest {
     GeometryWorkerRequest::new(
         SchemaVersion::new(1).expect("schema version must be valid"),
-        GeometryJobId::new("process-job-1").expect("job ID must be valid"),
-        CorrelationId::new("process-correlation-1").expect("correlation ID must be valid"),
+        GeometryJobId::new(job_id).expect("job ID must be valid"),
+        CorrelationId::new(correlation_id).expect("correlation ID must be valid"),
         AssetCapability::new("asset-capability-1").expect("capability must be valid"),
-        Sha256Digest::new("c46f940641e08eb3cbcaed5e1d90191c089651dd8d42064ecdaaa7a8b3e069ab")
-            .expect("hash must be valid"),
+        Sha256Digest::new(expected_hash).expect("hash must be valid"),
         vec![
             GeometryStage::Intake,
             GeometryStage::Identify,
             GeometryStage::Parse,
+            GeometryStage::UnitResolution,
+            GeometryStage::Validation,
+            GeometryStage::BasicProperties,
         ],
         AnalysisProfile {
-            id: AnalysisProfileId::new("step-contract").expect("profile ID must be valid"),
+            id: AnalysisProfileId::new("mesh-comparison-spike").expect("profile ID must be valid"),
             version: RuleVersion::new(1, 0, 0),
         },
         ResourceQuotas::new(1_000_000, 1_000_000, 100_000, 5_000).expect("quotas must be valid"),
     )
     .expect("request must be valid")
+}
+
+#[cfg(not(feature = "native-occt"))]
+fn assert_stl_mesh_success(
+    execution: &partprobe_geometry_import::GeometryWorkerExecution,
+    request: &GeometryWorkerRequest,
+) {
+    let response = execution.response();
+    assert_eq!(response.status(), StageStatus::SucceededWithWarnings);
+    assert!(response.diagnostic_codes().is_empty());
+    assert_eq!(
+        response
+            .snapshot_reference()
+            .expect("mesh success must reference controlled output")
+            .as_str(),
+        partprobe_geometry_import::PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE
+    );
+    let output = execution
+        .output()
+        .expect("mesh success must return claimed controlled output");
+    let snapshot = partprobe_geometry_import::decode_provisional_mesh_geometry_snapshot(
+        output,
+        request.expected_source_hash(),
+    )
+    .expect("mesh output must satisfy the source-bound schema");
+    match snapshot.evidence() {
+        partprobe_geometry_import::ProvisionalMeshEvidence::Stl(evidence) => {
+            assert_eq!(evidence.triangle_count(), 12);
+            assert!(evidence.enclosed_volume_source_units_cubed().is_some());
+            assert!(evidence.center_of_mass_source_units().is_some());
+            assert!(
+                evidence
+                    .warnings()
+                    .iter()
+                    .any(|warning| warning.as_str() == "UNITS_MISSING_REQUIRES_CONFIRMATION")
+            );
+        }
+        partprobe_geometry_import::ProvisionalMeshEvidence::ThreeMf(_) => {
+            panic!("STL worker request must retain STL evidence")
+        }
+    }
 }
 
 #[cfg(any(unix, windows))]
@@ -235,19 +286,213 @@ fn supervisor_executes_the_path_free_worker_contract() {
     let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
     let response = execution.response();
 
-    assert_eq!(response.status(), StageStatus::FailedTerminal);
+    assert_stl_mesh_success(&execution, &request);
     assert_eq!(response.job_id().as_str(), "process-job-1");
-    assert_eq!(
-        response.diagnostic_codes()[0].as_str(),
-        "NATIVE_ADAPTER_UNAVAILABLE"
-    );
     assert_eq!(
         execution.asset_transport(),
         Some(WorkerAssetTransport::VerifiedPrivateCopy)
     );
     assert_eq!(execution.fallback_reason(), None);
-    assert!(execution.output().is_none());
+    assert!(execution.output().is_some());
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn supervised_worker_emits_source_bound_three_mf_mesh_evidence() {
+    let job_directory =
+        std::env::temp_dir().join(format!("partprobe-worker-3mf-test-{}", std::process::id()));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/models/cube_10mm_3mf_millimeter.3mf");
+    let request = mesh_request(
+        "009ec4eb6b93fc87d2a50f998de6ee0d45965171fddf5675a707927fc8914320",
+        "three-mf-process-job-1",
+        "three-mf-process-correlation-1",
+    );
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
+
+    assert_eq!(response.status(), StageStatus::SucceededWithWarnings);
+    assert_eq!(
+        response
+            .snapshot_reference()
+            .expect("3MF success must reference controlled output")
+            .as_str(),
+        partprobe_geometry_import::PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE
+    );
+    let output = execution
+        .output()
+        .expect("3MF success must return claimed controlled output");
+    let snapshot = partprobe_geometry_import::decode_provisional_mesh_geometry_snapshot(
+        output,
+        request.expected_source_hash(),
+    )
+    .expect("3MF output must satisfy the source-bound mesh schema");
+    match snapshot.evidence() {
+        partprobe_geometry_import::ProvisionalMeshEvidence::ThreeMf(evidence) => {
+            assert_eq!(evidence.triangle_count(), 12);
+            assert_eq!(evidence.surface_area_mm2(), 600.0);
+            assert_eq!(evidence.enclosed_volume_mm3(), Some(1_000.0));
+            assert!(evidence.center_of_mass_mm().is_some());
+        }
+        partprobe_geometry_import::ProvisionalMeshEvidence::Stl(_) => {
+            panic!("3MF worker request must retain 3MF evidence")
+        }
+    }
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn supervised_worker_preserves_withheld_open_mesh_measurements() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-open-mesh-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/models/open_cube_10mm_ascii.stl");
+    let request = mesh_request(
+        "f78bc469609e5805ced85c710be08b985443a21e1b5b3da9c7f19ffa008ed55d",
+        "open-mesh-process-job-1",
+        "open-mesh-process-correlation-1",
+    );
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::SucceededWithWarnings
+    );
+    let snapshot = partprobe_geometry_import::decode_provisional_mesh_geometry_snapshot(
+        execution
+            .output()
+            .expect("open mesh success must return controlled output"),
+        request.expected_source_hash(),
+    )
+    .expect("open mesh output must satisfy the source-bound schema");
+    match snapshot.evidence() {
+        partprobe_geometry_import::ProvisionalMeshEvidence::Stl(evidence) => {
+            assert!(!evidence.watertight());
+            assert_eq!(evidence.enclosed_volume_source_units_cubed(), None);
+            assert_eq!(evidence.center_of_mass_source_units(), None);
+        }
+        partprobe_geometry_import::ProvisionalMeshEvidence::ThreeMf(_) => {
+            panic!("open STL request must retain STL evidence")
+        }
+    }
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn supervised_worker_rejects_malformed_mesh_without_output() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-malformed-mesh-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/models/adversarial_ascii_stl_invalid_utf8.stl");
+    let request = mesh_request(
+        "53b117ca3ae61779a158287188df630c42179ff1aaf4ebc84ad39a40a75741fc",
+        "malformed-mesh-process-job-1",
+        "malformed-mesh-process-correlation-1",
+    );
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
+
+    assert_eq!(response.status(), StageStatus::FailedRecoverable);
+    assert_eq!(response.diagnostic_codes()[0].as_str(), "STL_INVALID_TEXT");
+    assert!(response.snapshot_reference().is_none());
+    assert!(execution.output().is_none());
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn step_dispatch_still_requires_the_native_adapter() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-step-feature-off-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
+    let request = mesh_request(
+        "031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2",
+        "step-feature-off-job-1",
+        "step-feature-off-correlation-1",
+    );
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+    let response = execution.response();
+
+    assert_eq!(response.status(), StageStatus::FailedTerminal);
+    assert_eq!(
+        response.diagnostic_codes()[0].as_str(),
+        "NATIVE_ADAPTER_UNAVAILABLE"
+    );
+    assert!(execution.output().is_none());
     assert!(
         std::fs::read_dir(&job_directory)
             .expect("job root must be readable")
@@ -280,10 +525,7 @@ fn preferred_direct_transport_selects_the_platform_supported_mode() {
 
     let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
 
-    assert_eq!(
-        execution.response().diagnostic_codes()[0].as_str(),
-        "NATIVE_ADAPTER_UNAVAILABLE"
-    );
+    assert_stl_mesh_success(&execution, &request);
     #[cfg(any(unix, windows))]
     {
         assert_eq!(
@@ -335,10 +577,7 @@ fn required_direct_transport_executes_without_a_staged_copy() {
 
     let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
 
-    assert_eq!(
-        execution.response().diagnostic_codes()[0].as_str(),
-        "NATIVE_ADAPTER_UNAVAILABLE"
-    );
+    assert_stl_mesh_success(&execution, &request);
     assert_eq!(
         execution.asset_transport(),
         Some(expected_direct_transport())
@@ -956,12 +1195,9 @@ fn open_grant_remains_authoritative_after_its_source_path_is_removed() {
     let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
     let response = execution.response();
 
-    assert_eq!(response.status(), StageStatus::FailedTerminal);
-    assert_eq!(
-        response.diagnostic_codes()[0].as_str(),
-        "NATIVE_ADAPTER_UNAVAILABLE"
-    );
-    assert!(execution.output().is_none());
+    assert_stl_mesh_success(&execution, &request);
+    assert_eq!(response.status(), StageStatus::SucceededWithWarnings);
+    assert!(execution.output().is_some());
     #[cfg(any(unix, windows))]
     assert_eq!(
         execution.asset_transport(),
