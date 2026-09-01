@@ -172,6 +172,27 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         / "models"
         / "adversarial_3mf_external_model_relationship.3mf",
     ),
+    (
+        "duplicate_model_content_type",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_duplicate_model_content_type.3mf",
+    ),
+    (
+        "missing_model_content_type",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_missing_model_content_type.3mf",
+    ),
+    (
+        "wrong_model_content_type",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_wrong_model_content_type.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -644,6 +665,25 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
             b' TargetMode="External" />',
         )
         parts[1] = (parts[1][0], relationships)
+    elif case == "duplicate_model_content_type":
+        content_types = parts[0][1].replace(
+            b"</Types>",
+            b'  <Override PartName="/3D/3dmodel.model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml" />\n'
+            b"</Types>",
+        )
+        parts[0] = (parts[0][0], content_types)
+    elif case == "missing_model_content_type":
+        content_types = parts[0][1].replace(
+            b'PartName="/3D/3dmodel.model"',
+            b'PartName="/3D/unrelated.model"',
+        )
+        parts[0] = (parts[0][0], content_types)
+    elif case == "wrong_model_content_type":
+        content_types = parts[0][1].replace(
+            b"application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+            b"application/xml",
+        )
+        parts[0] = (parts[0][0], content_types)
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
     return build_package(tuple(parts))

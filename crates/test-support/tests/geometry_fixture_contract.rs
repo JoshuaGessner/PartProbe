@@ -73,7 +73,7 @@ const INDEPENDENT_STEP: &str =
     include_str!("../../../fixtures/expected/rectangular_prism_12x8x5_step.json");
 const INVALID_STEP: &str =
     include_str!("../../../fixtures/expected/invalid_step_entity_rejection.json");
-const THREE_MF_FAILURES: [(&str, &str, &str); 32] = [
+const THREE_MF_FAILURES: [(&str, &str, &str); 35] = [
     (
         include_str!(
             "../../../fixtures/expected/adversarial_3mf_branching_components_rejection.json"
@@ -279,6 +279,27 @@ const THREE_MF_FAILURES: [(&str, &str, &str); 32] = [
         ),
         "FIX-MESH-062",
         "THREE_MF_UNSAFE_PACKAGE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_duplicate_model_content_type_rejection.json"
+        ),
+        "FIX-MESH-063",
+        "THREE_MF_INVALID_PACKAGE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_missing_model_content_type_rejection.json"
+        ),
+        "FIX-MESH-064",
+        "THREE_MF_INVALID_PACKAGE",
+    ),
+    (
+        include_str!(
+            "../../../fixtures/expected/adversarial_3mf_wrong_model_content_type_rejection.json"
+        ),
+        "FIX-MESH-065",
+        "THREE_MF_INVALID_PACKAGE",
     ),
 ];
 const BINARY_STL_FAILURES: [(&str, &str, &str); 4] = [

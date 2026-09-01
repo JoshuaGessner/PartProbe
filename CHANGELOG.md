@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-08-28
+> **Last updated:** 2026-09-01
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -14,6 +14,8 @@ All notable project changes are recorded here. This project follows Keep a Chang
 
 ### Added
 
+- `FIX-MESH-063`–`065`, deterministic public 3MF packages that persist existing parser-v8 rejection behavior for duplicate matching model content-type declarations, no declaration matching the StartPart-selected model, and a matching model part with the wrong media type. Typed failure expectations pin `THREE_MF_INVALID_PACKAGE` and forbid geometry evidence. Accepted syntax, calculations, dependencies, and failure schema v1 remain unchanged; changing these boundaries or diagnostics requires an explicit parser-version and migration decision.
+- Configured real-worker desktop-host mesh evidence on Ubuntu x86_64 and Windows x64. Opt-in runs 33546682993 and 33546698680 pass governed STEP/STL/3MF analysis through manifest-verified OCCT runtimes, the supervisor, retained native sessions, path-free contract-v4 mapping, and application-enforced mesh estimate unavailability at exact commit `7f2c378`. This is not windowed GUI, packaging, accessibility, representative-corpus, or supported-importer acceptance.
 - `FIX-MESH-055`–`057`, deterministic public 3MF packages that persist existing parser-v6 rejection behavior for a missing required vertex coordinate, a triangle index outside the eight-vertex table, and a 101st vertex beyond the configured 100-vertex ceiling. Typed failure expectations pin `THREE_MF_INVALID_XML`, `THREE_MF_UNSUPPORTED_MODEL_STRUCTURE`, and `THREE_MF_ENTITY_LIMIT_EXCEEDED`, respectively, and forbid geometry evidence. Accepted syntax, calculations, dependencies, and failure schema v1 remain unchanged; changing these boundaries or diagnostics requires an explicit parser-version and migration decision.
 - `FIX-MESH-052`–`054`, deterministic public 3MF packages that persist existing parser-v6 malformed-geometry rejection behavior for a non-finite vertex, a repeated-index triangle, and a mesh object with vertices but no triangle elements. Typed failure expectations pin `THREE_MF_INVALID_NUMBER`, `THREE_MF_DEGENERATE_TRIANGLE`, and `THREE_MF_UNSUPPORTED_MODEL_STRUCTURE`, respectively, and forbid geometry evidence. The empty-triangle package is rejected by the structural parser before the analyzer's later empty-mesh branch, so this checkpoint does not claim `THREE_MF_EMPTY_MESH`. Changing that diagnostic or boundary requires an explicit parser-version and migration decision; failure schema v1 remains unchanged.
 - `FIX-MESH-050/051`, deterministic public 3MF component packages that persist the bounded parser's unsupported negative-determinant and singular-transform boundary. Typed failure expectations pin `THREE_MF_UNSUPPORTED_TRANSFORM` and forbid geometry evidence. Core 1.4 permits negative-determinant transforms when orientation/volume-sign handling is preserved, so the reflected case is explicitly a PartProbe capability limit—not a malformed/Core-invalid claim. Parser v6, the accepted package boundary, calculations, dependencies, and failure schema remain unchanged.

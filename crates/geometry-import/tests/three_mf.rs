@@ -35,7 +35,7 @@ const ALTERNATE_OPC_CUBES: [&[u8]; 4] = [
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_stored_compression.3mf"),
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_package_thumbnail.3mf"),
 ];
-const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 32] = [
+const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 35] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_branching_components.3mf"),
         ThreeMfError::UnsupportedModelStructure,
@@ -165,6 +165,18 @@ const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 32] = [
     (
         include_bytes!("../../../fixtures/models/adversarial_3mf_external_model_relationship.3mf"),
         ThreeMfError::UnsafePackage,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_duplicate_model_content_type.3mf"),
+        ThreeMfError::InvalidPackage,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_missing_model_content_type.3mf"),
+        ThreeMfError::InvalidPackage,
+    ),
+    (
+        include_bytes!("../../../fixtures/models/adversarial_3mf_wrong_model_content_type.3mf"),
+        ThreeMfError::InvalidPackage,
     ),
 ];
 

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "FIX-MESH-063",
+  "source_sha256": "05df2b38ebcf48cf5b27af39fd2810c602f903a033b91de496dd49d82b5ac27f",
+  "expected_status": "failed_recoverable",
+  "expected_diagnostic_code": "THREE_MF_INVALID_PACKAGE",
+  "snapshot_expected": false,
+  "output_file_expected": false,
+  "staged_input_retained": false
+}

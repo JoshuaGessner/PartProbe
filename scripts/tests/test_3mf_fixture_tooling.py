@@ -241,14 +241,14 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
-    def test_adversarial_corpus_pins_thirty_two_distinct_rejection_shapes(self) -> None:
+    def test_adversarial_corpus_pins_thirty_five_distinct_rejection_shapes(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()
         generated = {
             case: generate_3mf_fixture.build_adversarial_3mf(source, case)
             for case, _ in generate_3mf_fixture.ADVERSARIAL_FIXTURES
         }
-        self.assertEqual(len(generated), 32)
-        self.assertEqual(len(set(generated.values())), 32)
+        self.assertEqual(len(generated), 35)
+        self.assertEqual(len(set(generated.values())), 35)
         expected_ids = {
             "branching_components": "FIX-MESH-014",
             "non_immediate_reference": "FIX-MESH-015",
@@ -282,6 +282,9 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             "duplicate_model_relationship": "FIX-MESH-060",
             "missing_model_relationship": "FIX-MESH-061",
             "external_model_relationship": "FIX-MESH-062",
+            "duplicate_model_content_type": "FIX-MESH-063",
+            "missing_model_content_type": "FIX-MESH-064",
+            "wrong_model_content_type": "FIX-MESH-065",
         }
         for case, output_path in generate_3mf_fixture.ADVERSARIAL_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -380,6 +383,30 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
         ) as package:
             relationships = package.read("_rels/.rels")
             self.assertIn(b'TargetMode="External"', relationships)
+        with zipfile.ZipFile(
+            BytesIO(generated["duplicate_model_content_type"])
+        ) as package:
+            self.assertEqual(
+                package.read("[Content_Types].xml").count(
+                    b'PartName="/3D/3dmodel.model"'
+                ),
+                2,
+            )
+        with zipfile.ZipFile(
+            BytesIO(generated["missing_model_content_type"])
+        ) as package:
+            content_types = package.read("[Content_Types].xml")
+            self.assertNotIn(b'PartName="/3D/3dmodel.model"', content_types)
+            self.assertIn(b'PartName="/3D/unrelated.model"', content_types)
+        with zipfile.ZipFile(
+            BytesIO(generated["wrong_model_content_type"])
+        ) as package:
+            content_types = package.read("[Content_Types].xml")
+            self.assertIn(b'ContentType="application/xml"', content_types)
+            self.assertNotIn(
+                b"application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+                content_types,
+            )
         with zipfile.ZipFile(
             BytesIO(generated["reflected_component_transform"])
         ) as package:
