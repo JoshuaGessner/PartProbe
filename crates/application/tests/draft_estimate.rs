@@ -169,7 +169,9 @@ fn mesh_analysis_starts_a_reviewable_session_but_cannot_authorize_an_estimate() 
                 .to_owned(),
         }
     );
-    std::fs::remove_dir_all(test_directory).expect("test directory must be removed");
+    drop(session);
+    drop(root);
+    remove_test_root(&test_directory);
 }
 
 #[test]

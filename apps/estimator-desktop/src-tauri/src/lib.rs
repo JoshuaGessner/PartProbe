@@ -589,6 +589,16 @@ mod tests {
 
     #[cfg(feature = "desktop-host")]
     #[test]
+    #[ignore = "requires an explicit verified native runtime and worker workspace"]
+    fn gui5_configured_worker_returns_real_mesh_results_without_estimate_authority() {
+        let adapter = crate::analysis::DesktopAnalysisConfiguration::from_environment()
+            .and_then(crate::analysis::DesktopAnalysisConfiguration::build_adapter)
+            .expect("GUI-5 requires verified native-runtime/workspace configuration");
+        assert_real_meshes_reach_unavailable_estimates(adapter);
+    }
+
+    #[cfg(feature = "desktop-host")]
+    #[test]
     #[ignore = "requires an extracted packaged native runtime and worker workspace"]
     fn packaged_resource_worker_runs_real_step_through_retained_estimate_session() {
         let resource_directory = std::env::var_os("PARTPROBE_DESKTOP_RESOURCE_DIRECTORY")
@@ -648,5 +658,74 @@ mod tests {
         let serialized = serde_json::to_string(&analysis).expect("analysis must serialize");
         assert!(!serialized.contains(fixture.to_string_lossy().as_ref()));
         assert!(!serialized.contains("fixtures/models"));
+    }
+
+    #[cfg(feature = "desktop-host")]
+    fn assert_real_meshes_reach_unavailable_estimates(
+        adapter: DesktopAnalysisAdapter<GeometryWorkerSupervisor>,
+    ) {
+        let state = DesktopSessionState::with_analysis_adapter(adapter);
+        for (fixture_name, expected_format, expected_units, expected_basis) in [
+            (
+                "cube_10mm_ascii.stl",
+                ModelSourceFormat::Stl,
+                partprobe_desktop_contract::ModelLengthUnit::Unknown,
+                partprobe_desktop_contract::MeshMeasurementBasis::SourceCoordinates,
+            ),
+            (
+                "cube_1cm_translated.3mf",
+                ModelSourceFormat::ThreeMf,
+                partprobe_desktop_contract::ModelLengthUnit::Centimeter,
+                partprobe_desktop_contract::MeshMeasurementBasis::CanonicalMillimeters,
+            ),
+        ] {
+            let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../fixtures/models")
+                .join(fixture_name)
+                .canonicalize()
+                .expect("governed mesh fixture must exist");
+            let source = state
+                .retain_selected_path(fixture.clone())
+                .expect("fixture must be retained behind an opaque selection token");
+            let analysis = state
+                .analyze_selected_source(&source.selection_id)
+                .expect("configured worker must analyze the governed mesh fixture");
+
+            let partprobe_desktop_contract::ProvisionalGeometryFacts::Mesh(geometry) =
+                &analysis.geometry
+            else {
+                panic!("configured mesh analysis must retain mesh evidence");
+            };
+            assert_eq!(geometry.detected_format, expected_format);
+            assert_eq!(geometry.source_units, expected_units);
+            assert_eq!(geometry.measurement_basis, expected_basis);
+            assert_eq!(
+                geometry.welding_status,
+                partprobe_desktop_contract::MeshWeldingStatus::NotApplied
+            );
+            assert!(geometry.enclosed_volume.is_some());
+            assert!(geometry.center_of_mass.is_some());
+            assert!(analysis.estimate.reason.contains("not authorized"));
+
+            let request =
+                crate::estimate::complete_test_request(&source.selection_id, &analysis.analysis_id);
+            let evaluation = state
+                .evaluate_draft_estimate(&request)
+                .expect("mesh estimate request must return an explicit unavailable state");
+            assert_eq!(
+                evaluation.state,
+                partprobe_desktop_contract::DraftEstimateEvaluationState::Unavailable
+            );
+            assert!(
+                evaluation
+                    .reason
+                    .expect("mesh estimate must explain unavailability")
+                    .contains("not authorized")
+            );
+
+            let serialized = serde_json::to_string(&analysis).expect("analysis must serialize");
+            assert!(!serialized.contains(fixture.to_string_lossy().as_ref()));
+            assert!(!serialized.contains("fixtures/models"));
+        }
     }
 }

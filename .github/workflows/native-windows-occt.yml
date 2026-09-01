@@ -81,7 +81,7 @@ jobs:
             --runtime-root "$env:RUNNER_TEMP\partprobe-native-runtime" `
             --dependency-tool $dumpbin.FullName
 
-      - name: Run configured native desktop smoke
+      - name: Run configured native desktop STEP and mesh smokes
         env:
           PARTPROBE_NATIVE_RUNTIME: ${{ runner.temp }}\partprobe-native-runtime
           PARTPROBE_GEOMETRY_WORKSPACE: ${{ runner.temp }}\partprobe-gui-worker
@@ -90,7 +90,7 @@ jobs:
           cargo test `
             -p partprobe-estimator-desktop `
             --features desktop-host `
-            gui5_configured_worker_runs_real_step_through_retained_estimate_session `
+            gui5_configured_worker_ `
             --locked -- --ignored --nocapture
 
       - name: Confirm PartProbe checkout remains unchanged

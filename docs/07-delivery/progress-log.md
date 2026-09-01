@@ -8,6 +8,13 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-09-01 — Configured desktop mesh smoke gate
+
+- Added an ignored, desktop-host-gated configured-runtime test that drives the governed closed ASCII STL and translated centimetre 3MF fixtures through the real supervisor and retained native session. It verifies content-derived format, STL source-coordinate versus 3MF canonical-millimetre evidence, retained closed measurements, not-applied welding, path-free contract-v4 serialization, and application-enforced estimate unavailability even when the request supplies complete synthetic inputs.
+- Updated the opt-in Linux and Windows pinned-OCCT workflows to run both configured-worker smokes by their shared test-name prefix. Ordinary CI still compiles but does not execute these ignored tests, and no fallback or ambient runtime discovery was added. Local desktop-host compilation and the twenty-two ordinary native-host tests pass; exact-commit configured Linux/Windows evidence is pending workflow execution.
+- Reviewed contract-v4 run 33545606121: macOS and Ubuntu passed every gate, while Windows failed only because the application mesh test removed its temporary directory with the retained session/root handles still open. The corrected test now explicitly drops both owners and uses the established cleanup helper. Local focused and complete workspace tests pass; replacement three-OS execution is pending the next push.
+- This adds an integration gate, not a calculation or geometry-interpretation change. It does not add mesh estimating authority, persistence, accessibility acceptance, representative importer accuracy, signing, redistribution approval, or production support.
+
 ## 2026-09-01 — TASK-004 application and desktop mesh integration
 
 - Carried the additive exact-or-mesh controlled result through `DraftEstimateApplication`. Native sessions retain the complete validated result and expose typed exact/mesh accessors. Exact STEP continues through the existing deterministic calculation path; every mesh session returns `Unavailable` before geometry review, manual inputs, rates, or pricing can authorize an estimate. A complete forged mesh estimate request remains unavailable, so frontend behavior is not the authority boundary.
