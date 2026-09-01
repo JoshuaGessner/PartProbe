@@ -151,6 +151,27 @@ ADVERSARIAL_FIXTURES: tuple[tuple[str, Path], ...] = (
         "vertex_limit_exceeded",
         ROOT / "fixtures" / "models" / "adversarial_3mf_vertex_limit_exceeded.3mf",
     ),
+    (
+        "duplicate_model_relationship",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_duplicate_model_relationship.3mf",
+    ),
+    (
+        "missing_model_relationship",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_missing_model_relationship.3mf",
+    ),
+    (
+        "external_model_relationship",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "adversarial_3mf_external_model_relationship.3mf",
+    ),
 )
 UNIT_FIXTURES: tuple[tuple[str | None, str, Path], ...] = (
     ("micron", "0.001", ROOT / "fixtures" / "models" / "cube_10mm_3mf_micron.3mf"),
@@ -604,6 +625,25 @@ def build_adversarial_3mf(source: bytes, case: str) -> bytes:
             1,
         )
         parts[-1] = (parts[-1][0], model.encode("utf-8"))
+    elif case == "duplicate_model_relationship":
+        relationships = parts[1][1].replace(
+            b"</Relationships>",
+            b'  <Relationship Id="rel1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" Target="/3D/3dmodel.model" />\n'
+            b"</Relationships>",
+        )
+        parts[1] = (parts[1][0], relationships)
+    elif case == "missing_model_relationship":
+        relationships = parts[1][1].replace(
+            b"http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel",
+            b"http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail",
+        )
+        parts[1] = (parts[1][0], relationships)
+    elif case == "external_model_relationship":
+        relationships = parts[1][1].replace(
+            b" />",
+            b' TargetMode="External" />',
+        )
+        parts[1] = (parts[1][0], relationships)
     else:
         raise ValueError(f"unsupported adversarial 3MF case: {case}")
     return build_package(tuple(parts))

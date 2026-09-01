@@ -8,11 +8,17 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-09-01 — TASK-004 3MF root-relationship rejection corpus
+
+- Added deterministic public `FIX-MESH-060`–`062` packages for duplicate model StartPart relationships, no model StartPart relationship, and an external model target. Their SHA-256 values are `9d50de07f603604f34c07bef038be41bec9cbfb7c9206e03108c2f019d418457`, `892cdfda457fa89f1d9be1d8182c2dea22c5004036072d2d0fa0aef37bfbb746`, and `c687d3234bb025a1f2fbb7d8182f20882f7438cc6f290e78bbf8185fe4f44a3a`.
+- Added schema-v1 failure expectations requiring two `THREE_MF_INVALID_PACKAGE` results and one `THREE_MF_UNSAFE_PACKAGE`, with no geometry snapshot, output file, or retained staged input. Generator/tooling tests prove the three packages are distinct, reproducible, and isolate their intended relationship shapes; parser and fixture-contract tests consume every committed byte/expectation.
+- Parser v8 already rejected all three shapes, so accepted syntax, geometry interpretation, diagnostics, dependencies, calculation behavior, and persisted/customer schemas are unchanged. No parser-version or data migration applies. The public corpus is now sixty-five CAD files: fifteen STL, forty-seven 3MF, and three STEP; forty mesh inputs are intentional rejections.
+
 ## 2026-09-01 — Configured desktop mesh smoke gate
 
 - Added an ignored, desktop-host-gated configured-runtime test that drives the governed closed ASCII STL and translated centimetre 3MF fixtures through the real supervisor and retained native session. It verifies content-derived format, STL source-coordinate versus 3MF canonical-millimetre evidence, retained closed measurements, not-applied welding, path-free contract-v4 serialization, and application-enforced estimate unavailability even when the request supplies complete synthetic inputs.
 - Updated the opt-in Linux and Windows pinned-OCCT workflows to run both configured-worker smokes by their shared test-name prefix. Ordinary CI still compiles but does not execute these ignored tests, and no fallback or ambient runtime discovery was added. Local desktop-host compilation and the twenty-two ordinary native-host tests pass; exact-commit configured Linux/Windows evidence is pending workflow execution.
-- Reviewed contract-v4 run 33545606121: macOS and Ubuntu passed every gate, while Windows failed only because the application mesh test removed its temporary directory with the retained session/root handles still open. The corrected test now explicitly drops both owners and uses the established cleanup helper. Local focused and complete workspace tests pass; replacement three-OS execution is pending the next push.
+- Reviewed contract-v4 run 33545606121: macOS and Ubuntu passed every gate, while Windows failed only because the application mesh test removed its temporary directory with the retained session/root handles still open. The corrected test explicitly drops both owners and uses the established cleanup helper. Replacement run 33546668622 passes all gates on macOS, Ubuntu, and Windows at exact commit `7f2c378`; the separate configured native Linux/Windows runs remain in progress.
 - This adds an integration gate, not a calculation or geometry-interpretation change. It does not add mesh estimating authority, persistence, accessibility acceptance, representative importer accuracy, signing, redistribution approval, or production support.
 
 ## 2026-09-01 — TASK-004 application and desktop mesh integration

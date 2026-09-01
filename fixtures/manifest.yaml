@@ -2022,6 +2022,120 @@ fixtures:
       - closed_measurements_withheld
     expected: expected/cube_10mm_3mf_split_index_seam.json
     sha256: e496e7aec4b6bb3911ab5680c80384e451aedf885d27af4689c036682e190342
+  - id: FIX-MESH-060
+    title: 3MF cube with duplicate model StartPart relationships
+    path: models/adversarial_3mf_duplicate_model_relationship.3mf
+    format: 3mf-core-1.4-opc-invalid
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-004
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm_but_analysis_rejected
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v14
+      parser: partprobe-3mf-spike-v8
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-09-01
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-006, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - duplicate_model_startpart_relationship_rejection
+      - ambiguous_package_rejection
+      - sanitized_diagnostic
+      - no_geometry_evidence
+    expected: expected/adversarial_3mf_duplicate_model_relationship_rejection.json
+    sha256: 9d50de07f603604f34c07bef038be41bec9cbfb7c9206e03108c2f019d418457
+  - id: FIX-MESH-061
+    title: 3MF cube package without a model StartPart relationship
+    path: models/adversarial_3mf_missing_model_relationship.3mf
+    format: 3mf-core-1.4-opc-invalid
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-004
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm_but_analysis_rejected
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v14
+      parser: partprobe-3mf-spike-v8
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-09-01
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-006, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - missing_model_startpart_relationship_rejection
+      - unresolved_model_part_rejection
+      - sanitized_diagnostic
+      - no_geometry_evidence
+    expected: expected/adversarial_3mf_missing_model_relationship_rejection.json
+    sha256: 892cdfda457fa89f1d9be1d8182c2dea22c5004036072d2d0fa0aef37bfbb746
+  - id: FIX-MESH-062
+    title: 3MF cube with an external model StartPart relationship
+    path: models/adversarial_3mf_external_model_relationship.3mf
+    format: 3mf-core-1.4-opc-unsafe
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-004
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm_but_analysis_rejected
+    declared_units: cm
+    canonical_units_after_confirmation: null
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v14
+      parser: partprobe-3mf-spike-v8
+    expected_worker_outcome: failed_recoverable
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 4
+      max_components: 3
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-09-01
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-006, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - external_model_startpart_relationship_rejection
+      - external_target_rejection
+      - sanitized_diagnostic
+      - no_geometry_evidence
+    expected: expected/adversarial_3mf_external_model_relationship_rejection.json
+    sha256: c687d3234bb025a1f2fbb7d8182f20882f7438cc6f290e78bbf8185fe4f44a3a
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step

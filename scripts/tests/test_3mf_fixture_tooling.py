@@ -241,14 +241,14 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             model,
         )
 
-    def test_adversarial_corpus_pins_twenty_nine_distinct_rejection_shapes(self) -> None:
+    def test_adversarial_corpus_pins_thirty_two_distinct_rejection_shapes(self) -> None:
         source = generate_3mf_fixture.SOURCE.read_bytes()
         generated = {
             case: generate_3mf_fixture.build_adversarial_3mf(source, case)
             for case, _ in generate_3mf_fixture.ADVERSARIAL_FIXTURES
         }
-        self.assertEqual(len(generated), 29)
-        self.assertEqual(len(set(generated.values())), 29)
+        self.assertEqual(len(generated), 32)
+        self.assertEqual(len(set(generated.values())), 32)
         expected_ids = {
             "branching_components": "FIX-MESH-014",
             "non_immediate_reference": "FIX-MESH-015",
@@ -279,6 +279,9 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             "missing_vertex_coordinate": "FIX-MESH-055",
             "out_of_range_triangle_index": "FIX-MESH-056",
             "vertex_limit_exceeded": "FIX-MESH-057",
+            "duplicate_model_relationship": "FIX-MESH-060",
+            "missing_model_relationship": "FIX-MESH-061",
+            "external_model_relationship": "FIX-MESH-062",
         }
         for case, output_path in generate_3mf_fixture.ADVERSARIAL_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -354,6 +357,29 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             self.assertIn(b"<!DOCTYPE model>", package.read("3D/3dmodel.model"))
         with zipfile.ZipFile(BytesIO(generated["entry_count_limit"])) as package:
             self.assertEqual(len(package.namelist()), 17)
+        with zipfile.ZipFile(
+            BytesIO(generated["duplicate_model_relationship"])
+        ) as package:
+            relationships = package.read("_rels/.rels")
+            self.assertEqual(
+                relationships.count(
+                    b"http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"
+                ),
+                2,
+            )
+        with zipfile.ZipFile(
+            BytesIO(generated["missing_model_relationship"])
+        ) as package:
+            relationships = package.read("_rels/.rels")
+            self.assertNotIn(
+                b"http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel",
+                relationships,
+            )
+        with zipfile.ZipFile(
+            BytesIO(generated["external_model_relationship"])
+        ) as package:
+            relationships = package.read("_rels/.rels")
+            self.assertIn(b'TargetMode="External"', relationships)
         with zipfile.ZipFile(
             BytesIO(generated["reflected_component_transform"])
         ) as package:
