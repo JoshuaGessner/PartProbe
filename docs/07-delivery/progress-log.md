@@ -1,12 +1,19 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-09-01
+> **Last updated:** 2026-09-02
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-09-02 — TASK-004 explicit internal 3MF relationship evidence
+
+- Added deterministic public `FIX-MESH-066`, a 1,083-byte positive 3MF package whose baseline StartPart relationship explicitly declares `TargetMode="Internal"`. The package SHA-256 is `0ae68b401d78b92e6405564e243e7011e5f437a5681243a42c7eecc59d04ae2b`; its model bytes and analytic translated-cube expectations remain unchanged from `FIX-MESH-004`.
+- Extended the alternate-OPC generator and parser corpus to isolate this one relationship attribute from the existing alternate-path and thumbnail cases. Generator tests require all five legal variants to be distinct and reproducible, and the schema-v4 expectation retains explicit centimetres, canonical 10 mm extents, 600 mm² area, 1,000 mm³ volume, `(25, 35, 45)` mm centroid, `Low` confidence, and the mesh-only warning.
+- Parser v8 already accepted the explicit internal mode, so accepted syntax, geometry interpretation, calculations, dependencies, controlled-output schemas, and customer/persisted data are unchanged. No parser-version or migration decision applies. This is one additional synthetic OPC-axis check, not exporter compatibility, representative geometry, windowed desktop evidence, or supported import.
+- Complete local closeout passes 190 runtime tests, one compile-fail doctest, 74 Python tooling tests, thirteen STL tests, fourteen 3MF tests, fifteen protocol tests, twenty-four default worker process tests, four fixture-contract tests, all sixty-nine fixture hashes, deterministic reproduction of sixty-three generated mesh artifacts, 145-file planning validation, strict workspace/native-host/WASM Clippy, offline release frontend construction, formatting, and diff hygiene.
 
 ## 2026-09-01 — TASK-004 3MF model content-type rejection corpus
 

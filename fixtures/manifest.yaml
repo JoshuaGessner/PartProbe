@@ -2250,6 +2250,46 @@ fixtures:
       - no_geometry_evidence
     expected: expected/adversarial_3mf_wrong_model_content_type_rejection.json
     sha256: 1417a88770e0a72450d84928f4430f2d5c2a6fe256717adb9be1d5e5b1415b66
+  - id: FIX-MESH-066
+    title: Translated 3MF cube with explicit internal StartPart target mode
+    path: models/cube_10mm_3mf_explicit_internal_target_mode.3mf
+    format: 3mf-core-1.4-opc-explicit-internal-target-mode
+    representation: triangle_mesh
+    source: project-generated-public-synthetic-derived-from-FIX-MESH-004
+    license: pending_project_license_decision
+    classification: public
+    unit_semantics: declared_cm
+    declared_units: cm
+    canonical_units_after_confirmation: mm
+    analysis_profile: bootstrap_geometry_v0
+    algorithm_versions:
+      generator: partprobe-3mf-fixture-generator-v16
+      parser: partprobe-3mf-spike-v8
+      self_intersection: partprobe-exact-mesh-intersection-spike-v1
+      confidence_policy: partprobe-mesh-confidence-policy-v1
+      topology_policy: partprobe-mesh-topology-policy-v1
+    expected_worker_outcome: succeeded_with_warnings
+    resource_ceiling:
+      max_input_bytes: 65536
+      max_archive_entries: 16
+      max_total_uncompressed_bytes: 65536
+      max_model_xml_bytes: 32768
+      max_vertices: 100
+      max_triangles: 1000
+      max_objects: 2
+      max_components: 1
+      max_model_metadata: 8
+      max_compression_ratio: 100
+    owner: unassigned
+    recorded_date: 2026-09-02
+    reviewed_date: null
+    requirements: [GEO-002, GEO-003, GEO-004, GEO-006, GEO-010, GEO-013, TEST-003, TEST-025]
+    purpose:
+      - 3mf_alternate_opc_corpus
+      - explicit_internal_start_part_target_mode
+      - canonical_mesh_golden
+    expected: expected/cube_10mm_3mf_explicit_internal_target_mode.json
+    sha256: 0ae68b401d78b92e6405564e243e7011e5f437a5681243a42c7eecc59d04ae2b
   - id: FIX-STEP-001
     title: Exact 10 mm synthetic STEP cube
     path: models/cube_10mm.step

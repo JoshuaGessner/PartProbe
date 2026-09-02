@@ -48,8 +48,8 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             case: generate_3mf_fixture.build_alternate_opc_3mf(source, case)
             for case, _ in generate_3mf_fixture.ALTERNATE_OPC_FIXTURES
         }
-        self.assertEqual(len(generated), 4)
-        self.assertEqual(len(set(generated.values())), 4)
+        self.assertEqual(len(generated), 5)
+        self.assertEqual(len(set(generated.values())), 5)
         with zipfile.ZipFile(
             BytesIO(generate_3mf_fixture.build_3mf(source))
         ) as baseline_package:
@@ -60,12 +60,14 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
             "alternate_model_part": "FIX-MESH-045",
             "stored_compression": "FIX-MESH-046",
             "package_thumbnail": "FIX-MESH-058",
+            "explicit_internal_target_mode": "FIX-MESH-066",
         }
         expected_hashes = {
             "default_content_type": "9483eefe0b2f39489b6ac19a17fea9b80bfd8040e6ac538e4e7cb095fa0220d4",
             "alternate_model_part": "6e6b281e971dd2871f06ed5ba9f62cff07f4d51efe515801137f05e821a52b54",
             "stored_compression": "16944c712b4c851c374f2a39d13b66fd5fc32ecebf570e342ccf24e192338198",
             "package_thumbnail": "40a575b863331e5bce4976a5f97b00959d6916fd4a8218cc65aa8dc937dda4cc",
+            "explicit_internal_target_mode": "0ae68b401d78b92e6405564e243e7011e5f437a5681243a42c7eecc59d04ae2b",
         }
         for case, output_path in generate_3mf_fixture.ALTERNATE_OPC_FIXTURES:
             self.assertEqual(generated[case], output_path.read_bytes())
@@ -134,6 +136,18 @@ class ThreeMfFixtureToolingTests(unittest.TestCase):
                 package.read("Metadata/thumbnail.png"),
                 generate_3mf_fixture.PACKAGE_THUMBNAIL_PNG,
             )
+            self.assertEqual(package.read("3D/3dmodel.model"), baseline_model)
+
+        with zipfile.ZipFile(
+            BytesIO(generated["explicit_internal_target_mode"])
+        ) as package:
+            self.assertEqual(
+                package.namelist(),
+                ["[Content_Types].xml", "_rels/.rels", "3D/3dmodel.model"],
+            )
+            relationships = package.read("_rels/.rels")
+            self.assertIn(b'Target="/3D/3dmodel.model"', relationships)
+            self.assertEqual(relationships.count(b'TargetMode="Internal"'), 1)
             self.assertEqual(package.read("3D/3dmodel.model"), baseline_model)
 
     def test_metadata_package_is_bounded_public_core_evidence(self) -> None:

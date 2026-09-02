@@ -29,11 +29,12 @@ const INCH_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_
 const FOOT_CUBE: &[u8] = include_bytes!("../../../fixtures/models/cube_10mm_3mf_foot.3mf");
 const DEFAULT_MM_CUBE: &[u8] =
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_mm.3mf");
-const ALTERNATE_OPC_CUBES: [&[u8]; 4] = [
+const ALTERNATE_OPC_CUBES: [&[u8]; 5] = [
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_default_content_type.3mf"),
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_alternate_model_part.3mf"),
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_stored_compression.3mf"),
     include_bytes!("../../../fixtures/models/cube_10mm_3mf_package_thumbnail.3mf"),
+    include_bytes!("../../../fixtures/models/cube_10mm_3mf_explicit_internal_target_mode.3mf"),
 ];
 const ADVERSARIAL_THREE_MF: [(&[u8], ThreeMfError); 35] = [
     (

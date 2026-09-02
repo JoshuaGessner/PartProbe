@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-09-01
+> **Last updated:** 2026-09-02
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -14,6 +14,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 
 ### Added
 
+- `FIX-MESH-066`, a deterministic positive 3MF/OPC fixture that isolates the explicit `TargetMode="Internal"` form on the baseline package-root StartPart relationship. Its schema-v4 expectation pins the unchanged translated 10 mm cube evidence and `Low` mesh confidence. Parser v8 already accepted this legal form, so accepted syntax, geometry interpretation, calculations, dependencies, and migration policy are unchanged; it is not general exporter or supported-importer evidence.
 - `FIX-MESH-063`–`065`, deterministic public 3MF packages that persist existing parser-v8 rejection behavior for duplicate matching model content-type declarations, no declaration matching the StartPart-selected model, and a matching model part with the wrong media type. Typed failure expectations pin `THREE_MF_INVALID_PACKAGE` and forbid geometry evidence. Accepted syntax, calculations, dependencies, and failure schema v1 remain unchanged; changing these boundaries or diagnostics requires an explicit parser-version and migration decision.
 - Configured real-worker desktop-host mesh evidence on Ubuntu x86_64 and Windows x64. Opt-in runs 33546682993 and 33546698680 pass governed STEP/STL/3MF analysis through manifest-verified OCCT runtimes, the supervisor, retained native sessions, path-free contract-v4 mapping, and application-enforced mesh estimate unavailability at exact commit `7f2c378`. This is not windowed GUI, packaging, accessibility, representative-corpus, or supported-importer acceptance.
 - `FIX-MESH-055`–`057`, deterministic public 3MF packages that persist existing parser-v6 rejection behavior for a missing required vertex coordinate, a triangle index outside the eight-vertex table, and a 101st vertex beyond the configured 100-vertex ceiling. Typed failure expectations pin `THREE_MF_INVALID_XML`, `THREE_MF_UNSUPPORTED_MODEL_STRUCTURE`, and `THREE_MF_ENTITY_LIMIT_EXCEEDED`, respectively, and forbid geometry evidence. Accepted syntax, calculations, dependencies, and failure schema v1 remain unchanged; changing these boundaries or diagnostics requires an explicit parser-version and migration decision.

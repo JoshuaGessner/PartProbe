@@ -223,6 +223,13 @@ ALTERNATE_OPC_FIXTURES: tuple[tuple[str, Path], ...] = (
         "package_thumbnail",
         ROOT / "fixtures" / "models" / "cube_10mm_3mf_package_thumbnail.3mf",
     ),
+    (
+        "explicit_internal_target_mode",
+        ROOT
+        / "fixtures"
+        / "models"
+        / "cube_10mm_3mf_explicit_internal_target_mode.3mf",
+    ),
 )
 FIXED_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
 PACKAGE_THUMBNAIL_PNG = bytes.fromhex(
@@ -748,6 +755,11 @@ def build_alternate_opc_3mf(source: bytes, case: str) -> bytes:
             ),
         )
         parts.append(("Metadata/thumbnail.png", PACKAGE_THUMBNAIL_PNG))
+    elif case == "explicit_internal_target_mode":
+        parts[1] = (
+            parts[1][0],
+            parts[1][1].replace(b" />", b' TargetMode="Internal" />'),
+        )
     else:
         raise ValueError(f"unsupported alternate OPC case: {case}")
     return build_package(tuple(parts))
