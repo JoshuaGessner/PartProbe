@@ -99,7 +99,7 @@ The host accepts no independent worker or library-root override. It derives both
 
 The estimate form is intentionally empty for shop-owned numeric values. Enter `0` explicitly when zero is the intended value. Its confirmations create only ephemeral developer-session rate governance and pricing context; the displayed result is not saved, approved, or a customer quote. Choosing a different source requests cancellation of active work and waits for bounded worker cleanup before another analysis may start. A cancelled analysis is shown distinctly from a failure. Canonical-unit and warning confirmations are analysis-revision-bound and reset whenever analysis state changes; manual/rate/policy text may remain in the process only as draft convenience.
 
-For a macOS smoke-test bundle:
+For a macOS smoke-test bundle that keeps the runtime external:
 
 ```sh
 cd apps/estimator-desktop
@@ -109,4 +109,28 @@ PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
   ../../target/debug/bundle/macos/PartProbe.app/Contents/MacOS/partprobe-estimator-desktop
 ```
 
-Launching the bundle executable, rather than Finder or `open`, is intentional for this developer checkpoint because the two explicit environment paths must reach the host process. The runtime directory is likewise not embedded in the `.app`, signed, notarized, installed, immutable, or approved for redistribution. Startup verification detects the checked failure classes but does not prevent a privileged actor from changing files after verification. The repository's manual `Native Linux OCCT Evidence` workflow performs exact-source Ubuntu-x86_64 construction, runtime/link verification, and this configured headless host smoke without retaining binaries. `Native Windows OCCT Evidence` pins Windows Server 2022/Visual Studio 2022 x64, canonical OCCT install directories, app-local runtime DLLs, explicit PE/import closure, and the same configured host smoke. Run 31613259785 passes all 11 adapter and 16 worker/process tests, verifies 23 OCCT DLL families across 24 x64 PE binaries, and passes the real configured STEP-to-USD-702 host smoke. Neither native construction workflow is a window or package test. The separate Linux package gates progress from shell-only run 31612819644 to native-runtime-integrated run 31624958771 and the current bounded picker/analysis interaction follow-up. All targets still need signed package evidence; Windows and macOS still need native-runtime-integrated package evidence, and Linux still needs installation plus broader portal/accessibility/physical-display acceptance. The completed Apple-Silicon GUI checklist is recorded in [GUI-5 validation](../../docs/06-quality/gui-5-validation.md), native-runtime evidence is recorded in [TASK-003 validation](../../docs/06-quality/task-003-validation.md), and the shell/package boundaries are recorded in [Linux package validation](../../docs/06-quality/linux-desktop-package-validation.md).
+Launching this external-runtime variant through its executable, rather than Finder or `open`, is intentional because both explicit environment paths must reach the host process. The runtime is not embedded in this variant, and neither the app nor runtime is signed, notarized, installed, immutable, or approved for redistribution.
+
+For a local macOS bundle containing the verified OCCT runtime, first materialize a separate package copy. Tauri copies resource aliases as regular files, so the original symlink-aware developer manifest must not be reused unchanged. The package materializer follows only already-verified local aliases, rewrites those entries with exact regular-file hashes, and verifies the new output before bundling:
+
+```sh
+python3 scripts/assemble_native_runtime.py materialize-for-package \
+  --runtime-root /approved/local/partprobe-native-runtime \
+  --output /private/tmp/partprobe-macos-package-runtime
+python3 scripts/assemble_native_runtime.py verify \
+  --runtime-root /private/tmp/partprobe-macos-package-runtime
+python3 -c 'import json, pathlib; pathlib.Path("/private/tmp/partprobe-macos-package-config.json").write_text(json.dumps({"bundle": {"resources": {"/private/tmp/partprobe-macos-package-runtime": "partprobe-native-runtime"}}}), encoding="utf-8")'
+cd apps/estimator-desktop
+env -u NO_COLOR cargo tauri build --debug --features desktop-host --bundles app --no-sign \
+  --config /private/tmp/partprobe-macos-package-config.json
+cd ../..
+python3 scripts/assemble_native_runtime.py verify \
+  --runtime-root target/debug/bundle/macos/PartProbe.app/Contents/Resources/partprobe-native-runtime
+mkdir -p /private/tmp/partprobe-gui-worker
+PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
+  target/debug/bundle/macos/PartProbe.app/Contents/MacOS/partprobe-estimator-desktop
+```
+
+This runtime-integrated local bundle needs no `PARTPROBE_NATIVE_RUNTIME` override: the host resolves and re-verifies `Contents/Resources/partprobe-native-runtime`. The writable worker workspace remains an explicit external deployment setting and must not be placed inside the read-only application resources. Local commit `c3f076f` passed the packaged-resource real STEP-to-USD-702 smoke with a verified 72-artifact runtime. This remains an unsigned, unnotarized, developer-only `.app`; it is not an installer, a signed distribution, redistribution approval, supported importer evidence, or production deployment.
+
+Launching the external-runtime variant through its executable, rather than Finder or `open`, remains intentional because both explicit environment paths must reach the host process. The external runtime is not embedded, signed, notarized, installed, immutable, or approved for redistribution. The runtime-integrated variant still needs the explicit external workspace. Startup verification detects the checked failure classes but does not prevent a privileged actor from changing files after verification. The repository's manual `Native Linux OCCT Evidence` workflow performs exact-source Ubuntu-x86_64 construction, runtime/link verification, and its configured headless host smoke without retaining binaries. `Native Windows OCCT Evidence` pins Windows Server 2022/Visual Studio 2022 x64, canonical OCCT install directories, app-local runtime DLLs, explicit PE/import closure, and the same configured host smoke. Neither native construction workflow is a window or package test. The separate Linux package gates and this local macOS checkpoint establish only unsigned developer package integration. All targets still need signed package evidence; Windows still needs native-runtime-integrated package evidence, macOS needs automated/notarized distribution evidence, and Linux still needs installation plus broader portal/accessibility/physical-display acceptance. The completed Apple-Silicon GUI checklist is recorded in [GUI-5 validation](../../docs/06-quality/gui-5-validation.md), native-runtime evidence is recorded in [TASK-003 validation](../../docs/06-quality/task-003-validation.md), and the shell/package boundaries are recorded in [Linux package validation](../../docs/06-quality/linux-desktop-package-validation.md).

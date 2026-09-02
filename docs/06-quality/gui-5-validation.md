@@ -1,10 +1,10 @@
 # GUI-5 Configured Native Desktop Validation
 
 > **Status:** Complete for the bounded internal developer checkpoint
-> **Last updated:** 2026-08-16
+> **Last updated:** 2026-09-02
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; TEST-002, TEST-003, TEST-008, TEST-011, TEST-012, TEST-014, TEST-019, TEST-021, TEST-024, TEST-030
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005, ADR-0007, ADR-0008
-> **Open questions:** Formal GUI-1 fixture approval, signed/embedded native distribution, three-platform native desktop evidence, full assistive-technology matrix
+> **Open questions:** Formal GUI-1 fixture approval, signed/notarized native distribution, three-platform native desktop evidence, full assistive-technology matrix
 > **Dependencies:** GUI-1 implementation evidence, GUI-2 application service, GUI-3 shell, GUI-4 workspace
 > **Supersedes:** None
 
@@ -12,7 +12,7 @@
 
 GUI-5 completes the five-checkpoint **facts-and-estimate internal developer slice** on one Apple-Silicon macOS host. It is a reproducible developer validation of the actual Tauri application, pinned OCCT worker, one governed synthetic STEP fixture, explicit review/manual/rate/pricing inputs, and the existing deterministic estimate engine.
 
-This evidence does not create a supported STEP importer, embedded/signed/distributable OCCT runtime, durable estimate, production rate library, approved quote, three-platform desktop capability, full TEST-012 accessibility result, or release acceptance. The application remains provisional, session-only, unsaved, and developer-configured. No 3D viewport exists.
+This evidence does not create a supported STEP importer, signed/distributable OCCT runtime, durable estimate, production rate library, approved quote, three-platform desktop capability, full TEST-012 accessibility result, or release acceptance. The application remains provisional, session-only, unsaved, and developer-configured. No 3D viewport exists.
 
 ## Reproducible native environment
 
@@ -47,6 +47,14 @@ Result: the explicit developer-runtime smoke passed against the original constru
 
 The follow-on ignored `gui5_configured_worker_returns_real_mesh_results_without_estimate_authority` smoke uses the same explicit verified-runtime and external-workspace boundary. It sends the governed closed ASCII STL and translated centimetre 3MF fixtures through the real supervisor and one retained native session, then checks the path-free contract-v4 mesh DTOs: content-derived format, unresolved STL source coordinates, canonical-millimetre 3MF evidence, not-applied welding, retained closed measurements, and no source path. It also submits a complete synthetic estimate request for each result and requires application-enforced `Unavailable` with the governed no-authority reason. Opt-in runs 33546682993 on Ubuntu x86_64 and 33546698680 on Windows x64 pass both configured-worker tests at exact commit `7f2c378`. This remains headless native-host evidence and must not be promoted to windowed GUI, accessibility, package, representative-corpus, or supported-importer acceptance.
 
+## Runtime-integrated local macOS bundle
+
+On 2026-09-02, commit `c3f076f` was built as a fresh unsigned Apple-Silicon debug `PartProbe.app` with the verified OCCT/worker runtime inside `Contents/Resources/partprobe-native-runtime`. The source developer runtime passed independent verification first. Because Tauri materializes its safe OCCT library aliases as regular files, `materialize-for-package` produced a separate 72-artifact package runtime with regenerated file hashes; both that input and the copied bundle resource passed the complete manifest/provenance/host/hash/no-extra-artifact verifier.
+
+The resulting 173 MiB bundle contains arm64 GUI and worker executables. The GUI executable SHA-256 is `0d0a3c1aa7a5354b183917a4078498d9cc4e2a8527d05b70fa06e9d4c67201ae`. With `PARTPROBE_NATIVE_RUNTIME` absent and only the required external writable worker workspace configured, `packaged_resource_worker_runs_real_step_through_retained_estimate_session` passed against the exact bundle resource directory. That proves the package-contained runtime can analyze `FIX-STEP-003`, retain the native session, and reach the existing deterministic USD 702 result without a separate OCCT path.
+
+This is local unsigned developer evidence only. The bundle is not signed, notarized, installed, published, or approved for OCCT redistribution; the worker workspace remains external and explicit. It does not replace full window/accessibility regression, representative importer accuracy, macOS parser egress/descendant containment, production persistence/rates, or release acceptance.
+
 GitHub Actions run 31340568277 passes formatting, six native-tooling tests, strict workspace/native-host/WASM lint, all-target tests, and doctests on macOS, Ubuntu, and Windows at GUI-5 implementation commit `40c20a2`. The native OCCT smoke remains explicit Apple-Silicon local evidence and is not run by that feature-off default matrix.
 
 Follow-on GitHub Actions run 31346159820 passes the current eleven-tooling-test and 142-runtime-test matrix plus all lint/doctest gates on macOS, Ubuntu, and Windows at startup-verifier implementation commit `86e00b5`. It validates the portable verifier logic but still does not construct or launch OCCT on Windows/Linux.
@@ -76,6 +84,6 @@ The deliberately invalid `invalid_entity.step` fixture produced a bounded `GUI4-
 
 ## Remaining evidence and next development gate
 
-GUI-5 and GUI-4 are complete only for this bounded developer checkpoint. GUI-1 formal fixture/security review remains open in parallel. Linux and Windows configured-native headless evidence pass, and Linux additionally passes the verified-runtime Debian package-integration checkpoint. The next product-facing work is not another form demo: it is bounded interactive Linux/Windows evidence, Windows/macOS package integration, signed application/runtime integration, remaining worker containment, a supported importer accuracy corpus, durable shop-owned rate/policy setup, persistence/save/reopen/replay, broader STEP/STL/3MF intake, and release accessibility/usability/security evidence. A visible model adds the separate tessellation/viewer checkpoints in the vertical-slice plan.
+GUI-5 and GUI-4 are complete only for this bounded developer checkpoint. GUI-1 formal fixture/security review remains open in parallel. Linux and Windows configured-native headless evidence pass; Linux passes the verified-runtime Debian package-integration checkpoint; and macOS now passes one local unsigned runtime-integrated app/resource smoke. The next product-facing work is not another form demo: it is bounded interactive Linux/Windows evidence, reproducible signed/notarized macOS packaging, Windows package integration, remaining worker containment, a supported importer accuracy corpus, durable shop-owned rate/policy setup, persistence/save/reopen/replay, broader STEP/STL/3MF intake, and release accessibility/usability/security evidence. A visible model adds the separate tessellation/viewer checkpoints in the vertical-slice plan.
 
 No calculation formula, geometry interpretation, worker schema/ABI, persisted/customer schema, production rate, third-party package/version, external data transfer, or compliance/support claim changed in GUI-5.

@@ -8,6 +8,14 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-09-02 — Runtime-integrated local macOS app
+
+- Pushed TASK-004 relationship-fixture commit `c3f076f` to `origin/main`, then built a fresh unsigned Apple-Silicon debug `PartProbe.app` from that exact code.
+- Independently re-verified the saved OCCT 8.0.0 developer runtime. The first resource-copy attempt correctly failed post-bundle verification because Tauri materialized safe OCCT symlinks as regular files. Used the governed `materialize-for-package` transformation to create a distinct 72-artifact, regular-file-manifested package runtime; the source runtime, package input, and exact copied app resource all passed complete verification.
+- The 173 MiB app contains arm64 GUI and geometry-worker executables under the fixed resource contract. The GUI executable SHA-256 is `0d0a3c1aa7a5354b183917a4078498d9cc4e2a8527d05b70fa06e9d4c67201ae`.
+- With no `PARTPROBE_NATIVE_RUNTIME` override, the packaged-resource smoke passed the governed STEP prism through the app-contained worker/OCCT closure, retained the native session, and reached the existing deterministic USD 702 result. A local launcher beside the ignored build artifact creates the explicit external private worker workspace and starts the exact bundle.
+- This is local unsigned developer package evidence only. Signing, notarization, installation, OCCT redistribution/legal approval, tamper resistance, full clean-host reproduction, macOS parser egress/descendant containment, representative importer accuracy, persistence, and release acceptance remain open. No calculation, geometry interpretation, command contract, dependency, or production-support boundary changed.
+
 ## 2026-09-02 — TASK-004 explicit internal 3MF relationship evidence
 
 - Added deterministic public `FIX-MESH-066`, a 1,083-byte positive 3MF package whose baseline StartPart relationship explicitly declares `TargetMode="Internal"`. The package SHA-256 is `0ae68b401d78b92e6405564e243e7011e5f437a5681243a42c7eecc59d04ae2b`; its model bytes and analytic translated-cube expectations remain unchanged from `FIX-MESH-004`.
