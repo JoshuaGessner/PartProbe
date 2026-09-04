@@ -1,7 +1,7 @@
 # Milestones
 
 > **Status:** In Review
-> **Last updated:** 2026-08-16
+> **Last updated:** 2026-09-04
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -24,11 +24,13 @@ Exit: Cargo workspace; domain/units/money/provenance; migrations/repositories; w
 
 Status: **In Progress.** TASK-001 supplies the calculation workspace/primitives and passing cross-platform CI evidence. TASK-002 supplies configurable rate, rounding, pricing, synthetic-golden, and replay mechanics with passing three-OS evidence. TASK-003 supplies kernel-neutral geometry contracts, an isolated control-schema-v2 worker, explicit verified-copy transport, exact Unix descriptor and Windows HANDLE direct-resource allowlisting with unrelated-resource exclusion, worker-side revalidation, controlled intake/output seams, cancellation behavior, Linux parser-phase socket/process syscall denial, provisional OCCT ABI-v3 byte-stream evidence, and verified Apple-Silicon/Ubuntu-x86_64/Windows-x64 developer runtimes containing the worker plus complete observed OCCT closure. Ubuntu and Windows pass internal dynamic-link/PE auditing and configured headless STEP/STL/3MF host smokes; Ubuntu 22.04 also passes unsigned extracted Debian package-resource verification, real STEP-to-USD-702 analysis, and bounded virtual-display launch, with exact-payload native-picker/analysis interaction under final validation. GUI-3 supplies an unsigned local desktop shell, native picker, typed pathless bridge, and initial design/security boundary; GUI-4/GUI-5 implement and validate the connected session-only exact analysis/review/input/rate/pricing/result workflow. Contract v4 adds provisional path-free STL/3MF presentation while preserving application-enforced estimate unavailability. Production importer accuracy, windowed mesh interaction, remaining containment, Windows/macOS native-runtime packaging, signed three-OS packaging, interactive Windows and full accessibility evidence, persistence, and remaining foundation components are pending.
 
+Near-term M1/M2 work follows the [usable estimator delivery plan](usable-estimator-plan.md). USE-1 separates the primary upload/analyze Estimate view from Settings without changing calculation authority. USE-2 persistence and governance, USE-3 stock/material proposals, and USE-4 coarse process/runtime proposals are the shortest path from the current developer harness to a useful model-sensitive estimator; existing TASK-003/004 safety and format work continues alongside that path.
+
 ## M2 Vertical slice
 
 Exit: all items in `release-plan.md` and `functional-requirements.md` for initial slice pass linked acceptance evidence on supported targets.
 
-The M2 scope remains one approved route and coarse runtime. It adds guided shop-owned rate/pricing setup, selected-rate traceability, and only basic manual requirement coverage, availability, make/buy, and revision preservation needed to avoid redesign; automatic optimization, probabilistic simulation, structured PMI authority, live CAM/schedule integrations, and learning recommendations are excluded.
+The M2 scope remains one reviewed proposed route and coarse runtime. It adds guided shop-owned Settings, exact-STEP stock/material and coarse runtime proposals, selected-version traceability, and only basic manual requirement coverage, availability, make/buy, and revision preservation needed to avoid redesign. Automatic optimization, probabilistic simulation, structured PMI authority, live CAM/schedule integrations, and learning recommendations are excluded.
 
 ## M3 Decision-support expansion
 

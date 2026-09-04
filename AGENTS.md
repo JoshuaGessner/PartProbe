@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-09-01
+> **Last updated:** 2026-09-04
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -103,6 +103,9 @@ These rules are mandatory for every person or agent changing this repository.
 91. Cross-platform tests that open capability roots, files, sessions, workers, or other filesystem-backed resources must drop every owning handle before deleting their temporary tree. Use the repository cleanup helper and preserve Windows sharing semantics; a passing Unix cleanup is not evidence that live handles are portable.
 92. A 3MF root relationships part must resolve exactly one internal model StartPart. Persist duplicate-model, missing-model, and external-model relationship packages as distinct deterministic failures with exact sanitized diagnostics and no geometry evidence; never select one candidate from an ambiguous or externally targeted package.
 93. The model part selected by a 3MF StartPart relationship must resolve to exactly one authoritative Core model content type through the package content-types part. Persist duplicate matching declarations, no matching declaration, and a matching part with the wrong media type as distinct deterministic failures with exact sanitized diagnostics and no geometry evidence; never guess from the filename extension or select one ambiguous declaration.
+94. The primary estimator workflow is model intake, concise analysis evidence, vital unresolved facts, reviewed proposals, and estimate output. Keep reusable rates, material/stock data, machines/runtime profiles, and pricing policies in Settings; the estimate may show readiness, selected versions, conflicts, and deep links but must not duplicate those editors.
+95. Do not apply a fixed synthetic estimate template to an arbitrary user model in the ordinary workflow or describe such a result as model-derived. Synthetic inputs remain isolated, named test/demo evidence and never create production, shop, or approval authority.
+96. A model-derived estimate claim requires versioned, tested evidence that governed model differences affect the applicable physical or manufacturing inputs. Geometry-only part volume combined with otherwise fixed manual values is not evidence of automatic stock, material, route, or runtime estimation.
 
 ## Documentation protocol
 

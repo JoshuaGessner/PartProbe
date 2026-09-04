@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-07-29
+- **Last updated:** 2026-09-04
 - **Related requirement IDs:** UX-001 through UX-012, UX-021 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Which roles can see pricing and rate-card administration in the first slice?
@@ -16,7 +16,7 @@ The application has three levels: **Command center** (work to do), **records** (
 
 ```text
 Command center
-├─ First-run/basic Rate Setup
+├─ New estimate
 ├─ RFQ inbox
 ├─ Quotes
 │  └─ Quote workspace: Overview | Parts | Routing | Analysis | Costs | Risks | Approval | Output
@@ -24,7 +24,8 @@ Command center
 ├─ Customers
 ├─ Actuals, CAM & corrections
 ├─ Capacity & availability (advisory)
-├─ Libraries: Materials | Tools | Machines | Rates | Vendors | Templates
+├─ Settings: Shop profile | Materials | Machines | Rates | Runtime profiles | Pricing
+├─ Libraries: Tools | Vendors | Templates
 └─ Administration: Users | Backup & restore | Deployment settings
 
 Part workspace (opened from Quote)
@@ -50,7 +51,8 @@ Part workspace (opened from Quote)
 
 | Intent | Route / workspace | Primary exit |
 |---|---|---|
-| Configure calculation inputs | Rate Setup | Confirm organization currency/rounding and resolve required rate categories without product-supplied values |
+| Estimate one part | New estimate | Choose/analyze model, supply vital missing facts, review proposals, and obtain a traceable result |
+| Configure reusable calculation inputs | Settings | Confirm organization currency/rounding, rates, material/stock data, machines/runtime profiles, and pricing policy without product-supplied numeric values |
 | Triage received request | RFQ inbox | Create/assign quote or decline with reason |
 | Understand a model | Part workspace → Model review | Accept unit/validation snapshot or record uncertainty |
 | Build a manufacturing proposal | Quote → Routing | Save proposed operations and setup alternatives |
@@ -63,7 +65,9 @@ Part workspace (opened from Quote)
 
 The Analysis tab uses progressive disclosure: baseline first; then route alternatives, availability, uncertainty, capacity/economics, sourcing, and bid priority as separately labeled lenses. Stale/missing badges and the pinned version manifest remain visible. No composite score is allowed to hide a blocker or its component factors.
 
-An estimate encountering a missing, unapproved, expired, or conflicting rate links directly to the relevant Rate Setup row and returns to the same estimate context after correction. Basic setup is separate from later advanced multi-user library administration.
+An estimate encountering missing, unapproved, expired, stale, or conflicting configuration links directly to the relevant Settings record and returns to the same estimate context after correction. The primary estimate workspace shows readiness and selected versions but does not duplicate reusable library editors. First-run setup is a guided Settings route, distinct from later advanced multi-user library administration.
+
+The [usable estimator plan](../07-delivery/usable-estimator-plan.md) governs the transition from the current session-only developer form to this product shape. Until model-derived stock, material, process, and runtime proposals exist, temporary manual assumptions may remain behind progressive disclosure only when they are clearly labeled and cannot be mistaken for model-derived evidence.
 
 ## Saved views
 

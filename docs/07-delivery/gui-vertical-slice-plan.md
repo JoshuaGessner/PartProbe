@@ -1,7 +1,7 @@
 # Testable GUI Vertical Slice Plan
 
 > **Status:** In Review
-> **Last updated:** 2026-08-16
+> **Last updated:** 2026-09-04
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; UX-001–UX-012; GEO-001–GEO-007; TEST-003, TEST-012, TEST-014, TEST-021, TEST-028
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005–ADR-0008
 > **Open questions:** Whether the first internal build must include a 3D viewport; which independent STEP fixture is approved for the first end-to-end test
@@ -15,6 +15,8 @@ The nearest honest product demonstration is an **internal developer test slice**
 The first slice may be macOS/Apple-Silicon-only and session-only because that remains the only platform with a manually completed estimate-form workflow. Ubuntu x86_64 now also has configured native OCCT host evidence and an exact extracted Debian payload containing the verified runtime; its bounded native-picker/analysis interaction gate remains under validation. The slice must visibly label analysis as provisional and state that unsaved work is lost on exit. It must use isolated fixtures or explicitly approved local test files, perform no external network access, supply no production rate defaults, and make missing or conflicting inputs blocking rather than treating them as zero.
 
 This boundary does not complete TASK-003, TASK-005, TASK-006, M1, M2, or any production-format requirement.
+
+This document remains the authority for the evidence already earned by GUI-1–GUI-5. The [usable estimator delivery plan](usable-estimator-plan.md) supersedes its sequencing for new product work: upload-first workflow, durable Settings, model-derived stock/material, coarse runtime proposals, streamlined estimating, then calibration/deployment. No prior validation claim is expanded by that refactor.
 
 ## What is reusable now
 

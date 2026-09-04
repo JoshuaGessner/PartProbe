@@ -1,7 +1,7 @@
 # Product Roadmap
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-09-04
 > **Related requirements:** REQ-F-001–REQ-F-065; REQ-NF-001–REQ-NF-022
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -12,7 +12,7 @@
 |---|---|---|
 | 0 Discovery & validation | Approved problem, boundaries, decisions, fixture/data access | Interviews; reviewed docs; UI/geometry/persistence/calculation spikes; advanced-system ADR review; risk owners |
 | 1 Foundation | Cross-platform workspace and trustworthy future-safe primitives | Domain/money/units/provenance; route-set, requirement, availability, correction and revision snapshot contracts; repositories; geometry protocol; CI |
-| 2 CAD-assisted vertical slice | One approved model-to-transparent-quote workflow without advanced-scope overload | Original 28 criteria; guided basic rate/pricing setup, validation and selected-rate trace; basic requirement checklist; manual availability fields and make/buy comparison; preserved revisions; three-platform demo |
+| 2 CAD-assisted vertical slice | One upload-first model-to-transparent-estimate workflow without advanced-scope overload | Governed Settings; exact-STEP stock/material and coarse runtime proposals; minimal vital inputs; selected-version trace; basic requirement checklist; preserved revisions; three-platform demo |
 | 3 Feature and decision support | Reviewed features plus manual/multiple route comparison and revision insight | Route alternatives; basic capacity lead-time check; geometry revision comparison; feature-cost overlays; correction capture; CAM report import |
 | 4 Advanced shop-library governance/readiness | Governed multi-user material/tool/machine/rate/vendor/template and availability data | Effective-dated approval/versioning, structured import, conflict review, freshness/reservation workflows, theoretical versus readiness-adjusted estimates |
 | 5 Aerospace/quality/MBD depth | Requirement coverage and quality/documentation effort are explicit | Readiness matrix, FAI/CMM/cert/traceability; experimental AP242 PMI review under ADR-0012 |
@@ -21,6 +21,8 @@
 | 8 Team deployment/integration | Authorized multi-user LAN operation and governed live integrations | Service boundary, central storage, RBAC/audit/backup/conflict tests; approved CAM/ERP/QMS/schedule adapters |
 
 Dates are intentionally absent until shop access, spike results, staffing, and supported-platform policy are known.
+
+Within phases 1–2, the [usable estimator delivery plan](usable-estimator-plan.md) controls near-term sequencing: workflow guardrail, durable shop Settings, model-derived stock/material, coarse process/runtime, streamlined estimate, and calibration/deployment evidence. Existing geometry and packaging spikes remain parallel evidence tracks rather than the primary user workflow.
 
 ## Capability placement
 

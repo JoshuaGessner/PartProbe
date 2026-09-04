@@ -1,7 +1,7 @@
 # GUI-5 Configured Native Desktop Validation
 
 > **Status:** Complete for the bounded internal developer checkpoint
-> **Last updated:** 2026-09-02
+> **Last updated:** 2026-09-04
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; TEST-002, TEST-003, TEST-008, TEST-011, TEST-012, TEST-014, TEST-019, TEST-021, TEST-024, TEST-030
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005, ADR-0007, ADR-0008
 > **Open questions:** Formal GUI-1 fixture approval, signed/notarized native distribution, three-platform native desktop evidence, full assistive-technology matrix
@@ -13,6 +13,12 @@
 GUI-5 completes the five-checkpoint **facts-and-estimate internal developer slice** on one Apple-Silicon macOS host. It is a reproducible developer validation of the actual Tauri application, pinned OCCT worker, one governed synthetic STEP fixture, explicit review/manual/rate/pricing inputs, and the existing deterministic estimate engine.
 
 This evidence does not create a supported STEP importer, signed/distributable OCCT runtime, durable estimate, production rate library, approved quote, three-platform desktop capability, full TEST-012 accessibility result, or release acceptance. The application remains provisional, session-only, unsaved, and developer-configured. No 3D viewport exists.
+
+## USE-1 workflow guardrail
+
+On 2026-09-04, the desktop presentation was reorganized around an upload/analyze Estimate workspace and a separate session-only Settings workspace for rate and pricing entry. Temporary stock, time, material/operation, base-cost, and risk assumptions remain manual but are collapsed and explicitly labeled as not model-derived. A displayed result returns to unavailable whenever any form value changes. The ordinary arbitrary-model workflow has no fixed synthetic estimate loader.
+
+This presentation checkpoint changes no estimate formula, rate resolution rule, rounding rule, contract command, persistence schema, geometry authority, or native boundary. Existing GUI-5 exact-fixture evidence below remains valid; it does not prove that arbitrary models yet drive stock, material, process, or runtime selection.
 
 ## Reproducible native environment
 

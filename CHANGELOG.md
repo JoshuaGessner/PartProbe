@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-09-02
+> **Last updated:** 2026-09-04
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -14,6 +14,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 
 ### Added
 
+- A usability-first estimator plan and USE-1 workflow guardrail. The desktop shell now opens on an upload/analyze Estimate workspace, places reusable rate and pricing controls behind Settings, collapses the still-manual manufacturing assumptions, clears stale displayed results when inputs change, and explicitly states that those assumptions are not model-derived. No calculation, geometry, persistence, command, or schema behavior changed.
 - A local unsigned Apple-Silicon `PartProbe.app` package-integration checkpoint at commit `c3f076f`. A separately materialized and verified 72-artifact OCCT 8.0.0/worker runtime is embedded under the fixed Tauri resource path, re-verifies after bundling, and passes the packaged-resource real STEP-to-USD-702 smoke without an external runtime override. The workspace remains explicit and external. This is developer evidence, not signing, notarization, installation, redistribution approval, supported import, or release acceptance.
 - `FIX-MESH-066`, a deterministic positive 3MF/OPC fixture that isolates the explicit `TargetMode="Internal"` form on the baseline package-root StartPart relationship. Its schema-v4 expectation pins the unchanged translated 10 mm cube evidence and `Low` mesh confidence. Parser v8 already accepted this legal form, so accepted syntax, geometry interpretation, calculations, dependencies, and migration policy are unchanged; it is not general exporter or supported-importer evidence.
 - `FIX-MESH-063`–`065`, deterministic public 3MF packages that persist existing parser-v8 rejection behavior for duplicate matching model content-type declarations, no declaration matching the StartPart-selected model, and a matching model part with the wrong media type. Typed failure expectations pin `THREE_MF_INVALID_PACKAGE` and forbid geometry evidence. Accepted syntax, calculations, dependencies, and failure schema v1 remain unchanged; changing these boundaries or diagnostics requires an explicit parser-version and migration decision.

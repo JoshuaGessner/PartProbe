@@ -1,12 +1,20 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-09-02
+> **Last updated:** 2026-09-04
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-09-04 — Usable-estimator plan and USE-1 workflow guardrail
+
+- Refactored the delivery sequence around one upload-first model-to-estimate workflow. The new `usable-estimator-plan.md` orders durable shop Settings, model-derived stock/material proposals, coarse process/runtime proposals, streamlined review/results, and calibration/deployable-alpha evidence without weakening the existing application, geometry, calculation, or governance boundaries.
+- Reorganized the developer GUI so Estimate is the primary model-intake workspace and reusable rate/pricing inputs live behind Settings. The estimate screen now shows only configuration readiness and a direct Settings action; temporary manual manufacturing assumptions are collapsed and explicitly labeled as not model-derived.
+- Removed the arbitrary-model synthetic estimate loader before it became committed behavior. The application continues to start without numeric shop rates, and synthetic EX-01 values remain isolated calculation/fixture evidence rather than a normal estimating shortcut.
+- Added stale-result protection: any form change returns the displayed estimate to `NotReady`. This UI slice changes no formula, rate selection, rounding, geometry interpretation, command/schema, persistence behavior, or support claim.
+- Complete local closeout passes 189 runtime tests plus one compile-fail doctest, 74 Python tooling tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, all sixty-nine fixture hashes, 146-file planning validation, formatting, and diff hygiene. A rebuilt 174 MiB unsigned arm64 app contains a re-verified 72-artifact OCCT runtime; its packaged-resource real STEP-to-USD-702 smoke passes, and visual launch confirms the upload-first Estimate workspace and primary navigation. GUI SHA-256: `5e52f15c17ccd208862cfa9d051c1e68bad9696f0461dba3fd3303c92cda42fb`.
 
 ## 2026-09-02 — Runtime-integrated local macOS app
 

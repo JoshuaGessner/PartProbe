@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-07-29
+- **Last updated:** 2026-09-04
 - **Related requirement IDs:** UX-001 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Prioritize library/admin screens after initial vertical-slice validation.
@@ -15,6 +15,7 @@
 | Screen / workspace | Purpose | Slice | Key evidence / action |
 |---|---|---|---|
 | Command center | Recent work, assigned RFQs, analysis/approval exceptions | 1 | Open/create/continue safely |
+| New estimate | Upload-first path from local model through vital inputs, reviewed proposals, and transparent result | 1 | Model/analysis state, Settings readiness, minimal unresolved facts, cost/price trace |
 | RFQ inbox | Triage and assign incoming packages | 1 | Status, due date, package completeness |
 | Quote list | Find/filter quotes and revisions | 1 | Owner, customer, value, confidence, status |
 | Quote workspace overview | Quote context and persistent total strip | 1 | Assumptions, next review action |
@@ -34,7 +35,7 @@
 | Risk review | Identify/resolve uncertainty and allowance | 1 | Owner, impact, mitigation, acceptance |
 | Approval review | Internal approval record | 1 | Thresholds, snapshot, exceptions |
 | Customer quote preview | Controlled outward-facing output | 1 | Exclusions, revision, export/print |
-| Basic rate setup | Enter required shop-owned rates and pricing policy without product defaults | 1 | Basis/currency/effective date, validation, formula preview, selected-rate trace |
+| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Basis/currency/effective date, validation, approvals, formula preview, selected-version trace |
 | Advanced material/tool/machine/rate/vendor libraries | Govern reusable multi-user shop data | 4 | Version, approval, import staging, history |
 | Customer management | CRM and pricing policy context | 2 | Contacts, restrictions, history |
 | Historical actuals / variance | Compare original estimate and outcome | 6 | Bias evidence; controlled recommendation |

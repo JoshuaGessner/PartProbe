@@ -43,6 +43,22 @@ struct EvaluateDraftEstimateArgs {
     request: EvaluateDraftEstimateRequest,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum WorkspaceView {
+    #[default]
+    Estimate,
+    Settings,
+}
+
+impl WorkspaceView {
+    const fn title(self) -> &'static str {
+        match self {
+            Self::Estimate => "Estimate workspace",
+            Self::Settings => "Shop settings",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct DeveloperEstimateForm {
     geometry_review: GeometryReviewConfirmation,
@@ -104,6 +120,63 @@ impl DeveloperEstimateForm {
             rounding_decimal_places: "2".to_owned(),
             ..Self::default()
         }
+    }
+
+    fn estimate_inputs_complete(&self) -> bool {
+        [
+            &self.stock_volume_mm3,
+            &self.density_kg_per_mm3,
+            &self.deliver_quantity,
+            &self.planned_spares,
+            &self.destructive_samples,
+            &self.setup_hours,
+            &self.programming_hours,
+            &self.cutting_hours_per_item,
+            &self.non_cutting_hours_per_item,
+            &self.load_unload_hours_per_item,
+            &self.in_cycle_inspection_hours_per_item,
+            &self.quality_inspection_hours,
+            &self.purchased_material,
+            &self.cut_charge,
+            &self.material_certificate,
+            &self.inbound_freight,
+            &self.approved_remnant_credit,
+            &self.prove_out,
+            &self.tooling,
+            &self.consumables,
+            &self.fixture,
+            &self.outside_processing,
+            &self.operation_freight,
+            &self.nonrecurring_engineering,
+            &self.administration,
+            &self.overhead,
+            &self.accepted_risk_impact,
+            &self.expected_rework,
+        ]
+        .into_iter()
+        .all(|value| !value.trim().is_empty())
+    }
+
+    fn session_settings_ready(&self) -> bool {
+        self.rates_confirmed
+            && self.pricing_confirmed
+            && [
+                &self.rate_card_id,
+                &self.rate_card_version,
+                &self.effective_on,
+                &self.currency,
+                &self.setup_labor_per_hour,
+                &self.programming_per_hour,
+                &self.run_labor_per_hour,
+                &self.machine_per_hour,
+                &self.quality_inspection_per_hour,
+                &self.pricing_policy_id,
+                &self.pricing_policy_version,
+                &self.markup_rate,
+                &self.rounding_decimal_places,
+            ]
+            .into_iter()
+            .all(|value| !value.trim().is_empty())
     }
 
     fn request(&self, selection_id: String, analysis_id: String) -> EvaluateDraftEstimateRequest {
@@ -179,6 +252,13 @@ fn App() -> impl IntoView {
     let (analysis_state, set_analysis_state) = signal(AnalysisPanelState::NotStarted);
     let (estimate_state, set_estimate_state) = signal(DraftEstimatePanelState::NotReady);
     let (is_selecting, set_is_selecting) = signal(false);
+    let (active_view, set_active_view) = signal(WorkspaceView::Estimate);
+    let form = RwSignal::new(DeveloperEstimateForm::new());
+
+    Effect::new(move |_| {
+        let _ = form.get();
+        set_estimate_state.set(DraftEstimatePanelState::NotReady);
+    });
 
     let select_model = move |_| {
         set_is_selecting.set(true);
@@ -280,88 +360,125 @@ fn App() -> impl IntoView {
         <header class="app-header">
             <div>
                 <p class="eyebrow">"PARTPROBE / DEVELOPER ALPHA"</p>
-                <h1>"Estimate workspace"</h1>
+                <h1>{move || active_view.get().title()}</h1>
             </div>
-            <div class="session-state" aria-label="Application state">
-                <span class="state-dot" aria-hidden="true"></span>
-                <span>"Session only · not saved"</span>
+            <div class="app-header-actions">
+                <nav class="primary-navigation" aria-label="Primary">
+                    <button
+                        type="button"
+                        class=move || if active_view.get() == WorkspaceView::Estimate {
+                            "navigation-action active"
+                        } else {
+                            "navigation-action"
+                        }
+                        aria-pressed=move || active_view.get() == WorkspaceView::Estimate
+                        on:click=move |_| set_active_view.set(WorkspaceView::Estimate)
+                    >
+                        "Estimate"
+                    </button>
+                    <button
+                        type="button"
+                        class=move || if active_view.get() == WorkspaceView::Settings {
+                            "navigation-action active"
+                        } else {
+                            "navigation-action"
+                        }
+                        aria-pressed=move || active_view.get() == WorkspaceView::Settings
+                        on:click=move |_| set_active_view.set(WorkspaceView::Settings)
+                    >
+                        "Settings"
+                    </button>
+                </nav>
+                <div class="session-state" aria-label="Application state">
+                    <span class="state-dot" aria-hidden="true"></span>
+                    <span>"Session only · not saved"</span>
+                </div>
             </div>
         </header>
 
-        <main id="workspace" class="workspace">
-            <section class="model-panel" aria-labelledby="model-heading">
-                <div class="panel-heading">
-                    <div>
-                        <p class="section-index">"01 / SOURCE"</p>
-                        <h2 id="model-heading">"Model intake"</h2>
+        <Show
+            when=move || active_view.get() == WorkspaceView::Estimate
+            fallback=move || view! {
+                <SettingsWorkspace form set_active_view />
+            }
+        >
+            <main id="workspace" class="workspace">
+                <section class="model-panel" aria-labelledby="model-heading">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="section-index">"01 / SOURCE"</p>
+                            <h2 id="model-heading">"Model intake"</h2>
+                        </div>
+                        <span class="status-chip">"STEP · STL · 3MF"</span>
                     </div>
-                    <span class="status-chip">"STEP · STL · 3MF"</span>
-                </div>
 
-                <div class="drop-zone">
-                    <div class="model-mark" aria-hidden="true">"P"</div>
-                    <p class="status-heading" aria-live="polite">
-                        {move || if is_selecting.get() {
-                            "Waiting for model selection"
-                        } else {
-                            model_state.get().status_heading()
-                        }}
-                    </p>
-                    <p class="status-detail">
-                        {move || if is_selecting.get() {
-                            "PartProbe is showing the native file picker."
-                        } else {
-                            model_state.get().status_detail()
-                        }}
-                    </p>
-                    <button
-                        type="button"
-                        class="secondary-action"
-                        disabled=move || is_selecting.get()
-                        on:click=select_model
-                    >
-                        {move || if is_selecting.get() { "Picker open" } else { "Choose model" }}
-                    </button>
-                </div>
+                    <div class="drop-zone">
+                        <div class="model-mark" aria-hidden="true">"P"</div>
+                        <p class="status-heading" aria-live="polite">
+                            {move || if is_selecting.get() {
+                                "Waiting for model selection"
+                            } else {
+                                model_state.get().status_heading()
+                            }}
+                        </p>
+                        <p class="status-detail">
+                            {move || if is_selecting.get() {
+                                "PartProbe is showing the native file picker."
+                            } else {
+                                model_state.get().status_detail()
+                            }}
+                        </p>
+                        <button
+                            type="button"
+                            class="primary-action"
+                            disabled=move || is_selecting.get()
+                            on:click=select_model
+                        >
+                            {move || if is_selecting.get() { "Picker open" } else { "Choose model" }}
+                        </button>
+                    </div>
 
-                <SelectedSource state=model_state />
-                <div class="analysis-actions">
-                    <button
-                        type="button"
-                        class="primary-action analyze-action"
-                        disabled=move || {
-                            model_state.get().selected_source().is_none()
-                                || matches!(
-                                    analysis_state.get(),
-                                    AnalysisPanelState::Running | AnalysisPanelState::Cancelling
-                                )
-                        }
-                        on:click=analyze_model
-                    >
-                        {move || match analysis_state.get() {
-                            AnalysisPanelState::Running => "Analyzing model",
-                            AnalysisPanelState::Cancelling => "Cancelling analysis",
-                            _ => "Analyze provisional geometry",
-                        }}
-                    </button>
-                    <button
-                        type="button"
-                        class="secondary-action cancel-action"
-                        disabled=move || !matches!(analysis_state.get(), AnalysisPanelState::Running)
-                        on:click=cancel_analysis
-                    >
-                        "Cancel analysis"
-                    </button>
-                </div>
-                <AnalysisEvidence state=analysis_state />
-            </section>
+                    <SelectedSource state=model_state />
+                    <div class="analysis-actions">
+                        <button
+                            type="button"
+                            class="primary-action analyze-action"
+                            disabled=move || {
+                                model_state.get().selected_source().is_none()
+                                    || matches!(
+                                        analysis_state.get(),
+                                        AnalysisPanelState::Running | AnalysisPanelState::Cancelling
+                                    )
+                            }
+                            on:click=analyze_model
+                        >
+                            {move || match analysis_state.get() {
+                                AnalysisPanelState::Running => "Analyzing model",
+                                AnalysisPanelState::Cancelling => "Cancelling analysis",
+                                _ => "Analyze model",
+                            }}
+                        </button>
+                        <button
+                            type="button"
+                            class="secondary-action cancel-action"
+                            disabled=move || !matches!(analysis_state.get(), AnalysisPanelState::Running)
+                            on:click=cancel_analysis
+                        >
+                            "Cancel analysis"
+                        </button>
+                    </div>
+                    <AnalysisEvidence state=analysis_state />
+                </section>
 
-            <EstimateWorkspace
-                analysis_state
-                estimate_state
-                set_estimate_state
-            />
-        </main>
+                <EstimateWorkspace
+                    analysis_state
+                    estimate_state
+                    set_estimate_state
+                    form
+                    set_active_view
+                />
+            </main>
+        </Show>
     }
 }
 
@@ -598,8 +715,9 @@ fn EstimateWorkspace(
     analysis_state: ReadSignal<AnalysisPanelState>,
     estimate_state: ReadSignal<DraftEstimatePanelState>,
     set_estimate_state: WriteSignal<DraftEstimatePanelState>,
+    form: RwSignal<DeveloperEstimateForm>,
+    set_active_view: WriteSignal<WorkspaceView>,
 ) -> impl IntoView {
-    let form = RwSignal::new(DeveloperEstimateForm::new());
     Effect::new(move |_| {
         let _ = analysis_state.get();
         form.update(|form| form.geometry_review.clear());
@@ -667,6 +785,26 @@ fn EstimateWorkspace(
             {move || if analysis_supports_draft_estimate(&analysis_state.get()) {
                 view! {
                     <form class="estimate-form" on:submit=submit>
+                        <section class="settings-summary" aria-labelledby="settings-summary-heading">
+                            <div>
+                                <p class="section-index">"SHOP CONFIGURATION"</p>
+                                <h3 id="settings-summary-heading">"Rates and pricing"</h3>
+                                <p>
+                                    {move || if form.with(DeveloperEstimateForm::session_settings_ready) {
+                                        "Session settings are complete and confirmed."
+                                    } else {
+                                        "Configure and confirm rates and pricing before calculating."
+                                    }}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                class="secondary-action"
+                                on:click=move |_| set_active_view.set(WorkspaceView::Settings)
+                            >
+                                "Open settings"
+                            </button>
+                        </section>
                         <fieldset>
                             <legend>"Geometry review"</legend>
                             <ReviewCheckbox
@@ -684,7 +822,10 @@ fn EstimateWorkspace(
                         </fieldset>
 
                         <fieldset>
-                            <legend>"Stock and quantity"</legend>
+                            <legend>"Essential estimate inputs"</legend>
+                            <p class="fieldset-note">
+                                "Quantity and material cannot be taken safely from geometry. Stock selection and material lookup are still manual in this checkpoint."
+                            </p>
                             <div class="form-grid">
                                 <ExactInput form label="Stock volume" unit="mm³" read=|f| &f.stock_volume_mm3 write=|f, v| f.stock_volume_mm3 = v />
                                 <ExactInput form label="Material density" unit="kg/mm³" read=|f| &f.density_kg_per_mm3 write=|f, v| f.density_kg_per_mm3 = v />
@@ -694,87 +835,77 @@ fn EstimateWorkspace(
                             </div>
                         </fieldset>
 
-                        <fieldset>
-                            <legend>"Time inputs"</legend>
-                            <div class="form-grid">
-                                <ExactInput form label="Setup" unit="hr/lot" read=|f| &f.setup_hours write=|f, v| f.setup_hours = v />
-                                <ExactInput form label="Programming" unit="hr/lot" read=|f| &f.programming_hours write=|f, v| f.programming_hours = v />
-                                <ExactInput form label="Cutting" unit="hr/item" read=|f| &f.cutting_hours_per_item write=|f, v| f.cutting_hours_per_item = v />
-                                <ExactInput form label="Non-cutting" unit="hr/item" read=|f| &f.non_cutting_hours_per_item write=|f, v| f.non_cutting_hours_per_item = v />
-                                <ExactInput form label="Load / unload" unit="hr/item" read=|f| &f.load_unload_hours_per_item write=|f, v| f.load_unload_hours_per_item = v />
-                                <ExactInput form label="In-cycle inspection" unit="hr/item" read=|f| &f.in_cycle_inspection_hours_per_item write=|f, v| f.in_cycle_inspection_hours_per_item = v />
-                                <ExactInput form label="Quality inspection" unit="hr/lot" read=|f| &f.quality_inspection_hours write=|f, v| f.quality_inspection_hours = v />
-                            </div>
-                        </fieldset>
+                        <details class="manual-inputs">
+                            <summary>"Manual manufacturing assumptions"</summary>
+                            <p class="fieldset-note">
+                                "These values are temporary manual inputs until stock, process, and runtime proposals are implemented. They are not derived from the model."
+                            </p>
+                            <fieldset>
+                                <legend>"Time inputs"</legend>
+                                <div class="form-grid">
+                                    <ExactInput form label="Setup" unit="hr/lot" read=|f| &f.setup_hours write=|f, v| f.setup_hours = v />
+                                    <ExactInput form label="Programming" unit="hr/lot" read=|f| &f.programming_hours write=|f, v| f.programming_hours = v />
+                                    <ExactInput form label="Cutting" unit="hr/item" read=|f| &f.cutting_hours_per_item write=|f, v| f.cutting_hours_per_item = v />
+                                    <ExactInput form label="Non-cutting" unit="hr/item" read=|f| &f.non_cutting_hours_per_item write=|f, v| f.non_cutting_hours_per_item = v />
+                                    <ExactInput form label="Load / unload" unit="hr/item" read=|f| &f.load_unload_hours_per_item write=|f, v| f.load_unload_hours_per_item = v />
+                                    <ExactInput form label="In-cycle inspection" unit="hr/item" read=|f| &f.in_cycle_inspection_hours_per_item write=|f, v| f.in_cycle_inspection_hours_per_item = v />
+                                    <ExactInput form label="Quality inspection" unit="hr/lot" read=|f| &f.quality_inspection_hours write=|f, v| f.quality_inspection_hours = v />
+                                </div>
+                            </fieldset>
 
-                        <fieldset>
-                            <legend>"Material and operation costs"</legend>
-                            <p class="fieldset-note">"Enter every monetary value in the rate-card currency; use an explicit 0 where applicable."</p>
-                            <div class="form-grid">
-                                <ExactInput form label="Purchased material" unit="currency" read=|f| &f.purchased_material write=|f, v| f.purchased_material = v />
-                                <ExactInput form label="Cut charge" unit="currency" read=|f| &f.cut_charge write=|f, v| f.cut_charge = v />
-                                <ExactInput form label="Material certificate" unit="currency" read=|f| &f.material_certificate write=|f, v| f.material_certificate = v />
-                                <ExactInput form label="Inbound freight" unit="currency" read=|f| &f.inbound_freight write=|f, v| f.inbound_freight = v />
-                                <ExactInput form label="Approved remnant credit" unit="currency" read=|f| &f.approved_remnant_credit write=|f, v| f.approved_remnant_credit = v />
-                                <ExactInput form label="Prove-out" unit="currency" read=|f| &f.prove_out write=|f, v| f.prove_out = v />
-                                <ExactInput form label="Tooling" unit="currency" read=|f| &f.tooling write=|f, v| f.tooling = v />
-                                <ExactInput form label="Consumables" unit="currency" read=|f| &f.consumables write=|f, v| f.consumables = v />
-                                <ExactInput form label="Fixture" unit="currency" read=|f| &f.fixture write=|f, v| f.fixture = v />
-                                <ExactInput form label="Outside processing" unit="currency" read=|f| &f.outside_processing write=|f, v| f.outside_processing = v />
-                                <ExactInput form label="Operation freight" unit="currency" read=|f| &f.operation_freight write=|f, v| f.operation_freight = v />
-                            </div>
-                        </fieldset>
+                            <fieldset>
+                                <legend>"Material and operation costs"</legend>
+                                <p class="fieldset-note">"Enter every monetary value in the configured currency; use an explicit 0 where applicable."</p>
+                                <div class="form-grid">
+                                    <ExactInput form label="Purchased material" unit="currency" read=|f| &f.purchased_material write=|f, v| f.purchased_material = v />
+                                    <ExactInput form label="Cut charge" unit="currency" read=|f| &f.cut_charge write=|f, v| f.cut_charge = v />
+                                    <ExactInput form label="Material certificate" unit="currency" read=|f| &f.material_certificate write=|f, v| f.material_certificate = v />
+                                    <ExactInput form label="Inbound freight" unit="currency" read=|f| &f.inbound_freight write=|f, v| f.inbound_freight = v />
+                                    <ExactInput form label="Approved remnant credit" unit="currency" read=|f| &f.approved_remnant_credit write=|f, v| f.approved_remnant_credit = v />
+                                    <ExactInput form label="Prove-out" unit="currency" read=|f| &f.prove_out write=|f, v| f.prove_out = v />
+                                    <ExactInput form label="Tooling" unit="currency" read=|f| &f.tooling write=|f, v| f.tooling = v />
+                                    <ExactInput form label="Consumables" unit="currency" read=|f| &f.consumables write=|f, v| f.consumables = v />
+                                    <ExactInput form label="Fixture" unit="currency" read=|f| &f.fixture write=|f, v| f.fixture = v />
+                                    <ExactInput form label="Outside processing" unit="currency" read=|f| &f.outside_processing write=|f, v| f.outside_processing = v />
+                                    <ExactInput form label="Operation freight" unit="currency" read=|f| &f.operation_freight write=|f, v| f.operation_freight = v />
+                                </div>
+                            </fieldset>
 
-                        <fieldset>
-                            <legend>"Base cost and risk"</legend>
-                            <div class="form-grid">
-                                <ExactInput form label="Nonrecurring engineering" unit="currency" read=|f| &f.nonrecurring_engineering write=|f, v| f.nonrecurring_engineering = v />
-                                <ExactInput form label="Administration" unit="currency" read=|f| &f.administration write=|f, v| f.administration = v />
-                                <ExactInput form label="Overhead" unit="currency" read=|f| &f.overhead write=|f, v| f.overhead = v />
-                                <ExactInput form label="Accepted risk impact" unit="currency" read=|f| &f.accepted_risk_impact write=|f, v| f.accepted_risk_impact = v />
-                                <ExactInput form label="Expected rework" unit="currency" read=|f| &f.expected_rework write=|f, v| f.expected_rework = v />
-                            </div>
-                        </fieldset>
+                            <fieldset>
+                                <legend>"Base cost and risk"</legend>
+                                <div class="form-grid">
+                                    <ExactInput form label="Nonrecurring engineering" unit="currency" read=|f| &f.nonrecurring_engineering write=|f, v| f.nonrecurring_engineering = v />
+                                    <ExactInput form label="Administration" unit="currency" read=|f| &f.administration write=|f, v| f.administration = v />
+                                    <ExactInput form label="Overhead" unit="currency" read=|f| &f.overhead write=|f, v| f.overhead = v />
+                                    <ExactInput form label="Accepted risk impact" unit="currency" read=|f| &f.accepted_risk_impact write=|f, v| f.accepted_risk_impact = v />
+                                    <ExactInput form label="Expected rework" unit="currency" read=|f| &f.expected_rework write=|f, v| f.expected_rework = v />
+                                </div>
+                            </fieldset>
+                        </details>
 
-                        <fieldset>
-                            <legend>"Session rate card"</legend>
-                            <p class="fieldset-note">"These user-entered values are ephemeral and are not installed as production rates."</p>
-                            <div class="form-grid">
-                                <ExactInput form label="Rate-card ID" unit="ID" read=|f| &f.rate_card_id write=|f, v| f.rate_card_id = v />
-                                <ExactInput form label="Rate-card version" unit="version" read=|f| &f.rate_card_version write=|f, v| f.rate_card_version = v />
-                                <ExactInput form label="Effective on" unit="YYYY-MM-DD" read=|f| &f.effective_on write=|f, v| f.effective_on = v />
-                                <ExactInput form label="Currency" unit="ISO code" read=|f| &f.currency write=|f, v| f.currency = v />
-                                <ExactInput form label="Setup labor" unit="/hr" read=|f| &f.setup_labor_per_hour write=|f, v| f.setup_labor_per_hour = v />
-                                <ExactInput form label="Programming" unit="/hr" read=|f| &f.programming_per_hour write=|f, v| f.programming_per_hour = v />
-                                <ExactInput form label="Run labor" unit="/hr" read=|f| &f.run_labor_per_hour write=|f, v| f.run_labor_per_hour = v />
-                                <ExactInput form label="Machine" unit="/hr" read=|f| &f.machine_per_hour write=|f, v| f.machine_per_hour = v />
-                                <ExactInput form label="Quality inspection" unit="/hr" read=|f| &f.quality_inspection_per_hour write=|f, v| f.quality_inspection_per_hour = v />
-                            </div>
-                            <ReviewCheckbox form label="I confirm these five rates for this session-only developer calculation." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
-                        </fieldset>
-
-                        <fieldset>
-                            <legend>"Session pricing policy"</legend>
-                            <div class="form-grid">
-                                <ExactInput form label="Pricing-policy ID" unit="ID" read=|f| &f.pricing_policy_id write=|f, v| f.pricing_policy_id = v />
-                                <ExactInput form label="Policy version" unit="version" read=|f| &f.pricing_policy_version write=|f, v| f.pricing_policy_version = v />
-                                <ExactInput form label="Markup rate" unit="decimal" read=|f| &f.markup_rate write=|f, v| f.markup_rate = v />
-                                <OptionalInput form label="Price floor" unit="currency" read=|f| &f.optional_price_floor write=|f, v| f.optional_price_floor = v />
-                                <OptionalInput form label="Minimum order" unit="currency" read=|f| &f.optional_minimum_order write=|f, v| f.optional_minimum_order = v />
-                                <ExactInput form label="Rounding places" unit="decimals" read=|f| &f.rounding_decimal_places write=|f, v| f.rounding_decimal_places = v />
-                            </div>
-                            <ReviewCheckbox form label="I confirm this pricing policy for this session-only developer calculation." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
-                        </fieldset>
+                        <p class="estimate-readiness" role="status">
+                            {move || if !form.with(DeveloperEstimateForm::session_settings_ready) {
+                                "Estimate blocked: complete and confirm Settings."
+                            } else if !form.with(DeveloperEstimateForm::estimate_inputs_complete) {
+                                "Estimate blocked: complete essential inputs and manual manufacturing assumptions."
+                            } else {
+                                "Current manual inputs and session settings are ready for deterministic calculation."
+                            }}
+                        </p>
 
                         <button
                             type="submit"
                             class="primary-action calculate-action"
-                            disabled=move || matches!(estimate_state.get(), DraftEstimatePanelState::Evaluating)
+                            disabled=move || {
+                                matches!(estimate_state.get(), DraftEstimatePanelState::Evaluating)
+                                    || !form.with(DeveloperEstimateForm::session_settings_ready)
+                                    || !form.with(DeveloperEstimateForm::estimate_inputs_complete)
+                            }
                         >
                             {move || if matches!(estimate_state.get(), DraftEstimatePanelState::Evaluating) {
                                 "Evaluating estimate"
                             } else {
-                                "Calculate deterministic draft"
+                                "Calculate current draft"
                             }}
                         </button>
                     </form>
@@ -797,6 +928,98 @@ fn EstimateWorkspace(
                 .into_any()
             }}
         </aside>
+    }
+}
+
+#[component]
+fn SettingsWorkspace(
+    form: RwSignal<DeveloperEstimateForm>,
+    set_active_view: WriteSignal<WorkspaceView>,
+) -> impl IntoView {
+    view! {
+        <main id="workspace" class="settings-workspace">
+            <section class="settings-panel" aria-labelledby="settings-heading">
+                <div class="panel-heading">
+                    <div>
+                        <p class="section-index">"SETTINGS / CURRENT CHECKPOINT"</p>
+                        <h2 id="settings-heading">"Rates and pricing"</h2>
+                    </div>
+                    <span class=move || if form.with(DeveloperEstimateForm::session_settings_ready) {
+                        "status-chip available"
+                    } else {
+                        "status-chip blocked"
+                    }>
+                        {move || if form.with(DeveloperEstimateForm::session_settings_ready) {
+                            "Ready"
+                        } else {
+                            "Setup required"
+                        }}
+                    </span>
+                </div>
+
+                <section class="settings-boundary" role="note">
+                    <p class="blocked-title">"Session-only settings"</p>
+                    <p>
+                        "These values are kept out of the estimating workspace, but they are not persisted yet. No numeric production defaults or synthetic model estimate is loaded."
+                    </p>
+                </section>
+
+                <div class="settings-grid">
+                    <fieldset>
+                        <legend>"Rate card"</legend>
+                        <p class="fieldset-note">"Enter the five approved hourly rates required by the current deterministic calculation."</p>
+                        <div class="form-grid">
+                            <ExactInput form label="Rate-card ID" unit="ID" read=|f| &f.rate_card_id write=|f, v| f.rate_card_id = v />
+                            <ExactInput form label="Rate-card version" unit="version" read=|f| &f.rate_card_version write=|f, v| f.rate_card_version = v />
+                            <ExactInput form label="Effective on" unit="YYYY-MM-DD" read=|f| &f.effective_on write=|f, v| f.effective_on = v />
+                            <ExactInput form label="Currency" unit="ISO code" read=|f| &f.currency write=|f, v| f.currency = v />
+                            <ExactInput form label="Setup labor" unit="/hr" read=|f| &f.setup_labor_per_hour write=|f, v| f.setup_labor_per_hour = v />
+                            <ExactInput form label="Programming" unit="/hr" read=|f| &f.programming_per_hour write=|f, v| f.programming_per_hour = v />
+                            <ExactInput form label="Run labor" unit="/hr" read=|f| &f.run_labor_per_hour write=|f, v| f.run_labor_per_hour = v />
+                            <ExactInput form label="Machine" unit="/hr" read=|f| &f.machine_per_hour write=|f, v| f.machine_per_hour = v />
+                            <ExactInput form label="Quality inspection" unit="/hr" read=|f| &f.quality_inspection_per_hour write=|f, v| f.quality_inspection_per_hour = v />
+                        </div>
+                        <ReviewCheckbox form label="I confirm these five rates for this session-only developer calculation." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>"Pricing policy"</legend>
+                        <div class="form-grid">
+                            <ExactInput form label="Pricing-policy ID" unit="ID" read=|f| &f.pricing_policy_id write=|f, v| f.pricing_policy_id = v />
+                            <ExactInput form label="Policy version" unit="version" read=|f| &f.pricing_policy_version write=|f, v| f.pricing_policy_version = v />
+                            <ExactInput form label="Markup rate" unit="decimal" read=|f| &f.markup_rate write=|f, v| f.markup_rate = v />
+                            <OptionalInput form label="Price floor" unit="currency" read=|f| &f.optional_price_floor write=|f, v| f.optional_price_floor = v />
+                            <OptionalInput form label="Minimum order" unit="currency" read=|f| &f.optional_minimum_order write=|f, v| f.optional_minimum_order = v />
+                            <ExactInput form label="Rounding places" unit="decimals" read=|f| &f.rounding_decimal_places write=|f, v| f.rounding_decimal_places = v />
+                        </div>
+                        <ReviewCheckbox form label="I confirm this pricing policy for this session-only developer calculation." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
+                    </fieldset>
+                </div>
+
+                <section class="planned-settings" aria-labelledby="planned-settings-heading">
+                    <p class="section-index">"NEXT SETTINGS SLICE"</p>
+                    <h3 id="planned-settings-heading">"Shop data still to add"</h3>
+                    <p>"Persistent material prices, stock allowances, machines/workcenters, runtime profiles, and operation templates will replace repeated estimate entry in the next governed slices."</p>
+                </section>
+
+                <div class="settings-footer">
+                    <p aria-live="polite">
+                        {move || if form.with(DeveloperEstimateForm::session_settings_ready) {
+                            "Rate and pricing settings are confirmed for this session."
+                        } else {
+                            "Complete every required field and both confirmations before calculating."
+                        }}
+                    </p>
+                    <button
+                        type="button"
+                        class="primary-action"
+                        on:click=move |_| set_active_view.set(WorkspaceView::Estimate)
+                    >
+                        "Back to estimate"
+                    </button>
+                </div>
+            </section>
+        </main>
     }
 }
 
