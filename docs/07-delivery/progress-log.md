@@ -8,6 +8,13 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-09-09 — USE-2 multi-entry catalog governance contract
+
+- Added the versioned `shop-resource-catalog-v1` domain contract with independently bounded material, commercial-offer, stock-allowance, machine, coarse-runtime, and review-selection collections. Exact identity/version duplicates, dangling offer/runtime references, mismatched selected chains, and more than one active proposal selection fail closed.
+- Added explicit reviewed, active-for-proposals, and retired selection states. A reviewed or active selection pins every child version and requires reviewed-or-approved records plus actor/time/reason evidence. Active-for-proposals is deliberately not estimate, calculation, routing, purchasing, quote, or production authority.
+- Added round-trip/adversarial coverage for collection bounds, duplicate versions, draft-child rejection, invalid selection references, and the single-active invariant. This is an additive domain-only contract: SQLite remains schema v2, desktop remains contract v6, persisted starter records remain unchanged, and a separate schema-v3/application/desktop migration is required before activation.
+- Full local closeout passes 218 runtime tests plus one compile-fail doctest, 74 Python tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, 147-file planning validation, formatting, and diff hygiene.
+
 ## 2026-09-09 — USE-2 schema-v2 starter resource bundle
 
 - Added validated, separately versioned domain records for material identity, a time-bounded material offer, stock-form XYZ allowances, physical machine capability, and coarse-volumetric runtime inputs. Explicit density, price, envelope, removal-rate, and duration units, manual source evidence, draft lifecycle state, and material/machine cross-record references are revalidated on deserialization. No calculation or geometry behavior changed.

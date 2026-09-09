@@ -32,11 +32,13 @@ pub use rates::{
 };
 pub use shop_resources::{
     CoarseRuntimeProfile, DensityKilogramsPerCubicMeter, LibraryRecordState,
-    MachineEnvelopeMillimeters, MachineProfile, MachineProfileId, MaterialDefinition,
-    MaterialDefinitionId, MaterialOffer, MaterialOfferId, ProcessClass,
-    RemovalRateCubicMillimetersPerMinute, RuntimeMinutes, RuntimeProfileId, ShopResourceLibrary,
-    ShopResourceLibraryId, ShopResourceVersion, StockAllowanceMillimeters, StockAllowanceProfile,
-    StockAllowanceProfileId, StockForm,
+    MAX_SHOP_RESOURCE_RECORDS_PER_KIND, MachineEnvelopeMillimeters, MachineProfile,
+    MachineProfileId, MaterialDefinition, MaterialDefinitionId, MaterialOffer, MaterialOfferId,
+    ProcessClass, RemovalRateCubicMillimetersPerMinute, ResourceSelection, ResourceSelectionId,
+    ResourceSelectionState, RuntimeMinutes, RuntimeProfileId, SHOP_RESOURCE_CATALOG_SCHEMA,
+    ShopResourceCatalog, ShopResourceCatalogId, ShopResourceLibrary, ShopResourceLibraryId,
+    ShopResourceVersion, StockAllowanceMillimeters, StockAllowanceProfile, StockAllowanceProfileId,
+    StockForm,
 };
 pub use shop_settings::{ShopProfileId, ShopSettingsDraft, ShopSettingsRevision};
 pub use units::{
