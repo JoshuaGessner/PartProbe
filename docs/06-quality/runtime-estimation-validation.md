@@ -1,7 +1,7 @@
 # Runtime Estimation Validation
 
 > **Status:** Draft  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-09-09
 > **Related requirement IDs:** TIME-001–TIME-008, TEST-005, TEST-019  
 > **Related architecture decision IDs:** ADR-0007, ADR-0008  
 > **Open questions:** Acceptance bands by workcenter/process, actual-time source, and who approves calibration versions  
@@ -11,6 +11,8 @@
 ## Purpose
 
 Validate calculation reproducibility, error characterization, and calibration governance. Do not treat an aggregate accuracy number as proof of suitability for all parts.
+
+Current USE-2 evidence validates only persistence and typed boundaries for one draft coarse-runtime input profile: positive volumetric removal rate; separate nonnegative setup, programming, load/unload, and inspection minutes; manual source; and exact material/machine versions. No runtime proposal, formula trace, accuracy evidence, calibration, or TIME-001–TIME-008 completion is claimed.
 
 ## Test corpus
 

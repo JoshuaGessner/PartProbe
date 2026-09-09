@@ -2,19 +2,23 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const DESKTOP_CONTRACT_VERSION: u16 = 4;
+pub const DESKTOP_CONTRACT_VERSION: u16 = 6;
 pub const COMMAND_DESKTOP_CONTRACT: &str = "desktop_contract";
 pub const COMMAND_SELECT_MODEL_SOURCE: &str = "select_model_source";
 pub const COMMAND_ANALYZE_MODEL_SOURCE: &str = "analyze_model_source";
 pub const COMMAND_CANCEL_MODEL_ANALYSIS: &str = "cancel_model_analysis";
 pub const COMMAND_EVALUATE_DRAFT_ESTIMATE: &str = "evaluate_draft_estimate";
+pub const COMMAND_LOAD_SHOP_SETTINGS: &str = "load_shop_settings";
+pub const COMMAND_SAVE_SHOP_SETTINGS: &str = "save_shop_settings";
 pub const EVENT_MODEL_SOURCE_SELECTED: &str = "partprobe:model-source-selected";
-pub const APPLICATION_COMMANDS: [&str; 5] = [
+pub const APPLICATION_COMMANDS: [&str; 7] = [
     COMMAND_DESKTOP_CONTRACT,
     COMMAND_SELECT_MODEL_SOURCE,
     COMMAND_ANALYZE_MODEL_SOURCE,
     COMMAND_CANCEL_MODEL_ANALYSIS,
     COMMAND_EVALUATE_DRAFT_ESTIMATE,
+    COMMAND_LOAD_SHOP_SETTINGS,
+    COMMAND_SAVE_SHOP_SETTINGS,
 ];
 pub const APPLICATION_EVENTS: [&str; 1] = [EVENT_MODEL_SOURCE_SELECTED];
 
@@ -26,6 +30,7 @@ pub struct DesktopContract {
     pub events: Vec<String>,
     pub analysis_authority: AnalysisAuthority,
     pub persistence: PersistenceAvailability,
+    pub shop_settings_persistence: ShopSettingsPersistenceAvailability,
 }
 
 impl DesktopContract {
@@ -37,6 +42,7 @@ impl DesktopContract {
             events: APPLICATION_EVENTS.map(str::to_owned).to_vec(),
             analysis_authority: AnalysisAuthority::NativeApplicationService,
             persistence: PersistenceAvailability::SessionOnly,
+            shop_settings_persistence: ShopSettingsPersistenceAvailability::LocalDrafts,
         }
     }
 }
@@ -51,6 +57,13 @@ pub enum AnalysisAuthority {
 #[serde(rename_all = "snake_case")]
 pub enum PersistenceAvailability {
     SessionOnly,
+}
+
+/// Narrow durable boundary available only for non-authoritative shop-settings drafts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShopSettingsPersistenceAvailability {
+    LocalDrafts,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -199,6 +212,89 @@ pub struct DeveloperPricingInputFields {
     pub optional_price_floor: String,
     pub optional_minimum_order: String,
     pub rounding_decimal_places: String,
+}
+
+/// Host-owned durable Settings state. Absence is explicit and never filled with numeric defaults.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum ShopSettingsState {
+    NotConfigured,
+    Available { settings: Box<ShopSettingsSnapshot> },
+}
+
+/// Path-free current Settings revision returned by the typed application service.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopSettingsSnapshot {
+    pub revision: u32,
+    pub currency: String,
+    pub rates: Option<DeveloperRateInputFields>,
+    pub pricing: Option<DeveloperPricingInputFields>,
+    pub resources: Option<ShopResourceInputFields>,
+    pub changed_by: String,
+    pub changed_at: String,
+    pub change_reason: String,
+}
+
+/// Complete draft append request with explicit optimistic-concurrency and audit evidence.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SaveShopSettingsRequest {
+    pub expected_revision: Option<u32>,
+    pub changed_by: String,
+    pub change_reason: String,
+    pub rates: DeveloperRateInputFields,
+    pub pricing: DeveloperPricingInputFields,
+    pub resources: Option<ShopResourceInputFields>,
+}
+
+/// Exact-text draft fields for one internally consistent material/stock/machine/runtime bundle.
+///
+/// These values are persisted as reusable draft evidence only. They do not authorize an estimate
+/// or claim production calibration.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopResourceInputFields {
+    pub confirmed_for_draft: bool,
+    pub library_id: String,
+    pub library_version: String,
+    pub material_id: String,
+    pub material_version: String,
+    pub material_family: String,
+    pub material_grade: String,
+    pub optional_material_specification: String,
+    pub optional_material_condition: String,
+    pub density_kg_per_m3: String,
+    pub material_source: String,
+    pub offer_id: String,
+    pub offer_version: String,
+    pub supplier: String,
+    pub material_price_per_kg: String,
+    pub offer_effective_on: String,
+    pub offer_source: String,
+    pub stock_profile_id: String,
+    pub stock_profile_version: String,
+    pub stock_form: String,
+    pub stock_allowance_x_mm: String,
+    pub stock_allowance_y_mm: String,
+    pub stock_allowance_z_mm: String,
+    pub stock_source: String,
+    pub machine_id: String,
+    pub machine_version: String,
+    pub machine_name: String,
+    pub process_class: String,
+    pub machine_envelope_x_mm: String,
+    pub machine_envelope_y_mm: String,
+    pub machine_envelope_z_mm: String,
+    pub machine_source: String,
+    pub runtime_profile_id: String,
+    pub runtime_profile_version: String,
+    pub removal_rate_mm3_per_minute: String,
+    pub setup_minutes: String,
+    pub programming_minutes: String,
+    pub load_unload_minutes: String,
+    pub inspection_minutes: String,
+    pub runtime_source: String,
 }
 
 /// Explicit value state and safe deterministic trace returned from the application session.
@@ -554,6 +650,45 @@ impl HostCommandError {
             diagnostic_id: diagnostic_id.into(),
         }
     }
+
+    #[must_use]
+    pub fn settings_unavailable(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::SettingsUnavailable,
+            message: "Local shop-settings storage is unavailable. No settings were changed."
+                .to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn invalid_settings_input(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::InvalidSettingsInput,
+            message: "One or more shop-settings values are missing or invalid. Review every field and confirmation.".to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn settings_conflict(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::SettingsConflict,
+            message:
+                "Shop settings changed since this screen was loaded. Reload before saving again."
+                    .to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn settings_version_conflict(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::SettingsVersionConflict,
+            message: "A changed rate card or pricing policy must use a new version. Review both version fields before saving.".to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -568,6 +703,10 @@ pub enum HostErrorCode {
     AnalysisInProgress,
     AnalysisCancelled,
     InvalidEstimateInput,
+    SettingsUnavailable,
+    InvalidSettingsInput,
+    SettingsConflict,
+    SettingsVersionConflict,
 }
 
 #[cfg(test)]
@@ -575,11 +714,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn current_contract_is_explicit_and_session_only() {
+    fn current_contract_distinguishes_session_and_settings_persistence() {
         let contract = DesktopContract::current();
 
         assert_eq!(contract.contract_version, DESKTOP_CONTRACT_VERSION);
-        assert_eq!(contract.contract_version, 4);
+        assert_eq!(contract.contract_version, 6);
         assert_eq!(contract.commands, APPLICATION_COMMANDS);
         assert_eq!(contract.events, APPLICATION_EVENTS);
         assert_eq!(
@@ -587,6 +726,48 @@ mod tests {
             AnalysisAuthority::NativeApplicationService
         );
         assert_eq!(contract.persistence, PersistenceAvailability::SessionOnly);
+        assert_eq!(
+            contract.shop_settings_persistence,
+            ShopSettingsPersistenceAvailability::LocalDrafts
+        );
+    }
+
+    #[test]
+    fn settings_contract_is_path_free_and_preserves_first_run_absence() {
+        assert_eq!(
+            serde_json::to_value(ShopSettingsState::NotConfigured).unwrap(),
+            serde_json::json!({"state": "not_configured"})
+        );
+        let request = SaveShopSettingsRequest {
+            expected_revision: None,
+            changed_by: "operator-1".to_owned(),
+            change_reason: "initial test rates".to_owned(),
+            rates: DeveloperRateInputFields {
+                confirmed_for_session: true,
+                rate_card_id: "shop-rates".to_owned(),
+                rate_card_version: "1".to_owned(),
+                effective_on: "2026-09-04".to_owned(),
+                currency: "USD".to_owned(),
+                setup_labor_per_hour: "75".to_owned(),
+                programming_per_hour: "90".to_owned(),
+                run_labor_per_hour: "65".to_owned(),
+                machine_per_hour: "110".to_owned(),
+                quality_inspection_per_hour: "80".to_owned(),
+            },
+            pricing: DeveloperPricingInputFields {
+                confirmed_for_session: true,
+                pricing_policy_id: "shop-pricing".to_owned(),
+                pricing_policy_version: "1".to_owned(),
+                markup_rate: "0.25".to_owned(),
+                optional_price_floor: String::new(),
+                optional_minimum_order: String::new(),
+                rounding_decimal_places: "2".to_owned(),
+            },
+            resources: None,
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        assert!(!serialized.contains("path"));
+        assert!(!serialized.contains("sqlite"));
     }
 
     #[test]

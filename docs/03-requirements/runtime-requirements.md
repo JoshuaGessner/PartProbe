@@ -1,7 +1,7 @@
 # Runtime Estimation Requirements
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-09-09
 > **Related requirements:** TIME-001–TIME-008; REQ-F-006–REQ-F-008, REQ-NF-003  
 > **Related ADRs:** ADR-0007, ADR-0008  
 > **Open questions:** OQ-001, OQ-010–OQ-013, OQ-020, OQ-027  
@@ -18,3 +18,5 @@
 | TIME-006 | Runtime proposals shall expose formula/intermediates, scope, assumptions, confidence reasons, and override history. |
 | TIME-007 | Validation shall segment error/bias by method, process, material, machine, quantity, and scope change; no single accuracy claim applies universally. |
 | TIME-008 | Runtime output shall never be presented as production CAM simulation or safe machine-cycle guarantee. |
+
+USE-2 schema v2 now persists one optional draft coarse-runtime input profile with explicit volumetric removal rate, setup, programming, load/unload, and inspection units plus exact material/machine version references and a manual source. It produces no runtime result and satisfies none of TIME-001–TIME-008 by itself; the versioned USE-4 proposal method, confidence/reasons, adoption history, model-sensitive fixtures, and validation remain pending.

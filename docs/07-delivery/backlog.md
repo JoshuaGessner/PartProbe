@@ -1,7 +1,7 @@
 # Delivery Backlog
 
 > **Status:** In Review
-> **Last updated:** 2026-09-04
+> **Last updated:** 2026-09-09
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
@@ -43,7 +43,7 @@ The [usable estimator delivery plan](usable-estimator-plan.md) now governs imple
 | TASK-003 | Benchmark OCCT STEP worker on representative corpus and three OSes | REQ-F-002–004; GEO-001–015; ADR-0002/0005; TEST-003 | Accuracy, crash containment, packaging/license evidence |
 | TASK-004 | **In Progress:** implement STL/3MF mesh import comparison spike; bounded ASCII/binary STL topology cases, direct/linear-component-chain/model-metadata/alternate-OPC 3MF, categorical confidence/self-intersection evidence, configured Ubuntu/Windows native-host smokes, and forty-three typed mesh rejection fixtures pass validation | REQ-F-002–004; ADR-0004; TEST-003 | Unit/mesh validity measurements and failure matrix |
 | TASK-005 | **In Progress / USE-1:** build the Tauri/Leptos/wgpu UX spike; make upload/analyze and estimate output primary, keep reusable configuration in Settings, retain explicit unavailable states, then replace temporary manual assumptions with reviewed USE-3/4 proposals | REQ-F-032; REQ-NF-001/006; UX-001–012; ADR-0001/0003; TEST-012/014 | Minimal model-to-estimate flow, formula/selection trace, viewport picking, complete keyboard/a11y, PDF, three-OS package evidence |
-| TASK-006 | **Prioritized / USE-2:** SQLite repository/backup prototype for shop Settings and estimate replay | REQ-NF-007/009/020; DATA-001–012/017; ADR-0006; TEST-007/014 | Migration, immutable rate/material/machine/runtime/pricing versions, crash, backup/restore, blob integrity and prior-version replay |
+| TASK-006 | **In Progress / USE-2:** schema-v1 SQLite rate/pricing storage plus schema-v2 immutable starter resource snapshots and contract-v6 desktop activation now preserve one typed material/offer/stock/machine/runtime bundle behind the application service. First-run absence, v1-to-v2 no-default migration, optimistic concurrency, actor/time/reason, cleared confirmations, checksummed migrations, backup, replay, and reused-version rejection pass locally; multi-entry catalogs, activation, and broader evidence follow | REQ-F-015/016/032; REQ-NF-007/009/020; DATA-005/006/008/011/017; ADR-0006; TEST-007/014 | Migration, immutable rate/material/machine/runtime/pricing versions, crash, backup/restore, blob integrity and prior-version replay |
 | TASK-007 | **USE-6 gate:** conduct shop workflow, stock/material/runtime/rate-category, pricing-policy and calibration interviews | REQ-F-001–018, REQ-F-032; OQ-001–030; TEST-002/014 | Reviewed maps, stock/runtime assumptions, real rate/cost categories, accounting/pricing policy, roles, calibration and access decisions |
 | TASK-008 | Establish private fixture governance and corpus | TEST-003–005/011 | Rights, classification, hashes, expected results, access |
 | TASK-009 | Threat-model intake, worker, storage, previews, exports, updates | SEC-001–010; TEST-011 | Reviewed mitigations and residual risks |

@@ -1,7 +1,7 @@
 # Material Model
 
 > **Status:** Draft
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-09-09
 > **Related requirements:** REQ-F-005, REQ-F-008; DATA-005
 > **Related ADRs:** ADR-0006
 > **Open questions:** OQ-009, OQ-014
@@ -11,3 +11,5 @@
 A versioned material record includes family, alloy/grade, specification, temper/condition, hardness, density with source, machinability attributes, stock forms/sizes, restrictions, and approval state. Commercial offers follow [the canonical rate-library separation](rate-library.md) and remain distinct time-bounded records: supplier, supplier part, price basis, effective/expiry dates, minimum, cut/cert/freight charges, lead time, lot/country restrictions, and evidence attachment.
 
 Material identity is never inferred authoritatively from geometry. Every estimate pins both the material-definition version and selected commercial offer or clearly records a manual assumption.
+
+The current USE-2 starter bundle implements one bounded draft `MaterialDefinition` plus one separately versioned `MaterialOffer`. It retains family, grade, optional specification/condition, density in explicit kg/m³, manual source, supplier, exact USD/kg price, effective date, lifecycle state, and exact cross-record version references. It is local persistence evidence only: the record is not approved, no catalog is seeded, and no estimate resolves or applies it yet.

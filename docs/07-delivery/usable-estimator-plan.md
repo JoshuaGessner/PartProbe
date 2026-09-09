@@ -1,7 +1,7 @@
 # Usable Estimator Delivery Plan
 
 > **Status:** In Review
-> **Last updated:** 2026-09-04
+> **Last updated:** 2026-09-09
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-014–REQ-F-018, REQ-F-032; UX-001–UX-012, UX-021–UX-025; GEO-001–GEO-015; TIME-001–TIME-008; DATA-001–DATA-017; TEST-002–TEST-007, TEST-012, TEST-014
 > **Related ADRs:** ADR-0001, ADR-0002, ADR-0005–ADR-0008
 > **Open questions:** Shop-approved stock allowances, material catalog/prices, machine groups, coarse runtime profiles, and acceptance tolerances
@@ -49,11 +49,15 @@ PartProbe still ships with no production numeric rates. Internal tests may use n
 
 USE-2 and the initial USE-3 domain contracts may proceed in parallel, but persisted values cannot become calculation authority until migration/replay and governance behavior are proven. Mesh results remain non-authoritative for estimating until a separately documented calculation policy, confidence rule, fixtures, and migration decision exist.
 
+### USE-2 implementation status
+
+The USE-2 foundation and first two desktop slices are now implemented behind a typed application service and repository port. Schema v1 stores organization currency plus optional immutable `RateCard` and `PricingPolicy` drafts, actor/time/reason evidence, optimistic concurrency, checksummed migration, integrity-on-open, backup/reopen, and historical replay. Schema v2 adds one optional, bounded starter resource snapshot with separately versioned material definition, time-bounded supplier offer, stock allowance, physical machine capability, and coarse runtime profile. The v1-to-v2 migration adds no rows or numeric defaults and prior resource-absent payloads remain readable. Contract v6 preserves the exact seven-command v5 set and extends only path-free Settings DTOs. The host owns the application-data database lifecycle; first run stays visibly empty; save requires USD values, confirmations, actor, and reason; and reopen restores values while clearing calculation/draft confirmations. Persisted records remain non-authoritative and are not yet consumed by estimate evaluation. Remaining USE-2 work includes multiple catalog entries, activation/approval, Settings accessibility, broader recovery, and three-OS persistence evidence.
+
 ## Immediate implementation order
 
-1. Finish USE-1 and preserve the current deterministic application-service boundary.
-2. Implement USE-2 around a minimal first-run shop profile: USD organization currency, user-confirmed hourly rates, pricing policy, material catalog entries, stock allowances, and coarse machine/runtime profiles. USD is the current requested organization currency; numeric values remain explicitly test/shop owned.
-3. Add a versioned exact-STEP stock-envelope proposal contract and analytic model-sensitive fixtures before connecting it to pricing.
+1. Preserve the completed USE-1 upload-first guardrail and deterministic application-service boundary.
+2. Expand the completed bounded USE-2 starter bundle into governed multi-entry material/offer/stock/machine/runtime collections and an activation/review boundary. Numeric values remain explicitly test/shop owned.
+3. Add a versioned exact-STEP stock-envelope proposal contract and analytic model-sensitive fixtures that consume only an explicitly reviewed resource snapshot before connecting it to pricing.
 4. Add material selection and price resolution, then coarse runtime proposals, each with separate calculation rules, worked examples, and tests.
 5. Replace the temporary manual-assumption panel only after its governed replacement supplies every required value or preserves a visible unavailable/blocked state.
 

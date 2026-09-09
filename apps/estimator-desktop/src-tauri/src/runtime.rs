@@ -4,13 +4,13 @@ use partprobe_desktop_contract::{
     AnalysisCancellationAcknowledgement, AnalyzeModelSourceRequest, CancelModelAnalysisRequest,
     DesktopContract, DraftEstimateEvaluation, EVENT_MODEL_SOURCE_SELECTED,
     EvaluateDraftEstimateRequest, HostCommandError, ModelAnalysisResult, ModelSourceSelectedEvent,
-    ModelSourceSelection,
+    ModelSourceSelection, SaveShopSettingsRequest, ShopSettingsState,
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
-use crate::DesktopSessionState;
 use crate::analysis::DesktopAnalysisConfiguration;
+use crate::{DesktopSessionState, DesktopSettingsState};
 
 const MODEL_SOURCE_DIALOG_TITLE: &str = "Select model file";
 
@@ -85,6 +85,23 @@ async fn evaluate_draft_estimate(
     .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ESTIMATE-TASK"))?
 }
 
+#[tauri::command]
+async fn load_shop_settings(app: tauri::AppHandle) -> Result<ShopSettingsState, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<DesktopSettingsState>().load())
+        .await
+        .map_err(|_| HostCommandError::settings_unavailable("USE2-SETTINGS-LOAD-TASK"))?
+}
+
+#[tauri::command]
+async fn save_shop_settings(
+    app: tauri::AppHandle,
+    request: SaveShopSettingsRequest,
+) -> Result<ShopSettingsState, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<DesktopSettingsState>().save(&request))
+        .await
+        .map_err(|_| HostCommandError::settings_unavailable("USE2-SETTINGS-SAVE-TASK"))?
+}
+
 fn desktop_path(selected: FilePath) -> Result<PathBuf, HostCommandError> {
     match selected {
         FilePath::Path(path) => Ok(path),
@@ -116,6 +133,19 @@ pub fn run() {
             if !app.manage(session_state) {
                 return Err("desktop session state is already managed".into());
             }
+            let settings_state = app
+                .path()
+                .app_data_dir()
+                .map_err(|_| ())
+                .and_then(|directory| {
+                    std::fs::create_dir_all(&directory).map_err(|_| ())?;
+                    DesktopSettingsState::open(&directory.join("shop-settings.sqlite3"))
+                        .map_err(|_| ())
+                })
+                .unwrap_or_else(|_| DesktopSettingsState::unavailable());
+            if !app.manage(settings_state) {
+                return Err("desktop settings state is already managed".into());
+            }
             let window = app
                 .get_webview_window("main")
                 .ok_or("configured main window is missing")?;
@@ -127,7 +157,9 @@ pub fn run() {
             select_model_source,
             analyze_model_source,
             cancel_model_analysis,
-            evaluate_draft_estimate
+            evaluate_draft_estimate,
+            load_shop_settings,
+            save_shop_settings
         ])
         .run(tauri::generate_context!())
         .expect("PartProbe desktop host failed");

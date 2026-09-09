@@ -118,6 +118,26 @@ fn rate_context(
     if !fields.confirmed_for_session {
         return Err(invalid_input("GUI4-ESTIMATE-RATE-CONFIRMATION"));
     }
+    let (card, effective_on) = rate_card(
+        fields,
+        analysis_id,
+        recorded_at,
+        DEVELOPER_ACTOR_ID,
+        "entered for a session-only developer estimate",
+        "explicitly confirmed for this session-only calculation",
+    )?;
+    DraftRateContext::new(card, effective_on, vec![RateScope::organization()])
+        .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-CONTEXT"))
+}
+
+pub(crate) fn rate_card(
+    fields: &DeveloperRateInputFields,
+    source_record_id: &str,
+    recorded_at: &RecordedAt,
+    actor: &str,
+    entered_reason: &str,
+    approval_reason: &str,
+) -> Result<(RateCard, EffectiveDate), HostCommandError> {
     let currency = CurrencyCode::new(&fields.currency)
         .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-CURRENCY"))?;
     let version = RateVersion::new(version(&fields.rate_card_version)?)
@@ -156,8 +176,11 @@ fn rate_context(
             &currency,
             version,
             &effective_on,
-            analysis_id,
+            source_record_id,
             recorded_at,
+            actor,
+            entered_reason,
+            approval_reason,
         )
     })
     .collect::<Result<Vec<_>, _>>()?;
@@ -169,8 +192,7 @@ fn rate_context(
         entries,
     )
     .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-CARD"))?;
-    DraftRateContext::new(card, effective_on, vec![RateScope::organization()])
-        .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-CONTEXT"))
+    Ok((card, effective_on))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -181,27 +203,22 @@ fn rate_entry(
     currency: &CurrencyCode,
     version: RateVersion,
     effective_from: &EffectiveDate,
-    analysis_id: &str,
+    source_record_id: &str,
     recorded_at: &RecordedAt,
+    actor: &str,
+    entered_reason: &str,
+    approval_reason: &str,
 ) -> Result<RateEntry, HostCommandError> {
-    let entered = RateEvent::new(
-        DEVELOPER_ACTOR_ID,
-        recorded_at.clone(),
-        "entered for a session-only developer estimate",
-    )
-    .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-EVENT"))?;
-    let approved = RateEvent::new(
-        DEVELOPER_ACTOR_ID,
-        recorded_at.clone(),
-        "explicitly confirmed for this session-only calculation",
-    )
-    .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-APPROVAL"))?;
+    let entered = RateEvent::new(actor, recorded_at.clone(), entered_reason)
+        .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-EVENT"))?;
+    let approved = RateEvent::new(actor, recorded_at.clone(), approval_reason)
+        .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-APPROVAL"))?;
     let governance = RateGovernance::new(RateApprovalState::Approved, entered, Some(approved))
         .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-GOVERNANCE"))?;
     let source = SourceRef::new(
         SourceKind::Manual,
-        "gui-4-session-rate-input",
-        Some(analysis_id.to_owned()),
+        "desktop-shop-rate-input",
+        Some(source_record_id.to_owned()),
         Some(recorded_at.clone()),
     )
     .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-SOURCE"))?;
@@ -211,7 +228,7 @@ fn rate_entry(
         category,
         RateComposition::Component,
         RateScope::organization(),
-        DEVELOPER_ACTOR_ID,
+        actor,
         money(amount, currency)?,
         RateBasis::PerHour,
         effective_from.clone(),
@@ -222,7 +239,7 @@ fn rate_entry(
     .map_err(|_| invalid_input("GUI4-ESTIMATE-RATE-ENTRY"))
 }
 
-fn pricing_policy(
+pub(crate) fn pricing_policy(
     fields: &DeveloperPricingInputFields,
     currency: &str,
 ) -> Result<PricingPolicy, HostCommandError> {

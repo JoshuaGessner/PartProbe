@@ -1,7 +1,7 @@
 # Rate Library and Cost Policy
 
 > **Status:** In Review
-> **Last updated:** 2026-09-04
+> **Last updated:** 2026-09-09
 > **Related requirements:** REQ-F-008–REQ-F-010, REQ-F-015–REQ-F-018, REQ-F-032; REQ-NF-003, REQ-NF-009; CALC-007–CALC-018; DATA-005–DATA-008, DATA-011, DATA-017; TEST-002, TEST-006, TEST-007, TEST-014
 > **Related ADRs:** ADR-0006, ADR-0007
 > **Open questions:** OQ-012–OQ-018
@@ -10,7 +10,7 @@
 
 PartProbe ships with no production rate values. An organization creates and governs its own rate cards; synthetic values are allowed only in clearly isolated test or demonstration data and never become production defaults. The ordinary arbitrary-model workflow must not load a fixed synthetic estimate template and present the result as model-derived.
 
-Reusable rate and pricing administration belongs in first-run setup and Settings, not in the primary estimate form. An estimate may show the selected version, readiness, conflict/staleness state, and a direct correction link, but it must not duplicate the library editor. The current session-only developer settings remain provisional until TASK-006 persistence, approval, migration, and replay evidence pass.
+Reusable rate and pricing administration belongs in first-run setup and Settings, not in the primary estimate form. An estimate may show the selected version, readiness, conflict/staleness state, and a direct correction link, but it must not duplicate the library editor. USE-2 schema v1 persists immutable rate/pricing settings drafts with migration, backup, optimistic-concurrency, and replay evidence; schema v2 adds a separately typed starter material/offer/stock/machine/runtime bundle without changing rate selection. Contract v6 loads and saves both optional layers through the same typed desktop/application boundary while preserving the seven-command surface. Reopened drafts remain provisional and require fresh confirmation; production authority, remaining TASK-006 approval, protected-storage review, and cross-platform gates have not passed.
 
 ## Separate configuration layers
 

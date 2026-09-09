@@ -13,8 +13,10 @@ use partprobe_geometry_import::GeometryWorkerSupervisor;
 
 mod analysis;
 mod estimate;
+mod settings;
 
 use analysis::DesktopAnalysisAdapter;
+pub use settings::DesktopSettingsState;
 
 #[derive(Debug)]
 pub struct DesktopSessionState {
@@ -376,6 +378,25 @@ mod tests {
     }
 
     #[test]
+    fn runtime_handler_exposes_only_contract_commands() {
+        let start = RUNTIME.find("tauri::generate_handler![").unwrap();
+        let section = &RUNTIME[start + "tauri::generate_handler![".len()..];
+        let end = section.find("])").unwrap();
+        let registered = section[..end]
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .collect::<BTreeSet<_>>();
+        let expected = APPLICATION_COMMANDS
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(registered, expected);
+    }
+
+    #[test]
     fn main_capability_is_exact_and_has_no_remote_or_broad_plugin_permission() {
         let capability: Value = serde_json::from_str(CAPABILITY).unwrap();
         assert_eq!(capability["windows"], serde_json::json!(["main"]));
@@ -398,6 +419,8 @@ mod tests {
                 "allow-cancel-model-analysis",
                 "allow-desktop-contract",
                 "allow-evaluate-draft-estimate",
+                "allow-load-shop-settings",
+                "allow-save-shop-settings",
                 "allow-select-model-source",
                 "core:event:allow-listen",
                 "core:event:allow-unlisten",
@@ -486,6 +509,17 @@ mod tests {
         assert!(RUNTIME.contains("CancelModelAnalysisRequest"));
         assert!(!RUNTIME.contains("apply_pricing_policy"));
         assert!(!RUNTIME.contains("resolve_rate"));
+    }
+
+    #[test]
+    fn settings_storage_is_host_owned_and_runs_off_the_ui_task() {
+        assert!(RUNTIME.contains("async fn load_shop_settings"));
+        assert!(RUNTIME.contains("async fn save_shop_settings"));
+        assert!(RUNTIME.contains("app_data_dir()"));
+        assert!(RUNTIME.contains("DesktopSettingsState::open"));
+        assert!(RUNTIME.matches("spawn_blocking").count() >= 4);
+        assert!(!RUNTIME.contains("database_path:"));
+        assert!(!RUNTIME.contains("request.database"));
     }
 
     fn quoted_values_in_rust_slice(source: &str, anchor: &str) -> BTreeSet<String> {

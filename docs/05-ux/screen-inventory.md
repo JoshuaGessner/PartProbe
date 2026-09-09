@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-04
+- **Last updated:** 2026-09-09
 - **Related requirement IDs:** UX-001 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Prioritize library/admin screens after initial vertical-slice validation.
@@ -35,7 +35,7 @@
 | Risk review | Identify/resolve uncertainty and allowance | 1 | Owner, impact, mitigation, acceptance |
 | Approval review | Internal approval record | 1 | Thresholds, snapshot, exceptions |
 | Customer quote preview | Controlled outward-facing output | 1 | Exclusions, revision, export/print |
-| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Basis/currency/effective date, validation, approvals, formula preview, selected-version trace |
+| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Current developer slice persists rate/pricing plus one optional typed starter resource bundle; basis/currency/effective date, source, draft state, validation, and selected-version trace remain visible |
 | Advanced material/tool/machine/rate/vendor libraries | Govern reusable multi-user shop data | 4 | Version, approval, import staging, history |
 | Customer management | CRM and pricing policy context | 2 | Contacts, restrictions, history |
 | Historical actuals / variance | Compare original estimate and outcome | 6 | Bias evidence; controlled recommendation |

@@ -1,6 +1,7 @@
 //! Headless application services that coordinate policy, audit, and pure engines.
 
 mod draft_estimate;
+pub mod shop_settings;
 
 pub use draft_estimate::{
     AnalyzedGeometryEvidence, DraftBaseCostInputs, DraftEstimateApplication,
@@ -8,6 +9,10 @@ pub use draft_estimate::{
     DraftEstimateTrace, DraftGeometryRequestTemplate, DraftGeometryReview, DraftMaterialCostInputs,
     DraftOperationCostInputs, DraftQuantityInputs, DraftRateContext, DraftResolvedRates,
     DraftStockInputs, DraftTimeInputs, GeometryAnalysisFailure, GeometryAnalysisPort,
+};
+pub use shop_settings::{
+    ShopSettingsApplication, ShopSettingsDraftRepository, ShopSettingsLoadState,
+    ShopSettingsStoreError,
 };
 
 use std::path::Path;

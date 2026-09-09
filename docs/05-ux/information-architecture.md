@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-04
+- **Last updated:** 2026-09-09
 - **Related requirement IDs:** UX-001 through UX-012, UX-021 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Which roles can see pricing and rate-card administration in the first slice?
@@ -67,7 +67,7 @@ The Analysis tab uses progressive disclosure: baseline first; then route alterna
 
 An estimate encountering missing, unapproved, expired, stale, or conflicting configuration links directly to the relevant Settings record and returns to the same estimate context after correction. The primary estimate workspace shows readiness and selected versions but does not duplicate reusable library editors. First-run setup is a guided Settings route, distinct from later advanced multi-user library administration.
 
-The [usable estimator plan](../07-delivery/usable-estimator-plan.md) governs the transition from the current session-only developer form to this product shape. Until model-derived stock, material, process, and runtime proposals exist, temporary manual assumptions may remain behind progressive disclosure only when they are clearly labeled and cannot be mistaken for model-derived evidence.
+The [usable estimator plan](../07-delivery/usable-estimator-plan.md) governs the transition from the current developer form to this product shape. Settings now persists one optional, bounded draft bundle containing material/offer, stock allowance, machine capability, and coarse runtime inputs, but the estimate service does not consume it yet. Until model-derived stock, material, process, and runtime proposals exist, temporary manual assumptions may remain behind progressive disclosure only when they are clearly labeled and cannot be mistaken for model-derived evidence.
 
 ## Saved views
 

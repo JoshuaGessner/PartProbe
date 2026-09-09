@@ -16,6 +16,7 @@ partprobe-domain.workspace = true
 partprobe-geometry-core.workspace = true
 partprobe-geometry-import.workspace = true
 partprobe-native-runtime.workspace = true
+partprobe-persistence-sqlite.workspace = true
 partprobe-security.workspace = true
 rust_decimal.workspace = true
 serde_json.workspace = true
@@ -24,6 +25,9 @@ tauri-plugin-dialog = { workspace = true, optional = true }
 
 [build-dependencies]
 tauri-build = { workspace = true, optional = true }
+
+[dev-dependencies]
+partprobe-test-support.workspace = true
 
 [[bin]]
 name = "partprobe-estimator-desktop"

@@ -6,6 +6,8 @@ fn main() {
         "analyze_model_source",
         "cancel_model_analysis",
         "evaluate_draft_estimate",
+        "load_shop_settings",
+        "save_shop_settings",
     ];
 
     tauri_build::try_build(

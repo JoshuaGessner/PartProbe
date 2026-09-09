@@ -1,13 +1,14 @@
 use leptos::prelude::*;
 use partprobe_desktop_contract::{
     AnalysisCancellationAcknowledgement, AnalyzeModelSourceRequest, COMMAND_ANALYZE_MODEL_SOURCE,
-    COMMAND_CANCEL_MODEL_ANALYSIS, COMMAND_EVALUATE_DRAFT_ESTIMATE, COMMAND_SELECT_MODEL_SOURCE,
-    CancelModelAnalysisRequest, DeveloperPricingInputFields, DeveloperRateInputFields,
-    DraftEstimateEvaluation, DraftEstimateEvaluationState, DraftEstimateInputFields,
-    EvaluateDraftEstimateRequest, GeometryConfidenceLevel, GeometryReviewInput, HostCommandError,
-    MeshMeasurementBasis, MeshSelfIntersectionState, MeshTopologyIdentity, ModelAnalysisResult,
-    ModelSourceSelection, ProvisionalGeometryFacts, SelectedModelSource, StlEncoding,
-    UnitResolution,
+    COMMAND_CANCEL_MODEL_ANALYSIS, COMMAND_EVALUATE_DRAFT_ESTIMATE, COMMAND_LOAD_SHOP_SETTINGS,
+    COMMAND_SAVE_SHOP_SETTINGS, COMMAND_SELECT_MODEL_SOURCE, CancelModelAnalysisRequest,
+    DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateEvaluation,
+    DraftEstimateEvaluationState, DraftEstimateInputFields, EvaluateDraftEstimateRequest,
+    GeometryConfidenceLevel, GeometryReviewInput, HostCommandError, MeshMeasurementBasis,
+    MeshSelfIntersectionState, MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection,
+    ProvisionalGeometryFacts, SaveShopSettingsRequest, SelectedModelSource,
+    ShopResourceInputFields, ShopSettingsSnapshot, ShopSettingsState, StlEncoding, UnitResolution,
 };
 use wasm_bindgen::prelude::*;
 
@@ -41,6 +42,34 @@ struct CancelModelAnalysisArgs {
 #[derive(serde::Serialize)]
 struct EvaluateDraftEstimateArgs {
     request: EvaluateDraftEstimateRequest,
+}
+
+#[derive(serde::Serialize)]
+struct SaveShopSettingsArgs {
+    request: SaveShopSettingsRequest,
+}
+
+#[derive(Clone, Debug, Default)]
+enum SettingsPanelState {
+    #[default]
+    Loading,
+    NotConfigured,
+    Available(Box<ShopSettingsSnapshot>),
+    Saving,
+    Failed {
+        error: HostCommandError,
+        revision: Option<u32>,
+    },
+}
+
+impl SettingsPanelState {
+    fn revision(&self) -> Option<u32> {
+        match self {
+            Self::Available(settings) => Some(settings.revision),
+            Self::Failed { revision, .. } => *revision,
+            Self::Loading | Self::NotConfigured | Self::Saving => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -107,6 +136,226 @@ struct DeveloperEstimateForm {
     optional_price_floor: String,
     optional_minimum_order: String,
     rounding_decimal_places: String,
+    settings_changed_by: String,
+    settings_change_reason: String,
+    resources: DeveloperResourceForm,
+}
+
+#[derive(Clone, Debug, Default)]
+struct DeveloperResourceForm {
+    enabled: bool,
+    confirmed_for_draft: bool,
+    library_id: String,
+    library_version: String,
+    material_id: String,
+    material_version: String,
+    material_family: String,
+    material_grade: String,
+    optional_material_specification: String,
+    optional_material_condition: String,
+    density_kg_per_m3: String,
+    material_source: String,
+    offer_id: String,
+    offer_version: String,
+    supplier: String,
+    material_price_per_kg: String,
+    offer_effective_on: String,
+    offer_source: String,
+    stock_profile_id: String,
+    stock_profile_version: String,
+    stock_form: String,
+    stock_allowance_x_mm: String,
+    stock_allowance_y_mm: String,
+    stock_allowance_z_mm: String,
+    stock_source: String,
+    machine_id: String,
+    machine_version: String,
+    machine_name: String,
+    process_class: String,
+    machine_envelope_x_mm: String,
+    machine_envelope_y_mm: String,
+    machine_envelope_z_mm: String,
+    machine_source: String,
+    runtime_profile_id: String,
+    runtime_profile_version: String,
+    removal_rate_mm3_per_minute: String,
+    setup_minutes: String,
+    programming_minutes: String,
+    load_unload_minutes: String,
+    inspection_minutes: String,
+    runtime_source: String,
+}
+
+impl DeveloperResourceForm {
+    fn new() -> Self {
+        Self {
+            library_version: "1".to_owned(),
+            material_version: "1".to_owned(),
+            offer_version: "1".to_owned(),
+            stock_profile_version: "1".to_owned(),
+            stock_form: "rectangular".to_owned(),
+            machine_version: "1".to_owned(),
+            process_class: "milling".to_owned(),
+            runtime_profile_version: "1".to_owned(),
+            ..Self::default()
+        }
+    }
+
+    fn complete(&self) -> bool {
+        !self.enabled
+            || self.confirmed_for_draft
+                && [
+                    &self.library_id,
+                    &self.library_version,
+                    &self.material_id,
+                    &self.material_version,
+                    &self.material_family,
+                    &self.material_grade,
+                    &self.density_kg_per_m3,
+                    &self.material_source,
+                    &self.offer_id,
+                    &self.offer_version,
+                    &self.supplier,
+                    &self.material_price_per_kg,
+                    &self.offer_effective_on,
+                    &self.offer_source,
+                    &self.stock_profile_id,
+                    &self.stock_profile_version,
+                    &self.stock_form,
+                    &self.stock_allowance_x_mm,
+                    &self.stock_allowance_y_mm,
+                    &self.stock_allowance_z_mm,
+                    &self.stock_source,
+                    &self.machine_id,
+                    &self.machine_version,
+                    &self.machine_name,
+                    &self.process_class,
+                    &self.machine_envelope_x_mm,
+                    &self.machine_envelope_y_mm,
+                    &self.machine_envelope_z_mm,
+                    &self.machine_source,
+                    &self.runtime_profile_id,
+                    &self.runtime_profile_version,
+                    &self.removal_rate_mm3_per_minute,
+                    &self.setup_minutes,
+                    &self.programming_minutes,
+                    &self.load_unload_minutes,
+                    &self.inspection_minutes,
+                    &self.runtime_source,
+                ]
+                .into_iter()
+                .all(|value| !value.trim().is_empty())
+    }
+
+    fn fields(&self) -> Option<ShopResourceInputFields> {
+        self.enabled.then(|| ShopResourceInputFields {
+            confirmed_for_draft: self.confirmed_for_draft,
+            library_id: self.library_id.clone(),
+            library_version: self.library_version.clone(),
+            material_id: self.material_id.clone(),
+            material_version: self.material_version.clone(),
+            material_family: self.material_family.clone(),
+            material_grade: self.material_grade.clone(),
+            optional_material_specification: self.optional_material_specification.clone(),
+            optional_material_condition: self.optional_material_condition.clone(),
+            density_kg_per_m3: self.density_kg_per_m3.clone(),
+            material_source: self.material_source.clone(),
+            offer_id: self.offer_id.clone(),
+            offer_version: self.offer_version.clone(),
+            supplier: self.supplier.clone(),
+            material_price_per_kg: self.material_price_per_kg.clone(),
+            offer_effective_on: self.offer_effective_on.clone(),
+            offer_source: self.offer_source.clone(),
+            stock_profile_id: self.stock_profile_id.clone(),
+            stock_profile_version: self.stock_profile_version.clone(),
+            stock_form: self.stock_form.clone(),
+            stock_allowance_x_mm: self.stock_allowance_x_mm.clone(),
+            stock_allowance_y_mm: self.stock_allowance_y_mm.clone(),
+            stock_allowance_z_mm: self.stock_allowance_z_mm.clone(),
+            stock_source: self.stock_source.clone(),
+            machine_id: self.machine_id.clone(),
+            machine_version: self.machine_version.clone(),
+            machine_name: self.machine_name.clone(),
+            process_class: self.process_class.clone(),
+            machine_envelope_x_mm: self.machine_envelope_x_mm.clone(),
+            machine_envelope_y_mm: self.machine_envelope_y_mm.clone(),
+            machine_envelope_z_mm: self.machine_envelope_z_mm.clone(),
+            machine_source: self.machine_source.clone(),
+            runtime_profile_id: self.runtime_profile_id.clone(),
+            runtime_profile_version: self.runtime_profile_version.clone(),
+            removal_rate_mm3_per_minute: self.removal_rate_mm3_per_minute.clone(),
+            setup_minutes: self.setup_minutes.clone(),
+            programming_minutes: self.programming_minutes.clone(),
+            load_unload_minutes: self.load_unload_minutes.clone(),
+            inspection_minutes: self.inspection_minutes.clone(),
+            runtime_source: self.runtime_source.clone(),
+        })
+    }
+
+    fn apply(&mut self, fields: Option<&ShopResourceInputFields>) {
+        let Some(fields) = fields else {
+            *self = Self::new();
+            return;
+        };
+        self.enabled = true;
+        self.confirmed_for_draft = false;
+        self.library_id.clone_from(&fields.library_id);
+        self.library_version.clone_from(&fields.library_version);
+        self.material_id.clone_from(&fields.material_id);
+        self.material_version.clone_from(&fields.material_version);
+        self.material_family.clone_from(&fields.material_family);
+        self.material_grade.clone_from(&fields.material_grade);
+        self.optional_material_specification
+            .clone_from(&fields.optional_material_specification);
+        self.optional_material_condition
+            .clone_from(&fields.optional_material_condition);
+        self.density_kg_per_m3.clone_from(&fields.density_kg_per_m3);
+        self.material_source.clone_from(&fields.material_source);
+        self.offer_id.clone_from(&fields.offer_id);
+        self.offer_version.clone_from(&fields.offer_version);
+        self.supplier.clone_from(&fields.supplier);
+        self.material_price_per_kg
+            .clone_from(&fields.material_price_per_kg);
+        self.offer_effective_on
+            .clone_from(&fields.offer_effective_on);
+        self.offer_source.clone_from(&fields.offer_source);
+        self.stock_profile_id.clone_from(&fields.stock_profile_id);
+        self.stock_profile_version
+            .clone_from(&fields.stock_profile_version);
+        self.stock_form.clone_from(&fields.stock_form);
+        self.stock_allowance_x_mm
+            .clone_from(&fields.stock_allowance_x_mm);
+        self.stock_allowance_y_mm
+            .clone_from(&fields.stock_allowance_y_mm);
+        self.stock_allowance_z_mm
+            .clone_from(&fields.stock_allowance_z_mm);
+        self.stock_source.clone_from(&fields.stock_source);
+        self.machine_id.clone_from(&fields.machine_id);
+        self.machine_version.clone_from(&fields.machine_version);
+        self.machine_name.clone_from(&fields.machine_name);
+        self.process_class.clone_from(&fields.process_class);
+        self.machine_envelope_x_mm
+            .clone_from(&fields.machine_envelope_x_mm);
+        self.machine_envelope_y_mm
+            .clone_from(&fields.machine_envelope_y_mm);
+        self.machine_envelope_z_mm
+            .clone_from(&fields.machine_envelope_z_mm);
+        self.machine_source.clone_from(&fields.machine_source);
+        self.runtime_profile_id
+            .clone_from(&fields.runtime_profile_id);
+        self.runtime_profile_version
+            .clone_from(&fields.runtime_profile_version);
+        self.removal_rate_mm3_per_minute
+            .clone_from(&fields.removal_rate_mm3_per_minute);
+        self.setup_minutes.clone_from(&fields.setup_minutes);
+        self.programming_minutes
+            .clone_from(&fields.programming_minutes);
+        self.load_unload_minutes
+            .clone_from(&fields.load_unload_minutes);
+        self.inspection_minutes
+            .clone_from(&fields.inspection_minutes);
+        self.runtime_source.clone_from(&fields.runtime_source);
+    }
 }
 
 impl DeveloperEstimateForm {
@@ -118,6 +367,7 @@ impl DeveloperEstimateForm {
             pricing_policy_id: "developer-session-pricing".to_owned(),
             pricing_policy_version: "1".to_owned(),
             rounding_decimal_places: "2".to_owned(),
+            resources: DeveloperResourceForm::new(),
             ..Self::default()
         }
     }
@@ -179,6 +429,102 @@ impl DeveloperEstimateForm {
             .all(|value| !value.trim().is_empty())
     }
 
+    fn settings_save_ready(&self) -> bool {
+        self.session_settings_ready()
+            && self.resources.complete()
+            && !self.settings_changed_by.trim().is_empty()
+            && !self.settings_change_reason.trim().is_empty()
+    }
+
+    fn rates(&self) -> DeveloperRateInputFields {
+        DeveloperRateInputFields {
+            confirmed_for_session: self.rates_confirmed,
+            rate_card_id: self.rate_card_id.clone(),
+            rate_card_version: self.rate_card_version.clone(),
+            effective_on: self.effective_on.clone(),
+            currency: self.currency.clone(),
+            setup_labor_per_hour: self.setup_labor_per_hour.clone(),
+            programming_per_hour: self.programming_per_hour.clone(),
+            run_labor_per_hour: self.run_labor_per_hour.clone(),
+            machine_per_hour: self.machine_per_hour.clone(),
+            quality_inspection_per_hour: self.quality_inspection_per_hour.clone(),
+        }
+    }
+
+    fn pricing(&self) -> DeveloperPricingInputFields {
+        DeveloperPricingInputFields {
+            confirmed_for_session: self.pricing_confirmed,
+            pricing_policy_id: self.pricing_policy_id.clone(),
+            pricing_policy_version: self.pricing_policy_version.clone(),
+            markup_rate: self.markup_rate.clone(),
+            optional_price_floor: self.optional_price_floor.clone(),
+            optional_minimum_order: self.optional_minimum_order.clone(),
+            rounding_decimal_places: self.rounding_decimal_places.clone(),
+        }
+    }
+
+    fn settings_request(&self, expected_revision: Option<u32>) -> SaveShopSettingsRequest {
+        SaveShopSettingsRequest {
+            expected_revision,
+            changed_by: self.settings_changed_by.clone(),
+            change_reason: self.settings_change_reason.clone(),
+            rates: self.rates(),
+            pricing: self.pricing(),
+            resources: self.resources.fields(),
+        }
+    }
+
+    fn apply_settings(&mut self, settings: &ShopSettingsSnapshot) {
+        self.currency.clone_from(&settings.currency);
+        if let Some(rates) = settings.rates.as_ref() {
+            self.rate_card_id.clone_from(&rates.rate_card_id);
+            self.rate_card_version.clone_from(&rates.rate_card_version);
+            self.effective_on.clone_from(&rates.effective_on);
+            self.setup_labor_per_hour
+                .clone_from(&rates.setup_labor_per_hour);
+            self.programming_per_hour
+                .clone_from(&rates.programming_per_hour);
+            self.run_labor_per_hour
+                .clone_from(&rates.run_labor_per_hour);
+            self.machine_per_hour.clone_from(&rates.machine_per_hour);
+            self.quality_inspection_per_hour
+                .clone_from(&rates.quality_inspection_per_hour);
+        } else {
+            self.rate_card_id.clear();
+            self.rate_card_version.clear();
+            self.effective_on.clear();
+            self.setup_labor_per_hour.clear();
+            self.programming_per_hour.clear();
+            self.run_labor_per_hour.clear();
+            self.machine_per_hour.clear();
+            self.quality_inspection_per_hour.clear();
+        }
+        if let Some(pricing) = settings.pricing.as_ref() {
+            self.pricing_policy_id
+                .clone_from(&pricing.pricing_policy_id);
+            self.pricing_policy_version
+                .clone_from(&pricing.pricing_policy_version);
+            self.markup_rate.clone_from(&pricing.markup_rate);
+            self.optional_price_floor
+                .clone_from(&pricing.optional_price_floor);
+            self.optional_minimum_order
+                .clone_from(&pricing.optional_minimum_order);
+            self.rounding_decimal_places
+                .clone_from(&pricing.rounding_decimal_places);
+        } else {
+            self.pricing_policy_id.clear();
+            self.pricing_policy_version.clear();
+            self.markup_rate.clear();
+            self.optional_price_floor.clear();
+            self.optional_minimum_order.clear();
+            self.rounding_decimal_places.clear();
+        }
+        self.rates_confirmed = false;
+        self.pricing_confirmed = false;
+        self.resources.apply(settings.resources.as_ref());
+        self.settings_change_reason.clear();
+    }
+
     fn request(&self, selection_id: String, analysis_id: String) -> EvaluateDraftEstimateRequest {
         EvaluateDraftEstimateRequest {
             selection_id,
@@ -217,27 +563,8 @@ impl DeveloperEstimateForm {
                 accepted_risk_impact: self.accepted_risk_impact.clone(),
                 expected_rework: self.expected_rework.clone(),
             },
-            rates: DeveloperRateInputFields {
-                confirmed_for_session: self.rates_confirmed,
-                rate_card_id: self.rate_card_id.clone(),
-                rate_card_version: self.rate_card_version.clone(),
-                effective_on: self.effective_on.clone(),
-                currency: self.currency.clone(),
-                setup_labor_per_hour: self.setup_labor_per_hour.clone(),
-                programming_per_hour: self.programming_per_hour.clone(),
-                run_labor_per_hour: self.run_labor_per_hour.clone(),
-                machine_per_hour: self.machine_per_hour.clone(),
-                quality_inspection_per_hour: self.quality_inspection_per_hour.clone(),
-            },
-            pricing: DeveloperPricingInputFields {
-                confirmed_for_session: self.pricing_confirmed,
-                pricing_policy_id: self.pricing_policy_id.clone(),
-                pricing_policy_version: self.pricing_policy_version.clone(),
-                markup_rate: self.markup_rate.clone(),
-                optional_price_floor: self.optional_price_floor.clone(),
-                optional_minimum_order: self.optional_minimum_order.clone(),
-                rounding_decimal_places: self.rounding_decimal_places.clone(),
-            },
+            rates: self.rates(),
+            pricing: self.pricing(),
         }
     }
 }
@@ -253,7 +580,79 @@ fn App() -> impl IntoView {
     let (estimate_state, set_estimate_state) = signal(DraftEstimatePanelState::NotReady);
     let (is_selecting, set_is_selecting) = signal(false);
     let (active_view, set_active_view) = signal(WorkspaceView::Estimate);
+    let (settings_state, set_settings_state) = signal(SettingsPanelState::Loading);
     let form = RwSignal::new(DeveloperEstimateForm::new());
+
+    let load_settings = Callback::new(move |()| {
+        set_settings_state.set(SettingsPanelState::Loading);
+        leptos::task::spawn_local(async move {
+            match invoke_partprobe(COMMAND_LOAD_SHOP_SETTINGS, JsValue::UNDEFINED).await {
+                Ok(value) => match serde_wasm_bindgen::from_value::<ShopSettingsState>(value) {
+                    Ok(ShopSettingsState::NotConfigured) => {
+                        set_settings_state.set(SettingsPanelState::NotConfigured);
+                    }
+                    Ok(ShopSettingsState::Available { settings }) => {
+                        form.update(|current| current.apply_settings(&settings));
+                        set_settings_state.set(SettingsPanelState::Available(settings));
+                    }
+                    Err(_) => set_settings_state.set(SettingsPanelState::Failed {
+                        error: HostCommandError::settings_unavailable("USE2-SETTINGS-RESULT"),
+                        revision: None,
+                    }),
+                },
+                Err(error) => {
+                    let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                        .unwrap_or_else(|_| {
+                            HostCommandError::settings_unavailable("USE2-SETTINGS-INVOKE")
+                        });
+                    set_settings_state.set(SettingsPanelState::Failed {
+                        error,
+                        revision: None,
+                    });
+                }
+            }
+        });
+    });
+    load_settings.run(());
+
+    let save_settings = Callback::new(move |()| {
+        if !form.with(DeveloperEstimateForm::settings_save_ready) {
+            return;
+        }
+        let expected_revision = settings_state.get_untracked().revision();
+        let request = form.with(|current| current.settings_request(expected_revision));
+        set_settings_state.set(SettingsPanelState::Saving);
+        leptos::task::spawn_local(async move {
+            let args = serde_wasm_bindgen::to_value(&SaveShopSettingsArgs { request })
+                .unwrap_or(JsValue::UNDEFINED);
+            match invoke_partprobe(COMMAND_SAVE_SHOP_SETTINGS, args).await {
+                Ok(value) => match serde_wasm_bindgen::from_value::<ShopSettingsState>(value) {
+                    Ok(ShopSettingsState::Available { settings }) => {
+                        form.update(|current| current.apply_settings(&settings));
+                        set_settings_state.set(SettingsPanelState::Available(settings));
+                    }
+                    Ok(ShopSettingsState::NotConfigured) | Err(_) => {
+                        set_settings_state.set(SettingsPanelState::Failed {
+                            error: HostCommandError::settings_unavailable(
+                                "USE2-SETTINGS-SAVE-RESULT",
+                            ),
+                            revision: expected_revision,
+                        });
+                    }
+                },
+                Err(error) => {
+                    let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                        .unwrap_or_else(|_| {
+                            HostCommandError::settings_unavailable("USE2-SETTINGS-SAVE-INVOKE")
+                        });
+                    set_settings_state.set(SettingsPanelState::Failed {
+                        error,
+                        revision: expected_revision,
+                    });
+                }
+            }
+        });
+    });
 
     Effect::new(move |_| {
         let _ = form.get();
@@ -391,7 +790,7 @@ fn App() -> impl IntoView {
                 </nav>
                 <div class="session-state" aria-label="Application state">
                     <span class="state-dot" aria-hidden="true"></span>
-                    <span>"Session only · not saved"</span>
+                    <span>"Estimate session not saved"</span>
                 </div>
             </div>
         </header>
@@ -399,7 +798,7 @@ fn App() -> impl IntoView {
         <Show
             when=move || active_view.get() == WorkspaceView::Estimate
             fallback=move || view! {
-                <SettingsWorkspace form set_active_view />
+                <SettingsWorkspace form settings_state set_active_view save_settings load_settings />
             }
         >
             <main id="workspace" class="workspace">
@@ -934,7 +1333,10 @@ fn EstimateWorkspace(
 #[component]
 fn SettingsWorkspace(
     form: RwSignal<DeveloperEstimateForm>,
+    settings_state: ReadSignal<SettingsPanelState>,
     set_active_view: WriteSignal<WorkspaceView>,
+    save_settings: Callback<()>,
+    load_settings: Callback<()>,
 ) -> impl IntoView {
     view! {
         <main id="workspace" class="settings-workspace">
@@ -942,7 +1344,7 @@ fn SettingsWorkspace(
                 <div class="panel-heading">
                     <div>
                         <p class="section-index">"SETTINGS / CURRENT CHECKPOINT"</p>
-                        <h2 id="settings-heading">"Rates and pricing"</h2>
+                        <h2 id="settings-heading">"Shop calculation inputs"</h2>
                     </div>
                     <span class=move || if form.with(DeveloperEstimateForm::session_settings_ready) {
                         "status-chip available"
@@ -957,10 +1359,19 @@ fn SettingsWorkspace(
                     </span>
                 </div>
 
-                <section class="settings-boundary" role="note">
-                    <p class="blocked-title">"Session-only settings"</p>
+                <section class="settings-boundary" role="status" aria-live="polite">
+                    <p class="blocked-title">"Durable local settings draft"</p>
                     <p>
-                        "These values are kept out of the estimating workspace, but they are not persisted yet. No numeric production defaults or synthetic model estimate is loaded."
+                        {move || match settings_state.get() {
+                            SettingsPanelState::Loading => "Loading the host-owned local Settings database.".to_owned(),
+                            SettingsPanelState::NotConfigured => "First run: no saved shop-settings draft exists. Enter reviewed values; PartProbe does not invent numeric shop inputs.".to_owned(),
+                            SettingsPanelState::Available(settings) => format!(
+                                "Saved local draft revision {}. Reloaded values require fresh confirmation before calculation.",
+                                settings.revision,
+                            ),
+                            SettingsPanelState::Saving => "Saving a new immutable local draft revision.".to_owned(),
+                            SettingsPanelState::Failed { error, .. } => format!("{} Diagnostic: {}", error.message, error.diagnostic_id),
+                        }}
                     </p>
                 </section>
 
@@ -979,7 +1390,7 @@ fn SettingsWorkspace(
                             <ExactInput form label="Machine" unit="/hr" read=|f| &f.machine_per_hour write=|f, v| f.machine_per_hour = v />
                             <ExactInput form label="Quality inspection" unit="/hr" read=|f| &f.quality_inspection_per_hour write=|f, v| f.quality_inspection_per_hour = v />
                         </div>
-                        <ReviewCheckbox form label="I confirm these five rates for this session-only developer calculation." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
+                        <ReviewCheckbox form label="I reviewed these five rates for this saved draft and this session calculation." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
                     </fieldset>
 
                     <fieldset>
@@ -992,14 +1403,111 @@ fn SettingsWorkspace(
                             <OptionalInput form label="Minimum order" unit="currency" read=|f| &f.optional_minimum_order write=|f, v| f.optional_minimum_order = v />
                             <ExactInput form label="Rounding places" unit="decimals" read=|f| &f.rounding_decimal_places write=|f, v| f.rounding_decimal_places = v />
                         </div>
-                        <ReviewCheckbox form label="I confirm this pricing policy for this session-only developer calculation." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
+                        <ReviewCheckbox form label="I reviewed this pricing policy for this saved draft and this session calculation." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
                     </fieldset>
                 </div>
 
+                <fieldset>
+                    <legend>"Material, stock, machine, and runtime draft"</legend>
+                    <p class="fieldset-note">"Optional first resource bundle for future model-derived proposals. It is saved as draft evidence and is not yet used automatically by an estimate."</p>
+                    <label class="review-check">
+                        <input
+                            type="checkbox"
+                            prop:checked=move || form.with(|current| current.resources.enabled)
+                            on:change=move |event| form.update(|current| {
+                                current.resources.enabled = event_target_checked(&event);
+                                current.resources.confirmed_for_draft = false;
+                            })
+                        />
+                        <span>"Include a resource bundle in the next saved revision."</span>
+                    </label>
+                </fieldset>
+
+                <Show when=move || form.with(|current| current.resources.enabled)>
+                    <div class="settings-grid">
+                        <fieldset>
+                            <legend>"Material and commercial offer"</legend>
+                            <p class="fieldset-note">"Material identity and density remain separate from the time-bounded supplier price."</p>
+                            <div class="form-grid">
+                                <ExactInput form label="Resource-library ID" unit="ID" read=|f| &f.resources.library_id write=|f, v| f.resources.library_id = v />
+                                <ExactInput form label="Library version" unit="version" read=|f| &f.resources.library_version write=|f, v| f.resources.library_version = v />
+                                <ExactInput form label="Material ID" unit="ID" read=|f| &f.resources.material_id write=|f, v| f.resources.material_id = v />
+                                <ExactInput form label="Material version" unit="version" read=|f| &f.resources.material_version write=|f, v| f.resources.material_version = v />
+                                <TextInput form label="Material family" read=|f| &f.resources.material_family write=|f, v| f.resources.material_family = v />
+                                <TextInput form label="Alloy / grade" read=|f| &f.resources.material_grade write=|f, v| f.resources.material_grade = v />
+                                <OptionalInput form label="Specification" unit="optional" read=|f| &f.resources.optional_material_specification write=|f, v| f.resources.optional_material_specification = v />
+                                <OptionalInput form label="Temper / condition" unit="optional" read=|f| &f.resources.optional_material_condition write=|f, v| f.resources.optional_material_condition = v />
+                                <ExactInput form label="Density" unit="kg/m³" read=|f| &f.resources.density_kg_per_m3 write=|f, v| f.resources.density_kg_per_m3 = v />
+                                <TextInput form label="Material source" read=|f| &f.resources.material_source write=|f, v| f.resources.material_source = v />
+                                <ExactInput form label="Offer ID" unit="ID" read=|f| &f.resources.offer_id write=|f, v| f.resources.offer_id = v />
+                                <ExactInput form label="Offer version" unit="version" read=|f| &f.resources.offer_version write=|f, v| f.resources.offer_version = v />
+                                <TextInput form label="Supplier" read=|f| &f.resources.supplier write=|f, v| f.resources.supplier = v />
+                                <ExactInput form label="Material price" unit="USD/kg" read=|f| &f.resources.material_price_per_kg write=|f, v| f.resources.material_price_per_kg = v />
+                                <ExactInput form label="Offer effective on" unit="YYYY-MM-DD" read=|f| &f.resources.offer_effective_on write=|f, v| f.resources.offer_effective_on = v />
+                                <TextInput form label="Offer source" read=|f| &f.resources.offer_source write=|f, v| f.resources.offer_source = v />
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>"Stock allowance"</legend>
+                            <p class="fieldset-note">"Current governed forms: rectangular, round, or plate. Allowances enlarge each model-envelope axis."</p>
+                            <div class="form-grid">
+                                <ExactInput form label="Stock-profile ID" unit="ID" read=|f| &f.resources.stock_profile_id write=|f, v| f.resources.stock_profile_id = v />
+                                <ExactInput form label="Stock-profile version" unit="version" read=|f| &f.resources.stock_profile_version write=|f, v| f.resources.stock_profile_version = v />
+                                <ExactInput form label="Stock form" unit="name" read=|f| &f.resources.stock_form write=|f, v| f.resources.stock_form = v />
+                                <ExactInput form label="X allowance" unit="mm" read=|f| &f.resources.stock_allowance_x_mm write=|f, v| f.resources.stock_allowance_x_mm = v />
+                                <ExactInput form label="Y allowance" unit="mm" read=|f| &f.resources.stock_allowance_y_mm write=|f, v| f.resources.stock_allowance_y_mm = v />
+                                <ExactInput form label="Z allowance" unit="mm" read=|f| &f.resources.stock_allowance_z_mm write=|f, v| f.resources.stock_allowance_z_mm = v />
+                                <TextInput form label="Stock-policy source" read=|f| &f.resources.stock_source write=|f, v| f.resources.stock_source = v />
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>"Machine capability"</legend>
+                            <p class="fieldset-note">"Physical capability remains separate from the machine hourly rate above."</p>
+                            <div class="form-grid">
+                                <ExactInput form label="Machine ID" unit="ID" read=|f| &f.resources.machine_id write=|f, v| f.resources.machine_id = v />
+                                <ExactInput form label="Machine version" unit="version" read=|f| &f.resources.machine_version write=|f, v| f.resources.machine_version = v />
+                                <TextInput form label="Machine name" read=|f| &f.resources.machine_name write=|f, v| f.resources.machine_name = v />
+                                <ExactInput form label="Process class" unit="milling / turning / sawing / inspection" read=|f| &f.resources.process_class write=|f, v| f.resources.process_class = v />
+                                <ExactInput form label="Envelope X" unit="mm" read=|f| &f.resources.machine_envelope_x_mm write=|f, v| f.resources.machine_envelope_x_mm = v />
+                                <ExactInput form label="Envelope Y" unit="mm" read=|f| &f.resources.machine_envelope_y_mm write=|f, v| f.resources.machine_envelope_y_mm = v />
+                                <ExactInput form label="Envelope Z" unit="mm" read=|f| &f.resources.machine_envelope_z_mm write=|f, v| f.resources.machine_envelope_z_mm = v />
+                                <TextInput form label="Capability source" read=|f| &f.resources.machine_source write=|f, v| f.resources.machine_source = v />
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>"Coarse runtime profile"</legend>
+                            <p class="fieldset-note">"This is versioned coarse-volumetric input, not CAM simulation or a machine-cycle guarantee."</p>
+                            <div class="form-grid">
+                                <ExactInput form label="Runtime-profile ID" unit="ID" read=|f| &f.resources.runtime_profile_id write=|f, v| f.resources.runtime_profile_id = v />
+                                <ExactInput form label="Runtime-profile version" unit="version" read=|f| &f.resources.runtime_profile_version write=|f, v| f.resources.runtime_profile_version = v />
+                                <ExactInput form label="Removal rate" unit="mm³/min" read=|f| &f.resources.removal_rate_mm3_per_minute write=|f, v| f.resources.removal_rate_mm3_per_minute = v />
+                                <ExactInput form label="Setup" unit="min" read=|f| &f.resources.setup_minutes write=|f, v| f.resources.setup_minutes = v />
+                                <ExactInput form label="Programming" unit="min" read=|f| &f.resources.programming_minutes write=|f, v| f.resources.programming_minutes = v />
+                                <ExactInput form label="Load / unload" unit="min/item" read=|f| &f.resources.load_unload_minutes write=|f, v| f.resources.load_unload_minutes = v />
+                                <ExactInput form label="Inspection" unit="min/lot" read=|f| &f.resources.inspection_minutes write=|f, v| f.resources.inspection_minutes = v />
+                                <TextInput form label="Runtime source" read=|f| &f.resources.runtime_source write=|f, v| f.resources.runtime_source = v />
+                            </div>
+                            <ReviewCheckbox form label="I reviewed this resource bundle for the saved draft. It remains non-authoritative until a later activation workflow." read=|f| f.resources.confirmed_for_draft write=|f, v| f.resources.confirmed_for_draft = v />
+                        </fieldset>
+                    </div>
+                </Show>
+
+                <fieldset>
+                    <legend>"Change record"</legend>
+                    <p class="fieldset-note">"Each save appends an immutable revision with an actor, host timestamp, and reason. Saving does not approve a quote or activate production authority."</p>
+                    <div class="form-grid">
+                        <TextInput form label="Changed by" read=|f| &f.settings_changed_by write=|f, v| f.settings_changed_by = v />
+                        <TextInput form label="Reason for change" read=|f| &f.settings_change_reason write=|f, v| f.settings_change_reason = v />
+                    </div>
+                </fieldset>
+
                 <section class="planned-settings" aria-labelledby="planned-settings-heading">
                     <p class="section-index">"NEXT SETTINGS SLICE"</p>
-                    <h3 id="planned-settings-heading">"Shop data still to add"</h3>
-                    <p>"Persistent material prices, stock allowances, machines/workcenters, runtime profiles, and operation templates will replace repeated estimate entry in the next governed slices."</p>
+                    <h3 id="planned-settings-heading">"What remains after this draft"</h3>
+                    <p>"Additional catalog entries, operation templates, approval workflow, and model-derived proposal services remain separate follow-on slices. These saved values do not yet populate an estimate automatically."</p>
                 </section>
 
                 <div class="settings-footer">
@@ -1007,9 +1515,33 @@ fn SettingsWorkspace(
                         {move || if form.with(DeveloperEstimateForm::session_settings_ready) {
                             "Rate and pricing settings are confirmed for this session."
                         } else {
-                            "Complete every required field and both confirmations before calculating."
+                            "Complete every required rate/pricing field and confirmation before calculating; an enabled resource bundle must also be complete before saving."
                         }}
                     </p>
+                    <Show when=move || matches!(settings_state.get(), SettingsPanelState::Failed { .. })>
+                        <button
+                            type="button"
+                            class="secondary-action"
+                            on:click=move |_| load_settings.run(())
+                        >
+                            "Reload saved draft"
+                        </button>
+                    </Show>
+                    <button
+                        type="button"
+                        class="secondary-action"
+                        disabled=move || {
+                            matches!(settings_state.get(), SettingsPanelState::Loading | SettingsPanelState::Saving)
+                                || !form.with(DeveloperEstimateForm::settings_save_ready)
+                        }
+                        on:click=move |_| save_settings.run(())
+                    >
+                        {move || if matches!(settings_state.get(), SettingsPanelState::Saving) {
+                            "Saving settings"
+                        } else {
+                            "Save new revision"
+                        }}
+                    </button>
                     <button
                         type="button"
                         class="primary-action"
@@ -1020,6 +1552,26 @@ fn SettingsWorkspace(
                 </div>
             </section>
         </main>
+    }
+}
+
+#[component]
+fn TextInput(
+    form: RwSignal<DeveloperEstimateForm>,
+    label: &'static str,
+    read: fn(&DeveloperEstimateForm) -> &String,
+    write: fn(&mut DeveloperEstimateForm, String),
+) -> impl IntoView {
+    view! {
+        <label class="form-field">
+            <span>{label}</span>
+            <input
+                type="text"
+                required
+                prop:value=move || form.with(|form| read(form).clone())
+                on:input=move |event| write(&mut form.write(), event_target_value(&event))
+            />
+        </label>
     }
 }
 
@@ -1162,5 +1714,39 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
         .into_any(),
         DraftEstimatePanelState::NotReady => ().into_any(),
     }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loading_explicitly_missing_libraries_clears_stale_form_values() {
+        let mut form = DeveloperEstimateForm::new();
+        form.setup_labor_per_hour = "75".to_owned();
+        form.markup_rate = "0.25".to_owned();
+        form.resources.enabled = true;
+        form.resources.library_id = "stale-resources".to_owned();
+        let settings = ShopSettingsSnapshot {
+            revision: 2,
+            currency: "USD".to_owned(),
+            rates: None,
+            pricing: None,
+            resources: None,
+            changed_by: "operator".to_owned(),
+            changed_at: "2026-09-09T12:00:00Z".to_owned(),
+            change_reason: "removed optional libraries".to_owned(),
+        };
+
+        form.apply_settings(&settings);
+
+        assert!(form.rate_card_id.is_empty());
+        assert!(form.setup_labor_per_hour.is_empty());
+        assert!(form.pricing_policy_id.is_empty());
+        assert!(form.markup_rate.is_empty());
+        assert!(!form.resources.enabled);
+        assert!(!form.rates_confirmed);
+        assert!(!form.pricing_confirmed);
     }
 }

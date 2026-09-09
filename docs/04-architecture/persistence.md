@@ -1,7 +1,7 @@
 # Persistence Architecture
 
 > **Status:** In Review  
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-09-09
 > **Related requirements:** REQ-F-001, REQ-F-010–REQ-F-012; REQ-NF-002, REQ-NF-007, REQ-NF-009  
 > **Related ADRs:** ADR-0006  
 > **Open questions:** OQ-021, OQ-022  
@@ -25,4 +25,6 @@ Team/LAN mode uses a service and central database/object store behind the same a
 
 TASK-003 implements only the persistence-neutral controlled-derivative port and application handoff. The in-memory write contract independently verifies immutable bytes and retains lineage, classification, exact access/retention policy references, authorization correlation, actor/time, schema/media type, integrity state, and an opaque adapter locator. It is not a durable schema and does not prove atomicity, fsync behavior, encryption, integrity-on-open, backup/restore, concurrency, or retention/disposition enforcement.
 
-TASK-006 must implement those behaviors behind the port after ADR-0006 review, beginning with an explicit schema version and migration/replay policy. No customer or persisted production record exists to migrate from the TASK-003 Rust layout.
+USE-2 now begins TASK-006 with a bounded SQLite adapter for immutable shop-settings drafts. Schema v1 persists validated `RateCard` and `PricingPolicy` snapshots, immutable settings revisions and change events, plus one optimistic-concurrency current pointer behind an application repository port. Schema v2 adds immutable, hash-bound snapshots for each material/offer/stock/machine/runtime child record, the bounded `ShopResourceLibrary` aggregate, and its exact settings-revision reference. This prevents a changed child from reusing its identity/version through a newly versioned aggregate, while an unchanged snapshot is reused when only the settings revision changes. A schema-v1 database migrates forward without inserting resource or numeric rows, and prior settings payloads without the optional bundle remain readable. Migration SQL is ordered and checksummed; foreign keys, WAL, full synchronous durability, a bounded busy timeout, defensive trusted-schema configuration, integrity-on-open, consistent backup, save/reopen, historical replay, and stale-writer rejection are executable evidence. A new database contains no rate, policy, resource, or numeric seed rows.
+
+This is a preproduction persistence foundation, not automatic calculation authority and not TASK-006 completion. Desktop contract v6 preserves the seven-command v5 set and loads/saves the USD rate/pricing draft plus the optional starter resource bundle through `ShopSettingsApplication`; the Tauri host owns the application-data directory and SQLite lifecycle, and the WebView receives no path or database authority. Reopened rate/pricing values clear session confirmations, and reopened resource values clear their draft confirmation. Additional catalog entries, approval/activation, model/estimate persistence, attachments, retention/disposition, encryption/key management, crash-recovery fixtures, a second prior-version migration, three-OS backup evidence, and content-store atomicity remain open. Unknown newer versions or altered migration checksums fail closed.

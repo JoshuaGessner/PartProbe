@@ -1,12 +1,35 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-09-04
+> **Last updated:** 2026-09-09
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-09-09 — USE-2 schema-v2 starter resource bundle
+
+- Added validated, separately versioned domain records for material identity, a time-bounded material offer, stock-form XYZ allowances, physical machine capability, and coarse-volumetric runtime inputs. Explicit density, price, envelope, removal-rate, and duration units, manual source evidence, draft lifecycle state, and material/machine cross-record references are revalidated on deserialization. No calculation or geometry behavior changed.
+- Advanced the SQLite adapter to checksummed schema v2 with immutable, hash-bound child-record and `ShopResourceLibrary` aggregate snapshots plus exact settings-revision references. Fresh and migrated databases receive no numeric/resource rows; schema-v1 settings payloads without the optional bundle remain readable; unchanged snapshots are reused across settings revisions; and changed child bytes under a reused child version fail closed even when the aggregate version changes.
+- Advanced the shared desktop contract to v6 without changing its exact seven-command surface. Settings can now save/reopen one optional path-free starter resource bundle through the existing typed application service and host-owned database. Reload clears resource confirmation, and the UI labels the bundle as non-authoritative input for future proposals rather than a current estimate source or CAM result.
+- Added domain validation/round-trip/adversarial tests, schema-v1-to-v2 migration coverage, no-default resource checks, and host save/reopen/immutable-version evidence. Full local closeout passes 214 runtime tests plus one compile-fail doctest, 74 Python tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, 147-file planning validation, formatting, and diff hygiene.
+- This remains a bounded starter aggregate, not a production catalog. Multi-entry libraries, approval/activation, automatic material/stock selection, runtime proposals, model/estimate persistence, protected-storage decisions, accessibility, and three-OS persistence/package evidence remain open.
+
+## 2026-09-09 — USE-2 contract-v5 desktop Settings activation
+
+- Advanced `crates/desktop-contract` from v4 to v5 while preserving the five GUI-4 analysis/estimate commands and adding exactly `load_shop_settings` and `save_shop_settings`. Added path-free first-run/available Settings states, immutable revision/audit DTOs, and bounded unavailable/invalid/conflict errors.
+- Connected the Tauri host to `ShopSettingsApplication<SqliteShopSettingsRepository>` using only its platform application-data directory. Database setup and commands remain native and run off the UI thread; the WebView cannot select a database or receive its path/handle. Manifest, exact command permissions, window capability, handler, and regression allowlists all contain the same seven commands.
+- Added the Leptos first-run/load/save workflow. Empty install state remains visibly unconfigured with no numeric shop rates; save requires confirmed USD rate/pricing values plus actor and reason; reopen restores values but clears both calculation confirmations so persistence is not authority. The estimate/model session is still unsaved.
+- Added host integration tests for empty state, immutable first save, exact reopen, stale-writer and reused-version rejection, explicit missing-library preservation, confirmation clearing, USD enforcement, and no mutation after invalid input. Full closeout passes 207 runtime tests plus one compile-fail doctest, 74 Python tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, 147-file planning validation, formatting, and diff hygiene.
+
+## 2026-09-04 — USE-2 durable shop-settings foundation
+
+- Added validated immutable `ShopSettingsDraft` domain state plus a typed `ShopSettingsApplication` and `ShopSettingsDraftRepository` boundary. First-run absence is explicit `NotConfigured`; optional rate-card/pricing-policy values stay missing rather than receiving numeric defaults, and persistence alone does not grant calculation authority.
+- Added schema-v1 `partprobe-persistence-sqlite` storage with exact bundled `rusqlite 0.40.2`. The adapter persists hash-bound immutable rate/pricing snapshots, settings revisions, and one change event per revision; advances only an optimistic-concurrency current pointer; and revalidates normalized identity/version/currency/audit evidence plus every referenced payload on read.
+- Added empty-install, save/reopen, immutable historical replay, stale-writer, divergent immutable identity, snapshot-tamper, unknown-newer-schema, changed-migration-checksum, backup/reopen, and no-overwrite backup evidence. The migration is embedded and checksummed; connections explicitly configure foreign keys, WAL, full synchronous durability, a bounded busy timeout, defensive trusted-schema behavior, and integrity-on-open.
+- This remains a bounded local TASK-006/USE-2 checkpoint. No desktop command or calculation behavior changed; material/stock/machine/runtime/estimate/blob persistence, desktop activation, crash and broader corruption recovery, two prior-version migrations, encryption/key policy, protected-storage review, and three-OS evidence remain open.
+- Local closeout passes 201 runtime tests plus one compile-fail doctest, strict workspace Clippy, 74 Python tooling tests, 147-file planning validation, formatting, and diff hygiene. The eight focused SQLite tests cover the persistence cases above; hosted three-OS evidence has not yet run for this checkpoint.
 
 ## 2026-09-04 — Usable-estimator plan and USE-1 workflow guardrail
 

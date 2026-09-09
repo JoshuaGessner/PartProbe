@@ -1,7 +1,7 @@
 # Initial Data Model
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-09-09
 > **Related requirements:** REQ-F-001–REQ-F-065; DATA-001–DATA-042
 > **Related ADRs:** ADR-0006–ADR-0014
 > **Open questions:** OQ-019–OQ-024
@@ -60,3 +60,5 @@ Use opaque UUID-compatible IDs, UTC timestamps plus display timezone, explicit u
 Snapshots use normalized searchable metadata plus a versioned serialized payload only where immutability and forward compatibility justify it. Representation basis is attached to each body, measurement, and feature evidence item; a mixed snapshot is only aggregate metadata and cannot raise an item's confidence above its own basis. Advanced records are grouped into bounded aggregates rather than automatically becoming one table per noun: routing comparison owns alternatives; capacity analysis references immutable resource snapshots; estimate analysis owns uncertainty/scenarios; part revision owns comparison evidence; estimate revision owns requirement coverage; governance owns correction proposals; integration owns CAM imports/reconciliations. Persistence rows are not public interchange DTOs.
 
 TASK-003 provides a preproduction in-memory DATA-013 contract for governed worker derivatives: artifact/source revisions, derivative reference, classification, access/retention policy references, authorization correlation, schema/media type, verified SHA-256/length, actor/time, and opaque locator. This is partial type-level evidence only. TASK-006 must define the persisted schema, migration, integrity-on-open, retention/disposition, and backup/restore behavior before DATA-013 can be treated as implemented.
+
+The first USE-2/TASK-006 slice persists a deliberately smaller DATA-006/008 settings subset: organization currency, optional immutable validated rate-card and pricing-policy snapshots, settings revision, actor/time/reason, and a mutable current pointer guarded by optimistic concurrency. Schema v2 adds one optional bounded `ShopResourceLibrary` snapshot and immutable settings-to-library reference. That starter aggregate contains separately versioned material definition, time-bounded material offer, stock allowance, physical machine capability, and coarse runtime records with typed units, source evidence, and exact internal references. Authoritative domain values are serialized with a schema name and SHA-256 alongside normalized identity/version/currency fields, then revalidated and cross-checked on read. Absence remains `None`; neither migration creates numeric or library rows. These records remain drafts until a separate reviewed activation workflow grants calculation authority, and they are not yet consumed by estimate evaluation.

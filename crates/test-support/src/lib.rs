@@ -2,7 +2,9 @@
 
 pub mod geometry_fixtures;
 
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use partprobe_domain::{CurrencyCode, Money, RuleId, RuleRef, RuleVersion, SourceKind, SourceRef};
 use partprobe_estimation_engine::{NodeDefinition, NodeId, ValueType};
@@ -53,4 +55,46 @@ pub fn source_node(node_id: &str, rule_id: &str, output_type: ValueType) -> Node
         Vec::new(),
         output_type,
     )
+}
+
+/// Process-owned temporary directory used by portable filesystem tests.
+#[derive(Debug)]
+pub struct TestDirectory {
+    path: PathBuf,
+}
+
+impl TestDirectory {
+    /// Creates a unique empty directory beneath the host temporary directory.
+    pub fn create(label: &str) -> std::io::Result<Self> {
+        static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+        let safe_label: String = label
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() || character == '-' {
+                    character
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        let path = std::env::temp_dir().join(format!(
+            "partprobe-test-{}-{}-{}",
+            safe_label,
+            std::process::id(),
+            NEXT_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&path)?;
+        Ok(Self { path })
+    }
+
+    /// Returns the owned directory path.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Removes the owned tree after callers have dropped every filesystem-backed handle.
+    pub fn cleanup(self) -> std::io::Result<()> {
+        std::fs::remove_dir_all(self.path)
+    }
 }

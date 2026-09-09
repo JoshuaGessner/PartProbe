@@ -10,6 +10,8 @@
     "allow-analyze-model-source",
     "allow-cancel-model-analysis",
     "allow-evaluate-draft-estimate",
+    "allow-load-shop-settings",
+    "allow-save-shop-settings",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

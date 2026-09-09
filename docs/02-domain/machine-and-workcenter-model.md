@@ -1,7 +1,7 @@
 # Machine and Workcenter Model
 
 > **Status:** Draft
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-09-09
 > **Related requirements:** REQ-F-006–REQ-F-008; DATA-006
 > **Related ADRs:** ADR-0006
 > **Open questions:** OQ-001, OQ-012, OQ-013
@@ -11,3 +11,5 @@
 `MachineCapability` is separated from `WorkcenterRate`. Capability captures envelope, axes, spindle limits/torque evidence, feeds/rapids, tool/bar capacity, rotary/accuracy/process capability, restrictions, and default time parameters. Rates follow [the canonical rate-library contract](rate-library.md) and capture effective period, setup/run labor, machine/burden components, unattended policy, minimums, cost center, and approval without product-supplied numeric defaults.
 
 Supported classifications include 3/4/5-axis mills; CNC/live-tool/mill-turn/Swiss/manual lathes; manual mills; saw, grinder, wire/sinker EDM, router, inspection/CMM, deburr, clean, and packaging workcenters. Configuration—not hard-coded enums—holds shop-specific inventory.
+
+The bounded USE-2 starter bundle currently stores one draft `MachineProfile` with stable/versioned identity, name, broad process class, explicit positive XYZ millimetre envelope, source, and lifecycle state. Its associated, separately versioned `CoarseRuntimeProfile` pins that exact machine and material version and stores a positive volumetric removal rate plus separate nonnegative setup, programming, load/unload, and inspection minutes. These values are future proposal inputs only; they are not machine availability, a routing decision, CAM simulation, or a cycle guarantee.

@@ -1,0 +1,19 @@
+[package]
+name = "partprobe-persistence-sqlite"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+partprobe-application.workspace = true
+partprobe-domain.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+partprobe-test-support.workspace = true
+
+[lints]
+workspace = true

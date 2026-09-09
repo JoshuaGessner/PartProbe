@@ -13,6 +13,7 @@ members = [
     "crates/geometry-occt-adapter",
     "crates/native-runtime",
     "crates/platform",
+    "crates/persistence-sqlite",
     "crates/security",
     "crates/test-support",
 ]
@@ -35,11 +36,13 @@ partprobe-geometry-import = { path = "crates/geometry-import" }
 partprobe-geometry-occt-adapter = { path = "crates/geometry-occt-adapter" }
 partprobe-native-runtime = { path = "crates/native-runtime" }
 partprobe-platform = { path = "crates/platform" }
+partprobe-persistence-sqlite = { path = "crates/persistence-sqlite" }
 partprobe-security = { path = "crates/security" }
 partprobe-test-support = { path = "crates/test-support" }
 rust_decimal = { version = "=1.42.1", default-features = false, features = ["serde-with-str", "std"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
+rusqlite = { version = "=0.40.2", default-features = false, features = ["backup", "bundled"] }
 sha2 = { version = "=0.11.0", default-features = false }
 quick-xml = { version = "=0.41.0", default-features = false }
 zip = { version = "=8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }

@@ -8,6 +8,8 @@ pub mod money;
 pub mod pricing;
 pub mod provenance;
 pub mod rates;
+pub mod shop_resources;
+pub mod shop_settings;
 pub mod units;
 pub mod value_state;
 
@@ -28,6 +30,15 @@ pub use rates::{
     RateComposition, RateEntry, RateEvent, RateGovernance, RateId, RateScope, RateScopeKind,
     RateVersion,
 };
+pub use shop_resources::{
+    CoarseRuntimeProfile, DensityKilogramsPerCubicMeter, LibraryRecordState,
+    MachineEnvelopeMillimeters, MachineProfile, MachineProfileId, MaterialDefinition,
+    MaterialDefinitionId, MaterialOffer, MaterialOfferId, ProcessClass,
+    RemovalRateCubicMillimetersPerMinute, RuntimeMinutes, RuntimeProfileId, ShopResourceLibrary,
+    ShopResourceLibraryId, ShopResourceVersion, StockAllowanceMillimeters, StockAllowanceProfile,
+    StockAllowanceProfileId, StockForm,
+};
+pub use shop_settings::{ShopProfileId, ShopSettingsDraft, ShopSettingsRevision};
 pub use units::{
     DensityKilogramsPerCubicMillimeter, ItemQuantity, MassKilograms, VolumeCubicMillimeters,
 };
