@@ -1,7 +1,7 @@
 # Rate Library and Cost Policy
 
 > **Status:** In Review
-> **Last updated:** 2026-09-09
+> **Last updated:** 2026-09-10
 > **Related requirements:** REQ-F-008–REQ-F-010, REQ-F-015–REQ-F-018, REQ-F-032; REQ-NF-003, REQ-NF-009; CALC-007–CALC-018; DATA-005–DATA-008, DATA-011, DATA-017; TEST-002, TEST-006, TEST-007, TEST-014
 > **Related ADRs:** ADR-0006, ADR-0007
 > **Open questions:** OQ-012–OQ-018
@@ -10,7 +10,7 @@
 
 PartProbe ships with no production rate values. An organization creates and governs its own rate cards; synthetic values are allowed only in clearly isolated test or demonstration data and never become production defaults. The ordinary arbitrary-model workflow must not load a fixed synthetic estimate template and present the result as model-derived.
 
-Reusable rate and pricing administration belongs in first-run setup and Settings, not in the primary estimate form. An estimate may show the selected version, readiness, conflict/staleness state, and a direct correction link, but it must not duplicate the library editor. USE-2 schema v1 persists immutable rate/pricing settings drafts with migration, backup, optimistic-concurrency, and replay evidence; schema v2 adds a separately typed starter material/offer/stock/machine/runtime bundle without changing rate selection. Contract v6 loads and saves both optional layers through the same typed desktop/application boundary while preserving the seven-command surface. Reopened drafts remain provisional and require fresh confirmation; production authority, remaining TASK-006 approval, protected-storage review, and cross-platform gates have not passed.
+Reusable rate and pricing administration belongs in first-run setup and Settings, not in the primary estimate form. An estimate may show the selected version, readiness, conflict/staleness state, and a direct correction link, but it must not duplicate the library editor. USE-2 schema v1 persists immutable rate/pricing settings drafts with migration, backup, optimistic-concurrency, and replay evidence; schema v2 adds a separately typed starter material/offer/stock/machine/runtime bundle without changing rate selection; schema v3 adds bounded catalog and reviewed-selection persistence; schema v4 adds separate durable content-minimized catalog-authorization decisions. A separate headless application service requires an exact reviewed selection, policy decision, decision audit, and newly versioned successor before marking that selection active for future proposals. Native Settings composes the real adapters and ships with a deny-all policy; a controlled exact-profile/exact-operator rule still requires trusted host identity before use. Contract v7 loads the catalog into a complete path-free read-only Settings view while leaving mutation absent from the save request and retaining the host overwrite guard. Reopened starter drafts remain provisional and require fresh confirmation; authenticated identity/roles, a shop-reviewed allow configuration, desktop catalog editing/activation, production authority, protected-storage review, and cross-platform gates have not passed.
 
 ## Separate configuration layers
 

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const DESKTOP_CONTRACT_VERSION: u16 = 6;
+pub const DESKTOP_CONTRACT_VERSION: u16 = 7;
 pub const COMMAND_DESKTOP_CONTRACT: &str = "desktop_contract";
 pub const COMMAND_SELECT_MODEL_SOURCE: &str = "select_model_source";
 pub const COMMAND_ANALYZE_MODEL_SOURCE: &str = "analyze_model_source";
@@ -231,9 +231,142 @@ pub struct ShopSettingsSnapshot {
     pub rates: Option<DeveloperRateInputFields>,
     pub pricing: Option<DeveloperPricingInputFields>,
     pub resources: Option<ShopResourceInputFields>,
+    /// Read-only, path-free catalog evidence. The v7 desktop contract does not authorize edits.
+    pub resource_catalog: Option<ShopResourceCatalogSnapshot>,
     pub changed_by: String,
     pub changed_at: String,
     pub change_reason: String,
+}
+
+/// Path-free immutable resource-catalog revision returned for review in Settings.
+///
+/// `ActiveForProposals` remains proposal input only. None of these records are calculation,
+/// estimate, purchasing, routing, or quote authority.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopResourceCatalogSnapshot {
+    pub catalog_id: String,
+    pub catalog_version: u32,
+    pub currency: String,
+    pub materials: Vec<ShopMaterialSnapshot>,
+    pub material_offers: Vec<ShopMaterialOfferSnapshot>,
+    pub stock_allowances: Vec<ShopStockAllowanceSnapshot>,
+    pub machines: Vec<ShopMachineSnapshot>,
+    pub runtimes: Vec<ShopRuntimeSnapshot>,
+    pub selections: Vec<ShopResourceSelectionSnapshot>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShopResourceRecordState {
+    Draft,
+    Reviewed,
+    Approved,
+    Retired,
+    Superseded,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShopResourceSelectionState {
+    Reviewed,
+    ActiveForProposals,
+    Retired,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopMaterialSnapshot {
+    pub material_id: String,
+    pub material_version: u32,
+    pub family: String,
+    pub grade: String,
+    pub specification: Option<String>,
+    pub condition: Option<String>,
+    pub density_kg_per_m3: String,
+    pub source_id: String,
+    pub state: ShopResourceRecordState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopMaterialOfferSnapshot {
+    pub offer_id: String,
+    pub offer_version: u32,
+    pub material_id: String,
+    pub material_version: u32,
+    pub supplier: String,
+    pub price_per_kg: String,
+    pub currency: String,
+    pub effective_from: String,
+    pub source_id: String,
+    pub state: ShopResourceRecordState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopStockAllowanceSnapshot {
+    pub stock_allowance_id: String,
+    pub stock_allowance_version: u32,
+    pub stock_form: String,
+    pub x_allowance_mm: String,
+    pub y_allowance_mm: String,
+    pub z_allowance_mm: String,
+    pub source_id: String,
+    pub state: ShopResourceRecordState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopMachineSnapshot {
+    pub machine_id: String,
+    pub machine_version: u32,
+    pub name: String,
+    pub process_class: String,
+    pub envelope_x_mm: String,
+    pub envelope_y_mm: String,
+    pub envelope_z_mm: String,
+    pub source_id: String,
+    pub state: ShopResourceRecordState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopRuntimeSnapshot {
+    pub runtime_id: String,
+    pub runtime_version: u32,
+    pub machine_id: String,
+    pub machine_version: u32,
+    pub material_id: String,
+    pub material_version: u32,
+    pub removal_rate_mm3_per_minute: String,
+    pub setup_minutes: String,
+    pub programming_minutes: String,
+    pub load_unload_minutes: String,
+    pub inspection_minutes: String,
+    pub source_id: String,
+    pub state: ShopResourceRecordState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopResourceSelectionSnapshot {
+    pub selection_id: String,
+    pub selection_version: u32,
+    pub material_id: String,
+    pub material_version: u32,
+    pub material_offer_id: String,
+    pub material_offer_version: u32,
+    pub stock_allowance_id: String,
+    pub stock_allowance_version: u32,
+    pub machine_id: String,
+    pub machine_version: u32,
+    pub runtime_id: String,
+    pub runtime_version: u32,
+    pub state: ShopResourceSelectionState,
+    pub decided_by: String,
+    pub decided_at: String,
+    pub reason: String,
 }
 
 /// Complete draft append request with explicit optimistic-concurrency and audit evidence.
@@ -718,7 +851,7 @@ mod tests {
         let contract = DesktopContract::current();
 
         assert_eq!(contract.contract_version, DESKTOP_CONTRACT_VERSION);
-        assert_eq!(contract.contract_version, 6);
+        assert_eq!(contract.contract_version, 7);
         assert_eq!(contract.commands, APPLICATION_COMMANDS);
         assert_eq!(contract.events, APPLICATION_EVENTS);
         assert_eq!(
@@ -768,6 +901,73 @@ mod tests {
         let serialized = serde_json::to_string(&request).unwrap();
         assert!(!serialized.contains("path"));
         assert!(!serialized.contains("sqlite"));
+    }
+
+    #[test]
+    fn catalog_snapshot_is_typed_path_free_and_read_only() {
+        let catalog = ShopResourceCatalogSnapshot {
+            catalog_id: "shop-catalog".to_owned(),
+            catalog_version: 3,
+            currency: "USD".to_owned(),
+            materials: Vec::new(),
+            material_offers: Vec::new(),
+            stock_allowances: Vec::new(),
+            machines: Vec::new(),
+            runtimes: Vec::new(),
+            selections: vec![ShopResourceSelectionSnapshot {
+                selection_id: "selection-1".to_owned(),
+                selection_version: 2,
+                material_id: "material-1".to_owned(),
+                material_version: 1,
+                material_offer_id: "offer-1".to_owned(),
+                material_offer_version: 1,
+                stock_allowance_id: "stock-1".to_owned(),
+                stock_allowance_version: 1,
+                machine_id: "machine-1".to_owned(),
+                machine_version: 1,
+                runtime_id: "runtime-1".to_owned(),
+                runtime_version: 1,
+                state: ShopResourceSelectionState::ActiveForProposals,
+                decided_by: "reviewer-1".to_owned(),
+                decided_at: "2026-09-09T16:00:00Z".to_owned(),
+                reason: "reviewed proposal basis".to_owned(),
+            }],
+        };
+
+        let serialized = serde_json::to_string(&catalog).unwrap();
+        assert!(serialized.contains("active_for_proposals"));
+        assert!(!serialized.contains("path"));
+        assert!(!serialized.contains("sqlite"));
+
+        let request_fields = serde_json::to_value(SaveShopSettingsRequest {
+            expected_revision: Some(3),
+            changed_by: "operator-1".to_owned(),
+            change_reason: "ordinary rate update".to_owned(),
+            rates: DeveloperRateInputFields {
+                confirmed_for_session: true,
+                rate_card_id: "rates".to_owned(),
+                rate_card_version: "1".to_owned(),
+                effective_on: "2026-09-09".to_owned(),
+                currency: "USD".to_owned(),
+                setup_labor_per_hour: "1".to_owned(),
+                programming_per_hour: "1".to_owned(),
+                run_labor_per_hour: "1".to_owned(),
+                machine_per_hour: "1".to_owned(),
+                quality_inspection_per_hour: "1".to_owned(),
+            },
+            pricing: DeveloperPricingInputFields {
+                confirmed_for_session: true,
+                pricing_policy_id: "pricing".to_owned(),
+                pricing_policy_version: "1".to_owned(),
+                markup_rate: "0".to_owned(),
+                optional_price_floor: String::new(),
+                optional_minimum_order: String::new(),
+                rounding_decimal_places: "2".to_owned(),
+            },
+            resources: None,
+        })
+        .unwrap();
+        assert!(request_fields.get("resource_catalog").is_none());
     }
 
     #[test]

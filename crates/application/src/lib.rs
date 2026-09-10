@@ -11,8 +11,12 @@ pub use draft_estimate::{
     DraftStockInputs, DraftTimeInputs, GeometryAnalysisFailure, GeometryAnalysisPort,
 };
 pub use shop_settings::{
-    ShopSettingsApplication, ShopSettingsDraftRepository, ShopSettingsLoadState,
-    ShopSettingsStoreError,
+    ActivateShopResourceSelectionRequest, DenyAllShopResourceCatalogAuthorizationPolicy,
+    ShopResourceCatalogActivationError, ShopResourceCatalogApplication,
+    ShopResourceCatalogAuthorizationAuditSink, ShopResourceCatalogAuthorizationContext,
+    ShopResourceCatalogAuthorizationEvent, ShopResourceCatalogAuthorizationPolicy,
+    ShopResourceCatalogOperation, ShopSettingsApplication, ShopSettingsDraftRepository,
+    ShopSettingsLoadState, ShopSettingsStoreError,
 };
 
 use std::path::Path;

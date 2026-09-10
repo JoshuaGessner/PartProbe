@@ -16,7 +16,7 @@ mod estimate;
 mod settings;
 
 use analysis::DesktopAnalysisAdapter;
-pub use settings::DesktopSettingsState;
+pub use settings::{DesktopCatalogAuthorizationPolicy, DesktopSettingsState};
 
 #[derive(Debug)]
 pub struct DesktopSessionState {
@@ -312,6 +312,7 @@ mod tests {
     const CAPABILITY: &str = include_str!("../capabilities/main.json");
     const CONFIG: &str = include_str!("../tauri.conf.json");
     const RUNTIME: &str = include_str!("runtime.rs");
+    const SETTINGS_ADAPTER: &str = include_str!("settings.rs");
 
     #[test]
     fn selected_path_remains_native_and_summary_is_explicitly_provisional() {
@@ -520,6 +521,17 @@ mod tests {
         assert!(RUNTIME.matches("spawn_blocking").count() >= 4);
         assert!(!RUNTIME.contains("database_path:"));
         assert!(!RUNTIME.contains("request.database"));
+    }
+
+    #[test]
+    fn catalog_policy_is_composed_natively_without_a_command_or_environment_allow_switch() {
+        assert!(SETTINGS_ADAPTER.contains("DesktopCatalogAuthorizationPolicy"));
+        assert!(SETTINGS_ADAPTER.contains("SqliteShopResourceCatalogAuthorizationAudit"));
+        assert!(SETTINGS_ADAPTER.contains("unconfigured_catalog_policy"));
+        assert!(!RUNTIME.contains("activate_catalog_for_proposals"));
+        assert!(!SETTINGS_ADAPTER.contains("std::env"));
+        assert!(!SETTINGS_ADAPTER.contains("PARTPROBE_CATALOG"));
+        assert_eq!(APPLICATION_COMMANDS.len(), 7);
     }
 
     fn quoted_values_in_rust_slice(source: &str, anchor: &str) -> BTreeSet<String> {

@@ -8,7 +8,8 @@ use partprobe_desktop_contract::{
     GeometryConfidenceLevel, GeometryReviewInput, HostCommandError, MeshMeasurementBasis,
     MeshSelfIntersectionState, MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection,
     ProvisionalGeometryFacts, SaveShopSettingsRequest, SelectedModelSource,
-    ShopResourceInputFields, ShopSettingsSnapshot, ShopSettingsState, StlEncoding, UnitResolution,
+    ShopResourceCatalogSnapshot, ShopResourceInputFields, ShopResourceSelectionState,
+    ShopSettingsSnapshot, ShopSettingsState, StlEncoding, UnitResolution,
 };
 use wasm_bindgen::prelude::*;
 
@@ -68,6 +69,13 @@ impl SettingsPanelState {
             Self::Available(settings) => Some(settings.revision),
             Self::Failed { revision, .. } => *revision,
             Self::Loading | Self::NotConfigured | Self::Saving => None,
+        }
+    }
+
+    fn resource_catalog(&self) -> Option<&ShopResourceCatalogSnapshot> {
+        match self {
+            Self::Available(settings) => settings.resource_catalog.as_ref(),
+            Self::Loading | Self::NotConfigured | Self::Saving | Self::Failed { .. } => None,
         }
     }
 }
@@ -1375,6 +1383,12 @@ fn SettingsWorkspace(
                     </p>
                 </section>
 
+                {move || settings_state
+                    .get()
+                    .resource_catalog()
+                    .cloned()
+                    .map(resource_catalog_review)}
+
                 <div class="settings-grid">
                     <fieldset>
                         <legend>"Rate card"</legend>
@@ -1512,7 +1526,9 @@ fn SettingsWorkspace(
 
                 <div class="settings-footer">
                     <p aria-live="polite">
-                        {move || if form.with(DeveloperEstimateForm::session_settings_ready) {
+                        {move || if settings_state.get().resource_catalog().is_some() {
+                            "This catalog-backed revision is read-only in the current desktop checkpoint. Rate and pricing values may be reviewed for this session, but this screen cannot save over the catalog."
+                        } else if form.with(DeveloperEstimateForm::session_settings_ready) {
                             "Rate and pricing settings are confirmed for this session."
                         } else {
                             "Complete every required rate/pricing field and confirmation before calculating; an enabled resource bundle must also be complete before saving."
@@ -1532,6 +1548,7 @@ fn SettingsWorkspace(
                         class="secondary-action"
                         disabled=move || {
                             matches!(settings_state.get(), SettingsPanelState::Loading | SettingsPanelState::Saving)
+                                || settings_state.get().resource_catalog().is_some()
                                 || !form.with(DeveloperEstimateForm::settings_save_ready)
                         }
                         on:click=move |_| save_settings.run(())
@@ -1552,6 +1569,65 @@ fn SettingsWorkspace(
                 </div>
             </section>
         </main>
+    }
+}
+
+fn resource_catalog_review(catalog: ShopResourceCatalogSnapshot) -> impl IntoView {
+    let active_selection = catalog
+        .selections
+        .iter()
+        .find(|selection| selection.state == ShopResourceSelectionState::ActiveForProposals)
+        .cloned();
+    let selection_count = catalog.selections.len();
+    let counts = format!(
+        "{} materials · {} offers · {} stock policies · {} machines · {} runtime profiles · {} selections",
+        catalog.materials.len(),
+        catalog.material_offers.len(),
+        catalog.stock_allowances.len(),
+        catalog.machines.len(),
+        catalog.runtimes.len(),
+        selection_count,
+    );
+
+    view! {
+        <section class="resource-catalog-review" aria-labelledby="resource-catalog-heading">
+            <div class="panel-heading compact-heading">
+                <div>
+                    <p class="section-index">"RESOURCE CATALOG / READ ONLY"</p>
+                    <h3 id="resource-catalog-heading">"Governed proposal inputs"</h3>
+                </div>
+                <span class="status-chip blocked">"Review only"</span>
+            </div>
+            <p class="fieldset-note">
+                "This immutable catalog is visible for review. The current desktop contract cannot edit or activate it, and an active selection is proposal input—not estimate, routing, purchasing, or quote authority."
+            </p>
+            <dl class="catalog-summary">
+                <div><dt>"Catalog"</dt><dd>{catalog.catalog_id} " · v" {catalog.catalog_version}</dd></div>
+                <div><dt>"Currency"</dt><dd>{catalog.currency}</dd></div>
+                <div><dt>"Contents"</dt><dd>{counts}</dd></div>
+            </dl>
+            {match active_selection {
+                Some(selection) => view! {
+                    <article class="catalog-selection" aria-label="Active proposal selection">
+                        <p class="blocked-title">"Active for proposals: " {selection.selection_id} " · v" {selection.selection_version}</p>
+                        <p>
+                            "Material " {selection.material_id} " v" {selection.material_version}
+                            " · Offer " {selection.material_offer_id} " v" {selection.material_offer_version}
+                            " · Stock " {selection.stock_allowance_id} " v" {selection.stock_allowance_version}
+                            " · Machine " {selection.machine_id} " v" {selection.machine_version}
+                            " · Runtime " {selection.runtime_id} " v" {selection.runtime_version}
+                        </p>
+                        <p>"Reviewed by " {selection.decided_by} " at " {selection.decided_at} ". " {selection.reason}</p>
+                    </article>
+                }.into_any(),
+                None => view! {
+                    <article class="catalog-selection" aria-label="No active proposal selection">
+                        <p class="blocked-title">"No active proposal selection"</p>
+                        <p>"The catalog is retained, but nothing is currently selected for proposal generation."</p>
+                    </article>
+                }.into_any(),
+            }}
+        </section>
     }
 }
 
@@ -1734,6 +1810,7 @@ mod tests {
             rates: None,
             pricing: None,
             resources: None,
+            resource_catalog: None,
             changed_by: "operator".to_owned(),
             changed_at: "2026-09-09T12:00:00Z".to_owned(),
             change_reason: "removed optional libraries".to_owned(),

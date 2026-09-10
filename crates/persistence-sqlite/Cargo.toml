@@ -8,6 +8,7 @@ publish = false
 [dependencies]
 partprobe-application.workspace = true
 partprobe-domain.workspace = true
+partprobe-security.workspace = true
 rusqlite.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

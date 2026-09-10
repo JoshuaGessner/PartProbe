@@ -15,6 +15,7 @@ partprobe-security.workspace = true
 rust_decimal.workspace = true
 
 [dev-dependencies]
+partprobe-test-support.workspace = true
 serde_json.workspace = true
 
 [lints]

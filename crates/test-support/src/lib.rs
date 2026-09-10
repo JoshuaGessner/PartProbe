@@ -6,7 +6,15 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use partprobe_domain::{CurrencyCode, Money, RuleId, RuleRef, RuleVersion, SourceKind, SourceRef};
+use partprobe_domain::{
+    ActorId, CoarseRuntimeProfile, CurrencyCode, DensityKilogramsPerCubicMeter, EffectiveDate,
+    LibraryRecordState, MachineEnvelopeMillimeters, MachineProfile, MachineProfileId,
+    MaterialDefinition, MaterialDefinitionId, MaterialOffer, MaterialOfferId, Money, ProcessClass,
+    RemovalRateCubicMillimetersPerMinute, ResourceSelection, ResourceSelectionId,
+    ResourceSelectionState, RuleId, RuleRef, RuleVersion, RuntimeMinutes, RuntimeProfileId,
+    ShopResourceCatalog, ShopResourceCatalogId, ShopResourceVersion, SourceKind, SourceRef,
+    StockAllowanceMillimeters, StockAllowanceProfile, StockAllowanceProfileId, StockForm,
+};
 use partprobe_estimation_engine::{NodeDefinition, NodeId, ValueType};
 use rust_decimal::Decimal;
 
@@ -44,6 +52,124 @@ pub fn calculated_source() -> SourceRef {
         None,
     )
     .expect("test source ID must be nonempty")
+}
+
+/// Creates a deterministic synthetic reviewed catalog for persistence/application tests.
+#[must_use]
+pub fn resource_catalog_fixture(
+    catalog_version: u32,
+    material_version: u32,
+    density_kg_per_m3: &str,
+    selection_version: u32,
+    selection_state: ResourceSelectionState,
+) -> ShopResourceCatalog {
+    let catalog_version = ShopResourceVersion::new(catalog_version).expect("catalog version");
+    let material_version = ShopResourceVersion::new(material_version).expect("material version");
+    let other_version = ShopResourceVersion::new(1).expect("record version");
+    let selection_version = ShopResourceVersion::new(selection_version).expect("selection version");
+    let material_id = MaterialDefinitionId::new("test-al-6061-t6").expect("material ID");
+    let machine_id = MachineProfileId::new("test-vmc").expect("machine ID");
+    let source = |id: &str| {
+        SourceRef::new(
+            SourceKind::Manual,
+            id,
+            None,
+            Some(partprobe_domain::RecordedAt::new("2026-09-09T12:00:00Z").expect("recorded at")),
+        )
+        .expect("source")
+    };
+    let material = MaterialDefinition::new(
+        material_id.clone(),
+        material_version,
+        "Aluminum",
+        "6061",
+        Some("ASTM B221".to_owned()),
+        Some("T6".to_owned()),
+        DensityKilogramsPerCubicMeter::new(decimal(density_kg_per_m3)).expect("density"),
+        source("test-material-source"),
+        LibraryRecordState::Reviewed,
+    )
+    .expect("material");
+    let offer = MaterialOffer::new(
+        MaterialOfferId::new("test-material-offer").expect("offer ID"),
+        other_version,
+        material_id.clone(),
+        material_version,
+        "Synthetic supplier",
+        usd("8.50"),
+        EffectiveDate::new("2026-09-09").expect("effective date"),
+        source("test-offer-source"),
+        LibraryRecordState::Reviewed,
+    )
+    .expect("offer");
+    let stock = StockAllowanceProfile::new(
+        StockAllowanceProfileId::new("test-stock-allowance").expect("stock ID"),
+        other_version,
+        StockForm::Rectangular,
+        StockAllowanceMillimeters::new(decimal("3")).expect("x allowance"),
+        StockAllowanceMillimeters::new(decimal("3")).expect("y allowance"),
+        StockAllowanceMillimeters::new(decimal("2")).expect("z allowance"),
+        source("test-stock-source"),
+        LibraryRecordState::Reviewed,
+    );
+    let machine = MachineProfile::new(
+        machine_id.clone(),
+        other_version,
+        "Synthetic VMC",
+        ProcessClass::Milling,
+        MachineEnvelopeMillimeters::new(decimal("762")).expect("x envelope"),
+        MachineEnvelopeMillimeters::new(decimal("508")).expect("y envelope"),
+        MachineEnvelopeMillimeters::new(decimal("508")).expect("z envelope"),
+        source("test-machine-source"),
+        LibraryRecordState::Reviewed,
+    )
+    .expect("machine");
+    let runtime = CoarseRuntimeProfile::new(
+        RuntimeProfileId::new("test-runtime").expect("runtime ID"),
+        other_version,
+        machine_id.clone(),
+        other_version,
+        material_id.clone(),
+        material_version,
+        RemovalRateCubicMillimetersPerMinute::new(decimal("16000")).expect("removal rate"),
+        RuntimeMinutes::new(decimal("60")).expect("setup minutes"),
+        RuntimeMinutes::new(decimal("45")).expect("programming minutes"),
+        RuntimeMinutes::new(decimal("3")).expect("load minutes"),
+        RuntimeMinutes::new(decimal("15")).expect("inspection minutes"),
+        source("test-runtime-source"),
+        LibraryRecordState::Reviewed,
+    );
+    let selection = ResourceSelection::new(
+        ResourceSelectionId::new("test-resource-selection").expect("selection ID"),
+        selection_version,
+        material_id,
+        material_version,
+        offer.id().clone(),
+        offer.version(),
+        stock.id().clone(),
+        stock.version(),
+        machine_id,
+        machine.version(),
+        runtime.id().clone(),
+        runtime.version(),
+        selection_state,
+        ActorId::new("test-resource-reviewer").expect("reviewer"),
+        partprobe_domain::RecordedAt::new("2026-09-09T14:00:00Z").expect("decision time"),
+        "reviewed synthetic resource selection",
+    )
+    .expect("selection");
+    ShopResourceCatalog::new(
+        ShopResourceCatalogId::new("test-resource-catalog").expect("catalog ID"),
+        catalog_version,
+        CurrencyCode::new("USD").expect("currency"),
+        vec![material],
+        vec![offer],
+        vec![stock],
+        vec![machine],
+        vec![runtime],
+        vec![selection],
+    )
+    .expect("resource catalog")
 }
 
 /// Creates a source node with no dependencies.

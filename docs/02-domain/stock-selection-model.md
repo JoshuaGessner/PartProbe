@@ -1,7 +1,7 @@
 # Stock Selection Model
 
 > **Status:** Draft  
-> **Last updated:** 2026-09-09
+> **Last updated:** 2026-09-10
 > **Related requirements:** REQ-F-005; GEO-008; CALC-002–CALC-007  
 > **Related ADRs:** ADR-0002, ADR-0004  
 > **Open questions:** OQ-009, OQ-010  
@@ -14,4 +14,4 @@ Ranking considers enclosure, candidate orientation, saw/facing/workholding/clamp
 
 USE-2 schema v2 now persists one optional draft `StockAllowanceProfile` with a versioned rectangular, round, or plate form and explicit nonnegative X/Y/Z millimetre allowances plus source evidence. It is configuration input for the future USE-3 proposal rule, not a selected blank, stock-volume result, automatic recommendation, or production default.
 
-The additive `shop-resource-catalog-v1` domain contract can retain bounded exact stock-allowance versions and pin one in a reviewed resource selection. `active_for_proposals` means only that a future application service may consider the pinned allowance when building an editable proposal; it does not select stock, calculate a blank, or authorize an estimate. Persistence and desktop activation remain pending.
+The `shop-resource-catalog-v1` contract can retain bounded exact stock-allowance versions and pin one in a reviewed resource selection. Schema v3 persists that evidence, schema v4 can persist the separate authorization decision, the headless catalog application can create a policy-evaluated and audit-gated active-for-proposals successor, and native Settings composes that boundary with deny-all startup. Contract v7 displays the exact pinned version read-only. That state means only that a future proposal service may consider the pinned allowance; it does not select stock, calculate a blank, or authorize an estimate. Authenticated identity/roles, a reviewed shipped allow configuration, and desktop editing/activation remain pending.

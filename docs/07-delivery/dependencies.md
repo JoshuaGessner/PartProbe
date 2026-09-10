@@ -1,14 +1,14 @@
 # Dependency Policy and Candidates
 
 > **Status:** In Review  
-> **Last updated:** 2026-09-09
+> **Last updated:** 2026-09-10
 > **Related requirements:** REQ-NF-001, REQ-NF-005, REQ-NF-010  
 > **Related ADRs:** ADR-0001–ADR-0007  
 > **Open questions:** Final versions, license compatibility, vendor terms  
 > **Dependencies:** Spike evidence  
 > **Supersedes:** None
 
-TASK-001 added three exact, reversible Rust dependencies after the documented spike review: `rust_decimal 1.42.1`, `serde 1.0.229`, and `serde_json 1.0.151`. TASK-003 added the bounded worker dependencies recorded below. GUI-3 added exact, reversible Tauri/Leptos/WASM dependencies for the developer shell. USE-2 adds exact `rusqlite 0.40.2` with only `backup` and `bundled` features for the schema-v1 persistence spike. These record bounded engineering use, not ADR acceptance or production approval. Selected features, active transitive graph, licenses, build/runtime behavior, ownership, and removal paths are recorded in [the dependency record](dependency-record.md). Families not marked as added remain candidates—not approvals:
+TASK-001 added three exact, reversible Rust dependencies after the documented spike review: `rust_decimal 1.42.1`, `serde 1.0.229`, and `serde_json 1.0.151`. TASK-003 added the bounded worker dependencies recorded below. GUI-3 added exact, reversible Tauri/Leptos/WASM dependencies for the developer shell. USE-2 adds exact `rusqlite 0.40.2` with only `backup` and `bundled` features for the schema-v1 persistence spike. Schema v4 adds the existing workspace-internal `partprobe-security` crate to the SQLite adapter so it can implement the application audit port with the same typed policy outcome and reason contracts; this adds no external package, native code, license, or network surface, must remain in API lockstep with the application/security crates, and can be removed if the adapter is relocated behind another persistence boundary. The catalog-activation application tests also use the existing workspace-internal `partprobe-test-support` crate as a dev dependency so all layers exercise the same deterministic public synthetic catalog builder. It adds nothing to the production graph, performs no network/native work, inherits the workspace license posture, and must track catalog-contract changes; remove it if the fixture stops being shared. These record bounded engineering use, not ADR acceptance or production approval. Selected features, active transitive graph, licenses, build/runtime behavior, ownership, and removal paths are recorded in [the dependency record](dependency-record.md). Families not marked as added remain candidates—not approvals:
 
 | Candidate | Purpose | Maintenance/license/security review |
 |---|---|---|

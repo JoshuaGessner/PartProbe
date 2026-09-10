@@ -35,7 +35,7 @@
 | Risk review | Identify/resolve uncertainty and allowance | 1 | Owner, impact, mitigation, acceptance |
 | Approval review | Internal approval record | 1 | Thresholds, snapshot, exceptions |
 | Customer quote preview | Controlled outward-facing output | 1 | Exclusions, revision, export/print |
-| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Current developer slice persists rate/pricing plus one optional typed starter resource bundle; basis/currency/effective date, source, draft state, validation, and selected-version trace remain visible |
+| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Current GUI persists rate/pricing plus one optional starter bundle and reviews schema-v3 catalog identity, contents, and active-selection evidence through path-free contract v7. Native policy/audit composition exists with deny-all startup, but authenticated identity/roles, a reviewed allow configuration, and catalog editing/activation remain pending |
 | Advanced material/tool/machine/rate/vendor libraries | Govern reusable multi-user shop data | 4 | Version, approval, import staging, history |
 | Customer management | CRM and pricing policy context | 2 | Contacts, restrictions, history |
 | Historical actuals / variance | Compare original estimate and outcome | 6 | Bias evidence; controlled recommendation |

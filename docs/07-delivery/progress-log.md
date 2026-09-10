@@ -1,12 +1,50 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-09-09
+> **Last updated:** 2026-09-10
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-09-10 — USE-2 native catalog policy and durable-audit composition
+
+- Added `DesktopCatalogAuthorizationPolicy` at the native composition boundary. Ordinary `DesktopSettingsState::open` constructs a versioned deny-all rule; a separate explicit constructor can bind one exact shop profile and operator only when a trusted native identity/session boundary supplies that actor.
+- Composed independent host-owned settings-repository, catalog-repository, and schema-v4 audit connections through `ShopResourceCatalogApplication`. Contract v7 remains exactly seven commands, and no environment allow switch, raw path, database handle, catalog mutation, activation request, or WebView actor authority was added.
+- Added native tests proving the shipped default denial is durably replayable, changed actor facts under the same correlation fail, an exact-operator configuration denies a mismatched actor, a matching trusted pair creates immutable successor versions, and the result reopens through the read-only Settings snapshot.
+- This is typed local policy/composition evidence, not authentication, role membership, a shop-reviewed shipped allow policy, externally tamper-evident audit, catalog editing, estimate authority, or production deployment.
+- Full local closeout passes 239 runtime tests plus one compile-fail doctest, 74 Python tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, all sixty-nine fixture hashes, 147-file planning validation, formatting, and diff hygiene. The explicit desktop-host feature run passes 35 tests with three configured native/package smokes intentionally ignored.
+
+## 2026-09-10 — USE-2 schema-v4 durable catalog authorization audit
+
+- Added checksummed SQLite schema v4 and `SqliteShopResourceCatalogAuthorizationAudit`. Every catalog authorization decision stores only correlation, profile, exact settings/catalog/selection versions, actor/time, operation, outcome/reason, and policy identity/version, with no resource numeric values or paths.
+- Bound events by foreign keys to the exact immutable settings/catalog/selection evidence and protected them with no-update/no-delete triggers plus a normalized payload hash rechecked on every database open. Exact same-correlation retries are idempotent; a changed event under an existing correlation ID fails closed.
+- Proved the adapter through the real `ShopResourceCatalogApplication`: an allowed decision is committed before the immutable activation successor, the resulting settings and audit survive consistent backup/reopen, denials remain non-mutating and idempotent, correlation reuse is rejected, and simulated payload corruption blocks both audit and Settings open. Schemas v1, v2, and v3 migrate to v4 without inserting audit rows.
+- Added only the existing workspace-internal `partprobe-security` dependency to the persistence adapter; there is no new external package. The desktop host still uses no activation command or deployment allow policy. This evidence is local hash/trigger protection, not access control, signing, external tamper protection, operation-success logging, or estimate authority.
+- Full local closeout at that checkpoint passed 236 runtime tests plus one compile-fail doctest, 74 Python tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, all sixty-nine fixture hashes, 147-file planning validation, formatting, and diff hygiene. The explicit desktop-host feature run retained 32 passing tests with three configured native/package smokes intentionally ignored.
+
+## 2026-09-09 — USE-2 contract-v7 read-only catalog review
+
+- Advanced the shared desktop contract from v6 to v7 without changing its exact seven-command surface. Settings load now carries the complete immutable schema-v3 catalog through typed path-free material, offer, stock, machine, runtime, lifecycle, selection-reference, and decision DTOs.
+- Replaced the catalog load refusal with an exact native mapping and a deliberate read-only Settings presentation. The GUI shows catalog identity/version, bounded record counts, and the exact active-for-proposals chain with actor/time/reason evidence while repeating that proposal eligibility is not estimate, routing, purchasing, or quote authority.
+- Kept catalog mutation outside the legacy save request. A catalog-backed revision disables that save action in the UI, and the native host still rejects direct legacy saves before any mutation, so v7 cannot hide, downgrade, or overwrite schema-v3 evidence.
+- Focused contract/native/UI validation passes, including the offline release frontend build. Full closeout is recorded in `PROJECT_STATE.md`; configured deployment allow policy, durable authorization-audit persistence, catalog editing/activation, proposal calculation, and hosted three-OS evidence remain open.
+
+## 2026-09-09 — USE-2 governed catalog activation application boundary
+
+- Added `ShopResourceCatalogApplication`, a separate headless application service for the single `activate_for_proposals` transition. Requests pin the current settings revision, catalog identity/version, reviewed selection identity/version, actor, time, reason, operation, and content-minimized correlation ID.
+- Added a deployment policy port, append-preserving authorization-decision audit port, and explicit deny-all baseline. The service constructs and validates the immutable successor before policy evaluation, requires the decision to be appended before repository mutation, and leaves state unchanged on denial or audit failure.
+- Successful activation creates new settings/catalog/target-selection versions. Switching to a reviewed alternative also creates a new reviewed version of the prior active decision, preserving the earlier active version through catalog/settings history. This grants proposal eligibility only; it does not authorize a material choice, stock calculation, estimate, route, purchase, quote, or production action.
+- Seven focused application tests cover first-run absence, allowed audited activation, audited denial, audit failure, exact stale-version rejection, reauthorization rejection, and safe active-selection switching. At this checkpoint the desktop catalog DTO/editor remained open; the contract-v7 read-only follow-on is recorded above. Deployment role/allow policy, durable authorization-audit persistence, editor activation, and three-OS evidence remain open.
+- Full local closeout passes 231 runtime tests plus one compile-fail doctest, 74 Python tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, all sixty-nine fixture hashes, 147-file planning validation, formatting, and diff hygiene. The explicit desktop-host feature run passes 32 tests with three configured native/package smokes intentionally ignored.
+
+## 2026-09-09 — USE-2 schema-v3 catalog persistence
+
+- Added checksummed SQLite schema v3 for immutable `shop-resource-catalog-v1` aggregate snapshots, actor/time/reason-backed selection snapshots, and exact settings-revision catalog references while reusing the schema-v2 child-record registry. `ShopSettingsDraft` now carries an optional catalog mutually exclusively with the starter resource bundle.
+- Added no-default forward migrations from schema v1 and schema v2, including exact replay of a real schema-v2 settings payload that lacks the additive catalog field. Fresh databases contain no catalog or selection rows. Exact catalog evidence can be reused by later settings revisions; changed child or selection bytes under a reused version fail without advancing current state; out-of-band selection payload corruption fails on read.
+- Kept desktop contract v6 and the seven-command surface unchanged. Because v6 cannot represent a catalog, native Settings load/save now returns an explicit unavailable result and cannot hide, downgrade, or overwrite a catalog-backed revision. Catalog application authorization and path-free desktop DTO/editor activation remain the next USE-2 slice; no calculation or geometry behavior changed.
+- Full local closeout passes 225 runtime tests plus one compile-fail doctest, 74 Python tests, strict workspace/native-host/WASM Clippy, the offline release frontend build, all sixty-nine fixture hashes, 147-file planning validation, formatting, and diff hygiene. The explicit desktop-host feature run passes 30 tests with three configured native/package smokes intentionally ignored.
 
 ## 2026-09-09 — USE-2 multi-entry catalog governance contract
 

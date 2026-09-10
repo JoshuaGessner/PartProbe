@@ -1,7 +1,8 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    ActorId, CurrencyCode, DomainError, PricingPolicy, RateCard, RecordedAt, ShopResourceLibrary,
+    ActorId, CurrencyCode, DomainError, PricingPolicy, RateCard, RecordedAt, ShopResourceCatalog,
+    ShopResourceLibrary,
 };
 
 /// Stable identity of one shop-settings profile.
@@ -83,6 +84,7 @@ pub struct ShopSettingsDraft {
     rate_card: Option<RateCard>,
     pricing_policy: Option<PricingPolicy>,
     resource_library: Option<ShopResourceLibrary>,
+    resource_catalog: Option<ShopResourceCatalog>,
     changed_by: ActorId,
     changed_at: RecordedAt,
     change_reason: String,
@@ -97,6 +99,8 @@ struct ShopSettingsDraftWire {
     pricing_policy: Option<PricingPolicy>,
     #[serde(default)]
     resource_library: Option<ShopResourceLibrary>,
+    #[serde(default)]
+    resource_catalog: Option<ShopResourceCatalog>,
     changed_by: ActorId,
     changed_at: RecordedAt,
     change_reason: String,
@@ -108,13 +112,14 @@ impl<'de> Deserialize<'de> for ShopSettingsDraft {
         D: Deserializer<'de>,
     {
         let wire = ShopSettingsDraftWire::deserialize(deserializer)?;
-        Self::new_with_resources(
+        Self::new_with_resource_context(
             wire.profile_id,
             wire.revision,
             wire.currency,
             wire.rate_card,
             wire.pricing_policy,
             wire.resource_library,
+            wire.resource_catalog,
             wire.changed_by,
             wire.changed_at,
             wire.change_reason,
@@ -136,12 +141,13 @@ impl ShopSettingsDraft {
         changed_at: RecordedAt,
         change_reason: impl Into<String>,
     ) -> Result<Self, DomainError> {
-        Self::new_with_resources(
+        Self::new_with_resource_context(
             profile_id,
             revision,
             currency,
             rate_card,
             pricing_policy,
+            None,
             None,
             changed_by,
             changed_at,
@@ -158,6 +164,60 @@ impl ShopSettingsDraft {
         rate_card: Option<RateCard>,
         pricing_policy: Option<PricingPolicy>,
         resource_library: Option<ShopResourceLibrary>,
+        changed_by: ActorId,
+        changed_at: RecordedAt,
+        change_reason: impl Into<String>,
+    ) -> Result<Self, DomainError> {
+        Self::new_with_resource_context(
+            profile_id,
+            revision,
+            currency,
+            rate_card,
+            pricing_policy,
+            resource_library,
+            None,
+            changed_by,
+            changed_at,
+            change_reason,
+        )
+    }
+
+    /// Creates a validated draft with an optional bounded multi-entry resource catalog.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_catalog(
+        profile_id: ShopProfileId,
+        revision: ShopSettingsRevision,
+        currency: CurrencyCode,
+        rate_card: Option<RateCard>,
+        pricing_policy: Option<PricingPolicy>,
+        resource_catalog: Option<ShopResourceCatalog>,
+        changed_by: ActorId,
+        changed_at: RecordedAt,
+        change_reason: impl Into<String>,
+    ) -> Result<Self, DomainError> {
+        Self::new_with_resource_context(
+            profile_id,
+            revision,
+            currency,
+            rate_card,
+            pricing_policy,
+            None,
+            resource_catalog,
+            changed_by,
+            changed_at,
+            change_reason,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_with_resource_context(
+        profile_id: ShopProfileId,
+        revision: ShopSettingsRevision,
+        currency: CurrencyCode,
+        rate_card: Option<RateCard>,
+        pricing_policy: Option<PricingPolicy>,
+        resource_library: Option<ShopResourceLibrary>,
+        resource_catalog: Option<ShopResourceCatalog>,
         changed_by: ActorId,
         changed_at: RecordedAt,
         change_reason: impl Into<String>,
@@ -181,6 +241,15 @@ impl ShopSettingsDraft {
         if let Some(resources) = resource_library.as_ref() {
             ensure_currency(&currency, resources.currency())?;
         }
+        if let Some(catalog) = resource_catalog.as_ref() {
+            ensure_currency(&currency, catalog.currency())?;
+        }
+        if resource_library.is_some() && resource_catalog.is_some() {
+            return Err(DomainError::InvalidValue {
+                field: "shop settings resource context",
+                reason: "starter library and multi-entry catalog cannot both be selected",
+            });
+        }
         Ok(Self {
             profile_id,
             revision,
@@ -188,6 +257,7 @@ impl ShopSettingsDraft {
             rate_card,
             pricing_policy,
             resource_library,
+            resource_catalog,
             changed_by,
             changed_at,
             change_reason,
@@ -222,6 +292,11 @@ impl ShopSettingsDraft {
     #[must_use]
     pub const fn resource_library(&self) -> Option<&ShopResourceLibrary> {
         self.resource_library.as_ref()
+    }
+
+    #[must_use]
+    pub const fn resource_catalog(&self) -> Option<&ShopResourceCatalog> {
+        self.resource_catalog.as_ref()
     }
 
     #[must_use]
@@ -297,10 +372,13 @@ mod tests {
     }
 
     #[test]
-    fn prior_payload_without_resource_library_remains_readable() {
+    fn prior_payload_without_resource_fields_remains_readable() {
         let json = serde_json::to_string(&draft("USD").expect("valid draft")).expect("serialize");
-        let prior = json.replace(",\"resource_library\":null", "");
+        let prior = json
+            .replace(",\"resource_library\":null", "")
+            .replace(",\"resource_catalog\":null", "");
         let restored: ShopSettingsDraft = serde_json::from_str(&prior).expect("read prior payload");
         assert!(restored.resource_library().is_none());
+        assert!(restored.resource_catalog().is_none());
     }
 }

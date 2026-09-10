@@ -1,7 +1,7 @@
 # Machine and Workcenter Model
 
 > **Status:** Draft
-> **Last updated:** 2026-09-09
+> **Last updated:** 2026-09-10
 > **Related requirements:** REQ-F-006–REQ-F-008; DATA-006
 > **Related ADRs:** ADR-0006
 > **Open questions:** OQ-001, OQ-012, OQ-013
@@ -14,4 +14,4 @@ Supported classifications include 3/4/5-axis mills; CNC/live-tool/mill-turn/Swis
 
 The bounded USE-2 starter bundle currently stores one draft `MachineProfile` with stable/versioned identity, name, broad process class, explicit positive XYZ millimetre envelope, source, and lifecycle state. Its associated, separately versioned `CoarseRuntimeProfile` pins that exact machine and material version and stores a positive volumetric removal rate plus separate nonnegative setup, programming, load/unload, and inspection minutes. These values are future proposal inputs only; they are not machine availability, a routing decision, CAM simulation, or a cycle guarantee.
 
-The additive `shop-resource-catalog-v1` domain contract now validates bounded machine/runtime collections and requires every runtime to resolve exact catalog machine and material versions. One human-reviewed selection may be marked active for future proposals, with actor/time/reason evidence; multiple active selections, draft child records, and inconsistent selections fail validation. No persistence, availability, routing, calculation, or desktop behavior changes in this slice.
+The `shop-resource-catalog-v1` contract validates bounded machine/runtime collections and requires every runtime to resolve exact catalog machine and material versions. One human-reviewed selection may be marked active for future proposals, with actor/time/reason evidence; multiple active selections, draft child records, and inconsistent selections fail validation. Schema v3 persists the exact catalog and selection snapshots, schema v4 persists separate content-minimized authorization decisions, and contract v7 displays the catalog path-free and read-only. Availability, routing, calculation, and estimate behavior remain unchanged.

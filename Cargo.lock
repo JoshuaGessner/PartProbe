@@ -2947,6 +2947,7 @@ dependencies = [
  "partprobe-geometry-core",
  "partprobe-geometry-import",
  "partprobe-security",
+ "partprobe-test-support",
  "rust_decimal",
  "serde_json",
 ]
@@ -3081,6 +3082,7 @@ version = "0.1.0"
 dependencies = [
  "partprobe-application",
  "partprobe-domain",
+ "partprobe-security",
  "partprobe-test-support",
  "rusqlite",
  "serde_json",

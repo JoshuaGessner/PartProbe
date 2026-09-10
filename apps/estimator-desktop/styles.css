@@ -553,6 +553,60 @@ dd {
   background: color-mix(in srgb, var(--warning) 6%, var(--surface-canvas));
 }
 
+.resource-catalog-review {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--action-primary);
+  background: rgba(7, 13, 20, 0.4);
+}
+
+.compact-heading {
+  margin-bottom: 10px;
+}
+
+.catalog-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.catalog-summary > div,
+.catalog-selection {
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-canvas);
+}
+
+.catalog-summary dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.catalog-summary dd {
+  margin: 5px 0 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.catalog-selection {
+  margin-top: 12px;
+}
+
+.catalog-selection p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.catalog-selection .blocked-title {
+  margin-top: 0;
+  color: var(--text-primary);
+}
+
 .settings-boundary p,
 .planned-settings p {
   margin-bottom: 0;
@@ -688,6 +742,7 @@ dd {
 
   .form-grid,
   .cost-trace,
+  .catalog-summary,
   .source-summary,
   .geometry-facts {
     grid-template-columns: 1fr;
