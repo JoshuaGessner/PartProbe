@@ -97,6 +97,13 @@ impl WorkspaceView {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum SettingsSection {
+    #[default]
+    RatesAndPricing,
+    Resources,
+}
+
 #[derive(Clone, Debug, Default)]
 struct DeveloperEstimateForm {
     geometry_review: GeometryReviewConfirmation,
@@ -1347,6 +1354,8 @@ fn SettingsWorkspace(
     save_settings: Callback<()>,
     load_settings: Callback<()>,
 ) -> impl IntoView {
+    let (settings_section, set_settings_section) = signal(SettingsSection::RatesAndPricing);
+
     view! {
         <main id="workspace" class="settings-workspace">
             <section class="settings-panel" aria-labelledby="settings-heading">
@@ -1384,52 +1393,98 @@ fn SettingsWorkspace(
                     </p>
                 </section>
 
-                {move || match settings_state.get() {
-                    SettingsPanelState::Available(settings) => match settings.resource_catalog.clone() {
-                        Some(catalog) => view! { <ResourceCatalogReview catalog /> }.into_any(),
-                        None => view! {
-                            <ResourceCatalogEmptyState has_starter_bundle=settings.resources.is_some() />
-                        }.into_any(),
-                    },
-                    SettingsPanelState::NotConfigured => view! {
-                        <ResourceCatalogEmptyState has_starter_bundle=false />
-                    }.into_any(),
-                    SettingsPanelState::Loading
-                    | SettingsPanelState::Saving
-                    | SettingsPanelState::Failed { .. } => ().into_any(),
-                }}
+                <nav class="settings-section-nav" aria-label="Settings work areas">
+                    <button
+                        type="button"
+                        class=move || if settings_section.get() == SettingsSection::RatesAndPricing {
+                            "settings-section-action active"
+                        } else {
+                            "settings-section-action"
+                        }
+                        aria-pressed=move || settings_section.get() == SettingsSection::RatesAndPricing
+                        on:click=move |_| set_settings_section.set(SettingsSection::RatesAndPricing)
+                    >
+                        <span>"Rates & pricing"</span>
+                        <small>"Calculation basis"</small>
+                    </button>
+                    <button
+                        type="button"
+                        class=move || if settings_section.get() == SettingsSection::Resources {
+                            "settings-section-action active"
+                        } else {
+                            "settings-section-action"
+                        }
+                        aria-pressed=move || settings_section.get() == SettingsSection::Resources
+                        on:click=move |_| set_settings_section.set(SettingsSection::Resources)
+                    >
+                        <span>"Resources"</span>
+                        <small>"Materials, stock & machines"</small>
+                    </button>
+                </nav>
 
-                <div class="settings-grid">
-                    <fieldset>
-                        <legend>"Rate card"</legend>
-                        <p class="fieldset-note">"Enter the five approved hourly rates required by the current deterministic calculation."</p>
-                        <div class="form-grid">
-                            <ExactInput form label="Rate-card ID" unit="ID" read=|f| &f.rate_card_id write=|f, v| f.rate_card_id = v />
-                            <ExactInput form label="Rate-card version" unit="version" read=|f| &f.rate_card_version write=|f, v| f.rate_card_version = v />
-                            <ExactInput form label="Effective on" unit="YYYY-MM-DD" read=|f| &f.effective_on write=|f, v| f.effective_on = v />
-                            <ExactInput form label="Currency" unit="ISO code" read=|f| &f.currency write=|f, v| f.currency = v />
-                            <ExactInput form label="Setup labor" unit="/hr" read=|f| &f.setup_labor_per_hour write=|f, v| f.setup_labor_per_hour = v />
-                            <ExactInput form label="Programming" unit="/hr" read=|f| &f.programming_per_hour write=|f, v| f.programming_per_hour = v />
-                            <ExactInput form label="Run labor" unit="/hr" read=|f| &f.run_labor_per_hour write=|f, v| f.run_labor_per_hour = v />
-                            <ExactInput form label="Machine" unit="/hr" read=|f| &f.machine_per_hour write=|f, v| f.machine_per_hour = v />
-                            <ExactInput form label="Quality inspection" unit="/hr" read=|f| &f.quality_inspection_per_hour write=|f, v| f.quality_inspection_per_hour = v />
+                <Show when=move || settings_section.get() == SettingsSection::RatesAndPricing>
+                    <section class="settings-section" aria-labelledby="rate-settings-heading">
+                        <div class="section-heading">
+                            <p class="section-index">"CALCULATION BASIS"</p>
+                            <h3 id="rate-settings-heading">"Rates and selling-price policy"</h3>
+                            <p>"Review the shop rates and pricing rule used by the deterministic estimate."</p>
                         </div>
-                        <ReviewCheckbox form label="I reviewed these five rates for this saved draft and this session calculation." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
-                    </fieldset>
+                        <div class="settings-grid">
+                            <fieldset>
+                                <legend>"Rate card"</legend>
+                                <p class="fieldset-note">"Enter the five approved hourly rates required by the current deterministic calculation."</p>
+                                <div class="form-grid">
+                                    <ExactInput form label="Rate-card ID" unit="ID" read=|f| &f.rate_card_id write=|f, v| f.rate_card_id = v />
+                                    <ExactInput form label="Rate-card version" unit="version" read=|f| &f.rate_card_version write=|f, v| f.rate_card_version = v />
+                                    <ExactInput form label="Effective on" unit="YYYY-MM-DD" read=|f| &f.effective_on write=|f, v| f.effective_on = v />
+                                    <ExactInput form label="Currency" unit="ISO code" read=|f| &f.currency write=|f, v| f.currency = v />
+                                    <ExactInput form label="Setup labor" unit="/hr" read=|f| &f.setup_labor_per_hour write=|f, v| f.setup_labor_per_hour = v />
+                                    <ExactInput form label="Programming" unit="/hr" read=|f| &f.programming_per_hour write=|f, v| f.programming_per_hour = v />
+                                    <ExactInput form label="Run labor" unit="/hr" read=|f| &f.run_labor_per_hour write=|f, v| f.run_labor_per_hour = v />
+                                    <ExactInput form label="Machine" unit="/hr" read=|f| &f.machine_per_hour write=|f, v| f.machine_per_hour = v />
+                                    <ExactInput form label="Quality inspection" unit="/hr" read=|f| &f.quality_inspection_per_hour write=|f, v| f.quality_inspection_per_hour = v />
+                                </div>
+                                <ReviewCheckbox form label="I reviewed these five rates for this saved draft and this session calculation." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
+                            </fieldset>
 
-                    <fieldset>
-                        <legend>"Pricing policy"</legend>
-                        <div class="form-grid">
-                            <ExactInput form label="Pricing-policy ID" unit="ID" read=|f| &f.pricing_policy_id write=|f, v| f.pricing_policy_id = v />
-                            <ExactInput form label="Policy version" unit="version" read=|f| &f.pricing_policy_version write=|f, v| f.pricing_policy_version = v />
-                            <ExactInput form label="Markup rate" unit="decimal" read=|f| &f.markup_rate write=|f, v| f.markup_rate = v />
-                            <OptionalInput form label="Price floor" unit="currency" read=|f| &f.optional_price_floor write=|f, v| f.optional_price_floor = v />
-                            <OptionalInput form label="Minimum order" unit="currency" read=|f| &f.optional_minimum_order write=|f, v| f.optional_minimum_order = v />
-                            <ExactInput form label="Rounding places" unit="decimals" read=|f| &f.rounding_decimal_places write=|f, v| f.rounding_decimal_places = v />
+                            <fieldset>
+                                <legend>"Pricing policy"</legend>
+                                <div class="form-grid">
+                                    <ExactInput form label="Pricing-policy ID" unit="ID" read=|f| &f.pricing_policy_id write=|f, v| f.pricing_policy_id = v />
+                                    <ExactInput form label="Policy version" unit="version" read=|f| &f.pricing_policy_version write=|f, v| f.pricing_policy_version = v />
+                                    <ExactInput form label="Markup rate" unit="decimal" read=|f| &f.markup_rate write=|f, v| f.markup_rate = v />
+                                    <OptionalInput form label="Price floor" unit="currency" read=|f| &f.optional_price_floor write=|f, v| f.optional_price_floor = v />
+                                    <OptionalInput form label="Minimum order" unit="currency" read=|f| &f.optional_minimum_order write=|f, v| f.optional_minimum_order = v />
+                                    <ExactInput form label="Rounding places" unit="decimals" read=|f| &f.rounding_decimal_places write=|f, v| f.rounding_decimal_places = v />
+                                </div>
+                                <ReviewCheckbox form label="I reviewed this pricing policy for this saved draft and this session calculation." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
+                            </fieldset>
                         </div>
-                        <ReviewCheckbox form label="I reviewed this pricing policy for this saved draft and this session calculation." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
-                    </fieldset>
-                </div>
+                    </section>
+                </Show>
+
+                <Show when=move || settings_section.get() == SettingsSection::Resources>
+                    <section class="settings-section" aria-labelledby="resource-settings-heading">
+                        <div class="section-heading">
+                            <p class="section-index">"PROPOSAL RESOURCES"</p>
+                            <h3 id="resource-settings-heading">"Materials, stock, machines, and runtime"</h3>
+                            <p>"Review reusable proposal inputs separately from estimate-authoritative rates and pricing."</p>
+                        </div>
+
+                        {move || match settings_state.get() {
+                            SettingsPanelState::Available(settings) => match settings.resource_catalog.clone() {
+                                Some(catalog) => view! { <ResourceCatalogReview catalog /> }.into_any(),
+                                None => view! {
+                                    <ResourceCatalogEmptyState has_starter_bundle=settings.resources.is_some() />
+                                }.into_any(),
+                            },
+                            SettingsPanelState::NotConfigured => view! {
+                                <ResourceCatalogEmptyState has_starter_bundle=false />
+                            }.into_any(),
+                            SettingsPanelState::Loading
+                            | SettingsPanelState::Saving
+                            | SettingsPanelState::Failed { .. } => ().into_any(),
+                        }}
 
                 <fieldset>
                     <legend>"Material, stock, machine, and runtime draft"</legend>
@@ -1517,6 +1572,8 @@ fn SettingsWorkspace(
                             <ReviewCheckbox form label="I reviewed this resource bundle for the saved draft. It remains non-authoritative until a later activation workflow." read=|f| f.resources.confirmed_for_draft write=|f, v| f.resources.confirmed_for_draft = v />
                         </fieldset>
                     </div>
+                </Show>
+                    </section>
                 </Show>
 
                 <fieldset>

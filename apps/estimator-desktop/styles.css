@@ -436,7 +436,8 @@ dd {
 }
 
 .estimate-form fieldset,
-.settings-grid fieldset {
+.settings-grid fieldset,
+.settings-section > fieldset {
   min-width: 0;
   margin: 0;
   padding: 16px;
@@ -445,7 +446,8 @@ dd {
 }
 
 .estimate-form legend,
-.settings-grid legend {
+.settings-grid legend,
+.settings-section > fieldset legend {
   padding: 0 8px;
   color: var(--text-primary);
   font-weight: 650;
@@ -551,6 +553,80 @@ dd {
   padding: 16px;
   border-left: 2px solid var(--warning);
   background: color-mix(in srgb, var(--warning) 6%, var(--surface-canvas));
+}
+
+.settings-section-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-canvas);
+}
+
+.settings-section-action {
+  display: grid;
+  gap: 3px;
+  min-height: 52px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-section-action:hover {
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+}
+
+.settings-section-action.active {
+  border-color: color-mix(in srgb, var(--action-primary) 55%, var(--border-subtle));
+  color: var(--action-focus);
+  background: color-mix(in srgb, var(--action-primary) 10%, var(--surface-canvas));
+}
+
+.settings-section-action:focus-visible {
+  outline: 3px solid var(--action-focus);
+  outline-offset: 2px;
+}
+
+.settings-section-action > span {
+  font-weight: 700;
+}
+
+.settings-section-action > small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.settings-section {
+  margin-bottom: 20px;
+}
+
+.settings-section > .section-heading {
+  margin-bottom: 14px;
+}
+
+.settings-section > .section-heading h3 {
+  margin: 3px 0 0;
+  color: var(--text-primary);
+  font-size: 18px;
+}
+
+.settings-section > .section-heading > p:last-child {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.settings-section > fieldset {
+  margin: 0 0 20px;
 }
 
 .resource-catalog-review {
@@ -960,6 +1036,7 @@ dd {
   .form-grid,
   .cost-trace,
   .catalog-summary,
+  .settings-section-nav,
   .source-summary,
   .geometry-facts {
     grid-template-columns: 1fr;
