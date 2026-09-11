@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-09-10
 - **Related requirement IDs:** UX-002 through UX-010, REQ-F-021, REQ-F-031, REQ-F-039
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Exact keyboard shortcut map and conflict policy; threshold for requiring override rationale.
@@ -32,6 +32,12 @@
 ## Tables and batch work
 
 Grid selection has a visible active cell and announced row/column/value. Header menus expose sort, filter, hide, resize, and reset. Pasting previews validation failures before durable commit; a batch override uses one rationale and produces per-field audit entries. Filtering never deletes rows; saved filters are named and recoverable.
+
+## Settings catalog list/detail
+
+Category controls change the record collection without leaving Settings. The record list is the primary selection surface; arrow keys move selection, `Enter` opens its detail, and focus does not jump merely because selection changed. Search filters only the active category and announces result count. The detail pane shows immutable identity/version/source and reference impact before editable successor fields. Editing an existing record stages the next Draft version rather than mutating it in place; changing an active catalog visibly explains that proposal eligibility will return to Reviewed. `Ctrl/Cmd+S` invokes Save draft only when native identity is available, all fields validate, and the user has supplied a reason. Otherwise the action remains visible with its exact disabled reason. Navigating away with local changes requires an explicit discard/stay decision; there is no autosave.
+
+At narrow widths, category, record list, and detail become sequential views with a visible Back action and preserved state. A persistent action footer may be sticky, but it must never cover focused fields, error text, or the final record row.
 
 ## Error recovery
 

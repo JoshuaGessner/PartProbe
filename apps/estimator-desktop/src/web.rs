@@ -8,8 +8,9 @@ use partprobe_desktop_contract::{
     GeometryConfidenceLevel, GeometryReviewInput, HostCommandError, MeshMeasurementBasis,
     MeshSelfIntersectionState, MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection,
     ProvisionalGeometryFacts, SaveShopSettingsRequest, SelectedModelSource,
-    ShopResourceCatalogSnapshot, ShopResourceInputFields, ShopResourceSelectionState,
-    ShopSettingsSnapshot, ShopSettingsState, StlEncoding, UnitResolution,
+    ShopResourceCatalogSnapshot, ShopResourceInputFields, ShopResourceRecordState,
+    ShopResourceSelectionState, ShopSettingsSnapshot, ShopSettingsState, StlEncoding,
+    UnitResolution,
 };
 use wasm_bindgen::prelude::*;
 
@@ -766,7 +767,7 @@ fn App() -> impl IntoView {
         <a class="skip-link" href="#workspace">"Skip to workspace"</a>
         <header class="app-header">
             <div>
-                <p class="eyebrow">"PARTPROBE / DEVELOPER ALPHA"</p>
+                <p class="eyebrow">"PARTPROBE / INTERNAL PRE-ALPHA"</p>
                 <h1>{move || active_view.get().title()}</h1>
             </div>
             <div class="app-header-actions">
@@ -1383,11 +1384,20 @@ fn SettingsWorkspace(
                     </p>
                 </section>
 
-                {move || settings_state
-                    .get()
-                    .resource_catalog()
-                    .cloned()
-                    .map(resource_catalog_review)}
+                {move || match settings_state.get() {
+                    SettingsPanelState::Available(settings) => match settings.resource_catalog.clone() {
+                        Some(catalog) => view! { <ResourceCatalogReview catalog /> }.into_any(),
+                        None => view! {
+                            <ResourceCatalogEmptyState has_starter_bundle=settings.resources.is_some() />
+                        }.into_any(),
+                    },
+                    SettingsPanelState::NotConfigured => view! {
+                        <ResourceCatalogEmptyState has_starter_bundle=false />
+                    }.into_any(),
+                    SettingsPanelState::Loading
+                    | SettingsPanelState::Saving
+                    | SettingsPanelState::Failed { .. } => ().into_any(),
+                }}
 
                 <div class="settings-grid">
                     <fieldset>
@@ -1572,22 +1582,127 @@ fn SettingsWorkspace(
     }
 }
 
-fn resource_catalog_review(catalog: ShopResourceCatalogSnapshot) -> impl IntoView {
-    let active_selection = catalog
-        .selections
-        .iter()
-        .find(|selection| selection.state == ShopResourceSelectionState::ActiveForProposals)
-        .cloned();
-    let selection_count = catalog.selections.len();
-    let counts = format!(
-        "{} materials · {} offers · {} stock policies · {} machines · {} runtime profiles · {} selections",
-        catalog.materials.len(),
-        catalog.material_offers.len(),
-        catalog.stock_allowances.len(),
-        catalog.machines.len(),
-        catalog.runtimes.len(),
-        selection_count,
-    );
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CatalogCategory {
+    Materials,
+    Offers,
+    Stock,
+    Machines,
+    Runtime,
+}
+
+impl CatalogCategory {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Materials => "Materials",
+            Self::Offers => "Offers",
+            Self::Stock => "Stock",
+            Self::Machines => "Machines",
+            Self::Runtime => "Runtime",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CatalogReviewRecord {
+    key: String,
+    title: String,
+    subtitle: String,
+    version: u32,
+    state: ShopResourceRecordState,
+    fields: Vec<(&'static str, String)>,
+}
+
+#[component]
+fn ResourceCatalogEmptyState(has_starter_bundle: bool) -> impl IntoView {
+    view! {
+        <section class="resource-catalog-review catalog-empty-state" aria-labelledby="resource-catalog-heading">
+            <div class="panel-heading compact-heading">
+                <div>
+                    <p class="section-index">"RESOURCE CATALOG / NOT CONFIGURED"</p>
+                    <h3 id="resource-catalog-heading">"Governed proposal inputs"</h3>
+                </div>
+                <span class="status-chip blocked">"Unavailable"</span>
+            </div>
+            <p class="fieldset-note">
+                {if has_starter_bundle {
+                    "This revision still uses the single starter resource bundle below. PartProbe will not silently convert it into a multi-entry catalog; that migration needs a separately reviewed mapping."
+                } else {
+                    "No multi-entry resource catalog exists yet. PartProbe does not seed material prices, stock policies, machines, or runtime values."
+                }}
+            </p>
+            <div class="catalog-empty-categories" aria-label="Planned resource catalog categories">
+                <span>"Materials"</span>
+                <span>"Offers"</span>
+                <span>"Stock"</span>
+                <span>"Machines"</span>
+                <span>"Runtime"</span>
+            </div>
+            <p class="catalog-empty-guidance">
+                "Editing is not enabled in this developer build because no trusted operator identity is configured. Existing saved values remain unchanged."
+            </p>
+        </section>
+    }
+}
+
+#[component]
+fn ResourceCatalogReview(catalog: ShopResourceCatalogSnapshot) -> impl IntoView {
+    let catalog = RwSignal::new(catalog);
+    let (category, set_category) = signal(CatalogCategory::Materials);
+    let (query, set_query) = signal(String::new());
+    let (selected_key, set_selected_key) = signal(String::new());
+    let choose_category = move |next| {
+        set_category.set(next);
+        set_query.set(String::new());
+        set_selected_key.set(String::new());
+    };
+
+    let active_selection = catalog.with(|catalog| {
+        catalog
+            .selections
+            .iter()
+            .find(|selection| selection.state == ShopResourceSelectionState::ActiveForProposals)
+            .cloned()
+    });
+    let selection_count = catalog.with(|catalog| catalog.selections.len());
+    let counts = catalog.with(|catalog| {
+        format!(
+            "{} materials · {} offers · {} stock policies · {} machines · {} runtime profiles · {} selections",
+            catalog.materials.len(),
+            catalog.material_offers.len(),
+            catalog.stock_allowances.len(),
+            catalog.machines.len(),
+            catalog.runtimes.len(),
+            selection_count,
+        )
+    });
+    let catalog_id = catalog.with(|catalog| catalog.catalog_id.clone());
+    let catalog_version = catalog.with(|catalog| catalog.catalog_version);
+    let currency = catalog.with(|catalog| catalog.currency.clone());
+
+    let category_button = move |candidate: CatalogCategory, count: usize| {
+        view! {
+            <button
+                type="button"
+                class=move || if category.get() == candidate {
+                    "catalog-category active"
+                } else {
+                    "catalog-category"
+                }
+                aria-pressed=move || category.get() == candidate
+                on:click=move |_| choose_category(candidate)
+            >
+                <span>{candidate.label()}</span>
+                <span class="catalog-category-count">{count}</span>
+            </button>
+        }
+    };
+
+    let material_count = catalog.with(|catalog| catalog.materials.len());
+    let offer_count = catalog.with(|catalog| catalog.material_offers.len());
+    let stock_count = catalog.with(|catalog| catalog.stock_allowances.len());
+    let machine_count = catalog.with(|catalog| catalog.machines.len());
+    let runtime_count = catalog.with(|catalog| catalog.runtimes.len());
 
     view! {
         <section class="resource-catalog-review" aria-labelledby="resource-catalog-heading">
@@ -1599,13 +1714,109 @@ fn resource_catalog_review(catalog: ShopResourceCatalogSnapshot) -> impl IntoVie
                 <span class="status-chip blocked">"Review only"</span>
             </div>
             <p class="fieldset-note">
-                "This immutable catalog is visible for review. The current desktop contract cannot edit or activate it, and an active selection is proposal input—not estimate, routing, purchasing, or quote authority."
+                "This immutable catalog is available for review. Editing is not enabled in this developer build because no trusted operator identity is configured. An active selection is proposal input—not estimate, routing, purchasing, or quote authority."
             </p>
             <dl class="catalog-summary">
-                <div><dt>"Catalog"</dt><dd>{catalog.catalog_id} " · v" {catalog.catalog_version}</dd></div>
-                <div><dt>"Currency"</dt><dd>{catalog.currency}</dd></div>
+                <div><dt>"Catalog"</dt><dd>{catalog_id} " · v" {catalog_version}</dd></div>
+                <div><dt>"Currency"</dt><dd>{currency}</dd></div>
                 <div><dt>"Contents"</dt><dd>{counts}</dd></div>
             </dl>
+            <div class="catalog-browser">
+                <nav class="catalog-categories" aria-label="Resource categories">
+                    {category_button(CatalogCategory::Materials, material_count)}
+                    {category_button(CatalogCategory::Offers, offer_count)}
+                    {category_button(CatalogCategory::Stock, stock_count)}
+                    {category_button(CatalogCategory::Machines, machine_count)}
+                    {category_button(CatalogCategory::Runtime, runtime_count)}
+                </nav>
+                <section class="catalog-records" aria-labelledby="catalog-records-heading">
+                    <div class="catalog-records-heading">
+                        <h4 id="catalog-records-heading">{move || category.get().label()}</h4>
+                        <label>
+                            <span class="visually-hidden">"Search current resource category"</span>
+                            <input
+                                type="search"
+                                placeholder="Search records"
+                                prop:value=move || query.get()
+                                on:input=move |event| {
+                                    set_query.set(event_target_value(&event));
+                                    set_selected_key.set(String::new());
+                                }
+                            />
+                        </label>
+                    </div>
+                    <p class="catalog-result-count" aria-live="polite">
+                        {move || {
+                            let count = catalog.with(|catalog| {
+                                filtered_catalog_records(catalog, category.get(), &query.get()).len()
+                            });
+                            format!("{count} matching records")
+                        }}
+                    </p>
+                    <div class="catalog-record-list" aria-label="Resource records">
+                        {move || {
+                            let records = catalog.with(|catalog| {
+                                filtered_catalog_records(catalog, category.get(), &query.get())
+                            });
+                            let selected = selected_catalog_key(&records, &selected_key.get());
+                            if records.is_empty() {
+                                view! {
+                                    <p class="catalog-empty">"No records match this search."</p>
+                                }.into_any()
+                            } else {
+                                records.into_iter().map(|record| {
+                                    let key = record.key.clone();
+                                    let click_key = key.clone();
+                                    let is_selected = selected.as_deref() == Some(key.as_str());
+                                    view! {
+                                        <button
+                                            type="button"
+                                            class=if is_selected { "catalog-record selected" } else { "catalog-record" }
+                                            aria-pressed=is_selected
+                                            on:click=move |_| set_selected_key.set(click_key.clone())
+                                        >
+                                            <span class="catalog-record-title">{record.title}</span>
+                                            <span>{record.subtitle}</span>
+                                            <span class="catalog-record-meta">
+                                                "v" {record.version} " · " {record_state_label(record.state)}
+                                            </span>
+                                        </button>
+                                    }
+                                }).collect_view().into_any()
+                            }
+                        }}
+                    </div>
+                </section>
+                <section class="catalog-inspector" aria-labelledby="catalog-inspector-heading">
+                    {move || {
+                        let records = catalog.with(|catalog| {
+                            filtered_catalog_records(catalog, category.get(), &query.get())
+                        });
+                        let selected = selected_catalog_key(&records, &selected_key.get());
+                        records.into_iter().find(|record| Some(record.key.as_str()) == selected.as_deref())
+                            .map(|record| view! {
+                                <div>
+                                    <p class="section-index">"SELECTED RECORD / REVIEW ONLY"</p>
+                                    <h4 id="catalog-inspector-heading">{record.title}</h4>
+                                    <p class="catalog-inspector-state">
+                                        {record_state_label(record.state)} " · immutable version " {record.version}
+                                    </p>
+                                    <dl class="catalog-record-fields">
+                                        {record.fields.into_iter().map(|(label, value)| view! {
+                                            <div><dt>{label}</dt><dd>{value}</dd></div>
+                                        }).collect_view()}
+                                    </dl>
+                                </div>
+                            }.into_any()).unwrap_or_else(|| view! {
+                                <div>
+                                    <p class="section-index">"SELECTED RECORD"</p>
+                                    <h4 id="catalog-inspector-heading">"Nothing selected"</h4>
+                                    <p class="fieldset-note">"Choose a record or clear the search."</p>
+                                </div>
+                            }.into_any())
+                    }}
+                </section>
+            </div>
             {match active_selection {
                 Some(selection) => view! {
                     <article class="catalog-selection" aria-label="Active proposal selection">
@@ -1629,6 +1840,180 @@ fn resource_catalog_review(catalog: ShopResourceCatalogSnapshot) -> impl IntoVie
             }}
         </section>
     }
+}
+
+fn selected_catalog_key(records: &[CatalogReviewRecord], requested: &str) -> Option<String> {
+    records
+        .iter()
+        .find(|record| record.key == requested)
+        .or_else(|| records.first())
+        .map(|record| record.key.clone())
+}
+
+fn filtered_catalog_records(
+    catalog: &ShopResourceCatalogSnapshot,
+    category: CatalogCategory,
+    query: &str,
+) -> Vec<CatalogReviewRecord> {
+    let query = query.trim().to_lowercase();
+    catalog_review_records(catalog, category)
+        .into_iter()
+        .filter(|record| {
+            query.is_empty()
+                || record.title.to_lowercase().contains(&query)
+                || record.subtitle.to_lowercase().contains(&query)
+                || record.key.to_lowercase().contains(&query)
+        })
+        .collect()
+}
+
+fn record_state_label(state: ShopResourceRecordState) -> &'static str {
+    match state {
+        ShopResourceRecordState::Draft => "Draft",
+        ShopResourceRecordState::Reviewed => "Reviewed",
+        ShopResourceRecordState::Approved => "Approved",
+        ShopResourceRecordState::Retired => "Retired",
+        ShopResourceRecordState::Superseded => "Superseded",
+    }
+}
+
+fn catalog_review_records(
+    catalog: &ShopResourceCatalogSnapshot,
+    category: CatalogCategory,
+) -> Vec<CatalogReviewRecord> {
+    match category {
+        CatalogCategory::Materials => catalog
+            .materials
+            .iter()
+            .map(|record| CatalogReviewRecord {
+                key: format!("{}:v{}", record.material_id, record.material_version),
+                title: format!("{} {}", record.family, record.grade),
+                subtitle: record.material_id.clone(),
+                version: record.material_version,
+                state: record.state,
+                fields: vec![
+                    ("Material ID", record.material_id.clone()),
+                    ("Family", record.family.clone()),
+                    ("Grade", record.grade.clone()),
+                    (
+                        "Specification",
+                        optional_text(record.specification.as_deref()),
+                    ),
+                    ("Condition", optional_text(record.condition.as_deref())),
+                    ("Density", format!("{} kg/m³", record.density_kg_per_m3)),
+                    ("Source", record.source_id.clone()),
+                ],
+            })
+            .collect(),
+        CatalogCategory::Offers => catalog
+            .material_offers
+            .iter()
+            .map(|record| CatalogReviewRecord {
+                key: format!("{}:v{}", record.offer_id, record.offer_version),
+                title: record.supplier.clone(),
+                subtitle: format!("{} · material {}", record.offer_id, record.material_id),
+                version: record.offer_version,
+                state: record.state,
+                fields: vec![
+                    ("Offer ID", record.offer_id.clone()),
+                    (
+                        "Material",
+                        format!("{} v{}", record.material_id, record.material_version),
+                    ),
+                    (
+                        "Price",
+                        format!("{} {}/kg", record.currency, record.price_per_kg),
+                    ),
+                    ("Effective", record.effective_from.clone()),
+                    ("Source", record.source_id.clone()),
+                ],
+            })
+            .collect(),
+        CatalogCategory::Stock => catalog
+            .stock_allowances
+            .iter()
+            .map(|record| CatalogReviewRecord {
+                key: format!(
+                    "{}:v{}",
+                    record.stock_allowance_id, record.stock_allowance_version
+                ),
+                title: record.stock_form.clone(),
+                subtitle: record.stock_allowance_id.clone(),
+                version: record.stock_allowance_version,
+                state: record.state,
+                fields: vec![
+                    ("Stock policy ID", record.stock_allowance_id.clone()),
+                    ("Form", record.stock_form.clone()),
+                    ("X allowance", format!("{} mm", record.x_allowance_mm)),
+                    ("Y allowance", format!("{} mm", record.y_allowance_mm)),
+                    ("Z allowance", format!("{} mm", record.z_allowance_mm)),
+                    ("Source", record.source_id.clone()),
+                ],
+            })
+            .collect(),
+        CatalogCategory::Machines => catalog
+            .machines
+            .iter()
+            .map(|record| CatalogReviewRecord {
+                key: format!("{}:v{}", record.machine_id, record.machine_version),
+                title: record.name.clone(),
+                subtitle: format!("{} · {}", record.machine_id, record.process_class),
+                version: record.machine_version,
+                state: record.state,
+                fields: vec![
+                    ("Machine ID", record.machine_id.clone()),
+                    ("Process", record.process_class.clone()),
+                    ("Envelope X", format!("{} mm", record.envelope_x_mm)),
+                    ("Envelope Y", format!("{} mm", record.envelope_y_mm)),
+                    ("Envelope Z", format!("{} mm", record.envelope_z_mm)),
+                    ("Source", record.source_id.clone()),
+                ],
+            })
+            .collect(),
+        CatalogCategory::Runtime => catalog
+            .runtimes
+            .iter()
+            .map(|record| CatalogReviewRecord {
+                key: format!("{}:v{}", record.runtime_id, record.runtime_version),
+                title: record.runtime_id.clone(),
+                subtitle: format!("{} · {}", record.machine_id, record.material_id),
+                version: record.runtime_version,
+                state: record.state,
+                fields: vec![
+                    (
+                        "Machine",
+                        format!("{} v{}", record.machine_id, record.machine_version),
+                    ),
+                    (
+                        "Material",
+                        format!("{} v{}", record.material_id, record.material_version),
+                    ),
+                    (
+                        "Removal rate",
+                        format!("{} mm³/min", record.removal_rate_mm3_per_minute),
+                    ),
+                    ("Setup", format!("{} min", record.setup_minutes)),
+                    ("Programming", format!("{} min", record.programming_minutes)),
+                    (
+                        "Load / unload",
+                        format!("{} min/item", record.load_unload_minutes),
+                    ),
+                    (
+                        "Inspection",
+                        format!("{} min/lot", record.inspection_minutes),
+                    ),
+                    ("Source", record.source_id.clone()),
+                ],
+            })
+            .collect(),
+    }
+}
+
+fn optional_text(value: Option<&str>) -> String {
+    value
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Not recorded")
+        .to_owned()
 }
 
 #[component]
@@ -1825,5 +2210,52 @@ mod tests {
         assert!(!form.resources.enabled);
         assert!(!form.rates_confirmed);
         assert!(!form.pricing_confirmed);
+    }
+
+    #[test]
+    fn catalog_browser_maps_material_evidence_and_falls_back_to_first_record() {
+        let catalog = ShopResourceCatalogSnapshot {
+            catalog_id: "test-catalog".to_owned(),
+            catalog_version: 3,
+            currency: "USD".to_owned(),
+            materials: vec![partprobe_desktop_contract::ShopMaterialSnapshot {
+                material_id: "al-6061-t6".to_owned(),
+                material_version: 2,
+                family: "Aluminum".to_owned(),
+                grade: "6061".to_owned(),
+                specification: Some("ASTM B221".to_owned()),
+                condition: Some("T6".to_owned()),
+                density_kg_per_m3: "2700".to_owned(),
+                source_id: "reviewed-handbook".to_owned(),
+                state: ShopResourceRecordState::Reviewed,
+            }],
+            material_offers: Vec::new(),
+            stock_allowances: Vec::new(),
+            machines: Vec::new(),
+            runtimes: Vec::new(),
+            selections: Vec::new(),
+        };
+
+        let records = catalog_review_records(&catalog, CatalogCategory::Materials);
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].key, "al-6061-t6:v2");
+        assert_eq!(records[0].title, "Aluminum 6061");
+        assert_eq!(records[0].version, 2);
+        assert_eq!(records[0].state, ShopResourceRecordState::Reviewed);
+        assert!(
+            records[0]
+                .fields
+                .contains(&("Density", "2700 kg/m³".to_owned(),))
+        );
+        assert_eq!(
+            selected_catalog_key(&records, "missing-record"),
+            Some("al-6061-t6:v2".to_owned())
+        );
+        assert_eq!(
+            filtered_catalog_records(&catalog, CatalogCategory::Materials, "6061").len(),
+            1
+        );
+        assert!(filtered_catalog_records(&catalog, CatalogCategory::Materials, "steel").is_empty());
     }
 }

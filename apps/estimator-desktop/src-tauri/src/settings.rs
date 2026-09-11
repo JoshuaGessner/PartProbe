@@ -1,26 +1,36 @@
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use partprobe_application::{
-    ActivateShopResourceSelectionRequest, ShopResourceCatalogActivationError,
-    ShopResourceCatalogApplication, ShopResourceCatalogAuthorizationContext,
-    ShopResourceCatalogAuthorizationPolicy, ShopSettingsApplication, ShopSettingsLoadState,
+    ActivateShopResourceSelectionRequest as ApplicationActivationRequest,
+    SaveShopResourceCatalogDraftRequest as ApplicationCatalogDraftRequest,
+    ShopResourceCatalogActivationError, ShopResourceCatalogApplication,
+    ShopResourceCatalogAuthorizationContext, ShopResourceCatalogAuthorizationPolicy,
+    ShopResourceCatalogDraftApplication,
+    ShopResourceCatalogDraftContents as ApplicationCatalogDraftContents,
+    ShopResourceCatalogDraftError, ShopSettingsApplication, ShopSettingsLoadState,
     ShopSettingsStoreError,
 };
 use partprobe_desktop_contract::{
-    DeveloperPricingInputFields, DeveloperRateInputFields, HostCommandError,
+    ActivateShopResourceSelectionRequest, DeveloperPricingInputFields, DeveloperRateInputFields,
+    ExpectedShopResourceCatalogRevision, HostCommandError, SaveShopResourceCatalogDraftRequest,
     SaveShopSettingsRequest, ShopMachineSnapshot, ShopMaterialOfferSnapshot, ShopMaterialSnapshot,
+    ShopResourceCatalogActivationResult, ShopResourceCatalogActivationUnavailableReason,
+    ShopResourceCatalogDraftSaveResult, ShopResourceCatalogDraftUnavailableReason,
     ShopResourceCatalogSnapshot, ShopResourceInputFields, ShopResourceRecordState,
     ShopResourceSelectionSnapshot, ShopResourceSelectionState, ShopRuntimeSnapshot,
     ShopSettingsSnapshot, ShopSettingsState, ShopStockAllowanceSnapshot,
 };
 use partprobe_domain::{
     ActorId, CoarseRuntimeProfile, CostCategory, CurrencyCode, DensityKilogramsPerCubicMeter,
-    EffectiveDate, LibraryRecordState, MachineEnvelopeMillimeters, MachineProfile,
-    MachineProfileId, MaterialDefinition, MaterialDefinitionId, MaterialOffer, MaterialOfferId,
-    Money, PricingMethod, ProcessClass, RateCard, RecordedAt, RemovalRateCubicMillimetersPerMinute,
-    ResourceSelectionState, RuntimeMinutes, RuntimeProfileId, ShopProfileId, ShopResourceCatalog,
+    EffectiveDate, LibraryRecordState, MAX_SHOP_RESOURCE_RECORDS_PER_KIND,
+    MachineEnvelopeMillimeters, MachineProfile, MachineProfileId, MaterialDefinition,
+    MaterialDefinitionId, MaterialOffer, MaterialOfferId, Money, PricingMethod, ProcessClass,
+    RateCard, RecordedAt, RemovalRateCubicMillimetersPerMinute, ResourceSelectionState,
+    RuntimeMinutes, RuntimeProfileId, ShopProfileId, ShopResourceCatalog, ShopResourceCatalogId,
     ShopResourceLibrary, ShopResourceLibraryId, ShopResourceVersion, ShopSettingsDraft,
     ShopSettingsRevision, SourceKind, SourceRef, StockAllowanceMillimeters, StockAllowanceProfile,
     StockAllowanceProfileId, StockForm,
@@ -29,8 +39,8 @@ use partprobe_persistence_sqlite::{
     SqliteShopResourceCatalogAuthorizationAudit, SqliteShopSettingsRepository,
 };
 use partprobe_security::{
-    AuthorizationDecision, AuthorizationReasonCode, SecurityPolicyId, SecurityPolicyRef,
-    SecurityPolicyVersion,
+    AuditCorrelationId, AuthorizationDecision, AuthorizationReasonCode, SecurityPolicyId,
+    SecurityPolicyRef, SecurityPolicyVersion,
 };
 use rust_decimal::Decimal;
 
@@ -116,37 +126,60 @@ type DesktopCatalogApplication = ShopResourceCatalogApplication<
     DesktopCatalogAuthorizationPolicy,
     SqliteShopResourceCatalogAuthorizationAudit,
 >;
+type DesktopCatalogDraftApplication =
+    ShopResourceCatalogDraftApplication<SqliteShopSettingsRepository>;
 
 /// Host-owned Settings service. Paths and SQLite handles never cross the desktop contract.
 pub struct DesktopSettingsState {
     application: Mutex<Option<ShopSettingsApplication<SqliteShopSettingsRepository>>>,
+    catalog_draft_application: Mutex<Option<DesktopCatalogDraftApplication>>,
     catalog_application: Mutex<Option<DesktopCatalogApplication>>,
+    catalog_actor: Option<ActorId>,
+    next_catalog_correlation: AtomicU64,
 }
 
 impl DesktopSettingsState {
     pub fn open(database_path: &Path) -> Result<Self, HostCommandError> {
-        Self::open_with_catalog_policy(database_path, unconfigured_catalog_policy()?)
+        Self::open_with_catalog_configuration(database_path, unconfigured_catalog_policy()?, None)
     }
 
-    /// Composes the native repository, deployment policy, and durable decision audit.
-    /// This does not register a desktop command or grant WebView activation authority.
+    /// Composes the native repository, deployment policy, and durable decision audit without
+    /// supplying actor authority.
     pub fn open_with_catalog_policy(
         database_path: &Path,
         catalog_policy: DesktopCatalogAuthorizationPolicy,
+    ) -> Result<Self, HostCommandError> {
+        Self::open_with_catalog_configuration(database_path, catalog_policy, None)
+    }
+
+    /// Controlled native composition seam for a future authenticated session adapter.
+    /// Supplying an actor here does not authenticate it; deployment code must do that before
+    /// constructing this state. Ordinary runtime startup deliberately supplies no actor.
+    pub fn open_with_catalog_configuration(
+        database_path: &Path,
+        catalog_policy: DesktopCatalogAuthorizationPolicy,
+        catalog_actor: Option<ActorId>,
     ) -> Result<Self, HostCommandError> {
         let repository = SqliteShopSettingsRepository::open(database_path)
             .map_err(|error| map_store_error(error, "USE2-SETTINGS-OPEN"))?;
         let catalog_repository = SqliteShopSettingsRepository::open(database_path)
             .map_err(|error| map_store_error(error, "USE2-CATALOG-REPOSITORY-OPEN"))?;
+        let catalog_draft_repository = SqliteShopSettingsRepository::open(database_path)
+            .map_err(|error| map_store_error(error, "USE2-CATALOG-DRAFT-REPOSITORY-OPEN"))?;
         let catalog_audit = SqliteShopResourceCatalogAuthorizationAudit::open(database_path)
             .map_err(|error| map_store_error(error, "USE2-CATALOG-AUDIT-OPEN"))?;
         Ok(Self {
             application: Mutex::new(Some(ShopSettingsApplication::new(repository))),
+            catalog_draft_application: Mutex::new(Some(ShopResourceCatalogDraftApplication::new(
+                catalog_draft_repository,
+            ))),
             catalog_application: Mutex::new(Some(ShopResourceCatalogApplication::new(
                 catalog_repository,
                 catalog_policy,
                 catalog_audit,
             ))),
+            catalog_actor,
+            next_catalog_correlation: AtomicU64::new(1),
         })
     }
 
@@ -154,15 +187,16 @@ impl DesktopSettingsState {
     pub const fn unavailable() -> Self {
         Self {
             application: Mutex::new(None),
+            catalog_draft_application: Mutex::new(None),
             catalog_application: Mutex::new(None),
+            catalog_actor: None,
+            next_catalog_correlation: AtomicU64::new(1),
         }
     }
 
-    /// Executes the native-only governed transition. No Tauri command exposes this method in
-    /// contract v7; a later contract must supply host-owned identity before UI activation.
-    pub fn activate_catalog_for_proposals(
+    fn activate_catalog_for_proposals(
         &self,
-        request: &ActivateShopResourceSelectionRequest,
+        request: &ApplicationActivationRequest,
     ) -> Result<ShopSettingsDraft, ShopResourceCatalogActivationError> {
         let mut application = self.catalog_application.lock().map_err(|_| {
             ShopResourceCatalogActivationError::Store(ShopSettingsStoreError::Unavailable)
@@ -173,6 +207,152 @@ impl DesktopSettingsState {
                 ShopSettingsStoreError::Unavailable,
             ))?
             .activate_for_proposals(request)
+    }
+
+    /// Converts the path-free contract request into the governed application request using only
+    /// native actor, time, profile, and correlation evidence.
+    pub fn activate_shop_resource_selection(
+        &self,
+        request: &ActivateShopResourceSelectionRequest,
+    ) -> Result<ShopResourceCatalogActivationResult, HostCommandError> {
+        let Some(actor) = self.catalog_actor.clone() else {
+            return Ok(ShopResourceCatalogActivationResult::Unavailable {
+                reason: ShopResourceCatalogActivationUnavailableReason::NativeIdentityUnavailable,
+            });
+        };
+        let expected_settings_revision =
+            ShopSettingsRevision::new(request.expected_settings_revision)
+                .map_err(|_| invalid_settings("USE2-CATALOG-EXPECTED-SETTINGS-REVISION"))?;
+        let expected_catalog_id = ShopResourceCatalogId::new(&request.expected_catalog_id)
+            .map_err(|_| invalid_settings("USE2-CATALOG-EXPECTED-CATALOG-ID"))?;
+        let expected_catalog_version =
+            ShopResourceVersion::new(request.expected_catalog_version)
+                .map_err(|_| invalid_settings("USE2-CATALOG-EXPECTED-CATALOG-VERSION"))?;
+        let selection_id = partprobe_domain::ResourceSelectionId::new(&request.selection_id)
+            .map_err(|_| invalid_settings("USE2-CATALOG-SELECTION-ID"))?;
+        let selection_version = ShopResourceVersion::new(request.selection_version)
+            .map_err(|_| invalid_settings("USE2-CATALOG-SELECTION-VERSION"))?;
+        let (recorded_at, correlation_id) = self.catalog_operation_evidence()?;
+        let application_request = ApplicationActivationRequest::new(
+            profile_id()?,
+            expected_settings_revision,
+            expected_catalog_id,
+            expected_catalog_version,
+            selection_id,
+            selection_version,
+            actor,
+            recorded_at,
+            &request.reason,
+            correlation_id,
+        )
+        .map_err(|_| invalid_settings("USE2-CATALOG-ACTIVATION-REQUEST"))?;
+
+        match self.activate_catalog_for_proposals(&application_request) {
+            Ok(draft) => Ok(ShopResourceCatalogActivationResult::Activated {
+                settings: Box::new(snapshot(&draft)?),
+            }),
+            Err(ShopResourceCatalogActivationError::Denied(reason_code)) => {
+                Ok(ShopResourceCatalogActivationResult::Denied {
+                    reason_code: reason_code.as_str().to_owned(),
+                })
+            }
+            Err(error) => Err(map_catalog_activation_error(error)),
+        }
+    }
+
+    /// Maps one complete path-free catalog draft through native identity/time/profile evidence.
+    pub fn save_shop_resource_catalog_draft(
+        &self,
+        request: &SaveShopResourceCatalogDraftRequest,
+    ) -> Result<ShopResourceCatalogDraftSaveResult, HostCommandError> {
+        let Some(actor) = self.catalog_actor.clone() else {
+            return Ok(ShopResourceCatalogDraftSaveResult::Unavailable {
+                reason: ShopResourceCatalogDraftUnavailableReason::NativeIdentityUnavailable,
+            });
+        };
+        let current = self.current_settings_draft()?;
+        let expected_settings_revision =
+            ShopSettingsRevision::new(request.expected_settings_revision)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-SETTINGS-REVISION"))?;
+        let expected_catalog = request
+            .expected_catalog
+            .as_ref()
+            .map(expected_catalog_revision)
+            .transpose()?;
+        let recorded_at = trusted_recorded_at()
+            .map_err(|_| HostCommandError::settings_unavailable("USE2-CATALOG-DRAFT-TIME"))?;
+        let contents = catalog_draft_contents(
+            request,
+            current.resource_catalog(),
+            current.currency(),
+            &recorded_at,
+        )?;
+        let application_request = ApplicationCatalogDraftRequest::new(
+            profile_id()?,
+            expected_settings_revision,
+            expected_catalog,
+            contents,
+            actor,
+            recorded_at,
+            &request.reason,
+        )
+        .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-REQUEST"))?;
+        let mut application = self
+            .catalog_draft_application
+            .lock()
+            .map_err(|_| HostCommandError::settings_unavailable("USE2-CATALOG-DRAFT-LOCK"))?;
+        let saved = application
+            .as_mut()
+            .ok_or_else(|| {
+                HostCommandError::settings_unavailable("USE2-CATALOG-DRAFT-NOT-CONFIGURED")
+            })?
+            .save_draft(&application_request)
+            .map_err(map_catalog_draft_error)?;
+        Ok(ShopResourceCatalogDraftSaveResult::Saved {
+            settings: Box::new(snapshot(&saved)?),
+        })
+    }
+
+    fn current_settings_draft(&self) -> Result<ShopSettingsDraft, HostCommandError> {
+        let application = self
+            .application
+            .lock()
+            .map_err(|_| HostCommandError::settings_unavailable("USE2-SETTINGS-LOCK"))?;
+        let application = application.as_ref().ok_or_else(|| {
+            HostCommandError::settings_unavailable("USE2-SETTINGS-NOT-CONFIGURED")
+        })?;
+        match application
+            .load(&profile_id()?)
+            .map_err(|error| map_store_error(error, "USE2-SETTINGS-LOAD"))?
+        {
+            ShopSettingsLoadState::Available(draft) => Ok(*draft),
+            ShopSettingsLoadState::NotConfigured => Err(HostCommandError::settings_unavailable(
+                "USE2-SETTINGS-NOT-CONFIGURED",
+            )),
+        }
+    }
+
+    fn catalog_operation_evidence(
+        &self,
+    ) -> Result<(RecordedAt, AuditCorrelationId), HostCommandError> {
+        let sequence = self
+            .next_catalog_correlation
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |value| {
+                value.checked_add(1)
+            })
+            .map_err(|_| invalid_settings("USE2-CATALOG-CORRELATION-OVERFLOW"))?;
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| HostCommandError::settings_unavailable("USE2-CATALOG-TIME"))?
+            .as_nanos();
+        let recorded_at = RecordedAt::new(format!("unix-nanos:{nanos}"))
+            .map_err(|_| HostCommandError::settings_unavailable("USE2-CATALOG-TIME"))?;
+        let correlation_id = AuditCorrelationId::new(format!(
+            "desktop-catalog-{}-{nanos}-{sequence}",
+            std::process::id()
+        ))
+        .map_err(|_| HostCommandError::settings_unavailable("USE2-CATALOG-CORRELATION"))?;
+        Ok((recorded_at, correlation_id))
     }
 
     pub fn load(&self) -> Result<ShopSettingsState, HostCommandError> {
@@ -343,7 +523,7 @@ fn resource_catalog_snapshot(catalog: &ShopResourceCatalog) -> ShopResourceCatal
                 grade: material.grade().to_owned(),
                 specification: material.specification().map(str::to_owned),
                 condition: material.condition().map(str::to_owned),
-                density_kg_per_m3: material.density_kg_per_m3().value().to_string(),
+                density_kg_per_m3: decimal_text(material.density_kg_per_m3().value()),
                 source_id: material.source().source_id().to_owned(),
                 state: record_state(material.state()),
             })
@@ -357,7 +537,7 @@ fn resource_catalog_snapshot(catalog: &ShopResourceCatalog) -> ShopResourceCatal
                 material_id: offer.material_id().as_str().to_owned(),
                 material_version: offer.material_version().value(),
                 supplier: offer.supplier().to_owned(),
-                price_per_kg: offer.price_per_kg().amount().to_string(),
+                price_per_kg: decimal_text(offer.price_per_kg().amount()),
                 currency: offer.price_per_kg().currency().as_str().to_owned(),
                 effective_from: offer.effective_from().as_str().to_owned(),
                 source_id: offer.source().source_id().to_owned(),
@@ -371,9 +551,9 @@ fn resource_catalog_snapshot(catalog: &ShopResourceCatalog) -> ShopResourceCatal
                 stock_allowance_id: stock.id().as_str().to_owned(),
                 stock_allowance_version: stock.version().value(),
                 stock_form: stock_form_text(stock.stock_form()).to_owned(),
-                x_allowance_mm: stock.x_allowance_mm().value().to_string(),
-                y_allowance_mm: stock.y_allowance_mm().value().to_string(),
-                z_allowance_mm: stock.z_allowance_mm().value().to_string(),
+                x_allowance_mm: decimal_text(stock.x_allowance_mm().value()),
+                y_allowance_mm: decimal_text(stock.y_allowance_mm().value()),
+                z_allowance_mm: decimal_text(stock.z_allowance_mm().value()),
                 source_id: stock.source().source_id().to_owned(),
                 state: record_state(stock.state()),
             })
@@ -386,9 +566,9 @@ fn resource_catalog_snapshot(catalog: &ShopResourceCatalog) -> ShopResourceCatal
                 machine_version: machine.version().value(),
                 name: machine.name().to_owned(),
                 process_class: process_class_text(machine.process_class()).to_owned(),
-                envelope_x_mm: machine.envelope_x_mm().value().to_string(),
-                envelope_y_mm: machine.envelope_y_mm().value().to_string(),
-                envelope_z_mm: machine.envelope_z_mm().value().to_string(),
+                envelope_x_mm: decimal_text(machine.envelope_x_mm().value()),
+                envelope_y_mm: decimal_text(machine.envelope_y_mm().value()),
+                envelope_z_mm: decimal_text(machine.envelope_z_mm().value()),
                 source_id: machine.source().source_id().to_owned(),
                 state: record_state(machine.state()),
             })
@@ -403,14 +583,13 @@ fn resource_catalog_snapshot(catalog: &ShopResourceCatalog) -> ShopResourceCatal
                 machine_version: runtime.machine_version().value(),
                 material_id: runtime.material_id().as_str().to_owned(),
                 material_version: runtime.material_version().value(),
-                removal_rate_mm3_per_minute: runtime
-                    .removal_rate_mm3_per_minute()
-                    .value()
-                    .to_string(),
-                setup_minutes: runtime.setup_minutes().value().to_string(),
-                programming_minutes: runtime.programming_minutes().value().to_string(),
-                load_unload_minutes: runtime.load_unload_minutes().value().to_string(),
-                inspection_minutes: runtime.inspection_minutes().value().to_string(),
+                removal_rate_mm3_per_minute: decimal_text(
+                    runtime.removal_rate_mm3_per_minute().value(),
+                ),
+                setup_minutes: decimal_text(runtime.setup_minutes().value()),
+                programming_minutes: decimal_text(runtime.programming_minutes().value()),
+                load_unload_minutes: decimal_text(runtime.load_unload_minutes().value()),
+                inspection_minutes: decimal_text(runtime.inspection_minutes().value()),
                 source_id: runtime.source().source_id().to_owned(),
                 state: record_state(runtime.state()),
             })
@@ -437,6 +616,258 @@ fn resource_catalog_snapshot(catalog: &ShopResourceCatalog) -> ShopResourceCatal
                 reason: selection.reason().to_owned(),
             })
             .collect(),
+    }
+}
+
+fn expected_catalog_revision(
+    expected: &ExpectedShopResourceCatalogRevision,
+) -> Result<(ShopResourceCatalogId, ShopResourceVersion), HostCommandError> {
+    Ok((
+        ShopResourceCatalogId::new(&expected.catalog_id)
+            .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-EXPECTED-ID"))?,
+        ShopResourceVersion::new(expected.catalog_version)
+            .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-EXPECTED-VERSION"))?,
+    ))
+}
+
+fn catalog_draft_contents(
+    request: &SaveShopResourceCatalogDraftRequest,
+    current: Option<&ShopResourceCatalog>,
+    currency: &CurrencyCode,
+    recorded_at: &RecordedAt,
+) -> Result<ApplicationCatalogDraftContents, HostCommandError> {
+    let input = &request.contents;
+    if [
+        input.materials.len(),
+        input.material_offers.len(),
+        input.stock_allowances.len(),
+        input.machines.len(),
+        input.runtimes.len(),
+    ]
+    .into_iter()
+    .any(|count| count > MAX_SHOP_RESOURCE_RECORDS_PER_KIND)
+    {
+        return Err(invalid_settings("USE2-CATALOG-DRAFT-RECORD-LIMIT"));
+    }
+    let materials = input
+        .materials
+        .iter()
+        .map(|candidate| {
+            let id = MaterialDefinitionId::new(&candidate.material_id)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MATERIAL-ID"))?;
+            let version = ShopResourceVersion::new(candidate.material_version)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MATERIAL-VERSION"))?;
+            let source = current
+                .and_then(|catalog| {
+                    catalog.materials().iter().find(|existing| {
+                        existing.id() == &id
+                            && existing.version() == version
+                            && existing.source().source_id() == candidate.source_id
+                    })
+                })
+                .map(|existing| existing.source().clone())
+                .map_or_else(
+                    || manual_source(&candidate.source_id, recorded_at),
+                    Result::Ok,
+                )?;
+            MaterialDefinition::new(
+                id,
+                version,
+                &candidate.family,
+                &candidate.grade,
+                candidate.specification.clone(),
+                candidate.condition.clone(),
+                DensityKilogramsPerCubicMeter::new(decimal(&candidate.density_kg_per_m3)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-DENSITY"))?,
+                source,
+                domain_record_state(candidate.state),
+            )
+            .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MATERIAL"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let material_offers = input
+        .material_offers
+        .iter()
+        .map(|candidate| {
+            if candidate.currency != currency.as_str() {
+                return Err(invalid_settings("USE2-CATALOG-DRAFT-OFFER-CURRENCY"));
+            }
+            let id = MaterialOfferId::new(&candidate.offer_id)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-OFFER-ID"))?;
+            let version = ShopResourceVersion::new(candidate.offer_version)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-OFFER-VERSION"))?;
+            let source = current
+                .and_then(|catalog| {
+                    catalog.material_offers().iter().find(|existing| {
+                        existing.id() == &id
+                            && existing.version() == version
+                            && existing.source().source_id() == candidate.source_id
+                    })
+                })
+                .map(|existing| existing.source().clone())
+                .map_or_else(
+                    || manual_source(&candidate.source_id, recorded_at),
+                    Result::Ok,
+                )?;
+            MaterialOffer::new(
+                id,
+                version,
+                MaterialDefinitionId::new(&candidate.material_id)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-OFFER-MATERIAL-ID"))?,
+                ShopResourceVersion::new(candidate.material_version)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-OFFER-MATERIAL-VERSION"))?,
+                &candidate.supplier,
+                Money::new(decimal(&candidate.price_per_kg)?, currency.clone()),
+                EffectiveDate::new(&candidate.effective_from)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-OFFER-DATE"))?,
+                source,
+                domain_record_state(candidate.state),
+            )
+            .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-OFFER"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let stock_allowances = input
+        .stock_allowances
+        .iter()
+        .map(|candidate| {
+            let id = StockAllowanceProfileId::new(&candidate.stock_allowance_id)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-STOCK-ID"))?;
+            let version = ShopResourceVersion::new(candidate.stock_allowance_version)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-STOCK-VERSION"))?;
+            let source = current
+                .and_then(|catalog| {
+                    catalog.stock_allowances().iter().find(|existing| {
+                        existing.id() == &id
+                            && existing.version() == version
+                            && existing.source().source_id() == candidate.source_id
+                    })
+                })
+                .map(|existing| existing.source().clone())
+                .map_or_else(
+                    || manual_source(&candidate.source_id, recorded_at),
+                    Result::Ok,
+                )?;
+            Ok(StockAllowanceProfile::new(
+                id,
+                version,
+                stock_form(&candidate.stock_form)?,
+                StockAllowanceMillimeters::new(decimal(&candidate.x_allowance_mm)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-STOCK-X"))?,
+                StockAllowanceMillimeters::new(decimal(&candidate.y_allowance_mm)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-STOCK-Y"))?,
+                StockAllowanceMillimeters::new(decimal(&candidate.z_allowance_mm)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-STOCK-Z"))?,
+                source,
+                domain_record_state(candidate.state),
+            ))
+        })
+        .collect::<Result<Vec<_>, HostCommandError>>()?;
+    let machines = input
+        .machines
+        .iter()
+        .map(|candidate| {
+            let id = MachineProfileId::new(&candidate.machine_id)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MACHINE-ID"))?;
+            let version = ShopResourceVersion::new(candidate.machine_version)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MACHINE-VERSION"))?;
+            let source = current
+                .and_then(|catalog| {
+                    catalog.machines().iter().find(|existing| {
+                        existing.id() == &id
+                            && existing.version() == version
+                            && existing.source().source_id() == candidate.source_id
+                    })
+                })
+                .map(|existing| existing.source().clone())
+                .map_or_else(
+                    || manual_source(&candidate.source_id, recorded_at),
+                    Result::Ok,
+                )?;
+            MachineProfile::new(
+                id,
+                version,
+                &candidate.name,
+                process_class(&candidate.process_class)?,
+                MachineEnvelopeMillimeters::new(decimal(&candidate.envelope_x_mm)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MACHINE-X"))?,
+                MachineEnvelopeMillimeters::new(decimal(&candidate.envelope_y_mm)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MACHINE-Y"))?,
+                MachineEnvelopeMillimeters::new(decimal(&candidate.envelope_z_mm)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MACHINE-Z"))?,
+                source,
+                domain_record_state(candidate.state),
+            )
+            .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-MACHINE"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let runtimes = input
+        .runtimes
+        .iter()
+        .map(|candidate| {
+            let id = RuntimeProfileId::new(&candidate.runtime_id)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-RUNTIME-ID"))?;
+            let version = ShopResourceVersion::new(candidate.runtime_version)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-RUNTIME-VERSION"))?;
+            let source = current
+                .and_then(|catalog| {
+                    catalog.runtimes().iter().find(|existing| {
+                        existing.id() == &id
+                            && existing.version() == version
+                            && existing.source().source_id() == candidate.source_id
+                    })
+                })
+                .map(|existing| existing.source().clone())
+                .map_or_else(
+                    || manual_source(&candidate.source_id, recorded_at),
+                    Result::Ok,
+                )?;
+            Ok(CoarseRuntimeProfile::new(
+                id,
+                version,
+                MachineProfileId::new(&candidate.machine_id)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-RUNTIME-MACHINE-ID"))?,
+                ShopResourceVersion::new(candidate.machine_version)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-RUNTIME-MACHINE-VERSION"))?,
+                MaterialDefinitionId::new(&candidate.material_id)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-RUNTIME-MATERIAL-ID"))?,
+                ShopResourceVersion::new(candidate.material_version)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-RUNTIME-MATERIAL-VERSION"))?,
+                RemovalRateCubicMillimetersPerMinute::new(decimal(
+                    &candidate.removal_rate_mm3_per_minute,
+                )?)
+                .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-REMOVAL-RATE"))?,
+                RuntimeMinutes::new(decimal(&candidate.setup_minutes)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-SETUP-TIME"))?,
+                RuntimeMinutes::new(decimal(&candidate.programming_minutes)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-PROGRAMMING-TIME"))?,
+                RuntimeMinutes::new(decimal(&candidate.load_unload_minutes)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-LOAD-TIME"))?,
+                RuntimeMinutes::new(decimal(&candidate.inspection_minutes)?)
+                    .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-INSPECTION-TIME"))?,
+                source,
+                domain_record_state(candidate.state),
+            ))
+        })
+        .collect::<Result<Vec<_>, HostCommandError>>()?;
+
+    Ok(ApplicationCatalogDraftContents::new(
+        ShopResourceCatalogId::new(&input.catalog_id)
+            .map_err(|_| invalid_settings("USE2-CATALOG-DRAFT-ID"))?,
+        materials,
+        material_offers,
+        stock_allowances,
+        machines,
+        runtimes,
+    ))
+}
+
+const fn domain_record_state(state: ShopResourceRecordState) -> LibraryRecordState {
+    match state {
+        ShopResourceRecordState::Draft => LibraryRecordState::Draft,
+        ShopResourceRecordState::Reviewed => LibraryRecordState::Reviewed,
+        ShopResourceRecordState::Approved => LibraryRecordState::Approved,
+        ShopResourceRecordState::Retired => LibraryRecordState::Retired,
+        ShopResourceRecordState::Superseded => LibraryRecordState::Superseded,
     }
 }
 
@@ -773,6 +1204,57 @@ fn map_store_error(error: ShopSettingsStoreError, diagnostic: &str) -> HostComma
     }
 }
 
+fn map_catalog_activation_error(error: ShopResourceCatalogActivationError) -> HostCommandError {
+    match error {
+        ShopResourceCatalogActivationError::NotConfigured
+        | ShopResourceCatalogActivationError::CatalogUnavailable
+        | ShopResourceCatalogActivationError::AuditUnavailable => {
+            HostCommandError::settings_unavailable("USE2-CATALOG-ACTIVATION-UNAVAILABLE")
+        }
+        ShopResourceCatalogActivationError::StaleSettings
+        | ShopResourceCatalogActivationError::StaleCatalog => {
+            HostCommandError::settings_conflict("USE2-CATALOG-ACTIVATION-STALE")
+        }
+        ShopResourceCatalogActivationError::SelectionUnavailable
+        | ShopResourceCatalogActivationError::SelectionNotReviewed
+        | ShopResourceCatalogActivationError::VersionOverflow
+        | ShopResourceCatalogActivationError::InvalidTransition => {
+            invalid_settings("USE2-CATALOG-ACTIVATION-INVALID")
+        }
+        ShopResourceCatalogActivationError::Store(error) => {
+            map_store_error(error, "USE2-CATALOG-ACTIVATION-STORE")
+        }
+        ShopResourceCatalogActivationError::Denied(_) => {
+            HostCommandError::settings_unavailable("USE2-CATALOG-ACTIVATION-DENIED-MAPPING")
+        }
+    }
+}
+
+fn map_catalog_draft_error(error: ShopResourceCatalogDraftError) -> HostCommandError {
+    match error {
+        ShopResourceCatalogDraftError::NotConfigured
+        | ShopResourceCatalogDraftError::StarterResourceMigrationRequired => {
+            HostCommandError::settings_unavailable("USE2-CATALOG-DRAFT-UNAVAILABLE")
+        }
+        ShopResourceCatalogDraftError::StaleSettings
+        | ShopResourceCatalogDraftError::CatalogExpectationMismatch => {
+            HostCommandError::settings_conflict("USE2-CATALOG-DRAFT-STALE")
+        }
+        ShopResourceCatalogDraftError::InvalidRecordLifecycle => {
+            invalid_settings("USE2-CATALOG-DRAFT-LIFECYCLE")
+        }
+        ShopResourceCatalogDraftError::InvalidCatalog => {
+            invalid_settings("USE2-CATALOG-DRAFT-CONTENTS")
+        }
+        ShopResourceCatalogDraftError::VersionOverflow => {
+            invalid_settings("USE2-CATALOG-DRAFT-VERSION-OVERFLOW")
+        }
+        ShopResourceCatalogDraftError::Store(error) => {
+            map_store_error(error, "USE2-CATALOG-DRAFT-STORE")
+        }
+    }
+}
+
 fn invalid_settings(diagnostic: &str) -> HostCommandError {
     HostCommandError::invalid_settings_input(diagnostic)
 }
@@ -780,7 +1262,9 @@ fn invalid_settings(diagnostic: &str) -> HostCommandError {
 #[cfg(test)]
 mod tests {
     use partprobe_application::ShopSettingsDraftRepository;
-    use partprobe_desktop_contract::HostErrorCode;
+    use partprobe_desktop_contract::{
+        HostErrorCode, ShopResourceCatalogDraftContents as ContractCatalogDraftContents,
+    };
     use partprobe_domain::ShopResourceCatalogId;
     use partprobe_security::AuditCorrelationId;
     use partprobe_test_support::{TestDirectory, resource_catalog_fixture};
@@ -891,8 +1375,8 @@ mod tests {
         draft
     }
 
-    fn activation_request(actor: &str, correlation: &str) -> ActivateShopResourceSelectionRequest {
-        ActivateShopResourceSelectionRequest::new(
+    fn activation_request(actor: &str, correlation: &str) -> ApplicationActivationRequest {
+        ApplicationActivationRequest::new(
             ShopProfileId::new(SHOP_PROFILE_ID).unwrap(),
             ShopSettingsRevision::new(1).unwrap(),
             ShopResourceCatalogId::new("test-resource-catalog").unwrap(),
@@ -905,6 +1389,40 @@ mod tests {
             AuditCorrelationId::new(correlation).unwrap(),
         )
         .unwrap()
+    }
+
+    fn activation_command_request() -> ActivateShopResourceSelectionRequest {
+        ActivateShopResourceSelectionRequest {
+            expected_settings_revision: 1,
+            expected_catalog_id: "test-resource-catalog".to_owned(),
+            expected_catalog_version: 1,
+            selection_id: "test-resource-selection".to_owned(),
+            selection_version: 1,
+            reason: "activate exact reviewed resources for proposal eligibility".to_owned(),
+        }
+    }
+
+    fn catalog_draft_command_request(
+        draft: &ShopSettingsDraft,
+    ) -> SaveShopResourceCatalogDraftRequest {
+        let catalog = draft.resource_catalog().expect("catalog");
+        let snapshot = resource_catalog_snapshot(catalog);
+        SaveShopResourceCatalogDraftRequest {
+            expected_settings_revision: draft.revision().value(),
+            expected_catalog: Some(ExpectedShopResourceCatalogRevision {
+                catalog_id: snapshot.catalog_id.clone(),
+                catalog_version: snapshot.catalog_version,
+            }),
+            contents: ContractCatalogDraftContents {
+                catalog_id: snapshot.catalog_id,
+                materials: snapshot.materials,
+                material_offers: snapshot.material_offers,
+                stock_allowances: snapshot.stock_allowances,
+                machines: snapshot.machines,
+                runtimes: snapshot.runtimes,
+            },
+            reason: "save reviewed catalog draft changes".to_owned(),
+        }
     }
 
     fn exact_operator_policy(actor: &str) -> DesktopCatalogAuthorizationPolicy {
@@ -1053,7 +1571,7 @@ mod tests {
             catalog.materials[0].state,
             ShopResourceRecordState::Reviewed
         );
-        assert_eq!(catalog.material_offers[0].price_per_kg, "8.50");
+        assert_eq!(catalog.material_offers[0].price_per_kg, "8.5");
         assert_eq!(catalog.material_offers[0].currency, "USD");
         assert_eq!(catalog.stock_allowances[0].stock_form, "rectangular");
         assert_eq!(catalog.stock_allowances[0].z_allowance_mm, "2");
@@ -1211,6 +1729,285 @@ mod tests {
             Some("trusted-catalog-operator")
         );
         drop(reopened);
+        directory.cleanup().unwrap();
+    }
+
+    #[test]
+    fn desktop_activation_request_stays_unavailable_without_native_identity() {
+        let directory = TestDirectory::create("desktop-catalog-no-identity").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let initial = seed_reviewed_catalog(&database);
+        let state = DesktopSettingsState::open(&database).unwrap();
+
+        assert_eq!(
+            state
+                .activate_shop_resource_selection(&activation_command_request())
+                .unwrap(),
+            ShopResourceCatalogActivationResult::Unavailable {
+                reason: ShopResourceCatalogActivationUnavailableReason::NativeIdentityUnavailable,
+            }
+        );
+        drop(state);
+
+        let repository = SqliteShopSettingsRepository::open(&database).unwrap();
+        assert_eq!(
+            repository.current(&profile_id().unwrap()).unwrap(),
+            Some(initial)
+        );
+        drop(repository);
+        directory.cleanup().unwrap();
+    }
+
+    #[test]
+    fn desktop_activation_request_uses_native_identity_and_shipped_policy_denies() {
+        let directory = TestDirectory::create("desktop-catalog-command-deny").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let initial = seed_reviewed_catalog(&database);
+        let state = DesktopSettingsState::open_with_catalog_configuration(
+            &database,
+            unconfigured_catalog_policy().unwrap(),
+            Some(ActorId::new("native-session-operator").unwrap()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            state
+                .activate_shop_resource_selection(&activation_command_request())
+                .unwrap(),
+            ShopResourceCatalogActivationResult::Denied {
+                reason_code: CATALOG_POLICY_NOT_CONFIGURED.to_owned(),
+            }
+        );
+        drop(state);
+
+        let repository = SqliteShopSettingsRepository::open(&database).unwrap();
+        assert_eq!(
+            repository.current(&profile_id().unwrap()).unwrap(),
+            Some(initial)
+        );
+        drop(repository);
+        directory.cleanup().unwrap();
+    }
+
+    #[test]
+    fn controlled_desktop_activation_derives_actor_time_and_correlation_natively() {
+        let directory = TestDirectory::create("desktop-catalog-command-allow").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        seed_reviewed_catalog(&database);
+        let actor = ActorId::new("trusted-native-session-operator").unwrap();
+        let state = DesktopSettingsState::open_with_catalog_configuration(
+            &database,
+            exact_operator_policy(actor.as_str()),
+            Some(actor.clone()),
+        )
+        .unwrap();
+
+        let ShopResourceCatalogActivationResult::Activated { settings } = state
+            .activate_shop_resource_selection(&activation_command_request())
+            .unwrap()
+        else {
+            panic!("matching controlled native identity must activate the reviewed selection");
+        };
+        assert_eq!(settings.revision, 2);
+        assert_eq!(settings.changed_by, actor.as_str());
+        assert!(settings.changed_at.starts_with("unix-nanos:"));
+        assert_eq!(
+            settings
+                .resource_catalog
+                .as_ref()
+                .and_then(|catalog| catalog.selections.iter().find(|selection| {
+                    selection.state == ShopResourceSelectionState::ActiveForProposals
+                }))
+                .map(|selection| selection.decided_by.as_str()),
+            Some(actor.as_str())
+        );
+        let serialized = serde_json::to_string(&settings).unwrap();
+        assert!(!serialized.contains("correlation"));
+        assert!(!serialized.contains("path"));
+        drop(state);
+
+        let reopened = DesktopSettingsState::open(&database).unwrap();
+        assert!(matches!(
+            reopened.load().unwrap(),
+            ShopSettingsState::Available { .. }
+        ));
+        drop(reopened);
+        directory.cleanup().unwrap();
+    }
+
+    #[test]
+    fn desktop_catalog_draft_request_is_unavailable_without_native_identity() {
+        let directory = TestDirectory::create("desktop-catalog-draft-no-identity").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let initial = seed_reviewed_catalog(&database);
+        let request = catalog_draft_command_request(&initial);
+        let state = DesktopSettingsState::open(&database).unwrap();
+
+        assert_eq!(
+            state.save_shop_resource_catalog_draft(&request).unwrap(),
+            ShopResourceCatalogDraftSaveResult::Unavailable {
+                reason: ShopResourceCatalogDraftUnavailableReason::NativeIdentityUnavailable,
+            }
+        );
+        drop(state);
+
+        let repository = SqliteShopSettingsRepository::open(&database).unwrap();
+        assert_eq!(
+            repository.current(&profile_id().unwrap()).unwrap(),
+            Some(initial)
+        );
+        drop(repository);
+        directory.cleanup().unwrap();
+    }
+
+    #[test]
+    fn controlled_catalog_draft_save_uses_native_identity_and_downgrades_activation() {
+        let directory = TestDirectory::create("desktop-catalog-draft-save").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let initial = ShopSettingsDraft::new_with_catalog(
+            ShopProfileId::new(SHOP_PROFILE_ID).unwrap(),
+            ShopSettingsRevision::new(1).unwrap(),
+            CurrencyCode::new("USD").unwrap(),
+            None,
+            None,
+            Some(resource_catalog_fixture(
+                1,
+                1,
+                "2700",
+                1,
+                ResourceSelectionState::ActiveForProposals,
+            )),
+            ActorId::new("test-catalog-author").unwrap(),
+            RecordedAt::new("2026-09-10T13:00:00Z").unwrap(),
+            "active synthetic catalog awaiting an edit",
+        )
+        .unwrap();
+        let mut repository = SqliteShopSettingsRepository::open(&database).unwrap();
+        repository.save(&initial, None).unwrap();
+        drop(repository);
+        let request = catalog_draft_command_request(&initial);
+        let actor = ActorId::new("trusted-native-catalog-editor").unwrap();
+        let state = DesktopSettingsState::open_with_catalog_configuration(
+            &database,
+            unconfigured_catalog_policy().unwrap(),
+            Some(actor.clone()),
+        )
+        .unwrap();
+        let loaded = state.current_settings_draft().unwrap();
+        let loaded_catalog = loaded.resource_catalog().unwrap();
+        let converted = catalog_draft_contents(
+            &request,
+            Some(loaded_catalog),
+            loaded.currency(),
+            &RecordedAt::new("2026-09-10T18:00:00Z").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            converted,
+            ApplicationCatalogDraftContents::new(
+                loaded_catalog.id().clone(),
+                loaded_catalog.materials().to_vec(),
+                loaded_catalog.material_offers().to_vec(),
+                loaded_catalog.stock_allowances().to_vec(),
+                loaded_catalog.machines().to_vec(),
+                loaded_catalog.runtimes().to_vec(),
+            )
+        );
+
+        let ShopResourceCatalogDraftSaveResult::Saved { settings } =
+            state.save_shop_resource_catalog_draft(&request).unwrap()
+        else {
+            panic!("trusted native editor must save the governed draft")
+        };
+        assert_eq!(settings.revision, 2);
+        assert_eq!(settings.changed_by, actor.as_str());
+        let catalog = settings.resource_catalog.as_ref().expect("catalog");
+        assert_eq!(catalog.catalog_version, 2);
+        assert!(
+            catalog
+                .selections
+                .iter()
+                .all(|selection| selection.state != ShopResourceSelectionState::ActiveForProposals)
+        );
+        assert_eq!(
+            catalog.selections[0].state,
+            ShopResourceSelectionState::Reviewed
+        );
+        assert_eq!(catalog.selections[0].selection_version, 2);
+        let serialized = serde_json::to_string(&settings).unwrap();
+        assert!(!serialized.contains("path"));
+        assert!(!serialized.contains("sqlite"));
+        drop(state);
+
+        let reopened = DesktopSettingsState::open(&database).unwrap();
+        assert_eq!(
+            reopened.load().unwrap(),
+            ShopSettingsState::Available { settings }
+        );
+        drop(reopened);
+        directory.cleanup().unwrap();
+    }
+
+    #[test]
+    fn controlled_catalog_draft_save_rejects_changed_record_without_new_version() {
+        let directory = TestDirectory::create("desktop-catalog-draft-version-reuse").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let initial = seed_reviewed_catalog(&database);
+        let mut request = catalog_draft_command_request(&initial);
+        request.contents.material_offers[0].price_per_kg = "9.25".to_owned();
+        let actor = ActorId::new("trusted-native-catalog-editor").unwrap();
+        let state = DesktopSettingsState::open_with_catalog_configuration(
+            &database,
+            unconfigured_catalog_policy().unwrap(),
+            Some(actor),
+        )
+        .unwrap();
+
+        let error = state
+            .save_shop_resource_catalog_draft(&request)
+            .unwrap_err();
+        assert_eq!(error.code, HostErrorCode::InvalidSettingsInput);
+        assert_eq!(error.diagnostic_id, "USE2-CATALOG-DRAFT-LIFECYCLE");
+        drop(state);
+
+        let repository = SqliteShopSettingsRepository::open(&database).unwrap();
+        assert_eq!(
+            repository.current(&profile_id().unwrap()).unwrap(),
+            Some(initial)
+        );
+        drop(repository);
+        directory.cleanup().unwrap();
+    }
+
+    #[test]
+    fn controlled_catalog_draft_save_rejects_over_limit_collection_before_mapping() {
+        let directory = TestDirectory::create("desktop-catalog-draft-record-limit").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let initial = seed_reviewed_catalog(&database);
+        let mut request = catalog_draft_command_request(&initial);
+        request.contents.materials =
+            vec![request.contents.materials[0].clone(); MAX_SHOP_RESOURCE_RECORDS_PER_KIND + 1];
+        let actor = ActorId::new("trusted-native-catalog-editor").unwrap();
+        let state = DesktopSettingsState::open_with_catalog_configuration(
+            &database,
+            unconfigured_catalog_policy().unwrap(),
+            Some(actor),
+        )
+        .unwrap();
+
+        let error = state
+            .save_shop_resource_catalog_draft(&request)
+            .unwrap_err();
+        assert_eq!(error.code, HostErrorCode::InvalidSettingsInput);
+        assert_eq!(error.diagnostic_id, "USE2-CATALOG-DRAFT-RECORD-LIMIT");
+        drop(state);
+
+        let repository = SqliteShopSettingsRepository::open(&database).unwrap();
+        assert_eq!(
+            repository.current(&profile_id().unwrap()).unwrap(),
+            Some(initial)
+        );
+        drop(repository);
         directory.cleanup().unwrap();
     }
 

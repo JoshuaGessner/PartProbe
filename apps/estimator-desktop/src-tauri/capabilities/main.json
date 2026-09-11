@@ -12,6 +12,8 @@
     "allow-evaluate-draft-estimate",
     "allow-load-shop-settings",
     "allow-save-shop-settings",
+    "allow-activate-shop-resource-selection",
+    "allow-save-shop-resource-catalog-draft",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

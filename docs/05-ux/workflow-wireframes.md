@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-09
+- **Last updated:** 2026-09-10
 - **Related requirement IDs:** UX-001 through UX-012, UX-021 through UX-045, REQ-F-001, REQ-F-006 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Validate compact pane widths and total-strip contents with estimators.
@@ -32,6 +32,26 @@ These are structural wireframes, not visual designs. They specify hierarchy, vis
 CSV and bulk-paste actions first open a bounded dry-run table with row-level errors; no imported row becomes authoritative until validation and explicit acceptance. A missing/conflicting-rate link from an estimate opens this screen with the affected category and scope selected.
 
 The current USE-2 developer checkpoint separates the upload/analyze Estimate workspace from durable local Settings. Rate/pricing drafts and one optional typed material/offer/stock/machine/runtime starter bundle persist as immutable revisions, but reload clears confirmations and the resource bundle is not yet consumed by estimate calculation. Until governed stock, material, process, and runtime proposals exist, the still-required manual manufacturing assumptions remain behind progressive disclosure and are explicitly labeled as not model-derived. The ordinary arbitrary-model path does not offer a fixed synthetic estimate loader.
+
+## Shop resource catalog
+
+```text
+┌ Shop Settings ─ Resources ─ Catalog v… ─ Draft/identity status ───────────┐
+│ [Materials] [Offers] [Stock] [Machines] [Runtime]   [Search records…]     │
+├───────────────┬──────────────────────────┬─────────────────────────────────┤
+│ Category      │ Records                  │ Selected record                 │
+│ Materials  12 │ 6061-T6        Reviewed │ Identity / immutable version    │
+│ Offers     18 │ 7075-T6        Draft    │ Editable successor fields       │
+│ Stock       6 │ 1018 CRS       Reviewed │ Units / references / source     │
+│ Machines    4 │ [+ New material]         │ Validation / lifecycle impact   │
+│ Runtime     7 │                          │ [History / affected references] │
+├───────────────┴──────────────────────────┴─────────────────────────────────┤
+│ Unsaved: 1 successor | Activation will return to Reviewed                 │
+│ [Discard local changes]                         [Save catalog draft]       │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+Only one record detail is expanded at a time. Categories and records retain selection while the user reviews another record, but unsaved changes remain explicit and never autosave into authority. A deep link from Estimate opens the affected category and record, then returns to the same estimate context. Contract v9 supplies the native save boundary; ordinary startup is identity-unavailable, so the editor remains a planned disabled/empty-state UI until a trusted native identity/session source is configured.
 
 ## Quote workspace
 

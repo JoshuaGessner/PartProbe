@@ -8,6 +8,8 @@ fn main() {
         "evaluate_draft_estimate",
         "load_shop_settings",
         "save_shop_settings",
+        "activate_shop_resource_selection",
+        "save_shop_resource_catalog_draft",
     ];
 
     tauri_build::try_build(

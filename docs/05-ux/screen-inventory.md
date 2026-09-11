@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-09
+- **Last updated:** 2026-09-10
 - **Related requirement IDs:** UX-001 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Prioritize library/admin screens after initial vertical-slice validation.
@@ -35,7 +35,7 @@
 | Risk review | Identify/resolve uncertainty and allowance | 1 | Owner, impact, mitigation, acceptance |
 | Approval review | Internal approval record | 1 | Thresholds, snapshot, exceptions |
 | Customer quote preview | Controlled outward-facing output | 1 | Exclusions, revision, export/print |
-| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Current GUI persists rate/pricing plus one optional starter bundle and reviews schema-v3 catalog identity, contents, and active-selection evidence through path-free contract v7. Native policy/audit composition exists with deny-all startup, but authenticated identity/roles, a reviewed allow configuration, and catalog editing/activation remain pending |
+| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Current GUI persists rate/pricing plus one optional starter bundle and reviews schema-v3 catalog identity, contents, and active-selection evidence. The catalog now uses five compact categories, per-category search/result count, a version/state-aware record list, and one evidence inspector. Contract v9 adds the native draft-save adapter, but ordinary startup is identity-unavailable and the WebView invokes neither catalog command. Governed successor fields and the persistent save/review footer follow; authenticated identity/roles, a reviewed allow configuration, and enabled activation remain pending |
 | Advanced material/tool/machine/rate/vendor libraries | Govern reusable multi-user shop data | 4 | Version, approval, import staging, history |
 | Customer management | CRM and pricing policy context | 2 | Contacts, restrictions, history |
 | Historical actuals / variance | Compare original estimate and outcome | 6 | Bias evidence; controlled recommendation |

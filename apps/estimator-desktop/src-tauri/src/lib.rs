@@ -313,6 +313,7 @@ mod tests {
     const CONFIG: &str = include_str!("../tauri.conf.json");
     const RUNTIME: &str = include_str!("runtime.rs");
     const SETTINGS_ADAPTER: &str = include_str!("settings.rs");
+    const WEBVIEW: &str = include_str!("../../src/web.rs");
 
     #[test]
     fn selected_path_remains_native_and_summary_is_explicitly_provisional() {
@@ -417,10 +418,12 @@ mod tests {
             permissions,
             BTreeSet::from([
                 "allow-analyze-model-source",
+                "allow-activate-shop-resource-selection",
                 "allow-cancel-model-analysis",
                 "allow-desktop-contract",
                 "allow-evaluate-draft-estimate",
                 "allow-load-shop-settings",
+                "allow-save-shop-resource-catalog-draft",
                 "allow-save-shop-settings",
                 "allow-select-model-source",
                 "core:event:allow-listen",
@@ -524,14 +527,24 @@ mod tests {
     }
 
     #[test]
-    fn catalog_policy_is_composed_natively_without_a_command_or_environment_allow_switch() {
+    fn catalog_activation_command_uses_the_native_policy_audit_and_identity_boundary() {
         assert!(SETTINGS_ADAPTER.contains("DesktopCatalogAuthorizationPolicy"));
         assert!(SETTINGS_ADAPTER.contains("SqliteShopResourceCatalogAuthorizationAudit"));
         assert!(SETTINGS_ADAPTER.contains("unconfigured_catalog_policy"));
-        assert!(!RUNTIME.contains("activate_catalog_for_proposals"));
+        assert!(RUNTIME.contains("async fn activate_shop_resource_selection"));
+        assert!(RUNTIME.contains("async fn save_shop_resource_catalog_draft"));
+        assert!(RUNTIME.contains("ActivateShopResourceSelectionRequest"));
+        assert!(RUNTIME.contains("spawn_blocking"));
+        assert!(SETTINGS_ADAPTER.contains("catalog_actor: Option<ActorId>"));
+        assert!(SETTINGS_ADAPTER.contains("catalog_operation_evidence"));
+        assert!(!RUNTIME.contains("actor_id"));
+        assert!(!RUNTIME.contains("correlation_id"));
+        assert!(!WEBVIEW.contains("COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION"));
+        assert!(!WEBVIEW.contains("activate_shop_resource_selection"));
+        assert!(!WEBVIEW.contains("save_shop_resource_catalog_draft"));
         assert!(!SETTINGS_ADAPTER.contains("std::env"));
         assert!(!SETTINGS_ADAPTER.contains("PARTPROBE_CATALOG"));
-        assert_eq!(APPLICATION_COMMANDS.len(), 7);
+        assert_eq!(APPLICATION_COMMANDS.len(), 9);
     }
 
     fn quoted_values_in_rust_slice(source: &str, anchor: &str) -> BTreeSet<String> {

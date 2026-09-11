@@ -12,11 +12,13 @@ pub use draft_estimate::{
 };
 pub use shop_settings::{
     ActivateShopResourceSelectionRequest, DenyAllShopResourceCatalogAuthorizationPolicy,
-    ShopResourceCatalogActivationError, ShopResourceCatalogApplication,
-    ShopResourceCatalogAuthorizationAuditSink, ShopResourceCatalogAuthorizationContext,
-    ShopResourceCatalogAuthorizationEvent, ShopResourceCatalogAuthorizationPolicy,
-    ShopResourceCatalogOperation, ShopSettingsApplication, ShopSettingsDraftRepository,
-    ShopSettingsLoadState, ShopSettingsStoreError,
+    SaveShopResourceCatalogDraftRequest, ShopResourceCatalogActivationError,
+    ShopResourceCatalogApplication, ShopResourceCatalogAuthorizationAuditSink,
+    ShopResourceCatalogAuthorizationContext, ShopResourceCatalogAuthorizationEvent,
+    ShopResourceCatalogAuthorizationPolicy, ShopResourceCatalogDraftApplication,
+    ShopResourceCatalogDraftContents, ShopResourceCatalogDraftError, ShopResourceCatalogOperation,
+    ShopSettingsApplication, ShopSettingsDraftRepository, ShopSettingsLoadState,
+    ShopSettingsStoreError,
 };
 
 use std::path::Path;

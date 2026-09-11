@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-08-16
+- **Last updated:** 2026-09-10
 - **Related requirement IDs:** UX-007 through UX-010, REQ-NF-004
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Confirm minimum supported assistive-technology/browser-engine combinations for each OS.
@@ -28,6 +28,8 @@ The product targets WCAG 2.2 AA-oriented outcomes for the desktop UI where appli
 ## Accessible composite controls
 
 Command palette: dialog role, labelled search, result count, arrow navigation, active-result announcement, Escape closes/returns focus. Menus: button disclosure semantics, roving focus, Escape close. Inspector tabs: tablist/tab/tabpanel semantics. Toasts: nonessential only, pauseable where persistent; never the sole delivery of a failure. Split panes: keyboard-resizable or provide layout presets/reset.
+
+The Settings resource catalog uses semantic category controls, one named record list, and one named detail region. Selection and keyboard focus remain distinct; changing the selected record must not unexpectedly move focus. Announce category, filtered result count, selected record identity/version/state, unsaved status, and why Save is unavailable. Responsive category/list/detail navigation must preserve a visible and programmatically named Back route. A sticky action footer must leave focused content and error messages unobscured at supported zoom levels.
 
 ## Test matrix and evidence
 

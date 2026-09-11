@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-09
+- **Last updated:** 2026-09-10
 - **Related requirement IDs:** UX-001 through UX-012, UX-021 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Which roles can see pricing and rate-card administration in the first slice?
@@ -67,7 +67,9 @@ The Analysis tab uses progressive disclosure: baseline first; then route alterna
 
 An estimate encountering missing, unapproved, expired, stale, or conflicting configuration links directly to the relevant Settings record and returns to the same estimate context after correction. The primary estimate workspace shows readiness and selected versions but does not duplicate reusable library editors. First-run setup is a guided Settings route, distinct from later advanced multi-user library administration.
 
-The [usable estimator plan](../07-delivery/usable-estimator-plan.md) governs the transition from the current developer form to this product shape. Settings persists one optional starter bundle or a bounded multi-entry catalog; a headless policy/audit-gated service can newly version a reviewed catalog selection as eligible for future proposals. Native Settings composes that service with the durable audit, but ordinary startup remains deny-all. Contract v7 displays the complete catalog and active selection path-free and read-only, but cannot edit or invoke activation; no authenticated identity/role source or shop-reviewed allow configuration exists, and the estimate service does not consume it. Until model-derived stock, material, process, and runtime proposals exist, temporary manual assumptions may remain behind progressive disclosure only when they are clearly labeled and cannot be mistaken for model-derived evidence.
+Settings must remain usable as the resource catalog grows. Its resource area uses compact category navigation for Materials, Offers, Stock, Machines, and Runtime; a searchable/selectable record list; and one contextual detail inspector/editor. Rate and pricing policy remain separate organization-policy sections. Save/review status and the local primary action stay visible in a persistent footer that cannot obscure keyboard focus or validation. The layout collapses to category → record → detail navigation at narrow widths instead of stacking every record form into one page.
+
+The [usable estimator plan](../07-delivery/usable-estimator-plan.md) governs the transition from the current developer form to this product shape. Settings persists one optional starter bundle or a bounded multi-entry catalog; separate governed application services edit catalog drafts and can newly version a reviewed selection as eligible for future proposals. Contract v9 maps complete bounded catalog drafts through a native-owned save command, while ordinary startup still lacks authenticated identity and the WebView exposes no catalog mutation action. Activation remains deny-all and absent from the GUI; no authenticated identity/role source or shop-reviewed allow configuration exists, and the estimate service does not consume saved resources. Until model-derived stock, material, process, and runtime proposals exist, temporary manual assumptions may remain behind progressive disclosure only when they are clearly labeled and cannot be mistaken for model-derived evidence.
 
 ## Saved views
 

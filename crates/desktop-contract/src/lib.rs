@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const DESKTOP_CONTRACT_VERSION: u16 = 7;
+pub const DESKTOP_CONTRACT_VERSION: u16 = 9;
 pub const COMMAND_DESKTOP_CONTRACT: &str = "desktop_contract";
 pub const COMMAND_SELECT_MODEL_SOURCE: &str = "select_model_source";
 pub const COMMAND_ANALYZE_MODEL_SOURCE: &str = "analyze_model_source";
@@ -10,8 +10,10 @@ pub const COMMAND_CANCEL_MODEL_ANALYSIS: &str = "cancel_model_analysis";
 pub const COMMAND_EVALUATE_DRAFT_ESTIMATE: &str = "evaluate_draft_estimate";
 pub const COMMAND_LOAD_SHOP_SETTINGS: &str = "load_shop_settings";
 pub const COMMAND_SAVE_SHOP_SETTINGS: &str = "save_shop_settings";
+pub const COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION: &str = "activate_shop_resource_selection";
+pub const COMMAND_SAVE_SHOP_RESOURCE_CATALOG_DRAFT: &str = "save_shop_resource_catalog_draft";
 pub const EVENT_MODEL_SOURCE_SELECTED: &str = "partprobe:model-source-selected";
-pub const APPLICATION_COMMANDS: [&str; 7] = [
+pub const APPLICATION_COMMANDS: [&str; 9] = [
     COMMAND_DESKTOP_CONTRACT,
     COMMAND_SELECT_MODEL_SOURCE,
     COMMAND_ANALYZE_MODEL_SOURCE,
@@ -19,6 +21,8 @@ pub const APPLICATION_COMMANDS: [&str; 7] = [
     COMMAND_EVALUATE_DRAFT_ESTIMATE,
     COMMAND_LOAD_SHOP_SETTINGS,
     COMMAND_SAVE_SHOP_SETTINGS,
+    COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION,
+    COMMAND_SAVE_SHOP_RESOURCE_CATALOG_DRAFT,
 ];
 pub const APPLICATION_EVENTS: [&str; 1] = [EVENT_MODEL_SOURCE_SELECTED];
 
@@ -379,6 +383,100 @@ pub struct SaveShopSettingsRequest {
     pub rates: DeveloperRateInputFields,
     pub pricing: DeveloperPricingInputFields,
     pub resources: Option<ShopResourceInputFields>,
+}
+
+/// Path-free optimistic request to activate one exact reviewed selection for proposals.
+///
+/// Actor identity, decision time, correlation identity, profile scope, policy, and storage
+/// authority are deliberately absent. The native host must supply that evidence.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ActivateShopResourceSelectionRequest {
+    pub expected_settings_revision: u32,
+    pub expected_catalog_id: String,
+    pub expected_catalog_version: u32,
+    pub selection_id: String,
+    pub selection_version: u32,
+    pub reason: String,
+}
+
+/// Explicit outcome of the governed proposal-eligibility request.
+///
+/// `Activated` means only that the exact selection became eligible for later proposal
+/// generation. It is never estimate, calculation, routing, purchasing, quote, or production
+/// authority.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum ShopResourceCatalogActivationResult {
+    Activated {
+        settings: Box<ShopSettingsSnapshot>,
+    },
+    Denied {
+        reason_code: String,
+    },
+    Unavailable {
+        reason: ShopResourceCatalogActivationUnavailableReason,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShopResourceCatalogActivationUnavailableReason {
+    NativeIdentityUnavailable,
+}
+
+/// Exact current catalog revision expected by one immutable draft edit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ExpectedShopResourceCatalogRevision {
+    pub catalog_id: String,
+    pub catalog_version: u32,
+}
+
+/// Complete path-free record contents for one immutable catalog draft revision.
+///
+/// Selection decisions are deliberately absent. Lifecycle values are evidence to be validated by
+/// the application service, not authority granted by the WebView.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ShopResourceCatalogDraftContents {
+    pub catalog_id: String,
+    pub materials: Vec<ShopMaterialSnapshot>,
+    pub material_offers: Vec<ShopMaterialOfferSnapshot>,
+    pub stock_allowances: Vec<ShopStockAllowanceSnapshot>,
+    pub machines: Vec<ShopMachineSnapshot>,
+    pub runtimes: Vec<ShopRuntimeSnapshot>,
+}
+
+/// Path-free optimistic request for one governed immutable catalog draft edit.
+///
+/// Actor identity, recorded time, selections, profile, paths, and storage authority are absent.
+/// The native host supplies actor/time/profile evidence and the application owns selection state.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SaveShopResourceCatalogDraftRequest {
+    pub expected_settings_revision: u32,
+    pub expected_catalog: Option<ExpectedShopResourceCatalogRevision>,
+    pub contents: ShopResourceCatalogDraftContents,
+    pub reason: String,
+}
+
+/// Explicit result of a governed catalog draft save.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum ShopResourceCatalogDraftSaveResult {
+    Saved {
+        settings: Box<ShopSettingsSnapshot>,
+    },
+    Unavailable {
+        reason: ShopResourceCatalogDraftUnavailableReason,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShopResourceCatalogDraftUnavailableReason {
+    NativeIdentityUnavailable,
 }
 
 /// Exact-text draft fields for one internally consistent material/stock/machine/runtime bundle.
@@ -851,7 +949,7 @@ mod tests {
         let contract = DesktopContract::current();
 
         assert_eq!(contract.contract_version, DESKTOP_CONTRACT_VERSION);
-        assert_eq!(contract.contract_version, 7);
+        assert_eq!(contract.contract_version, 9);
         assert_eq!(contract.commands, APPLICATION_COMMANDS);
         assert_eq!(contract.events, APPLICATION_EVENTS);
         assert_eq!(
@@ -968,6 +1066,87 @@ mod tests {
         })
         .unwrap();
         assert!(request_fields.get("resource_catalog").is_none());
+    }
+
+    #[test]
+    fn catalog_activation_request_is_path_free_and_has_no_identity_or_audit_authority() {
+        let request = ActivateShopResourceSelectionRequest {
+            expected_settings_revision: 4,
+            expected_catalog_id: "shop-catalog".to_owned(),
+            expected_catalog_version: 7,
+            selection_id: "selection-a".to_owned(),
+            selection_version: 3,
+            reason: "use reviewed resources for proposals".to_owned(),
+        };
+
+        let value = serde_json::to_value(&request).unwrap();
+        let object = value.as_object().unwrap();
+        assert_eq!(object.len(), 6);
+        assert!(!object.contains_key("actor_id"));
+        assert!(!object.contains_key("recorded_at"));
+        assert!(!object.contains_key("correlation_id"));
+        assert!(!object.contains_key("profile_id"));
+        let serialized = serde_json::to_string(&request).unwrap();
+        assert!(!serialized.contains("path"));
+        assert!(!serialized.contains("sqlite"));
+
+        let unavailable = ShopResourceCatalogActivationResult::Unavailable {
+            reason: ShopResourceCatalogActivationUnavailableReason::NativeIdentityUnavailable,
+        };
+        assert_eq!(
+            serde_json::to_value(unavailable).unwrap(),
+            serde_json::json!({
+                "state": "unavailable",
+                "reason": "native_identity_unavailable"
+            })
+        );
+    }
+
+    #[test]
+    fn catalog_draft_request_is_path_free_and_cannot_supply_identity_or_selections() {
+        let request = SaveShopResourceCatalogDraftRequest {
+            expected_settings_revision: 4,
+            expected_catalog: Some(ExpectedShopResourceCatalogRevision {
+                catalog_id: "shop-catalog".to_owned(),
+                catalog_version: 7,
+            }),
+            contents: ShopResourceCatalogDraftContents {
+                catalog_id: "shop-catalog".to_owned(),
+                materials: Vec::new(),
+                material_offers: Vec::new(),
+                stock_allowances: Vec::new(),
+                machines: Vec::new(),
+                runtimes: Vec::new(),
+            },
+            reason: "save reviewed draft edits".to_owned(),
+        };
+
+        let value = serde_json::to_value(&request).unwrap();
+        let object = value.as_object().unwrap();
+        assert_eq!(object.len(), 4);
+        assert!(!object.contains_key("actor_id"));
+        assert!(!object.contains_key("recorded_at"));
+        assert!(!object.contains_key("profile_id"));
+        assert!(
+            !object["contents"]
+                .as_object()
+                .unwrap()
+                .contains_key("selections")
+        );
+        let serialized = serde_json::to_string(&request).unwrap();
+        assert!(!serialized.contains("path"));
+        assert!(!serialized.contains("sqlite"));
+
+        let unavailable = ShopResourceCatalogDraftSaveResult::Unavailable {
+            reason: ShopResourceCatalogDraftUnavailableReason::NativeIdentityUnavailable,
+        };
+        assert_eq!(
+            serde_json::to_value(unavailable).unwrap(),
+            serde_json::json!({
+                "state": "unavailable",
+                "reason": "native_identity_unavailable"
+            })
+        );
     }
 
     #[test]

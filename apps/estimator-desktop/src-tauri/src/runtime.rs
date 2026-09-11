@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 
 use partprobe_desktop_contract::{
-    AnalysisCancellationAcknowledgement, AnalyzeModelSourceRequest, CancelModelAnalysisRequest,
-    DesktopContract, DraftEstimateEvaluation, EVENT_MODEL_SOURCE_SELECTED,
-    EvaluateDraftEstimateRequest, HostCommandError, ModelAnalysisResult, ModelSourceSelectedEvent,
-    ModelSourceSelection, SaveShopSettingsRequest, ShopSettingsState,
+    ActivateShopResourceSelectionRequest, AnalysisCancellationAcknowledgement,
+    AnalyzeModelSourceRequest, CancelModelAnalysisRequest, DesktopContract,
+    DraftEstimateEvaluation, EVENT_MODEL_SOURCE_SELECTED, EvaluateDraftEstimateRequest,
+    HostCommandError, ModelAnalysisResult, ModelSourceSelectedEvent, ModelSourceSelection,
+    SaveShopResourceCatalogDraftRequest, SaveShopSettingsRequest,
+    ShopResourceCatalogActivationResult, ShopResourceCatalogDraftSaveResult, ShopSettingsState,
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
@@ -102,6 +104,32 @@ async fn save_shop_settings(
         .map_err(|_| HostCommandError::settings_unavailable("USE2-SETTINGS-SAVE-TASK"))?
 }
 
+#[tauri::command]
+async fn activate_shop_resource_selection(
+    app: tauri::AppHandle,
+    request: ActivateShopResourceSelectionRequest,
+) -> Result<ShopResourceCatalogActivationResult, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<DesktopSettingsState>()
+            .activate_shop_resource_selection(&request)
+    })
+    .await
+    .map_err(|_| HostCommandError::settings_unavailable("USE2-CATALOG-ACTIVATION-TASK"))?
+}
+
+#[tauri::command]
+async fn save_shop_resource_catalog_draft(
+    app: tauri::AppHandle,
+    request: SaveShopResourceCatalogDraftRequest,
+) -> Result<ShopResourceCatalogDraftSaveResult, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<DesktopSettingsState>()
+            .save_shop_resource_catalog_draft(&request)
+    })
+    .await
+    .map_err(|_| HostCommandError::settings_unavailable("USE2-CATALOG-DRAFT-TASK"))?
+}
+
 fn desktop_path(selected: FilePath) -> Result<PathBuf, HostCommandError> {
     match selected {
         FilePath::Path(path) => Ok(path),
@@ -159,7 +187,9 @@ pub fn run() {
             cancel_model_analysis,
             evaluate_draft_estimate,
             load_shop_settings,
-            save_shop_settings
+            save_shop_settings,
+            activate_shop_resource_selection,
+            save_shop_resource_catalog_draft
         ])
         .run(tauri::generate_context!())
         .expect("PartProbe desktop host failed");
