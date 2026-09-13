@@ -1,23 +1,26 @@
 use std::str::FromStr;
 
 use partprobe_application::{
-    DraftBaseCostInputs, DraftEstimateInputs, DraftEstimateSession, DraftGeometryReview,
-    DraftMaterialCostInputs, DraftOperationCostInputs, DraftQuantityInputs, DraftRateContext,
-    DraftStockInputs, DraftTimeInputs,
+    DEVELOPER_ESTIMATE_PROPOSAL_ADOPTION_RULE_ID,
+    DEVELOPER_ESTIMATE_PROPOSAL_ADOPTION_RULE_VERSION, DeveloperEstimateProposalApplication,
+    DeveloperEstimateProposalReview, DraftBaseCostInputs, DraftEstimateInputs,
+    DraftEstimateSession, DraftGeometryReview, DraftMaterialCostInputs, DraftOperationCostInputs,
+    DraftQuantityInputs, DraftRateContext, DraftStockInputs, DraftTimeInputs,
 };
 #[cfg(test)]
 use partprobe_desktop_contract::GeometryReviewInput;
 use partprobe_desktop_contract::{
     DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateEvaluation,
-    DraftEstimateEvaluationState, DraftEstimateInputFields, DraftEstimateResultSummary,
-    EvaluateDraftEstimateRequest, HostCommandError, PricingPolicySummary, ResolvedRateSummary,
+    DraftEstimateEvaluationState, DraftEstimateInputFields, DraftEstimateProposalAdoptionSummary,
+    DraftEstimateResultSummary, EvaluateDraftEstimateRequest, HostCommandError,
+    PricingPolicySummary, ResolvedRateSummary,
 };
 use partprobe_domain::{
-    CostCategory, CurrencyCode, DensityKilogramsPerCubicMillimeter, EffectiveDate, ItemQuantity,
-    Money, PricingMethod, PricingPolicy, PricingPolicyId, RateApprovalState, RateBasis, RateCard,
-    RateCardId, RateComposition, RateEntry, RateEvent, RateGovernance, RateId, RateScope,
-    RateVersion, RecordedAt, RoundingBoundary, RoundingMode, RoundingPolicy, RoundingPolicyId,
-    SourceKind, SourceRef, ValueState, VolumeCubicMillimeters,
+    ActorId, CostCategory, CurrencyCode, DensityKilogramsPerCubicMillimeter, EffectiveDate,
+    ItemQuantity, Money, PricingMethod, PricingPolicy, PricingPolicyId, RateApprovalState,
+    RateBasis, RateCard, RateCardId, RateComposition, RateEntry, RateEvent, RateGovernance, RateId,
+    RateScope, RateVersion, RecordedAt, RoundingBoundary, RoundingMode, RoundingPolicy,
+    RoundingPolicyId, ShopSettingsDraft, SourceKind, SourceRef, ValueState, VolumeCubicMillimeters,
 };
 use rust_decimal::Decimal;
 
@@ -26,13 +29,23 @@ use crate::analysis::{DEVELOPER_ACTOR_ID, trusted_recorded_at};
 pub fn evaluate_draft_estimate(
     session: &mut DraftEstimateSession,
     request: &EvaluateDraftEstimateRequest,
+    settings: Option<&ShopSettingsDraft>,
 ) -> Result<DraftEstimateEvaluation, HostCommandError> {
     let review = DraftGeometryReview::new(
         request.review.canonical_units_reviewed,
         request.review.warnings_reviewed,
     );
-    let inputs = estimate_inputs(&request.inputs, &request.rates.currency)?;
     let recorded_at = trusted_recorded_at()?;
+    let (inputs, input_trace, proposal_adoption) =
+        if let Some(adoption) = request.proposal_adoption.as_ref() {
+            proposed_estimate_inputs(session, settings, adoption, &recorded_at)?
+        } else {
+            (
+                estimate_inputs(&request.inputs, &request.rates.currency)?,
+                request.inputs.clone(),
+                None,
+            )
+        };
     let rate_context = rate_context(&request.rates, &request.analysis_id, &recorded_at)?;
     let pricing_policy = pricing_policy(&request.pricing, &request.rates.currency)?;
 
@@ -47,13 +60,135 @@ pub fn evaluate_draft_estimate(
             analysis_id: request.analysis_id.clone(),
             state: DraftEstimateEvaluationState::Available,
             reason: None,
-            result: Some(Box::new(result_summary(value, request.inputs.clone()))),
+            result: Some(Box::new(result_summary(
+                value,
+                input_trace,
+                proposal_adoption,
+            ))),
         },
         ValueState::Unavailable { reason } => unavailable_evaluation(request, reason),
         ValueState::Blocked { reason } => blocked_evaluation(request, reason),
         ValueState::Unknown { reason } => blocked_evaluation(request, reason),
         ValueState::Stale { reason, .. } => blocked_evaluation(request, reason),
     })
+}
+
+fn proposed_estimate_inputs(
+    session: &DraftEstimateSession,
+    settings: Option<&ShopSettingsDraft>,
+    adoption: &partprobe_desktop_contract::DraftEstimateProposalAdoptionInput,
+    recorded_at: &RecordedAt,
+) -> Result<
+    (
+        DraftEstimateInputs,
+        DraftEstimateInputFields,
+        Option<DraftEstimateProposalAdoptionSummary>,
+    ),
+    HostCommandError,
+> {
+    let settings = settings.ok_or_else(|| invalid_input("USE3-ADOPTION-SETTINGS-MISSING"))?;
+    if settings.revision().value() != adoption.settings_revision {
+        return Err(invalid_input("USE3-ADOPTION-SETTINGS-STALE"));
+    }
+    let proposal = match DeveloperEstimateProposalApplication.propose(session.geometry(), settings)
+    {
+        ValueState::Available { value } => value,
+        ValueState::Unavailable { .. } => {
+            return Err(invalid_input("USE3-ADOPTION-PROPOSAL-UNAVAILABLE"));
+        }
+        ValueState::Blocked { .. } | ValueState::Unknown { .. } | ValueState::Stale { .. } => {
+            return Err(invalid_input("USE3-ADOPTION-PROPOSAL-BLOCKED"));
+        }
+    };
+    if proposal.library_id().as_str() != adoption.library_id
+        || proposal.library_version().value() != adoption.library_version
+    {
+        return Err(invalid_input("USE3-ADOPTION-PROPOSAL-STALE"));
+    }
+    let quantities = DraftQuantityInputs {
+        deliver: ItemQuantity::new(whole(&adoption.deliver_quantity)?),
+        planned_spares: ItemQuantity::new(whole(&adoption.planned_spares)?),
+        destructive_samples: ItemQuantity::new(whole(&adoption.destructive_samples)?),
+    };
+    let proposal_rule_id = proposal.rule_id().to_owned();
+    let (proposal_major, proposal_minor, proposal_patch) = proposal.rule_version();
+    let adopted = DeveloperEstimateProposalApplication
+        .adopt(
+            proposal,
+            quantities,
+            DeveloperEstimateProposalReview {
+                proposal_values_reviewed: adoption.proposal_values_reviewed,
+                coarse_limitations_accepted: adoption.coarse_limitations_accepted,
+                actor: ActorId::new(DEVELOPER_ACTOR_ID)
+                    .map_err(|_| invalid_input("USE3-ADOPTION-ACTOR"))?,
+                recorded_at: recorded_at.clone(),
+                reason: adoption.review_reason.clone(),
+            },
+        )
+        .map_err(|_| invalid_input("USE3-ADOPTION-REVIEW"))?;
+    let trace = input_trace(&adopted.inputs);
+    let (adoption_major, adoption_minor, adoption_patch) =
+        DEVELOPER_ESTIMATE_PROPOSAL_ADOPTION_RULE_VERSION;
+    let adoption_summary = DraftEstimateProposalAdoptionSummary {
+        settings_revision: adoption.settings_revision,
+        library_id: adoption.library_id.clone(),
+        library_version: adoption.library_version,
+        proposal_rule_id,
+        proposal_rule_version: format!("{proposal_major}.{proposal_minor}.{proposal_patch}"),
+        adoption_rule_id: DEVELOPER_ESTIMATE_PROPOSAL_ADOPTION_RULE_ID.to_owned(),
+        adoption_rule_version: format!("{adoption_major}.{adoption_minor}.{adoption_patch}"),
+        reviewed_by: adopted.review.actor.as_str().to_owned(),
+        reviewed_at: adopted.review.recorded_at.as_str().to_owned(),
+        review_reason: adopted.review.reason.clone(),
+        excluded_inputs: vec![
+            "non_cutting_time".to_owned(),
+            "in_cycle_inspection_time".to_owned(),
+            "cut_certificate_and_freight".to_owned(),
+            "tooling_fixture_and_outside_processing".to_owned(),
+            "administration_and_overhead".to_owned(),
+            "risk_and_rework".to_owned(),
+        ],
+    };
+    Ok((adopted.inputs, trace, Some(adoption_summary)))
+}
+
+fn input_trace(inputs: &DraftEstimateInputs) -> DraftEstimateInputFields {
+    DraftEstimateInputFields {
+        stock_volume_mm3: decimal_text(inputs.stock.stock_volume.value()),
+        density_kg_per_mm3: decimal_text(inputs.stock.density.value()),
+        deliver_quantity: inputs.quantities.deliver.value().to_string(),
+        planned_spares: inputs.quantities.planned_spares.value().to_string(),
+        destructive_samples: inputs.quantities.destructive_samples.value().to_string(),
+        setup_hours: decimal_text(inputs.times.setup_hours),
+        programming_hours: decimal_text(inputs.times.programming_hours),
+        cutting_hours_per_item: decimal_text(inputs.times.cutting_hours_per_item),
+        non_cutting_hours_per_item: decimal_text(inputs.times.non_cutting_hours_per_item),
+        load_unload_hours_per_item: decimal_text(inputs.times.load_unload_hours_per_item),
+        in_cycle_inspection_hours_per_item: decimal_text(
+            inputs.times.in_cycle_inspection_hours_per_item,
+        ),
+        quality_inspection_hours: decimal_text(inputs.times.quality_inspection_hours),
+        purchased_material: money_text(&inputs.material.purchased),
+        cut_charge: money_text(&inputs.material.cut),
+        material_certificate: money_text(&inputs.material.certificate),
+        inbound_freight: money_text(&inputs.material.inbound_freight),
+        approved_remnant_credit: money_text(&inputs.material.approved_remnant_credit),
+        prove_out: money_text(&inputs.operation.prove_out),
+        tooling: money_text(&inputs.operation.tooling),
+        consumables: money_text(&inputs.operation.consumables),
+        fixture: money_text(&inputs.operation.fixture),
+        outside_processing: money_text(&inputs.operation.outside),
+        operation_freight: money_text(&inputs.operation.freight),
+        nonrecurring_engineering: money_text(&inputs.base.nonrecurring_engineering),
+        administration: money_text(&inputs.base.administration),
+        overhead: money_text(&inputs.base.overhead),
+        accepted_risk_impact: inputs
+            .base
+            .accepted_risk_impacts
+            .first()
+            .map_or_else(|| "0".to_owned(), money_text),
+        expected_rework: money_text(&inputs.base.expected_rework),
+    }
 }
 
 fn estimate_inputs(
@@ -282,6 +417,7 @@ pub(crate) fn pricing_policy(
 fn result_summary(
     result: partprobe_application::DraftEstimateResult,
     input_trace: DraftEstimateInputFields,
+    proposal_adoption: Option<DraftEstimateProposalAdoptionSummary>,
 ) -> DraftEstimateResultSummary {
     let currency = result.total_internal_cost.currency().as_str().to_owned();
     let resolved_rates = [
@@ -341,6 +477,7 @@ fn result_summary(
             .into_iter()
             .map(str::to_owned)
             .collect(),
+        proposal_adoption,
     }
 }
 
@@ -503,6 +640,7 @@ pub(crate) fn complete_test_request(
             optional_minimum_order: String::new(),
             rounding_decimal_places: "2".to_owned(),
         },
+        proposal_adoption: None,
     }
 }
 

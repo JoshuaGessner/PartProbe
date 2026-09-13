@@ -2,27 +2,31 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const DESKTOP_CONTRACT_VERSION: u16 = 9;
+pub const DESKTOP_CONTRACT_VERSION: u16 = 11;
 pub const COMMAND_DESKTOP_CONTRACT: &str = "desktop_contract";
 pub const COMMAND_SELECT_MODEL_SOURCE: &str = "select_model_source";
 pub const COMMAND_ANALYZE_MODEL_SOURCE: &str = "analyze_model_source";
 pub const COMMAND_CANCEL_MODEL_ANALYSIS: &str = "cancel_model_analysis";
 pub const COMMAND_EVALUATE_DRAFT_ESTIMATE: &str = "evaluate_draft_estimate";
+pub const COMMAND_PREPARE_DRAFT_ESTIMATE_PROPOSAL: &str = "prepare_draft_estimate_proposal";
 pub const COMMAND_LOAD_SHOP_SETTINGS: &str = "load_shop_settings";
 pub const COMMAND_SAVE_SHOP_SETTINGS: &str = "save_shop_settings";
 pub const COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION: &str = "activate_shop_resource_selection";
 pub const COMMAND_SAVE_SHOP_RESOURCE_CATALOG_DRAFT: &str = "save_shop_resource_catalog_draft";
+pub const COMMAND_SET_MODEL_VIEWER_WORKSPACE: &str = "set_model_viewer_workspace";
 pub const EVENT_MODEL_SOURCE_SELECTED: &str = "partprobe:model-source-selected";
-pub const APPLICATION_COMMANDS: [&str; 9] = [
+pub const APPLICATION_COMMANDS: [&str; 11] = [
     COMMAND_DESKTOP_CONTRACT,
     COMMAND_SELECT_MODEL_SOURCE,
     COMMAND_ANALYZE_MODEL_SOURCE,
     COMMAND_CANCEL_MODEL_ANALYSIS,
     COMMAND_EVALUATE_DRAFT_ESTIMATE,
+    COMMAND_PREPARE_DRAFT_ESTIMATE_PROPOSAL,
     COMMAND_LOAD_SHOP_SETTINGS,
     COMMAND_SAVE_SHOP_SETTINGS,
     COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION,
     COMMAND_SAVE_SHOP_RESOURCE_CATALOG_DRAFT,
+    COMMAND_SET_MODEL_VIEWER_WORKSPACE,
 ];
 pub const APPLICATION_EVENTS: [&str; 1] = [EVENT_MODEL_SOURCE_SELECTED];
 
@@ -35,6 +39,7 @@ pub struct DesktopContract {
     pub analysis_authority: AnalysisAuthority,
     pub persistence: PersistenceAvailability,
     pub shop_settings_persistence: ShopSettingsPersistenceAvailability,
+    pub model_viewer: ModelViewerAvailability,
 }
 
 impl DesktopContract {
@@ -47,7 +52,14 @@ impl DesktopContract {
             analysis_authority: AnalysisAuthority::NativeApplicationService,
             persistence: PersistenceAvailability::SessionOnly,
             shop_settings_persistence: ShopSettingsPersistenceAvailability::LocalDrafts,
+            model_viewer: ModelViewerAvailability::Unavailable,
         }
+    }
+
+    #[must_use]
+    pub fn with_model_viewer(mut self, availability: ModelViewerAvailability) -> Self {
+        self.model_viewer = availability;
+        self
     }
 }
 
@@ -68,6 +80,37 @@ pub enum PersistenceAvailability {
 #[serde(rename_all = "snake_case")]
 pub enum ShopSettingsPersistenceAvailability {
     LocalDrafts,
+}
+
+/// Whether the current native host can compose the provisional viewer inside its main window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelViewerAvailability {
+    Unavailable,
+    DeveloperPreview,
+}
+
+/// Path-free layout intent; dimensions and native surface ownership remain host-owned.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelViewerWorkspaceMode {
+    Hidden,
+    Visible,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SetModelViewerWorkspaceRequest {
+    pub mode: ModelViewerWorkspaceMode,
+}
+
+/// Content-minimized acknowledgement of one native in-window layout transition.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ModelViewerWorkspaceResult {
+    pub mode: ModelViewerWorkspaceMode,
+    pub scene_reference: Option<String>,
+    pub notice: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,6 +189,91 @@ pub struct EvaluateDraftEstimateRequest {
     pub inputs: DraftEstimateInputFields,
     pub rates: DeveloperRateInputFields,
     pub pricing: DeveloperPricingInputFields,
+    /// Optional explicit adoption of the native proposal shown for this exact analysis/settings
+    /// revision. When present, the native application ignores the manual physical/time/cost
+    /// fields and constructs a coarse excluded-cost draft from the retained proposal.
+    pub proposal_adoption: Option<DraftEstimateProposalAdoptionInput>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DraftEstimateProposalAdoptionInput {
+    pub settings_revision: u32,
+    pub library_id: String,
+    pub library_version: u32,
+    pub proposal_values_reviewed: bool,
+    pub coarse_limitations_accepted: bool,
+    pub review_reason: String,
+    pub deliver_quantity: String,
+    pub planned_spares: String,
+    pub destructive_samples: String,
+}
+
+/// Path-free request for a native, non-authoritative proposal from retained geometry and the
+/// current immutable shop-settings draft.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PrepareDraftEstimateProposalRequest {
+    pub selection_id: String,
+    pub analysis_id: String,
+}
+
+/// Path-free state returned by the application-owned proposal service.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum DraftEstimateProposalEvaluation {
+    Available {
+        proposal: Box<DraftEstimateProposalSummary>,
+    },
+    Unavailable {
+        reason: String,
+    },
+    Blocked {
+        reason: String,
+    },
+}
+
+/// Review-only stock, material, and coarse-runtime evidence. It is not an estimate input until a
+/// later explicit adoption request is accepted by the native application service.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DraftEstimateProposalSummary {
+    pub selection_id: String,
+    pub analysis_id: String,
+    pub settings_revision: u32,
+    pub library_id: String,
+    pub library_version: u32,
+    pub material_id: String,
+    pub material_version: u32,
+    pub material_grade: String,
+    pub material_offer_id: String,
+    pub material_offer_version: u32,
+    pub stock_allowance_id: String,
+    pub stock_allowance_version: u32,
+    pub machine_id: String,
+    pub machine_version: u32,
+    pub machine_name: String,
+    pub runtime_id: String,
+    pub runtime_version: u32,
+    pub model_extents_mm: [String; 3],
+    pub part_volume_mm3: String,
+    pub blank_dimensions_mm: [String; 3],
+    pub blank_volume_mm3: String,
+    pub removed_volume_mm3: String,
+    pub material_density_kg_per_m3: String,
+    pub blank_mass_kg: String,
+    pub material_price_per_kg: String,
+    pub unit_stock_material_cost: String,
+    pub currency: String,
+    pub removal_rate_mm3_per_minute: String,
+    pub setup_hours: String,
+    pub programming_hours: String,
+    pub cutting_hours_per_item: String,
+    pub load_unload_hours_per_item: String,
+    pub quality_inspection_hours: String,
+    pub rule_id: String,
+    pub rule_version: String,
+    pub reason_codes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -576,6 +704,23 @@ pub struct DraftEstimateResultSummary {
     pub resolved_rates: Vec<ResolvedRateSummary>,
     pub pricing_policy: PricingPolicySummary,
     pub calculation_rule_ids: Vec<String>,
+    pub proposal_adoption: Option<DraftEstimateProposalAdoptionSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DraftEstimateProposalAdoptionSummary {
+    pub settings_revision: u32,
+    pub library_id: String,
+    pub library_version: u32,
+    pub proposal_rule_id: String,
+    pub proposal_rule_version: String,
+    pub adoption_rule_id: String,
+    pub adoption_rule_version: String,
+    pub reviewed_by: String,
+    pub reviewed_at: String,
+    pub review_reason: String,
+    pub excluded_inputs: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -639,6 +784,8 @@ pub enum ProvisionalGeometryFacts {
 #[serde(rename_all = "snake_case")]
 pub struct ProvisionalExactBrepFacts {
     pub canonical_units: CanonicalLengthUnit,
+    /// Source-axis exact STEP bounds when the controlled ABI-v4 derivative is available.
+    pub aabb_extents_mm: Option<[String; 3]>,
     pub surface_area_mm2: String,
     pub enclosed_volume_mm3: String,
     pub center_of_mass_mm: [String; 3],
@@ -949,7 +1096,7 @@ mod tests {
         let contract = DesktopContract::current();
 
         assert_eq!(contract.contract_version, DESKTOP_CONTRACT_VERSION);
-        assert_eq!(contract.contract_version, 9);
+        assert_eq!(contract.contract_version, 11);
         assert_eq!(contract.commands, APPLICATION_COMMANDS);
         assert_eq!(contract.events, APPLICATION_EVENTS);
         assert_eq!(
@@ -961,6 +1108,27 @@ mod tests {
             contract.shop_settings_persistence,
             ShopSettingsPersistenceAvailability::LocalDrafts
         );
+        assert_eq!(contract.model_viewer, ModelViewerAvailability::Unavailable);
+    }
+
+    #[test]
+    fn model_viewer_workspace_contract_is_path_free_and_explicitly_provisional() {
+        let request = SetModelViewerWorkspaceRequest {
+            mode: ModelViewerWorkspaceMode::Visible,
+        };
+        let result = ModelViewerWorkspaceResult {
+            mode: ModelViewerWorkspaceMode::Visible,
+            scene_reference: Some("synthetic-viewer-spike-v1".to_owned()),
+            notice: "Synthetic renderer preview; selected-model display is unavailable.".to_owned(),
+        };
+        let serialized = serde_json::to_string(&(request, result)).unwrap();
+
+        assert!(serialized.contains("visible"));
+        assert!(serialized.contains("synthetic-viewer-spike-v1"));
+        assert!(!serialized.contains("/"));
+        assert!(!serialized.contains("\\"));
+        assert!(!serialized.contains("vertex"));
+        assert!(!serialized.contains("index"));
     }
 
     #[test]
@@ -1193,6 +1361,7 @@ mod tests {
             persistence: PersistenceAvailability::SessionOnly,
             geometry: ProvisionalGeometryFacts::ExactBrep(ProvisionalExactBrepFacts {
                 canonical_units: CanonicalLengthUnit::Millimeter,
+                aabb_extents_mm: Some(["10".to_owned(), "10".to_owned(), "10".to_owned()]),
                 surface_area_mm2: "600".to_owned(),
                 enclosed_volume_mm3: "1000".to_owned(),
                 center_of_mass_mm: ["5".to_owned(), "5".to_owned(), "5".to_owned()],

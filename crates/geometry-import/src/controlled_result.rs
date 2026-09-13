@@ -1,7 +1,9 @@
 //! Additive, source-bound controlled geometry results.
 
 use partprobe_domain::DomainError;
-use partprobe_geometry_core::{ProvisionalGeometrySnapshot, Sha256Digest};
+use partprobe_geometry_core::{
+    ExactStepEnvelopeDerivative, ProvisionalGeometrySnapshot, Sha256Digest,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
@@ -13,6 +15,90 @@ use crate::{
 pub const PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_SCHEMA_VERSION: u16 = 1;
 /// Opaque controlled-output reference for the provisional mesh schema.
 pub const PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE: &str = "geometry-mesh-snapshot-v1";
+/// Current additive exact-STEP analysis container schema.
+pub const PROVISIONAL_EXACT_STEP_ANALYSIS_SCHEMA_VERSION: u16 = 1;
+/// Opaque controlled-output reference for snapshot-v1 plus its additive AABB derivative.
+pub const PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE: &str = "geometry-step-analysis-v1";
+
+/// Source-consistent exact STEP snapshot plus an additive envelope derivative.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ProvisionalExactStepAnalysis {
+    schema_version: u16,
+    evidence_state: String,
+    snapshot: ProvisionalGeometrySnapshot,
+    envelope: ExactStepEnvelopeDerivative,
+}
+
+#[derive(Deserialize)]
+struct ProvisionalExactStepAnalysisWire {
+    schema_version: u16,
+    evidence_state: String,
+    snapshot: ProvisionalGeometrySnapshot,
+    envelope: ExactStepEnvelopeDerivative,
+}
+
+impl<'de> Deserialize<'de> for ProvisionalExactStepAnalysis {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = ProvisionalExactStepAnalysisWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
+impl ProvisionalExactStepAnalysis {
+    /// Constructs a new container only when both exact STEP artifacts bind to one source.
+    pub fn new(
+        snapshot: ProvisionalGeometrySnapshot,
+        envelope: ExactStepEnvelopeDerivative,
+    ) -> Result<Self, DomainError> {
+        Self::from_wire(ProvisionalExactStepAnalysisWire {
+            schema_version: PROVISIONAL_EXACT_STEP_ANALYSIS_SCHEMA_VERSION,
+            evidence_state: "provisional_exact_step_analysis".to_owned(),
+            snapshot,
+            envelope,
+        })
+    }
+
+    fn from_wire(wire: ProvisionalExactStepAnalysisWire) -> Result<Self, DomainError> {
+        if wire.schema_version != PROVISIONAL_EXACT_STEP_ANALYSIS_SCHEMA_VERSION
+            || wire.evidence_state != "provisional_exact_step_analysis"
+            || wire.snapshot.source_hash() != wire.envelope.source_hash()
+        {
+            return Err(DomainError::InvalidValue {
+                field: "provisional exact STEP analysis",
+                reason: "schema, evidence state, or source binding is unsupported",
+            });
+        }
+        Ok(Self {
+            schema_version: wire.schema_version,
+            evidence_state: wire.evidence_state,
+            snapshot: wire.snapshot,
+            envelope: wire.envelope,
+        })
+    }
+
+    #[must_use]
+    pub const fn schema_version(&self) -> u16 {
+        self.schema_version
+    }
+
+    #[must_use]
+    pub fn evidence_state(&self) -> &str {
+        &self.evidence_state
+    }
+
+    #[must_use]
+    pub const fn snapshot(&self) -> &ProvisionalGeometrySnapshot {
+        &self.snapshot
+    }
+
+    #[must_use]
+    pub const fn envelope(&self) -> &ExactStepEnvelopeDerivative {
+        &self.envelope
+    }
+}
 
 /// Complete format-owned evidence retained by the provisional mesh result.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -120,8 +206,35 @@ impl ProvisionalMeshGeometrySnapshot {
 pub enum ControlledGeometryResult {
     /// Existing exact-B-rep developer snapshot and replay contract.
     ExactBrep(Box<ProvisionalGeometrySnapshot>),
+    /// Existing snapshot-v1 carried with the new, separately versioned STEP envelope derivative.
+    ExactBrepWithEnvelope(Box<ProvisionalExactStepAnalysis>),
     /// New provisional mesh result with format-owned evidence.
     Mesh(Box<ProvisionalMeshGeometrySnapshot>),
+}
+
+/// Decodes the additive exact STEP container and independently binds it to the expected source.
+pub fn decode_provisional_exact_step_analysis(
+    output: &ControlledWorkerOutput,
+    expected_source_hash: &Sha256Digest,
+) -> Result<ProvisionalExactStepAnalysis, DomainError> {
+    if output.snapshot_reference().as_str() != PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE {
+        return Err(DomainError::InvalidValue {
+            field: "provisional exact STEP analysis",
+            reason: "snapshot reference does not identify the exact STEP analysis schema",
+        });
+    }
+    let analysis: ProvisionalExactStepAnalysis =
+        serde_json::from_slice(output.bytes()).map_err(|_| DomainError::InvalidValue {
+            field: "provisional exact STEP analysis",
+            reason: "bytes must satisfy the versioned exact STEP analysis schema",
+        })?;
+    if analysis.snapshot().source_hash() != expected_source_hash {
+        return Err(DomainError::InvalidValue {
+            field: "provisional exact STEP analysis",
+            reason: "analysis source hash must match the authorized source",
+        });
+    }
+    Ok(analysis)
 }
 
 /// Decodes and source-binds the provisional mesh result.
@@ -149,7 +262,7 @@ pub fn decode_provisional_mesh_geometry_snapshot(
     Ok(snapshot)
 }
 
-/// Decodes either the retained STEP v1 snapshot or the additive mesh v1 snapshot.
+/// Decodes the retained STEP snapshot, additive envelope-bearing STEP, or mesh result.
 pub fn decode_controlled_geometry_result(
     output: &ControlledWorkerOutput,
     expected_source_hash: &Sha256Digest,
@@ -159,6 +272,11 @@ pub fn decode_controlled_geometry_result(
             decode_provisional_geometry_snapshot(output, expected_source_hash)
                 .map(Box::new)
                 .map(ControlledGeometryResult::ExactBrep)
+        }
+        PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE => {
+            decode_provisional_exact_step_analysis(output, expected_source_hash)
+                .map(Box::new)
+                .map(ControlledGeometryResult::ExactBrepWithEnvelope)
         }
         PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE => {
             decode_provisional_mesh_geometry_snapshot(output, expected_source_hash)

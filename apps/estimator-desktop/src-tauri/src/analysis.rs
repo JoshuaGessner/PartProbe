@@ -365,6 +365,12 @@ fn analysis_result(
                 GeometryEvidenceState::ProvisionalExactBrepSpike,
                 ProvisionalGeometryFacts::ExactBrep(ProvisionalExactBrepFacts {
                     canonical_units: CanonicalLengthUnit::Millimeter,
+                    aabb_extents_mm: evidence.exact_step_envelope().map(|envelope| {
+                        envelope
+                            .aabb_extents_mm()
+                            .each_ref()
+                            .map(|value| value.as_str().to_owned())
+                    }),
                     surface_area_mm2: snapshot.surface_area_mm2().to_owned(),
                     enclosed_volume_mm3: snapshot.enclosed_volume_mm3().to_owned(),
                     center_of_mass_mm: snapshot.center_of_mass_mm().map(str::to_owned),
@@ -861,7 +867,7 @@ mod tests {
         assert!(!serialized.contains("fixtures/models"));
 
         let request = crate::estimate::complete_test_request("selection-1", "analysis-1");
-        let evaluation = crate::estimate::evaluate_draft_estimate(&mut session, &request)
+        let evaluation = crate::estimate::evaluate_draft_estimate(&mut session, &request, None)
             .expect("complete explicit developer inputs must evaluate");
         assert_eq!(evaluation.state, DraftEstimateEvaluationState::Available);
         assert_eq!(
@@ -939,7 +945,7 @@ mod tests {
         assert!(!serialized.contains("fixtures/models"));
 
         let request = crate::estimate::complete_test_request("selection-1", "analysis-1");
-        let evaluation = crate::estimate::evaluate_draft_estimate(&mut session, &request)
+        let evaluation = crate::estimate::evaluate_draft_estimate(&mut session, &request, None)
             .expect("mesh evaluation must return an explicit state");
         assert_eq!(evaluation.state, DraftEstimateEvaluationState::Unavailable);
         assert!(evaluation.reason.unwrap().contains("not authorized"));

@@ -1,16 +1,20 @@
 use leptos::prelude::*;
 use partprobe_desktop_contract::{
     AnalysisCancellationAcknowledgement, AnalyzeModelSourceRequest, COMMAND_ANALYZE_MODEL_SOURCE,
-    COMMAND_CANCEL_MODEL_ANALYSIS, COMMAND_EVALUATE_DRAFT_ESTIMATE, COMMAND_LOAD_SHOP_SETTINGS,
-    COMMAND_SAVE_SHOP_SETTINGS, COMMAND_SELECT_MODEL_SOURCE, CancelModelAnalysisRequest,
-    DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateEvaluation,
-    DraftEstimateEvaluationState, DraftEstimateInputFields, EvaluateDraftEstimateRequest,
-    GeometryConfidenceLevel, GeometryReviewInput, HostCommandError, MeshMeasurementBasis,
-    MeshSelfIntersectionState, MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection,
+    COMMAND_CANCEL_MODEL_ANALYSIS, COMMAND_DESKTOP_CONTRACT, COMMAND_EVALUATE_DRAFT_ESTIMATE,
+    COMMAND_LOAD_SHOP_SETTINGS, COMMAND_PREPARE_DRAFT_ESTIMATE_PROPOSAL,
+    COMMAND_SAVE_SHOP_SETTINGS, COMMAND_SELECT_MODEL_SOURCE, COMMAND_SET_MODEL_VIEWER_WORKSPACE,
+    CancelModelAnalysisRequest, DesktopContract, DeveloperPricingInputFields,
+    DeveloperRateInputFields, DraftEstimateEvaluation, DraftEstimateEvaluationState,
+    DraftEstimateInputFields, DraftEstimateProposalAdoptionInput, DraftEstimateProposalEvaluation,
+    DraftEstimateProposalSummary, EvaluateDraftEstimateRequest, GeometryConfidenceLevel,
+    GeometryReviewInput, HostCommandError, MeshMeasurementBasis, MeshSelfIntersectionState,
+    MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection, ModelViewerAvailability,
+    ModelViewerWorkspaceMode, ModelViewerWorkspaceResult, PrepareDraftEstimateProposalRequest,
     ProvisionalGeometryFacts, SaveShopSettingsRequest, SelectedModelSource,
-    ShopResourceCatalogSnapshot, ShopResourceInputFields, ShopResourceRecordState,
-    ShopResourceSelectionState, ShopSettingsSnapshot, ShopSettingsState, StlEncoding,
-    UnitResolution,
+    SetModelViewerWorkspaceRequest, ShopResourceCatalogSnapshot, ShopResourceInputFields,
+    ShopResourceRecordState, ShopResourceSelectionState, ShopSettingsSnapshot, ShopSettingsState,
+    StlEncoding, UnitResolution,
 };
 use wasm_bindgen::prelude::*;
 
@@ -47,8 +51,18 @@ struct EvaluateDraftEstimateArgs {
 }
 
 #[derive(serde::Serialize)]
+struct PrepareDraftEstimateProposalArgs {
+    request: PrepareDraftEstimateProposalRequest,
+}
+
+#[derive(serde::Serialize)]
 struct SaveShopSettingsArgs {
     request: SaveShopSettingsRequest,
+}
+
+#[derive(serde::Serialize)]
+struct SetModelViewerWorkspaceArgs {
+    request: SetModelViewerWorkspaceRequest,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -62,6 +76,28 @@ enum SettingsPanelState {
         error: HostCommandError,
         revision: Option<u32>,
     },
+}
+
+#[derive(Clone, Debug, Default)]
+enum ProposalPanelState {
+    #[default]
+    NotRequested,
+    Loading,
+    Evaluated(Box<DraftEstimateProposalEvaluation>),
+    Failed(HostCommandError),
+}
+
+impl ProposalPanelState {
+    fn is_available(&self) -> bool {
+        matches!(
+            self,
+            Self::Evaluated(evaluation)
+                if matches!(
+                    evaluation.as_ref(),
+                    DraftEstimateProposalEvaluation::Available { .. }
+                )
+        )
+    }
 }
 
 impl SettingsPanelState {
@@ -86,6 +122,7 @@ enum WorkspaceView {
     #[default]
     Estimate,
     Settings,
+    ModelAndStock,
 }
 
 impl WorkspaceView {
@@ -93,7 +130,32 @@ impl WorkspaceView {
         match self {
             Self::Estimate => "Estimate workspace",
             Self::Settings => "Shop settings",
+            Self::ModelAndStock => "Model & stock",
         }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+enum ModelViewerPanelState {
+    #[default]
+    Loading,
+    Unavailable,
+    Ready,
+    Switching,
+    Active(ModelViewerWorkspaceResult),
+    Failed(HostCommandError),
+}
+
+impl ModelViewerPanelState {
+    fn is_available(&self) -> bool {
+        matches!(
+            self,
+            Self::Ready | Self::Switching | Self::Active(_) | Self::Failed(_)
+        )
+    }
+
+    fn is_switching(&self) -> bool {
+        matches!(self, Self::Switching)
     }
 }
 
@@ -107,6 +169,9 @@ enum SettingsSection {
 #[derive(Clone, Debug, Default)]
 struct DeveloperEstimateForm {
     geometry_review: GeometryReviewConfirmation,
+    proposal_values_reviewed: bool,
+    coarse_limitations_accepted: bool,
+    proposal_review_reason: String,
     stock_volume_mm3: String,
     density_kg_per_mm3: String,
     deliver_quantity: String,
@@ -388,6 +453,77 @@ impl DeveloperEstimateForm {
         }
     }
 
+    /// Loads the versioned Huntsville aerospace testing baseline into the unsaved form.
+    ///
+    /// The user must still review, confirm, and save them; this action never creates shop or
+    /// production authority and is intentionally unavailable as an automatic startup default.
+    fn load_huntsville_test_values(&mut self) {
+        self.rate_card_id = "huntsville-2026q3-test-rates".to_owned();
+        self.rate_card_version = "1".to_owned();
+        self.effective_on = "2026-09-11".to_owned();
+        self.currency = "USD".to_owned();
+        self.setup_labor_per_hour = "47.00".to_owned();
+        self.programming_per_hour = "50.90".to_owned();
+        self.run_labor_per_hour = "47.50".to_owned();
+        self.machine_per_hour = "45.00".to_owned();
+        self.quality_inspection_per_hour = "37.00".to_owned();
+        self.pricing_policy_id = "huntsville-2026q3-test-pricing".to_owned();
+        self.pricing_policy_version = "1".to_owned();
+        self.markup_rate = "0.25".to_owned();
+        self.optional_price_floor.clear();
+        self.optional_minimum_order.clear();
+        self.rounding_decimal_places = "2".to_owned();
+
+        self.resources = DeveloperResourceForm {
+            enabled: true,
+            confirmed_for_draft: false,
+            library_id: "huntsville-2026q3-test-resources".to_owned(),
+            library_version: "1".to_owned(),
+            material_id: "test-al-6061-t651".to_owned(),
+            material_version: "1".to_owned(),
+            material_family: "Aluminum".to_owned(),
+            material_grade: "6061".to_owned(),
+            optional_material_specification: String::new(),
+            optional_material_condition: "T651".to_owned(),
+            density_kg_per_m3: "2700".to_owned(),
+            material_source: "aluminum-association-density-2025".to_owned(),
+            offer_id: "public-6061-plate-test-offer-2026q3".to_owned(),
+            offer_version: "1".to_owned(),
+            supplier: "Public 6061 benchmark (test only)".to_owned(),
+            material_price_per_kg: "10.00".to_owned(),
+            offer_effective_on: "2026-09-11".to_owned(),
+            offer_source: "public-6061-plate-benchmark-2026q3".to_owned(),
+            stock_profile_id: "test-rectangular-stock-allowance".to_owned(),
+            stock_profile_version: "1".to_owned(),
+            stock_form: "rectangular".to_owned(),
+            stock_allowance_x_mm: "6.4".to_owned(),
+            stock_allowance_y_mm: "6.4".to_owned(),
+            stock_allowance_z_mm: "6.4".to_owned(),
+            stock_source: "generic-aerospace-test-assumption".to_owned(),
+            machine_id: "test-reference-vmc".to_owned(),
+            machine_version: "1".to_owned(),
+            machine_name: "Reference 3-axis VMC (VF-2 envelope)".to_owned(),
+            process_class: "milling".to_owned(),
+            machine_envelope_x_mm: "762".to_owned(),
+            machine_envelope_y_mm: "406".to_owned(),
+            machine_envelope_z_mm: "508".to_owned(),
+            machine_source: "haas-vf2-public-spec".to_owned(),
+            runtime_profile_id: "test-aluminum-coarse-runtime".to_owned(),
+            runtime_profile_version: "1".to_owned(),
+            removal_rate_mm3_per_minute: "250000".to_owned(),
+            setup_minutes: "90".to_owned(),
+            programming_minutes: "120".to_owned(),
+            load_unload_minutes: "5".to_owned(),
+            inspection_minutes: "15".to_owned(),
+            runtime_source: "generic-aluminum-test-assumption-not-cam".to_owned(),
+        };
+        self.rates_confirmed = false;
+        self.pricing_confirmed = false;
+        self.settings_changed_by = "local-test-operator".to_owned();
+        self.settings_change_reason =
+            "Load research-informed Huntsville aerospace testing baseline".to_owned();
+    }
+
     fn estimate_inputs_complete(&self) -> bool {
         [
             &self.stock_volume_mm3,
@@ -421,6 +557,19 @@ impl DeveloperEstimateForm {
         ]
         .into_iter()
         .all(|value| !value.trim().is_empty())
+    }
+
+    fn proposal_adoption_ready(&self) -> bool {
+        self.proposal_values_reviewed
+            && self.coarse_limitations_accepted
+            && !self.proposal_review_reason.trim().is_empty()
+            && [
+                &self.deliver_quantity,
+                &self.planned_spares,
+                &self.destructive_samples,
+            ]
+            .into_iter()
+            .all(|value| !value.trim().is_empty())
     }
 
     fn session_settings_ready(&self) -> bool {
@@ -581,7 +730,27 @@ impl DeveloperEstimateForm {
             },
             rates: self.rates(),
             pricing: self.pricing(),
+            proposal_adoption: None,
         }
+    }
+
+    fn proposal_request(
+        &self,
+        proposal: &DraftEstimateProposalSummary,
+    ) -> EvaluateDraftEstimateRequest {
+        let mut request = self.request(proposal.selection_id.clone(), proposal.analysis_id.clone());
+        request.proposal_adoption = Some(DraftEstimateProposalAdoptionInput {
+            settings_revision: proposal.settings_revision,
+            library_id: proposal.library_id.clone(),
+            library_version: proposal.library_version,
+            proposal_values_reviewed: self.proposal_values_reviewed,
+            coarse_limitations_accepted: self.coarse_limitations_accepted,
+            review_reason: self.proposal_review_reason.clone(),
+            deliver_quantity: self.deliver_quantity.clone(),
+            planned_spares: self.planned_spares.clone(),
+            destructive_samples: self.destructive_samples.clone(),
+        });
+        request
     }
 }
 
@@ -594,10 +763,88 @@ fn App() -> impl IntoView {
     let (model_state, set_model_state) = signal(ModelPanelState::Empty);
     let (analysis_state, set_analysis_state) = signal(AnalysisPanelState::NotStarted);
     let (estimate_state, set_estimate_state) = signal(DraftEstimatePanelState::NotReady);
+    let (proposal_state, set_proposal_state) = signal(ProposalPanelState::NotRequested);
     let (is_selecting, set_is_selecting) = signal(false);
     let (active_view, set_active_view) = signal(WorkspaceView::Estimate);
+    let (viewer_state, set_viewer_state) = signal(ModelViewerPanelState::Loading);
     let (settings_state, set_settings_state) = signal(SettingsPanelState::Loading);
     let form = RwSignal::new(DeveloperEstimateForm::new());
+
+    leptos::task::spawn_local(async move {
+        match invoke_partprobe(COMMAND_DESKTOP_CONTRACT, JsValue::UNDEFINED).await {
+            Ok(value) => match serde_wasm_bindgen::from_value::<DesktopContract>(value) {
+                Ok(contract)
+                    if contract.model_viewer == ModelViewerAvailability::DeveloperPreview =>
+                {
+                    set_viewer_state.set(ModelViewerPanelState::Ready);
+                }
+                Ok(_) => set_viewer_state.set(ModelViewerPanelState::Unavailable),
+                Err(_) => set_viewer_state.set(ModelViewerPanelState::Failed(
+                    HostCommandError::host_state_unavailable("VIS1-CONTRACT-RESULT"),
+                )),
+            },
+            Err(error) => {
+                let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                    .unwrap_or_else(|_| {
+                        HostCommandError::host_state_unavailable("VIS1-CONTRACT-INVOKE")
+                    });
+                set_viewer_state.set(ModelViewerPanelState::Failed(error));
+            }
+        }
+    });
+
+    let switch_workspace = Callback::new(move |target: WorkspaceView| {
+        let current = active_view.get_untracked();
+        if current == target {
+            return;
+        }
+        let viewer_transition =
+            current == WorkspaceView::ModelAndStock || target == WorkspaceView::ModelAndStock;
+        if !viewer_transition {
+            set_active_view.set(target);
+            return;
+        }
+        if target == WorkspaceView::ModelAndStock && !viewer_state.get_untracked().is_available() {
+            return;
+        }
+        let requested_mode = if target == WorkspaceView::ModelAndStock {
+            ModelViewerWorkspaceMode::Visible
+        } else {
+            ModelViewerWorkspaceMode::Hidden
+        };
+        set_viewer_state.set(ModelViewerPanelState::Switching);
+        leptos::task::spawn_local(async move {
+            let request = SetModelViewerWorkspaceRequest {
+                mode: requested_mode,
+            };
+            let args = serde_wasm_bindgen::to_value(&SetModelViewerWorkspaceArgs { request })
+                .unwrap_or(JsValue::UNDEFINED);
+            match invoke_partprobe(COMMAND_SET_MODEL_VIEWER_WORKSPACE, args).await {
+                Ok(value) => {
+                    match serde_wasm_bindgen::from_value::<ModelViewerWorkspaceResult>(value) {
+                        Ok(result) if result.mode == requested_mode => {
+                            set_active_view.set(target);
+                            if target == WorkspaceView::ModelAndStock {
+                                set_viewer_state.set(ModelViewerPanelState::Active(result));
+                            } else {
+                                set_viewer_state.set(ModelViewerPanelState::Ready);
+                            }
+                        }
+                        _ => set_viewer_state.set(ModelViewerPanelState::Failed(
+                            HostCommandError::host_state_unavailable("VIS1-WORKSPACE-RESULT"),
+                        )),
+                    }
+                }
+                Err(error) => {
+                    let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                        .unwrap_or_else(|_| {
+                            HostCommandError::host_state_unavailable("VIS1-WORKSPACE-INVOKE")
+                        });
+                    set_viewer_state.set(ModelViewerPanelState::Failed(error));
+                }
+            }
+        });
+    });
 
     let load_settings = Callback::new(move |()| {
         set_settings_state.set(SettingsPanelState::Loading);
@@ -674,6 +921,10 @@ fn App() -> impl IntoView {
         let _ = form.get();
         set_estimate_state.set(DraftEstimatePanelState::NotReady);
     });
+    Effect::new(move |_| {
+        let _ = settings_state.get();
+        set_proposal_state.set(ProposalPanelState::NotRequested);
+    });
 
     let select_model = move |_| {
         set_is_selecting.set(true);
@@ -687,6 +938,7 @@ fn App() -> impl IntoView {
                 Some(selection @ ModelSourceSelection::Selected { .. }) => {
                     set_model_state.update(|state| state.apply_selection(selection));
                     set_analysis_state.set(AnalysisPanelState::NotStarted);
+                    set_proposal_state.set(ProposalPanelState::NotRequested);
                     set_estimate_state.set(DraftEstimatePanelState::NotReady);
                 }
                 Some(ModelSourceSelection::Cancelled) => {}
@@ -705,6 +957,7 @@ fn App() -> impl IntoView {
             return;
         };
         set_estimate_state.set(DraftEstimatePanelState::NotReady);
+        set_proposal_state.set(ProposalPanelState::NotRequested);
         set_analysis_state.set(AnalysisPanelState::Running);
         leptos::task::spawn_local(async move {
             let request = AnalyzeModelSourceRequest { selection_id };
@@ -774,7 +1027,7 @@ fn App() -> impl IntoView {
         <a class="skip-link" href="#workspace">"Skip to workspace"</a>
         <header class="app-header">
             <div>
-                <p class="eyebrow">"PARTPROBE / INTERNAL PRE-ALPHA"</p>
+                <p class="eyebrow">"PARTPROBE"</p>
                 <h1>{move || active_view.get().title()}</h1>
             </div>
             <div class="app-header-actions">
@@ -787,7 +1040,8 @@ fn App() -> impl IntoView {
                             "navigation-action"
                         }
                         aria-pressed=move || active_view.get() == WorkspaceView::Estimate
-                        on:click=move |_| set_active_view.set(WorkspaceView::Estimate)
+                        disabled=move || viewer_state.get().is_switching()
+                        on:click=move |_| switch_workspace.run(WorkspaceView::Estimate)
                     >
                         "Estimate"
                     </button>
@@ -799,14 +1053,30 @@ fn App() -> impl IntoView {
                             "navigation-action"
                         }
                         aria-pressed=move || active_view.get() == WorkspaceView::Settings
-                        on:click=move |_| set_active_view.set(WorkspaceView::Settings)
+                        disabled=move || viewer_state.get().is_switching()
+                        on:click=move |_| switch_workspace.run(WorkspaceView::Settings)
                     >
                         "Settings"
                     </button>
+                    <Show when=move || viewer_state.get().is_available()>
+                        <button
+                            type="button"
+                            class=move || if active_view.get() == WorkspaceView::ModelAndStock {
+                                "navigation-action active"
+                            } else {
+                                "navigation-action"
+                            }
+                            aria-pressed=move || active_view.get() == WorkspaceView::ModelAndStock
+                            disabled=move || viewer_state.get().is_switching()
+                            on:click=move |_| switch_workspace.run(WorkspaceView::ModelAndStock)
+                        >
+                            "Model & stock"
+                        </button>
+                    </Show>
                 </nav>
                 <div class="session-state" aria-label="Application state">
                     <span class="state-dot" aria-hidden="true"></span>
-                    <span>"Estimate session not saved"</span>
+                    <span>"Internal test · Local only · Estimate not saved"</span>
                 </div>
             </div>
         </header>
@@ -814,31 +1084,38 @@ fn App() -> impl IntoView {
         <Show
             when=move || active_view.get() == WorkspaceView::Estimate
             fallback=move || view! {
-                <SettingsWorkspace form settings_state set_active_view save_settings load_settings />
+                <Show
+                    when=move || active_view.get() == WorkspaceView::Settings
+                    fallback=move || view! {
+                        <ModelViewerWorkspace model_state analysis_state proposal_state viewer_state />
+                    }
+                >
+                    <SettingsWorkspace form settings_state set_active_view save_settings load_settings />
+                </Show>
             }
         >
             <main id="workspace" class="workspace">
                 <section class="model-panel" aria-labelledby="model-heading">
                     <div class="panel-heading">
                         <div>
-                            <p class="section-index">"01 / SOURCE"</p>
-                            <h2 id="model-heading">"Model intake"</h2>
+                            <p class="section-index">"MODEL"</p>
+                            <h2 id="model-heading">"Upload model"</h2>
                         </div>
-                        <span class="status-chip">"STEP · STL · 3MF"</span>
+                        <span class="status-chip">"STEP estimating · STL/3MF analysis only"</span>
                     </div>
 
                     <div class="drop-zone">
                         <div class="model-mark" aria-hidden="true">"P"</div>
                         <p class="status-heading" aria-live="polite">
                             {move || if is_selecting.get() {
-                                "Waiting for model selection"
+                                "Choose a model in the file window"
                             } else {
                                 model_state.get().status_heading()
                             }}
                         </p>
                         <p class="status-detail">
                             {move || if is_selecting.get() {
-                                "PartProbe is showing the native file picker."
+                                "Files stay on this computer."
                             } else {
                                 model_state.get().status_detail()
                             }}
@@ -849,7 +1126,7 @@ fn App() -> impl IntoView {
                             disabled=move || is_selecting.get()
                             on:click=select_model
                         >
-                            {move || if is_selecting.get() { "Picker open" } else { "Choose model" }}
+                            {move || if is_selecting.get() { "File window open" } else { "Choose model" }}
                         </button>
                     </div>
 
@@ -887,6 +1164,8 @@ fn App() -> impl IntoView {
 
                 <EstimateWorkspace
                     analysis_state
+                    proposal_state
+                    set_proposal_state
                     estimate_state
                     set_estimate_state
                     form
@@ -894,6 +1173,83 @@ fn App() -> impl IntoView {
                 />
             </main>
         </Show>
+    }
+}
+
+#[component]
+fn ModelViewerWorkspace(
+    model_state: ReadSignal<ModelPanelState>,
+    analysis_state: ReadSignal<AnalysisPanelState>,
+    proposal_state: ReadSignal<ProposalPanelState>,
+    viewer_state: ReadSignal<ModelViewerPanelState>,
+) -> impl IntoView {
+    let source = move || {
+        model_state.get().selected_source().map_or_else(
+            || "No model selected".to_owned(),
+            |source| source.display_name.clone(),
+        )
+    };
+    let analysis = move || match analysis_state.get() {
+        AnalysisPanelState::Available(_) => "Provisional analysis available",
+        AnalysisPanelState::Running => "Analysis running",
+        AnalysisPanelState::Cancelling => "Analysis cancelling",
+        AnalysisPanelState::Cancelled => "Analysis cancelled",
+        AnalysisPanelState::Failed(_) => "Analysis failed",
+        AnalysisPanelState::NotStarted => "Not analyzed",
+    };
+    let proposal = move || match proposal_state.get() {
+        ProposalPanelState::Evaluated(evaluation)
+            if matches!(
+                evaluation.as_ref(),
+                DraftEstimateProposalEvaluation::Available { .. }
+            ) =>
+        {
+            "Reviewable proposal available"
+        }
+        ProposalPanelState::Loading => "Proposal loading",
+        ProposalPanelState::Failed(_) => "Proposal failed",
+        ProposalPanelState::Evaluated(_) => "Proposal unavailable",
+        ProposalPanelState::NotRequested => "Not prepared",
+    };
+    let viewer_notice = move || match viewer_state.get() {
+        ModelViewerPanelState::Active(result) => result.notice,
+        ModelViewerPanelState::Failed(error) => {
+            format!("{} Diagnostic: {}", error.message, error.diagnostic_id)
+        }
+        _ => "Native viewport is changing state.".to_owned(),
+    };
+
+    view! {
+        <main id="workspace" class="model-viewer-workspace">
+            <section class="model-viewer-inspector" aria-labelledby="model-viewer-heading">
+                <div class="panel-heading">
+                    <div>
+                        <p class="section-index">"VISUAL REVIEW"</p>
+                        <h2 id="model-viewer-heading">"Model & proposed stock"</h2>
+                    </div>
+                    <span class="status-chip blocked">"Synthetic preview"</span>
+                </div>
+
+                <div class="viewer-preview-notice" role="status">
+                    <p class="blocked-title">"Renderer validation scene"</p>
+                    <p>{viewer_notice}</p>
+                </div>
+
+                <dl class="viewer-summary">
+                    <div><dt>"Selected source"</dt><dd>{source}</dd></div>
+                    <div><dt>"Analysis"</dt><dd>{analysis}</dd></div>
+                    <div><dt>"Stock proposal"</dt><dd>{proposal}</dd></div>
+                    <div><dt>"View"</dt><dd>"Isometric · model opaque · stock translucent"</dd></div>
+                </dl>
+
+                <p class="evidence-note">
+                    "The native viewport is inside this PartProbe window. Its current shapes are a fixed renderer test—not the selected model, stock authority, workholding, or CAM evidence."
+                </p>
+                <p class="viewer-navigation-note">
+                    "Use Estimate or Settings above to return to the full workspace."
+                </p>
+            </section>
+        </main>
     }
 }
 
@@ -912,9 +1268,7 @@ fn SourceSummary(source: SelectedModelSource) -> impl IntoView {
     view! {
         <dl class="source-summary" aria-label=accessible_label>
             <div><dt>"File"</dt><dd>{source.display_name}</dd></div>
-            <div><dt>"Selected format"</dt><dd>{format}</dd></div>
-            <div><dt>"Authority"</dt><dd>"Native session token"</dd></div>
-            <div><dt>"Storage"</dt><dd>"Session only"</dd></div>
+            <div><dt>"Format"</dt><dd>{format}</dd></div>
         </dl>
     }
 }
@@ -992,27 +1346,37 @@ fn AnalysisEvidence(state: ReadSignal<AnalysisPanelState>) -> impl IntoView {
             match result.geometry {
                 ProvisionalGeometryFacts::ExactBrep(geometry) => {
                     let centroid = geometry.center_of_mass_mm.join(", ");
+                    let bounds = geometry.aabb_extents_mm.as_ref().map_or_else(
+                        || "Unavailable in legacy analysis".to_owned(),
+                        |value| format!("{} × {} × {} mm", value[0], value[1], value[2]),
+                    );
                     view! {
                         <section class="analysis-evidence" aria-label=accessible_label>
                             <div class="analysis-evidence-heading">
                                 <div>
-                                    <p class="section-index">"PROVISIONAL / SESSION ONLY"</p>
-                                    <h3 id="analysis-evidence-heading">"Exact-B-rep geometry evidence"</h3>
+                                    <p class="section-index">"MODEL ANALYSIS"</p>
+                                    <h3 id="analysis-evidence-heading">"Model measurements"</h3>
                                 </div>
                                 <span class="status-chip">"Review required"</span>
                             </div>
                             <dl class="geometry-facts">
+                                <div><dt>"Model size (X × Y × Z)"</dt><dd>{bounds}</dd></div>
                                 <div><dt>"Surface area"</dt><dd>{geometry.surface_area_mm2}" mm²"</dd></div>
                                 <div><dt>"Enclosed volume"</dt><dd>{geometry.enclosed_volume_mm3}" mm³"</dd></div>
-                                <div><dt>"Centroid"</dt><dd>{centroid}" mm"</dd></div>
                                 <div><dt>"Solid bodies"</dt><dd>{geometry.solid_body_count}</dd></div>
-                                <div><dt>"Canonical units"</dt><dd>"Millimeter"</dd></div>
+                                <div><dt>"Units"</dt><dd>"Millimeters"</dd></div>
                                 <div><dt>"Warnings"</dt><dd>{warning_count}</dd></div>
-                                <div><dt>"Engine"</dt><dd>{geometry.geometry_engine}</dd></div>
-                                <div><dt>"Analysis ID"</dt><dd>{result.analysis_id}</dd></div>
                             </dl>
+                            <details>
+                                <summary>"Technical details"</summary>
+                                <dl class="geometry-facts">
+                                    <div><dt>"Centroid"</dt><dd>{centroid}" mm"</dd></div>
+                                    <div><dt>"Engine"</dt><dd>{geometry.geometry_engine}</dd></div>
+                                    <div><dt>"Analysis ID"</dt><dd>{result.analysis_id}</dd></div>
+                                </dl>
+                            </details>
                             <p class="evidence-note">
-                                "These exact-B-rep measurements are provisional spike evidence. They are not a supported importer result or an approved estimate."
+                                "Provisional analysis—review the measurements and warnings before estimating."
                             </p>
                         </section>
                     }
@@ -1093,8 +1457,9 @@ fn AnalysisEvidence(state: ReadSignal<AnalysisPanelState>) -> impl IntoView {
                 provisional_analysis_failure_accessible_label(&error.diagnostic_id);
             view! {
                 <section class="analysis-error" role="alert" aria-label=accessible_label>
-                    <p class="blocked-title">"Analysis failed safely"</p>
+                    <p class="blocked-title">"Analysis couldn’t be completed"</p>
                     <p>{error.message}</p>
+                    <p>"Your selected model is unchanged."</p>
                     <p class="diagnostic-id">"Diagnostic: " {error.diagnostic_id}</p>
                 </section>
             }
@@ -1102,15 +1467,15 @@ fn AnalysisEvidence(state: ReadSignal<AnalysisPanelState>) -> impl IntoView {
         }
         AnalysisPanelState::Running => view! {
             <section class="analysis-progress" role="status">
-                <p class="blocked-title">"Isolated worker analysis in progress"</p>
-                <p>"The selected source remains session-only. Cancellation is available above."</p>
+                <p class="blocked-title">"Analyzing model"</p>
+                <p>"You can cancel without clearing the selected model."</p>
             </section>
         }
         .into_any(),
         AnalysisPanelState::Cancelling => view! {
             <section class="analysis-progress" role="status">
                 <p class="blocked-title">"Cancellation requested"</p>
-                <p>"PartProbe is waiting for acknowledgement or bounded forced cleanup."</p>
+                <p>"The selected model will remain available when cancellation finishes."</p>
             </section>
         }
         .into_any(),
@@ -1126,8 +1491,116 @@ fn AnalysisEvidence(state: ReadSignal<AnalysisPanelState>) -> impl IntoView {
 }
 
 #[component]
+fn ProposalEvidence(
+    state: ReadSignal<ProposalPanelState>,
+    form: RwSignal<DeveloperEstimateForm>,
+) -> impl IntoView {
+    move || match state.get() {
+        ProposalPanelState::NotRequested => view! {
+            <p class="estimate-readiness">
+                "Save complete test settings, then prepare estimate inputs."
+            </p>
+        }
+        .into_any(),
+        ProposalPanelState::Loading => view! {
+            <section class="analysis-progress" role="status">
+                <p class="blocked-title">"Preparing estimate inputs"</p>
+                <p>"Applying the saved test settings to this model."</p>
+            </section>
+        }
+        .into_any(),
+        ProposalPanelState::Evaluated(evaluation) => match *evaluation {
+            DraftEstimateProposalEvaluation::Available { proposal } => {
+                let model = proposal.model_extents_mm.join(" × ");
+                let blank = proposal.blank_dimensions_mm.join(" × ");
+                let reasons = proposal.reason_codes.join(", ");
+                view! {
+                    <section class="analysis-evidence proposal-evidence" aria-label="Review-only model estimate proposal">
+                        <div class="analysis-evidence-heading">
+                            <div>
+                                <p class="section-index">"REVIEW REQUIRED"</p>
+                                <h3>"Proposed manufacturing inputs"</h3>
+                            </div>
+                            <span class="status-chip">"Not adopted"</span>
+                        </div>
+                        <dl class="geometry-facts">
+                            <div><dt>"Model size"</dt><dd>{model}" mm"</dd></div>
+                            <div><dt>"Stock size"</dt><dd>{blank}" mm"</dd></div>
+                            <div><dt>"Blank volume"</dt><dd>{proposal.blank_volume_mm3}" mm³"</dd></div>
+                            <div><dt>"Removed volume"</dt><dd>{proposal.removed_volume_mm3}" mm³"</dd></div>
+                            <div><dt>"Material"</dt><dd>{proposal.material_grade}</dd></div>
+                            <div><dt>"Blank mass"</dt><dd>{proposal.blank_mass_kg}" kg"</dd></div>
+                            <div><dt>"Material cost / item"</dt><dd>{proposal.currency.clone()}" "{proposal.unit_stock_material_cost}</dd></div>
+                            <div><dt>"Machine"</dt><dd>{proposal.machine_name}</dd></div>
+                            <div><dt>"Estimated cutting time"</dt><dd>{proposal.cutting_hours_per_item}" hr/item"</dd></div>
+                            <div><dt>"Setup + programming"</dt><dd>{proposal.setup_hours}" + "{proposal.programming_hours}" hr/lot"</dd></div>
+                        </dl>
+                        <p class="evidence-note">
+                            "Uses the model’s current orientation and a rectangular stock allowance. Stock availability and detailed cycle analysis are not included."
+                        </p>
+                        <details>
+                            <summary>"Proposal details"</summary>
+                            <p>"Settings revision " {proposal.settings_revision}</p>
+                            <p>"Rule " {proposal.rule_id}" v"{proposal.rule_version}</p>
+                            <p class="diagnostic-id">"Reasons: " {reasons}</p>
+                        </details>
+                        <fieldset>
+                            <legend>"Review proposal"</legend>
+                            <ReviewCheckbox
+                                form
+                                label="The proposed stock, material, machine, and times look reasonable for this test."
+                                read=|form| form.proposal_values_reviewed
+                                write=|form, value| form.proposal_values_reviewed = value
+                            />
+                            <ReviewCheckbox
+                                form
+                                label="I understand this estimate excludes tooling, fixtures, outside processes, freight, overhead, risk, and detailed cycle analysis."
+                                read=|form| form.coarse_limitations_accepted
+                                write=|form, value| form.coarse_limitations_accepted = value
+                            />
+                            <TextInput
+                                form
+                                label="Review note"
+                                read=|form| &form.proposal_review_reason
+                                write=|form, value| form.proposal_review_reason = value
+                            />
+                        </fieldset>
+                    </section>
+                }
+                .into_any()
+            }
+            DraftEstimateProposalEvaluation::Unavailable { reason } => view! {
+                <section class="analysis-error" role="status">
+                    <p class="blocked-title">"Proposal unavailable"</p>
+                    <p>{reason}</p>
+                    <p>"Open Settings to save and confirm a complete starter resource draft."</p>
+                </section>
+            }
+            .into_any(),
+            DraftEstimateProposalEvaluation::Blocked { reason } => view! {
+                <section class="analysis-error" role="alert">
+                    <p class="blocked-title">"Proposal blocked"</p>
+                    <p>{reason}</p>
+                </section>
+            }
+            .into_any(),
+        },
+        ProposalPanelState::Failed(error) => view! {
+            <section class="analysis-error" role="alert">
+                    <p class="blocked-title">"Couldn’t prepare estimate inputs"</p>
+                <p>{error.message}</p>
+                <p class="diagnostic-id">"Diagnostic: " {error.diagnostic_id}</p>
+            </section>
+        }
+        .into_any(),
+    }
+}
+
+#[component]
 fn EstimateWorkspace(
     analysis_state: ReadSignal<AnalysisPanelState>,
+    proposal_state: ReadSignal<ProposalPanelState>,
+    set_proposal_state: WriteSignal<ProposalPanelState>,
     estimate_state: ReadSignal<DraftEstimatePanelState>,
     set_estimate_state: WriteSignal<DraftEstimatePanelState>,
     form: RwSignal<DeveloperEstimateForm>,
@@ -1135,8 +1608,56 @@ fn EstimateWorkspace(
 ) -> impl IntoView {
     Effect::new(move |_| {
         let _ = analysis_state.get();
-        form.update(|form| form.geometry_review.clear());
+        form.update(|form| {
+            form.geometry_review.clear();
+            form.proposal_values_reviewed = false;
+            form.coarse_limitations_accepted = false;
+            form.proposal_review_reason.clear();
+        });
+        set_proposal_state.set(ProposalPanelState::NotRequested);
     });
+    let prepare_proposal = move |_| {
+        let Some((selection_id, analysis_id)) = (match analysis_state.get_untracked() {
+            AnalysisPanelState::Available(result) => {
+                Some((result.selection_id.clone(), result.analysis_id.clone()))
+            }
+            _ => None,
+        }) else {
+            return;
+        };
+        set_proposal_state.set(ProposalPanelState::Loading);
+        leptos::task::spawn_local(async move {
+            let request = PrepareDraftEstimateProposalRequest {
+                selection_id,
+                analysis_id,
+            };
+            let args = serde_wasm_bindgen::to_value(&PrepareDraftEstimateProposalArgs { request })
+                .unwrap_or(JsValue::UNDEFINED);
+            match invoke_partprobe(COMMAND_PREPARE_DRAFT_ESTIMATE_PROPOSAL, args).await {
+                Ok(value) => {
+                    let state =
+                        serde_wasm_bindgen::from_value::<DraftEstimateProposalEvaluation>(value)
+                            .map(Box::new)
+                            .map(ProposalPanelState::Evaluated)
+                            .unwrap_or_else(|_| {
+                                ProposalPanelState::Failed(
+                                    HostCommandError::invalid_estimate_input(
+                                        "USE3-PROPOSAL-RESULT",
+                                    ),
+                                )
+                            });
+                    set_proposal_state.set(state);
+                }
+                Err(error) => {
+                    let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                        .unwrap_or_else(|_| {
+                            HostCommandError::invalid_estimate_input("USE3-PROPOSAL-INVOKE")
+                        });
+                    set_proposal_state.set(ProposalPanelState::Failed(error));
+                }
+            }
+        });
+    };
     let submit = move |event: leptos::ev::SubmitEvent| {
         event.prevent_default();
         let Some((selection_id, analysis_id)) = (match analysis_state.get_untracked() {
@@ -1147,7 +1668,22 @@ fn EstimateWorkspace(
         }) else {
             return;
         };
-        let request = form.with(|form| form.request(selection_id, analysis_id));
+        let request = match proposal_state.get_untracked() {
+            ProposalPanelState::Evaluated(evaluation) => match *evaluation {
+                DraftEstimateProposalEvaluation::Available { proposal } => {
+                    form.with(|form| form.proposal_request(&proposal))
+                }
+                DraftEstimateProposalEvaluation::Unavailable { .. }
+                | DraftEstimateProposalEvaluation::Blocked { .. } => {
+                    form.with(|form| form.request(selection_id, analysis_id))
+                }
+            },
+            ProposalPanelState::NotRequested
+            | ProposalPanelState::Loading
+            | ProposalPanelState::Failed(_) => {
+                form.with(|form| form.request(selection_id, analysis_id))
+            }
+        };
         set_estimate_state.set(DraftEstimatePanelState::Evaluating);
         leptos::task::spawn_local(async move {
             let args = serde_wasm_bindgen::to_value(&EvaluateDraftEstimateArgs { request })
@@ -1179,8 +1715,8 @@ fn EstimateWorkspace(
         <aside class="estimate-panel" aria-labelledby="estimate-heading">
             <div class="panel-heading">
                 <div>
-                    <p class="section-index">"02 / ESTIMATE"</p>
-                    <h2 id="estimate-heading">"Draft estimate"</h2>
+                    <p class="section-index">"ESTIMATE"</p>
+                    <h2 id="estimate-heading">"Part estimate"</h2>
                 </div>
                 <span class=move || match estimate_state.get() {
                     DraftEstimatePanelState::Evaluated(ref evaluation)
@@ -1200,6 +1736,26 @@ fn EstimateWorkspace(
             {move || if analysis_supports_draft_estimate(&analysis_state.get()) {
                 view! {
                     <form class="estimate-form" on:submit=submit>
+                        <section class="settings-summary" aria-labelledby="proposal-heading">
+                            <div>
+                                <p class="section-index">"ESTIMATE BASIS"</p>
+                                <h3 id="proposal-heading">"Estimated stock and run time"</h3>
+                                <p>"Uses the model dimensions and saved test settings. Review these values before calculating."</p>
+                            </div>
+                            <button
+                                type="button"
+                                class="secondary-action"
+                                disabled=move || matches!(proposal_state.get(), ProposalPanelState::Loading)
+                                on:click=prepare_proposal
+                            >
+                                {move || if matches!(proposal_state.get(), ProposalPanelState::Loading) {
+                                    "Preparing inputs"
+                                } else {
+                                    "Prepare estimate inputs"
+                                }}
+                            </button>
+                        </section>
+                        <ProposalEvidence state=proposal_state form />
                         <section class="settings-summary" aria-labelledby="settings-summary-heading">
                             <div>
                                 <p class="section-index">"SHOP CONFIGURATION"</p>
@@ -1224,13 +1780,13 @@ fn EstimateWorkspace(
                             <legend>"Geometry review"</legend>
                             <ReviewCheckbox
                                 form
-                                label="I reviewed the canonical millimeter interpretation."
+                                label="Units are correct: millimeters."
                                 read=|form| form.geometry_review.canonical_units_reviewed
                                 write=|form, value| form.geometry_review.canonical_units_reviewed = value
                             />
                             <ReviewCheckbox
                                 form
-                                label="I reviewed the complete warning set, including an empty set."
+                                label="I reviewed the analysis warnings."
                                 read=|form| form.geometry_review.warnings_reviewed
                                 write=|form, value| form.geometry_review.warnings_reviewed = value
                             />
@@ -1239,17 +1795,24 @@ fn EstimateWorkspace(
                         <fieldset>
                             <legend>"Essential estimate inputs"</legend>
                             <p class="fieldset-note">
-                                "Quantity and material cannot be taken safely from geometry. Stock selection and material lookup are still manual in this checkpoint."
+                                {move || if proposal_state.get().is_available() {
+                                    "Quantity remains explicit. Reviewed stock, material, and coarse runtime values will come from the proposal above."
+                                } else {
+                                    "Quantity and material cannot be taken safely from geometry alone. Without a prepared proposal, complete the manual path below."
+                                }}
                             </p>
                             <div class="form-grid">
-                                <ExactInput form label="Stock volume" unit="mm³" read=|f| &f.stock_volume_mm3 write=|f, v| f.stock_volume_mm3 = v />
-                                <ExactInput form label="Material density" unit="kg/mm³" read=|f| &f.density_kg_per_mm3 write=|f, v| f.density_kg_per_mm3 = v />
-                                <ExactInput form label="Deliver quantity" unit="items" read=|f| &f.deliver_quantity write=|f, v| f.deliver_quantity = v />
+                                <Show when=move || !proposal_state.get().is_available()>
+                                    <ExactInput form label="Stock volume" unit="mm³" read=|f| &f.stock_volume_mm3 write=|f, v| f.stock_volume_mm3 = v />
+                                    <ExactInput form label="Material density" unit="kg/mm³" read=|f| &f.density_kg_per_mm3 write=|f, v| f.density_kg_per_mm3 = v />
+                                </Show>
+                                <ExactInput form label="Order quantity" unit="items" read=|f| &f.deliver_quantity write=|f, v| f.deliver_quantity = v />
                                 <ExactInput form label="Planned spares" unit="items" read=|f| &f.planned_spares write=|f, v| f.planned_spares = v />
                                 <ExactInput form label="Destructive samples" unit="items" read=|f| &f.destructive_samples write=|f, v| f.destructive_samples = v />
                             </div>
                         </fieldset>
 
+                        <Show when=move || !proposal_state.get().is_available()>
                         <details class="manual-inputs">
                             <summary>"Manual manufacturing assumptions"</summary>
                             <p class="fieldset-note">
@@ -1297,14 +1860,21 @@ fn EstimateWorkspace(
                                 </div>
                             </fieldset>
                         </details>
+                        </Show>
 
                         <p class="estimate-readiness" role="status">
                             {move || if !form.with(DeveloperEstimateForm::session_settings_ready) {
-                                "Estimate blocked: complete and confirm Settings."
-                            } else if !form.with(DeveloperEstimateForm::estimate_inputs_complete) {
-                                "Estimate blocked: complete essential inputs and manual manufacturing assumptions."
+                                "Complete your test settings to continue."
+                            } else if proposal_state.get().is_available()
+                                && !form.with(DeveloperEstimateForm::proposal_adoption_ready)
+                            {
+                                "Review the proposed inputs and add a review note."
+                            } else if !proposal_state.get().is_available()
+                                && !form.with(DeveloperEstimateForm::estimate_inputs_complete)
+                            {
+                                "Complete the required estimate inputs."
                             } else {
-                                "Current manual inputs and session settings are ready for deterministic calculation."
+                                "Ready to calculate."
                             }}
                         </p>
 
@@ -1314,13 +1884,17 @@ fn EstimateWorkspace(
                             disabled=move || {
                                 matches!(estimate_state.get(), DraftEstimatePanelState::Evaluating)
                                     || !form.with(DeveloperEstimateForm::session_settings_ready)
-                                    || !form.with(DeveloperEstimateForm::estimate_inputs_complete)
+                                    || if proposal_state.get().is_available() {
+                                        !form.with(DeveloperEstimateForm::proposal_adoption_ready)
+                                    } else {
+                                        !form.with(DeveloperEstimateForm::estimate_inputs_complete)
+                                    }
                             }
                         >
                             {move || if matches!(estimate_state.get(), DraftEstimatePanelState::Evaluating) {
-                                "Evaluating estimate"
+                                "Calculating estimate"
                             } else {
-                                "Calculate current draft"
+                                "Calculate estimate"
                             }}
                         </button>
                     </form>
@@ -1330,8 +1904,8 @@ fn EstimateWorkspace(
             } else {
                 view! {
                     <div class="blocked-state" aria-live="polite">
-                        <p class="blocked-title">"Provisional geometry required"</p>
-                        <p>{analysis_state.get().status_detail().to_owned()}</p>
+                        <p class="blocked-title">"Choose and analyze a model"</p>
+                        <p>"Select a STEP file to create an estimate. STL and 3MF analysis is available, but estimating is not yet supported for mesh files."</p>
                         <dl>
                             <div><dt>"Geometry"</dt><dd>"Not available"</dd></div>
                             <div><dt>"Units"</dt><dd>"Not reviewed"</dd></div>
@@ -1361,8 +1935,8 @@ fn SettingsWorkspace(
             <section class="settings-panel" aria-labelledby="settings-heading">
                 <div class="panel-heading">
                     <div>
-                        <p class="section-index">"SETTINGS / CURRENT CHECKPOINT"</p>
-                        <h2 id="settings-heading">"Shop calculation inputs"</h2>
+                        <p class="section-index">"SETTINGS"</p>
+                        <h2 id="settings-heading">"Shop rates and resources"</h2>
                     </div>
                     <span class=move || if form.with(DeveloperEstimateForm::session_settings_ready) {
                         "status-chip available"
@@ -1378,18 +1952,28 @@ fn SettingsWorkspace(
                 </div>
 
                 <section class="settings-boundary" role="status" aria-live="polite">
-                    <p class="blocked-title">"Durable local settings draft"</p>
+                    <p class="blocked-title">"Saved test settings"</p>
                     <p>
                         {move || match settings_state.get() {
-                            SettingsPanelState::Loading => "Loading the host-owned local Settings database.".to_owned(),
-                            SettingsPanelState::NotConfigured => "First run: no saved shop-settings draft exists. Enter reviewed values; PartProbe does not invent numeric shop inputs.".to_owned(),
+                            SettingsPanelState::Loading => "Loading saved settings.".to_owned(),
+                            SettingsPanelState::NotConfigured => "No test settings are saved yet. Load the Huntsville test profile or enter your own reviewed values.".to_owned(),
                             SettingsPanelState::Available(settings) => format!(
                                 "Saved local draft revision {}. Reloaded values require fresh confirmation before calculation.",
                                 settings.revision,
                             ),
-                            SettingsPanelState::Saving => "Saving a new immutable local draft revision.".to_owned(),
+                            SettingsPanelState::Saving => "Saving a new local test-settings revision.".to_owned(),
                             SettingsPanelState::Failed { error, .. } => format!("{} Diagnostic: {}", error.message, error.diagnostic_id),
                         }}
+                    </p>
+                    <button
+                        type="button"
+                        class="secondary-action"
+                        on:click=move |_| form.update(DeveloperEstimateForm::load_huntsville_test_values)
+                    >
+                        "Load Huntsville test profile"
+                    </button>
+                    <p class="fieldset-note">
+                        "Research-informed testing baseline—not verified shop pricing. Review every field before saving or calculating."
                     </p>
                 </section>
 
@@ -1432,7 +2016,7 @@ fn SettingsWorkspace(
                         <div class="settings-grid">
                             <fieldset>
                                 <legend>"Rate card"</legend>
-                                <p class="fieldset-note">"Enter the five approved hourly rates required by the current deterministic calculation."</p>
+                                <p class="fieldset-note">"Enter the five hourly rates used by the current estimate."</p>
                                 <div class="form-grid">
                                     <ExactInput form label="Rate-card ID" unit="ID" read=|f| &f.rate_card_id write=|f, v| f.rate_card_id = v />
                                     <ExactInput form label="Rate-card version" unit="version" read=|f| &f.rate_card_version write=|f, v| f.rate_card_version = v />
@@ -1444,7 +2028,7 @@ fn SettingsWorkspace(
                                     <ExactInput form label="Machine" unit="/hr" read=|f| &f.machine_per_hour write=|f, v| f.machine_per_hour = v />
                                     <ExactInput form label="Quality inspection" unit="/hr" read=|f| &f.quality_inspection_per_hour write=|f, v| f.quality_inspection_per_hour = v />
                                 </div>
-                                <ReviewCheckbox form label="I reviewed these five rates for this saved draft and this session calculation." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
+                                <ReviewCheckbox form label="I reviewed these rates for this test." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
                             </fieldset>
 
                             <fieldset>
@@ -1457,7 +2041,7 @@ fn SettingsWorkspace(
                                     <OptionalInput form label="Minimum order" unit="currency" read=|f| &f.optional_minimum_order write=|f, v| f.optional_minimum_order = v />
                                     <ExactInput form label="Rounding places" unit="decimals" read=|f| &f.rounding_decimal_places write=|f, v| f.rounding_decimal_places = v />
                                 </div>
-                                <ReviewCheckbox form label="I reviewed this pricing policy for this saved draft and this session calculation." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
+                                <ReviewCheckbox form label="I reviewed this pricing policy for this test." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
                             </fieldset>
                         </div>
                     </section>
@@ -1468,19 +2052,14 @@ fn SettingsWorkspace(
                         <div class="section-heading">
                             <p class="section-index">"PROPOSAL RESOURCES"</p>
                             <h3 id="resource-settings-heading">"Materials, stock, machines, and runtime"</h3>
-                            <p>"Review reusable proposal inputs separately from estimate-authoritative rates and pricing."</p>
+                            <p>"Review the material, stock, machine, and runtime assumptions used for test estimates."</p>
                         </div>
 
                         {move || match settings_state.get() {
-                            SettingsPanelState::Available(settings) => match settings.resource_catalog.clone() {
-                                Some(catalog) => view! { <ResourceCatalogReview catalog /> }.into_any(),
-                                None => view! {
-                                    <ResourceCatalogEmptyState has_starter_bundle=settings.resources.is_some() />
-                                }.into_any(),
-                            },
-                            SettingsPanelState::NotConfigured => view! {
-                                <ResourceCatalogEmptyState has_starter_bundle=false />
-                            }.into_any(),
+                            SettingsPanelState::Available(settings) => settings.resource_catalog.clone()
+                                .map(|catalog| view! { <ResourceCatalogReview catalog /> }.into_any())
+                                .unwrap_or_else(|| ().into_any()),
+                            SettingsPanelState::NotConfigured => ().into_any(),
                             SettingsPanelState::Loading
                             | SettingsPanelState::Saving
                             | SettingsPanelState::Failed { .. } => ().into_any(),
@@ -1488,7 +2067,7 @@ fn SettingsWorkspace(
 
                 <fieldset>
                     <legend>"Material, stock, machine, and runtime draft"</legend>
-                    <p class="fieldset-note">"Optional first resource bundle for future model-derived proposals. It is saved as draft evidence and is not yet used automatically by an estimate."</p>
+                    <p class="fieldset-note">"These values prepare model-specific test estimates. You review the proposal before every calculation."</p>
                     <label class="review-check">
                         <input
                             type="checkbox"
@@ -1498,7 +2077,7 @@ fn SettingsWorkspace(
                                 current.resources.confirmed_for_draft = false;
                             })
                         />
-                        <span>"Include a resource bundle in the next saved revision."</span>
+                        <span>"Include material, stock, machine, and runtime values in these test settings."</span>
                     </label>
                 </fieldset>
 
@@ -1569,7 +2148,7 @@ fn SettingsWorkspace(
                                 <ExactInput form label="Inspection" unit="min/lot" read=|f| &f.resources.inspection_minutes write=|f, v| f.resources.inspection_minutes = v />
                                 <TextInput form label="Runtime source" read=|f| &f.resources.runtime_source write=|f, v| f.resources.runtime_source = v />
                             </div>
-                            <ReviewCheckbox form label="I reviewed this resource bundle for the saved draft. It remains non-authoritative until a later activation workflow." read=|f| f.resources.confirmed_for_draft write=|f, v| f.resources.confirmed_for_draft = v />
+                            <ReviewCheckbox form label="I reviewed these material, stock, machine, and runtime values for this test." read=|f| f.resources.confirmed_for_draft write=|f, v| f.resources.confirmed_for_draft = v />
                         </fieldset>
                     </div>
                 </Show>
@@ -1585,20 +2164,14 @@ fn SettingsWorkspace(
                     </div>
                 </fieldset>
 
-                <section class="planned-settings" aria-labelledby="planned-settings-heading">
-                    <p class="section-index">"NEXT SETTINGS SLICE"</p>
-                    <h3 id="planned-settings-heading">"What remains after this draft"</h3>
-                    <p>"Additional catalog entries, operation templates, approval workflow, and model-derived proposal services remain separate follow-on slices. These saved values do not yet populate an estimate automatically."</p>
-                </section>
-
                 <div class="settings-footer">
-                    <p aria-live="polite">
+                    <p id="settings-save-status" aria-live="polite">
                         {move || if settings_state.get().resource_catalog().is_some() {
-                            "This catalog-backed revision is read-only in the current desktop checkpoint. Rate and pricing values may be reviewed for this session, but this screen cannot save over the catalog."
+                            "Catalog changes: none. Save unavailable—trusted operator identity is not configured. The current catalog remains unchanged."
                         } else if form.with(DeveloperEstimateForm::session_settings_ready) {
                             "Rate and pricing settings are confirmed for this session."
                         } else {
-                            "Complete every required rate/pricing field and confirmation before calculating; an enabled resource bundle must also be complete before saving."
+                            "Complete required rate/pricing fields and confirmations. If included, the starter resource bundle must also be complete."
                         }}
                     </p>
                     <Show when=move || matches!(settings_state.get(), SettingsPanelState::Failed { .. })>
@@ -1613,6 +2186,7 @@ fn SettingsWorkspace(
                     <button
                         type="button"
                         class="secondary-action"
+                        aria-describedby="settings-save-status"
                         disabled=move || {
                             matches!(settings_state.get(), SettingsPanelState::Loading | SettingsPanelState::Saving)
                                 || settings_state.get().resource_catalog().is_some()
@@ -1620,10 +2194,12 @@ fn SettingsWorkspace(
                         }
                         on:click=move |_| save_settings.run(())
                     >
-                        {move || if matches!(settings_state.get(), SettingsPanelState::Saving) {
+                        {move || if settings_state.get().resource_catalog().is_some() {
+                            "Save catalog draft"
+                        } else if matches!(settings_state.get(), SettingsPanelState::Saving) {
                             "Saving settings"
                         } else {
-                            "Save new revision"
+                            "Save test settings"
                         }}
                     </button>
                     <button
@@ -1668,38 +2244,6 @@ struct CatalogReviewRecord {
     version: u32,
     state: ShopResourceRecordState,
     fields: Vec<(&'static str, String)>,
-}
-
-#[component]
-fn ResourceCatalogEmptyState(has_starter_bundle: bool) -> impl IntoView {
-    view! {
-        <section class="resource-catalog-review catalog-empty-state" aria-labelledby="resource-catalog-heading">
-            <div class="panel-heading compact-heading">
-                <div>
-                    <p class="section-index">"RESOURCE CATALOG / NOT CONFIGURED"</p>
-                    <h3 id="resource-catalog-heading">"Governed proposal inputs"</h3>
-                </div>
-                <span class="status-chip blocked">"Unavailable"</span>
-            </div>
-            <p class="fieldset-note">
-                {if has_starter_bundle {
-                    "This revision still uses the single starter resource bundle below. PartProbe will not silently convert it into a multi-entry catalog; that migration needs a separately reviewed mapping."
-                } else {
-                    "No multi-entry resource catalog exists yet. PartProbe does not seed material prices, stock policies, machines, or runtime values."
-                }}
-            </p>
-            <div class="catalog-empty-categories" aria-label="Planned resource catalog categories">
-                <span>"Materials"</span>
-                <span>"Offers"</span>
-                <span>"Stock"</span>
-                <span>"Machines"</span>
-                <span>"Runtime"</span>
-            </div>
-            <p class="catalog-empty-guidance">
-                "Editing is not enabled in this developer build because no trusted operator identity is configured. Existing saved values remain unchanged."
-            </p>
-        </section>
-    }
 }
 
 #[component]
@@ -1863,6 +2407,24 @@ fn ResourceCatalogReview(catalog: ShopResourceCatalogSnapshot) -> impl IntoView 
                                             <div><dt>{label}</dt><dd>{value}</dd></div>
                                         }).collect_view()}
                                     </dl>
+                                    <section
+                                        class="catalog-editor-boundary"
+                                        aria-labelledby="catalog-editor-heading"
+                                    >
+                                        <p class="section-index">"DRAFT SUCCESSOR"</p>
+                                        <h5 id="catalog-editor-heading">"Editing unavailable"</h5>
+                                        <p id="catalog-editor-unavailable-reason">
+                                            "A trusted native operator identity is not configured. This immutable record remains unchanged, and no local successor is staged."
+                                        </p>
+                                        <button
+                                            type="button"
+                                            class="secondary-action"
+                                            disabled=true
+                                            aria-describedby="catalog-editor-unavailable-reason"
+                                        >
+                                            "Prepare successor draft"
+                                        </button>
+                                    </section>
                                 </div>
                             }.into_any()).unwrap_or_else(|| view! {
                                 <div>
@@ -2170,12 +2732,18 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
             Some(result) if evaluation.state == DraftEstimateEvaluationState::Available => {
                 let currency = result.currency.clone();
                 let rules = result.calculation_rule_ids.join(", ");
+                let proposal_adoption = result.proposal_adoption.clone();
+                let result_kind = if proposal_adoption.is_some() {
+                    "TEST ESTIMATE · NOT A QUOTE"
+                } else {
+                    "MANUAL TEST ESTIMATE · NOT A QUOTE"
+                };
                 view! {
                     <section class="estimate-result" aria-labelledby="estimate-result-heading" aria-live="polite">
                         <div class="result-total">
                             <div>
-                                <p class="section-index">"DETERMINISTIC / SESSION ONLY"</p>
-                                <h3 id="estimate-result-heading">"Draft selling price"</h3>
+                                <p class="section-index">{result_kind}</p>
+                                <h3 id="estimate-result-heading">"Estimated selling price"</h3>
                             </div>
                             <p><span>{currency.clone()}</span> {result.rounded_selling_price}</p>
                         </div>
@@ -2201,8 +2769,19 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
                                     </li>
                                 }).collect_view()}
                             </ul>
+                            {proposal_adoption.map(|adoption| {
+                                let excluded = adoption.excluded_inputs.join(", ");
+                                view! {
+                                    <div class="proposal-result-trace">
+                                        <p><strong>"Proposal basis: "</strong>{adoption.library_id}" v"{adoption.library_version}", Settings revision "{adoption.settings_revision}</p>
+                                        <p><strong>"Rules: "</strong>{adoption.proposal_rule_id}" v"{adoption.proposal_rule_version}"; "{adoption.adoption_rule_id}" v"{adoption.adoption_rule_version}</p>
+                                        <p><strong>"Review: "</strong>{adoption.reviewed_by}" at "{adoption.reviewed_at}" — "{adoption.review_reason}</p>
+                                        <p><strong>"Explicitly excluded: "</strong>{excluded}</p>
+                                    </div>
+                                }
+                            })}
                         </details>
-                        <p class="evidence-note">"This draft is ephemeral, unapproved, and not a customer quote."</p>
+                        <p class="evidence-note">"Internal test estimate—not a customer quote. Detailed tooling, outside processing, overhead, risk, and CAM cycle analysis are not included."</p>
                     </section>
                 }
                 .into_any()
@@ -2217,7 +2796,7 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
         },
         DraftEstimatePanelState::Failed(error) => view! {
             <section class="analysis-error" role="alert">
-                <p class="blocked-title">"Estimate input rejected safely"</p>
+                <p class="blocked-title">"Check the estimate inputs"</p>
                 <p>{error.message}</p>
                 <p class="diagnostic-id">"Diagnostic: " {error.diagnostic_id}</p>
             </section>
@@ -2225,8 +2804,8 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
         .into_any(),
         DraftEstimatePanelState::Evaluating => view! {
             <section class="analysis-progress" role="status">
-                <p class="blocked-title">"Deterministic evaluation in progress"</p>
-                <p>"The native application service is validating the complete input and policy set."</p>
+                <p class="blocked-title">"Calculating estimate"</p>
+                <p>"Checking inputs, rates, and pricing."</p>
             </section>
         }
         .into_any(),
@@ -2238,6 +2817,32 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn huntsville_test_profile_is_versioned_complete_and_requires_review() {
+        let mut form = DeveloperEstimateForm::new();
+
+        form.load_huntsville_test_values();
+
+        assert_eq!(form.rate_card_id, "huntsville-2026q3-test-rates");
+        assert_eq!(form.setup_labor_per_hour, "47.00");
+        assert_eq!(form.programming_per_hour, "50.90");
+        assert_eq!(form.run_labor_per_hour, "47.50");
+        assert_eq!(form.machine_per_hour, "45.00");
+        assert_eq!(form.quality_inspection_per_hour, "37.00");
+        assert_eq!(form.markup_rate, "0.25");
+        assert!(form.resources.enabled);
+        assert_eq!(form.resources.material_price_per_kg, "10.00");
+        assert_eq!(form.resources.stock_allowance_x_mm, "6.4");
+        assert_eq!(form.resources.stock_allowance_y_mm, "6.4");
+        assert_eq!(form.resources.stock_allowance_z_mm, "6.4");
+        assert_eq!(form.resources.removal_rate_mm3_per_minute, "250000");
+        assert_eq!(form.resources.machine_envelope_y_mm, "406");
+        assert!(!form.rates_confirmed);
+        assert!(!form.pricing_confirmed);
+        assert!(!form.resources.confirmed_for_draft);
+        assert!(!form.session_settings_ready());
+    }
 
     #[test]
     fn loading_explicitly_missing_libraries_clears_stale_form_values() {

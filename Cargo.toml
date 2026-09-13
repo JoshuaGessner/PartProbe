@@ -12,9 +12,11 @@ members = [
     "crates/geometry-import",
     "crates/geometry-occt-adapter",
     "crates/native-runtime",
+    "crates/model-viewer",
     "crates/platform",
     "crates/persistence-sqlite",
     "crates/security",
+    "crates/setup-planner",
     "crates/test-support",
 ]
 resolver = "3"
@@ -35,9 +37,11 @@ partprobe-geometry-core = { path = "crates/geometry-core" }
 partprobe-geometry-import = { path = "crates/geometry-import" }
 partprobe-geometry-occt-adapter = { path = "crates/geometry-occt-adapter" }
 partprobe-native-runtime = { path = "crates/native-runtime" }
+partprobe-model-viewer = { path = "crates/model-viewer" }
 partprobe-platform = { path = "crates/platform" }
 partprobe-persistence-sqlite = { path = "crates/persistence-sqlite" }
 partprobe-security = { path = "crates/security" }
+partprobe-setup-planner = { path = "crates/setup-planner" }
 partprobe-test-support = { path = "crates/test-support" }
 rust_decimal = { version = "=1.42.1", default-features = false, features = ["serde-with-str", "std"] }
 serde = { version = "=1.0.229", features = ["derive"] }
@@ -60,6 +64,9 @@ tauri-build = "=2.6.3"
 tauri-plugin-dialog = { version = "=2.7.2", default-features = false, features = ["xdg-portal"] }
 wasm-bindgen = "=0.2.127"
 wasm-bindgen-futures = "=0.4.77"
+bytemuck = { version = "=1.25.2", default-features = false }
+pollster = "=0.4.0"
+wgpu = { version = "=30.0.1", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

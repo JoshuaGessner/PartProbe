@@ -1,7 +1,7 @@
 # CAD Import Requirements
 
 > **Status:** In Review  
-> **Last updated:** 2026-09-01
+> **Last updated:** 2026-09-10
 > **Related requirements:** REQ-F-002–REQ-F-004; REQ-NF-002, REQ-NF-005; GEO-001–GEO-007  
 > **Related ADRs:** ADR-0002, ADR-0004, ADR-0005  
 > **Open questions:** OQ-003–OQ-008  
@@ -20,4 +20,4 @@
 
 First class: STEP, STL, 3MF. Experimental/secondary: IGES and OBJ. Proprietary/native formats require conversion until a licensed translator ADR says otherwise.
 
-Current validation evidence: the isolated comparison worker selects governed STEP/3MF/STL bytes from content framing after authorization and verification, preserves exact STEP under `geometry-snapshot-v1`, and emits non-exact STL/3MF under source-bound `geometry-mesh-snapshot-v1`. Requirements remain In Review because application/desktop unit review, representative corpus, cross-platform package, and supported-importer acceptance are not complete; see `../06-quality/task-004-validation.md`.
+Current validation evidence: the isolated comparison worker selects governed STEP/3MF/STL bytes from content framing after authorization and verification. ABI-v4 exact STEP emits source-bound `geometry-step-analysis-v1`, embedding the unchanged `geometry-snapshot-v1` plus precise source-axis AABB evidence; non-exact STL/3MF emits `geometry-mesh-snapshot-v1`. Requirements remain In Review because application/desktop unit review, ABI-v4 cross-platform/package evidence, representative corpus, and supported-importer acceptance are not complete; see `../06-quality/task-003-validation.md` and `../06-quality/task-004-validation.md`.

@@ -148,6 +148,71 @@ h2 {
   background: var(--border-subtle);
 }
 
+.model-viewer-workspace {
+  min-height: calc(100vh - 72px);
+  padding: 20px;
+  background: var(--surface-panel);
+}
+
+.model-viewer-inspector {
+  display: grid;
+  gap: 18px;
+}
+
+.viewer-preview-notice {
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 5%, var(--surface-canvas));
+}
+
+.viewer-preview-notice p {
+  margin-bottom: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.viewer-preview-notice .blocked-title {
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.viewer-summary {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--border-subtle);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.viewer-summary > div {
+  min-width: 0;
+  padding: 10px;
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.viewer-summary dt {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.viewer-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+
+.viewer-navigation-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .model-panel,
 .estimate-panel {
   padding: 24px;
@@ -182,7 +247,7 @@ h2 {
 
 .drop-zone {
   display: flex;
-  min-height: 330px;
+  min-height: 215px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -547,8 +612,7 @@ dd {
   background: var(--surface-panel);
 }
 
-.settings-boundary,
-.planned-settings {
+.settings-boundary {
   margin-bottom: 20px;
   padding: 16px;
   border-left: 2px solid var(--warning);
@@ -862,6 +926,27 @@ dd {
   overflow-wrap: anywhere;
 }
 
+.catalog-editor-boundary {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 5%, var(--surface-canvas));
+}
+
+.catalog-editor-boundary h5 {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.catalog-editor-boundary > p:not(.section-index) {
+  margin: 7px 0 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .catalog-empty {
   margin: 0;
   padding: 16px 10px;
@@ -896,15 +981,13 @@ dd {
   color: var(--text-primary);
 }
 
-.settings-boundary p,
-.planned-settings p {
+.settings-boundary p {
   margin-bottom: 0;
   color: var(--text-secondary);
   line-height: 1.5;
 }
 
-.settings-boundary .blocked-title,
-.planned-settings h3 {
+.settings-boundary .blocked-title {
   margin-bottom: 6px;
   color: var(--text-primary);
 }
@@ -916,23 +999,35 @@ dd {
   margin-bottom: 20px;
 }
 
-.planned-settings {
-  border-left-color: var(--action-primary);
-}
-
 .settings-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding-top: 16px;
+  margin: 24px -24px -24px;
+  padding: 14px 24px;
   border-top: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+  box-shadow: 0 -12px 24px rgba(0, 0, 0, 0.2);
 }
 
 .settings-footer p {
+  flex: 1 1 auto;
   margin: 0;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+.settings-footer > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.settings-panel :is(input, button, textarea, select) {
+  scroll-margin-bottom: 112px;
 }
 
 .estimate-result {
@@ -1027,6 +1122,7 @@ dd {
 
   .primary-navigation {
     align-self: stretch;
+    flex-wrap: wrap;
   }
 
   .navigation-action {
@@ -1068,6 +1164,10 @@ dd {
 
   .catalog-empty-categories {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-panel :is(input, button, textarea, select) {
+    scroll-margin-bottom: 220px;
   }
 }
 

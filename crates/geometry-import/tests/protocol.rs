@@ -4,16 +4,21 @@ use std::sync::atomic::AtomicBool;
 
 use partprobe_domain::{AssetRootId, RuleVersion, SchemaVersion};
 use partprobe_geometry_core::{
-    AnalysisProfile, AnalysisProfileId, GeometryStage, Sha256Digest, StageStatus,
+    AnalysisProfile, AnalysisProfileId, DisplayTessellationProfile, ExactStepEnvelopeDerivative,
+    GeometryStage, ProvisionalGeometryDecimal, ProvisionalGeometrySnapshot, Sha256Digest,
+    StageStatus,
 };
 use partprobe_geometry_import::{
     AssetCapability, ControlledGeometryResult, ControlledWorkerOutput, CorrelationId,
-    GeometryJobId, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerSupervisor,
-    LocalAssetRoot, ProvisionalMeshEvidence, ProvisionalMeshGeometrySnapshot, ResourceQuotas,
-    SnapshotReference, StlLimits, SupervisorPolicy, ThreeMfLimits,
-    WORKER_ASSET_TRANSPORT_SCHEMA_VERSION, WORKER_CONTROL_SCHEMA_VERSION, WorkerAssetManifest,
-    WorkerAssetTransport, WorkerAssetTransportPolicy, WorkerCancellationReason, WorkerTermination,
-    analyze_3mf, analyze_stl, decode_controlled_geometry_result,
+    DiagnosticCode, DisplaySceneArtifactReference, DisplaySceneRequest,
+    GEOMETRY_WORKER_SCHEMA_VERSION, GeometryJobId, GeometryWorkerControlMessage,
+    GeometryWorkerRequest, GeometryWorkerResponse, GeometryWorkerSupervisor, LocalAssetRoot,
+    PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE, ProvisionalExactStepAnalysis,
+    ProvisionalMeshEvidence, ProvisionalMeshGeometrySnapshot, ResourceQuotas, SnapshotReference,
+    StlLimits, SupervisorPolicy, ThreeMfLimits, WORKER_ASSET_TRANSPORT_SCHEMA_VERSION,
+    WORKER_CONTROL_SCHEMA_VERSION, WorkerAssetManifest, WorkerAssetTransport,
+    WorkerAssetTransportPolicy, WorkerCancellationReason, WorkerTermination, analyze_3mf,
+    analyze_stl, decode_controlled_geometry_result, decode_provisional_exact_step_analysis,
     decode_provisional_geometry_snapshot, decode_provisional_mesh_geometry_snapshot,
     open_local_source_read_only, recoverable_termination_response,
 };
@@ -38,6 +43,22 @@ fn request() -> GeometryWorkerRequest {
         ResourceQuotas::new(1_000_000, 2_000_000, 100_000, 30_000).expect("quotas must be valid"),
     )
     .expect("request must be valid")
+}
+
+fn display_request() -> GeometryWorkerRequest {
+    let mut value = serde_json::to_value(request()).expect("request must serialize");
+    value["schema_version"] = serde_json::json!(GEOMETRY_WORKER_SCHEMA_VERSION);
+    let request: GeometryWorkerRequest =
+        serde_json::from_value(value).expect("schema-v2 base request must deserialize");
+    let decimal = |value| {
+        ProvisionalGeometryDecimal::new(value).expect("display tolerance must be canonical")
+    };
+    request
+        .with_display_scene(DisplaySceneRequest::new(
+            DisplayTessellationProfile::new(decimal("0.1"), decimal("12"))
+                .expect("display profile must be valid"),
+        ))
+        .expect("schema-v2 display request must be valid")
 }
 
 fn sha256_digest(bytes: &[u8]) -> Sha256Digest {
@@ -95,6 +116,84 @@ fn provisional_snapshot_decoder_binds_schema_reference_and_source_hash() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn additive_exact_step_analysis_preserves_snapshot_v1_and_binds_envelope_source() {
+    let source_hash = Sha256Digest::new("a".repeat(64)).expect("source hash must be valid");
+    let decimal =
+        |value| ProvisionalGeometryDecimal::new(value).expect("test decimal must be canonical");
+    let snapshot = ProvisionalGeometrySnapshot::new(
+        source_hash.clone(),
+        "8.0.0",
+        3,
+        1,
+        1,
+        decimal("392"),
+        decimal("480"),
+        [decimal("6"), decimal("4"), decimal("2.5")],
+    )
+    .expect("snapshot must be valid");
+    let envelope = ExactStepEnvelopeDerivative::new(
+        source_hash.clone(),
+        [decimal("12"), decimal("8"), decimal("5")],
+    )
+    .expect("envelope must be valid");
+    let analysis =
+        ProvisionalExactStepAnalysis::new(snapshot, envelope).expect("analysis must be valid");
+    let output = claimed_output(
+        PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE,
+        serde_json::to_vec(&analysis).expect("analysis must serialize"),
+    );
+
+    let decoded = decode_provisional_exact_step_analysis(&output, &source_hash)
+        .expect("analysis and source binding must pass");
+    assert_eq!(decoded.snapshot().schema_version(), 1);
+    assert_eq!(decoded.snapshot().enclosed_volume_mm3(), "480");
+    assert_eq!(
+        decoded
+            .envelope()
+            .aabb_extents_mm()
+            .each_ref()
+            .map(|value| value.as_str()),
+        ["12", "8", "5"]
+    );
+    assert!(matches!(
+        decode_controlled_geometry_result(&output, &source_hash)
+            .expect("generic decoder must retain the additive exact STEP variant"),
+        ControlledGeometryResult::ExactBrepWithEnvelope(_)
+    ));
+    assert!(
+        decode_provisional_exact_step_analysis(
+            &output,
+            &Sha256Digest::new("b".repeat(64)).expect("alternate hash must be valid")
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn additive_exact_step_analysis_rejects_mismatched_embedded_sources() {
+    let decimal =
+        |value| ProvisionalGeometryDecimal::new(value).expect("test decimal must be canonical");
+    let snapshot = ProvisionalGeometrySnapshot::new(
+        Sha256Digest::new("a".repeat(64)).expect("source hash must be valid"),
+        "8.0.0",
+        3,
+        1,
+        1,
+        decimal("600"),
+        decimal("1000"),
+        [decimal("5"), decimal("5"), decimal("5")],
+    )
+    .expect("snapshot must be valid");
+    let envelope = ExactStepEnvelopeDerivative::new(
+        Sha256Digest::new("b".repeat(64)).expect("source hash must be valid"),
+        [decimal("10"), decimal("10"), decimal("10")],
+    )
+    .expect("envelope must be valid");
+
+    assert!(ProvisionalExactStepAnalysis::new(snapshot, envelope).is_err());
 }
 
 #[test]
@@ -224,6 +323,143 @@ fn request_is_path_free_and_versioned() {
     assert!(value.get("path").is_none());
     assert!(value.get("filename").is_none());
     assert!(AssetCapability::new("/tmp/model.step").is_err());
+}
+
+#[test]
+fn schema_v2_display_request_is_explicit_path_free_and_v1_compatible() {
+    let legacy = serde_json::to_value(request()).expect("legacy request must serialize");
+    assert!(legacy.get("display_scene").is_none());
+
+    let active = display_request();
+    let value = serde_json::to_value(&active).expect("display request must serialize");
+    assert_eq!(value["schema_version"], GEOMETRY_WORKER_SCHEMA_VERSION);
+    assert_eq!(
+        value["display_scene"]["artifact_reference"],
+        "geometry-display-scene-v1"
+    );
+    assert_eq!(
+        value["display_scene"]["tessellation_profile"]["linear_deflection"],
+        "0.1"
+    );
+    assert_eq!(
+        value["display_scene"]["tessellation_profile"]["angular_deflection_degrees"],
+        "12"
+    );
+    let wire = serde_json::to_string(&value).expect("display request must stringify");
+    assert!(!wire.contains("path"));
+    assert!(!wire.contains("filename"));
+    let decoded: GeometryWorkerRequest =
+        serde_json::from_value(value.clone()).expect("display request must round trip");
+    assert_eq!(decoded, active);
+
+    let mut forbidden_legacy_display = value.clone();
+    forbidden_legacy_display["schema_version"] = serde_json::json!(1);
+    assert!(serde_json::from_value::<GeometryWorkerRequest>(forbidden_legacy_display).is_err());
+    let mut unknown_schema = value;
+    unknown_schema["schema_version"] = serde_json::json!(3);
+    assert!(serde_json::from_value::<GeometryWorkerRequest>(unknown_schema).is_err());
+}
+
+#[test]
+fn schema_v2_response_keeps_analysis_and_display_references_distinct() {
+    let active_request = display_request();
+    let response = GeometryWorkerResponse::new(
+        active_request.schema_version(),
+        active_request.job_id().clone(),
+        active_request.correlation_id().clone(),
+        StageStatus::Succeeded,
+        Vec::new(),
+        Some(SnapshotReference::new("geometry-step-analysis-v1").expect("valid reference")),
+        Vec::new(),
+    )
+    .expect("analysis response must be valid")
+    .with_display_scene_reference(DisplaySceneArtifactReference::current())
+    .expect("display reference must be additive");
+    response
+        .validate_for(&active_request)
+        .expect("exact requested display reference must validate");
+
+    let value = serde_json::to_value(&response).expect("response must serialize");
+    assert_eq!(value["snapshot_reference"], "geometry-step-analysis-v1");
+    assert_eq!(
+        value["display_scene_reference"],
+        "geometry-display-scene-v1"
+    );
+    let decoded: GeometryWorkerResponse =
+        serde_json::from_value(value.clone()).expect("response must round trip");
+    assert_eq!(decoded, response);
+
+    let mut unknown_schema = value.clone();
+    unknown_schema["schema_version"] = serde_json::json!(3);
+    assert!(serde_json::from_value::<GeometryWorkerResponse>(unknown_schema).is_err());
+
+    let mut wrong_display_reference = value;
+    wrong_display_reference["display_scene_reference"] = serde_json::json!("other-display-v1");
+    assert!(serde_json::from_value::<GeometryWorkerResponse>(wrong_display_reference).is_err());
+
+    let mut base_value = serde_json::to_value(request()).expect("request must serialize");
+    base_value["schema_version"] = serde_json::json!(GEOMETRY_WORKER_SCHEMA_VERSION);
+    let no_display_request: GeometryWorkerRequest =
+        serde_json::from_value(base_value).expect("schema-v2 base request must deserialize");
+    assert!(response.validate_for(&no_display_request).is_err());
+}
+
+#[test]
+fn requested_display_must_be_returned_or_explicitly_unavailable() {
+    let request = display_request();
+    let missing = GeometryWorkerResponse::new(
+        request.schema_version(),
+        request.job_id().clone(),
+        request.correlation_id().clone(),
+        StageStatus::Succeeded,
+        Vec::new(),
+        Some(SnapshotReference::new("geometry-step-analysis-v1").expect("valid reference")),
+        Vec::new(),
+    )
+    .expect("analysis response must be valid");
+    assert!(missing.validate_for(&request).is_err());
+
+    let unavailable = GeometryWorkerResponse::new(
+        request.schema_version(),
+        request.job_id().clone(),
+        request.correlation_id().clone(),
+        StageStatus::SucceededWithWarnings,
+        Vec::new(),
+        Some(SnapshotReference::new("geometry-step-analysis-v1").expect("valid reference")),
+        vec![DiagnosticCode::new("DISPLAY_SCENE_UNAVAILABLE").expect("valid diagnostic")],
+    )
+    .expect("explicitly unavailable display response must be valid");
+    unavailable
+        .validate_for(&request)
+        .expect("explicit display unavailability must preserve analysis success");
+    let mut mislabeled_unavailable =
+        serde_json::to_value(&unavailable).expect("response must serialize");
+    mislabeled_unavailable["status"] = serde_json::json!("succeeded");
+    let mislabeled_unavailable: GeometryWorkerResponse =
+        serde_json::from_value(mislabeled_unavailable).expect("response remains structural");
+    assert!(mislabeled_unavailable.validate_for(&request).is_err());
+    assert!(
+        unavailable
+            .clone()
+            .with_display_scene_reference(DisplaySceneArtifactReference::current())
+            .is_err()
+    );
+
+    let failed = GeometryWorkerResponse::new(
+        request.schema_version(),
+        request.job_id().clone(),
+        request.correlation_id().clone(),
+        StageStatus::FailedRecoverable,
+        Vec::new(),
+        None,
+        vec![DiagnosticCode::new("WORKER_EXIT").expect("valid diagnostic")],
+    )
+    .expect("failed response must be valid");
+    assert!(
+        failed
+            .with_display_scene_reference(DisplaySceneArtifactReference::current())
+            .is_err()
+    );
 }
 
 #[test]

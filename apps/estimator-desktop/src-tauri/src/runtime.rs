@@ -3,22 +3,34 @@ use std::path::PathBuf;
 use partprobe_desktop_contract::{
     ActivateShopResourceSelectionRequest, AnalysisCancellationAcknowledgement,
     AnalyzeModelSourceRequest, CancelModelAnalysisRequest, DesktopContract,
-    DraftEstimateEvaluation, EVENT_MODEL_SOURCE_SELECTED, EvaluateDraftEstimateRequest,
-    HostCommandError, ModelAnalysisResult, ModelSourceSelectedEvent, ModelSourceSelection,
-    SaveShopResourceCatalogDraftRequest, SaveShopSettingsRequest,
+    DraftEstimateEvaluation, DraftEstimateProposalEvaluation, EVENT_MODEL_SOURCE_SELECTED,
+    EvaluateDraftEstimateRequest, HostCommandError, ModelAnalysisResult, ModelSourceSelectedEvent,
+    ModelSourceSelection, ModelViewerWorkspaceResult, PrepareDraftEstimateProposalRequest,
+    SaveShopResourceCatalogDraftRequest, SaveShopSettingsRequest, SetModelViewerWorkspaceRequest,
     ShopResourceCatalogActivationResult, ShopResourceCatalogDraftSaveResult, ShopSettingsState,
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
 use crate::analysis::DesktopAnalysisConfiguration;
+use crate::viewer::DesktopModelViewerState;
 use crate::{DesktopSessionState, DesktopSettingsState};
 
 const MODEL_SOURCE_DIALOG_TITLE: &str = "Select model file";
 
 #[tauri::command]
-fn desktop_contract() -> DesktopContract {
+fn desktop_contract(app: tauri::AppHandle) -> DesktopContract {
     DesktopContract::current()
+        .with_model_viewer(app.state::<DesktopModelViewerState>().availability())
+}
+
+#[tauri::command]
+fn set_model_viewer_workspace(
+    app: tauri::AppHandle,
+    request: SetModelViewerWorkspaceRequest,
+) -> Result<ModelViewerWorkspaceResult, HostCommandError> {
+    app.state::<DesktopModelViewerState>()
+        .set_workspace(request)
 }
 
 #[tauri::command]
@@ -80,11 +92,35 @@ async fn evaluate_draft_estimate(
     request: EvaluateDraftEstimateRequest,
 ) -> Result<DraftEstimateEvaluation, HostCommandError> {
     tauri::async_runtime::spawn_blocking(move || {
+        let settings = if request.proposal_adoption.is_some() {
+            Some(
+                app.state::<DesktopSettingsState>()
+                    .current_settings_draft()?,
+            )
+        } else {
+            None
+        };
         app.state::<DesktopSessionState>()
-            .evaluate_draft_estimate(&request)
+            .evaluate_draft_estimate(&request, settings.as_ref())
     })
     .await
     .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ESTIMATE-TASK"))?
+}
+
+#[tauri::command]
+async fn prepare_draft_estimate_proposal(
+    app: tauri::AppHandle,
+    request: PrepareDraftEstimateProposalRequest,
+) -> Result<DraftEstimateProposalEvaluation, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = app
+            .state::<DesktopSettingsState>()
+            .current_settings_draft()?;
+        app.state::<DesktopSessionState>()
+            .prepare_draft_estimate_proposal(&request, &settings)
+    })
+    .await
+    .map_err(|_| HostCommandError::host_state_unavailable("USE3-PROPOSAL-TASK"))?
 }
 
 #[tauri::command]
@@ -178,6 +214,10 @@ pub fn run() {
                 .get_webview_window("main")
                 .ok_or("configured main window is missing")?;
             window.set_title("PartProbe")?;
+            let viewer_state = crate::viewer::configure_in_window_viewer(app)?;
+            if !app.manage(viewer_state) {
+                return Err("desktop model-viewer state is already managed".into());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -186,10 +226,12 @@ pub fn run() {
             analyze_model_source,
             cancel_model_analysis,
             evaluate_draft_estimate,
+            prepare_draft_estimate_proposal,
             load_shop_settings,
             save_shop_settings,
             activate_shop_resource_selection,
-            save_shop_resource_catalog_draft
+            save_shop_resource_catalog_draft,
+            set_model_viewer_workspace
         ])
         .run(tauri::generate_context!())
         .expect("PartProbe desktop host failed");

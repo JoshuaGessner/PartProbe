@@ -1,5 +1,7 @@
+#include <BRepBndLib.hxx>
 #include <BRepGProp.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
+#include <Bnd_Box.hxx>
 #include <GProp_GProps.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Message_ProgressIndicator.hxx>
@@ -14,12 +16,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <cstring>
 #include <sstream>
 #include <string>
 
 namespace {
-constexpr std::uint32_t kAbiVersion = 3;
+constexpr std::uint32_t kAbiVersion = 4;
 constexpr std::size_t kDiagnosticCapacity = 64;
 constexpr char kStepStreamName[] = "partprobe-input.step";
 using CancellationProbe = std::uint8_t (*)(const void *);
@@ -33,6 +36,9 @@ struct NativeResult {
   double center_of_mass_x_mm;
   double center_of_mass_y_mm;
   double center_of_mass_z_mm;
+  double aabb_extent_x_mm;
+  double aabb_extent_y_mm;
+  double aabb_extent_z_mm;
   char diagnostic_code[kDiagnosticCapacity];
 };
 
@@ -99,6 +105,33 @@ int transfer_and_measure(STEPControl_Reader &reader, NativeResult *result,
   for (TopExp_Explorer explorer(shape, TopAbs_SOLID); explorer.More();
        explorer.Next()) {
     ++result->solid_body_count;
+  }
+
+  if (cancellation_requested(cancel_probe, cancel_context)) {
+    return fail(result, "OCCT_CANCELLED");
+  }
+  Bnd_Box bounds;
+  BRepBndLib::AddOptimal(shape, bounds, false, false);
+  if (bounds.IsVoid() || bounds.IsOpen()) {
+    return fail(result, "OCCT_INVALID_BOUNDS");
+  }
+  double x_min = 0.0;
+  double y_min = 0.0;
+  double z_min = 0.0;
+  double x_max = 0.0;
+  double y_max = 0.0;
+  double z_max = 0.0;
+  bounds.Get(x_min, y_min, z_min, x_max, y_max, z_max);
+  result->aabb_extent_x_mm = x_max - x_min;
+  result->aabb_extent_y_mm = y_max - y_min;
+  result->aabb_extent_z_mm = z_max - z_min;
+  if (!std::isfinite(result->aabb_extent_x_mm) ||
+      !std::isfinite(result->aabb_extent_y_mm) ||
+      !std::isfinite(result->aabb_extent_z_mm) ||
+      !(result->aabb_extent_x_mm > 0.0) ||
+      !(result->aabb_extent_y_mm > 0.0) ||
+      !(result->aabb_extent_z_mm > 0.0)) {
+    return fail(result, "OCCT_INVALID_BOUNDS");
   }
 
   if (cancellation_requested(cancel_probe, cancel_context)) {

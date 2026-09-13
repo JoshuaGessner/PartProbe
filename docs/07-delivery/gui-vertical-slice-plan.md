@@ -1,7 +1,7 @@
 # Testable GUI Vertical Slice Plan
 
 > **Status:** In Review
-> **Last updated:** 2026-09-09
+> **Last updated:** 2026-09-11
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; UX-001–UX-012; GEO-001–GEO-007; TEST-003, TEST-012, TEST-014, TEST-021, TEST-028
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005–ADR-0008
 > **Open questions:** Whether the first internal build must include a 3D viewport; which independent STEP fixture is approved for the first end-to-end test
@@ -51,15 +51,9 @@ GUI-5 is **Complete for the Apple-Silicon internal developer checkpoint**. A fre
 
 GUI-2 through GUI-5 have passed their bounded checkpoint evidence. The facts-and-estimate internal developer GUI is therefore testable on the evidenced Apple-Silicon configuration. GUI-1 formal fixture review remains a parallel evidence gate, and the limitations below still separate this result from developer alpha, production support, or release acceptance.
 
-## Optional 3D review increment
+## Planned model/stock review increment
 
-The first testable GUI can honestly analyze a model and present numeric geometry evidence without rendering it. If a visible, selectable 3D model is required for the first test, add two or three checkpoints before GUI-5:
-
-1. Define and produce a bounded, sanitized tessellation/display-scene artifact linked to the immutable analysis snapshot.
-2. Implement the `model-viewer` boundary and a `wgpu` adapter with fit/orbit, units/axes, warning state, and a complete textual alternative.
-3. Integrate viewport loading, failure recovery, accessibility, and GPU/platform smoke evidence.
-
-The display mesh is visual evidence only. It never replaces exact analysis geometry or confirms a manufacturing feature.
+The facts-only GUI is already testable without rendering. The next USE-3 product increment now follows VIS-1–VIS-5 in the [usable estimator plan](usable-estimator-plan.md): renderer/embedding spike, governed display derivative, model/stock review, immutable numeric stock revisions, and three-platform acceptance. The display mesh is native-retained visual evidence only. It never replaces exact analysis geometry, confirms a manufacturing feature, or crosses into the WebView as vertex/index data. The stock overlay also requires an explicit versioned placement rule; current total-axis allowances do not authorize an assumed centered blank.
 
 ## What remains after the developer slice
 

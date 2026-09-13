@@ -3,10 +3,10 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-09-12
 - **Related requirement IDs:** REQ-F-022–REQ-F-024, REQ-NF-011, REQ-NF-013, UX-021–UX-027, SEC-004
 - **Related architecture decision IDs:** ADR-0002, ADR-0005
-- **Open questions:** UI-shell embedding, minimum GPU/fallback policy, cross-platform rendering test baseline
+- **Open questions:** Stable UI-shell/native-window composition, minimum GPU/fallback policy, cross-platform rendering test baseline
 - **Dependencies:** UI framework decision, worker tessellation contract, signed GPU dependency packages
 - **Supersedes / superseded by:** None / none
 
@@ -18,9 +18,13 @@ Use a dedicated Rust `wgpu` model-viewer crate, supplied by geometry-worker tess
 
 This retains cross-platform GPU control, allows custom high-density engineering UI, and avoids a browser-only/CAD-viewer dependency. It adds GPU-driver/device-loss testing, surface-embedding work and an explicit fallback policy. The viewer will show geometry/feature/setup mapping, but exact computations stay in the geometry engine; rendering tessellation is non-authoritative.
 
+## Spike evidence to date
+
+VIS-1 phase A pins `wgpu 30.0.1` with default features disabled and only the target backend plus `std`/WGSL enabled: Metal on macOS, D3D12 on Windows, and Vulkan/GLES on Linux. The isolated `partprobe-model-viewer` crate renders `synthetic-viewer-spike-v1` offscreen with depth, opaque model faces, a translucent stock envelope, edge overlay, four deterministic standard views, bounded frame sizes, and RGBA readback. Phase B adds a safe owned surface and contract v11's explicitly path-free workspace control. With an exact feature/flag gate, the Tauri host hides its configured top-level WebView, composes one bounded child WebView and the Metal surface inside the same existing native window, exposes **Model & stock** as a normal in-app destination, redraws after live resize, and restores the full Estimate workspace on return. No second OS window, CAD data, or WebView geometry payload is created. Tauri 2.11.5 feature-gates this child-WebView API behind `unstable`, so the visual composition is proven but still requires explicit acceptance or a stable replacement. VIS-2 now defines and validates the native display derivative, worker protocol, supervisor claim, and application-retention boundaries, but no worker-emitted source-bound scene reaches the renderer. This supports continuing the proposed decision but does not resolve it; Windows/Linux, complete keyboard/accessibility, device-loss/fallback, normal packaging, and representative-model evidence also remain open.
+
 ## Approval evidence required
 
-Demonstrate a STEP-derived tessellation and STL/3MF mesh on Windows, macOS and Linux; verify HiDPI, device loss, selection-to-feature mapping, text-equivalent inspector, memory limits, and no external network or asset resolution. Confirm the selected UI host can embed the component without unstable private APIs. Pin and record the evaluated `wgpu` version/backends; review direct/transitive/native-backend licenses, maintenance/advisory ownership, build provenance, and package contents.
+Demonstrate a STEP-derived tessellation and STL/3MF mesh on Windows, macOS and Linux; verify HiDPI, device loss, selection-to-feature mapping, text-equivalent inspector, memory limits, and no external network or asset resolution. Confirm the selected UI host can compose the component through a stable supported API, or explicitly accept and govern any unstable public API. Pin and record the evaluated `wgpu` version/backends; review direct/transitive/native-backend licenses, maintenance/advisory ownership, build provenance, and package contents.
 
 ## Alternatives
 

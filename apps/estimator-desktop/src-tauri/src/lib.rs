@@ -6,13 +6,16 @@ use std::sync::{Arc, Mutex};
 
 use partprobe_desktop_contract::{
     AnalysisCancellationAcknowledgement, AnalysisStatus, CancelModelAnalysisRequest,
-    DraftEstimateEvaluation, EvaluateDraftEstimateRequest, HostCommandError, ModelAnalysisResult,
-    ModelSourceFormat, PersistenceAvailability, SelectedModelSource,
+    DraftEstimateEvaluation, DraftEstimateProposalEvaluation, EvaluateDraftEstimateRequest,
+    HostCommandError, ModelAnalysisResult, ModelSourceFormat, PersistenceAvailability,
+    PrepareDraftEstimateProposalRequest, SelectedModelSource,
 };
+use partprobe_domain::ShopSettingsDraft;
 use partprobe_geometry_import::GeometryWorkerSupervisor;
 
 mod analysis;
 mod estimate;
+mod proposal;
 mod settings;
 
 use analysis::DesktopAnalysisAdapter;
@@ -216,6 +219,7 @@ impl DesktopSessionState {
     pub fn evaluate_draft_estimate(
         &self,
         request: &EvaluateDraftEstimateRequest,
+        settings: Option<&ShopSettingsDraft>,
     ) -> Result<DraftEstimateEvaluation, HostCommandError> {
         let current_selection = self
             .selected_source
@@ -242,7 +246,43 @@ impl DesktopSessionState {
                     && retained.analysis_id == request.analysis_id
             })
             .ok_or_else(|| HostCommandError::stale_selection("GUI4-ESTIMATE-STALE-ANALYSIS"))?;
-        estimate::evaluate_draft_estimate(&mut retained.session, request)
+        estimate::evaluate_draft_estimate(&mut retained.session, request, settings)
+    }
+
+    pub fn prepare_draft_estimate_proposal(
+        &self,
+        request: &PrepareDraftEstimateProposalRequest,
+        settings: &ShopSettingsDraft,
+    ) -> Result<DraftEstimateProposalEvaluation, HostCommandError> {
+        let current_selection = self
+            .selected_source
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("USE3-PROPOSAL-SELECTION"))?;
+        if current_selection
+            .as_ref()
+            .is_none_or(|selected| selected.selection_id != request.selection_id)
+        {
+            return Err(HostCommandError::stale_selection(
+                "USE3-PROPOSAL-STALE-SELECTION",
+            ));
+        }
+        let retained = self
+            .analysis_session
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("USE3-PROPOSAL-SESSION"))?;
+        let retained = retained
+            .as_ref()
+            .filter(|retained| {
+                retained.selection_id == request.selection_id
+                    && retained.analysis_id == request.analysis_id
+            })
+            .ok_or_else(|| HostCommandError::stale_selection("USE3-PROPOSAL-STALE-ANALYSIS"))?;
+        Ok(proposal::prepare_draft_estimate_proposal(
+            &retained.session,
+            settings,
+            &request.selection_id,
+            &request.analysis_id,
+        ))
     }
 
     fn finish_analysis(&self, analysis_number: u64) -> Result<(), HostCommandError> {
@@ -293,6 +333,8 @@ struct ActiveAnalysis {
 
 #[cfg(feature = "desktop-host")]
 mod runtime;
+#[cfg(feature = "desktop-host")]
+mod viewer;
 
 #[cfg(feature = "desktop-host")]
 pub use runtime::run;
@@ -304,6 +346,13 @@ mod tests {
     use partprobe_desktop_contract::{
         APPLICATION_COMMANDS, APPLICATION_EVENTS, ModelSourceSelection,
     };
+    #[cfg(feature = "desktop-host")]
+    use partprobe_desktop_contract::{
+        DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateProposalAdoptionInput,
+        SaveShopSettingsRequest, ShopResourceInputFields,
+    };
+    #[cfg(feature = "desktop-host")]
+    use partprobe_test_support::TestDirectory;
     use serde_json::Value;
 
     use super::*;
@@ -313,6 +362,7 @@ mod tests {
     const CONFIG: &str = include_str!("../tauri.conf.json");
     const RUNTIME: &str = include_str!("runtime.rs");
     const SETTINGS_ADAPTER: &str = include_str!("settings.rs");
+    const VIEWER_ADAPTER: &str = include_str!("viewer.rs");
     const WEBVIEW: &str = include_str!("../../src/web.rs");
 
     #[test]
@@ -399,6 +449,18 @@ mod tests {
     }
 
     #[test]
+    fn developer_viewer_reuses_the_main_window_and_keeps_geometry_native() {
+        assert!(VIEWER_ADAPTER.contains("get_window(\"main\")"));
+        assert!(VIEWER_ADAPTER.contains("add_child"));
+        assert!(VIEWER_ADAPTER.contains("set_bounds"));
+        assert!(!VIEWER_ADAPTER.contains("WindowBuilder"));
+        assert!(!VIEWER_ADAPTER.contains("WebviewWindowBuilder"));
+        assert!(!VIEWER_ADAPTER.contains("source_path"));
+        assert!(!VIEWER_ADAPTER.contains("vertex_buffer"));
+        assert!(!VIEWER_ADAPTER.contains("index_buffer"));
+    }
+
+    #[test]
     fn main_capability_is_exact_and_has_no_remote_or_broad_plugin_permission() {
         let capability: Value = serde_json::from_str(CAPABILITY).unwrap();
         assert_eq!(capability["windows"], serde_json::json!(["main"]));
@@ -423,9 +485,11 @@ mod tests {
                 "allow-desktop-contract",
                 "allow-evaluate-draft-estimate",
                 "allow-load-shop-settings",
+                "allow-prepare-draft-estimate-proposal",
                 "allow-save-shop-resource-catalog-draft",
                 "allow-save-shop-settings",
                 "allow-select-model-source",
+                "allow-set-model-viewer-workspace",
                 "core:event:allow-listen",
                 "core:event:allow-unlisten",
             ])
@@ -509,6 +573,8 @@ mod tests {
     fn estimate_evaluation_and_cancellation_stay_in_typed_native_commands() {
         assert!(RUNTIME.contains("async fn evaluate_draft_estimate"));
         assert!(RUNTIME.contains("EvaluateDraftEstimateRequest"));
+        assert!(RUNTIME.contains("async fn prepare_draft_estimate_proposal"));
+        assert!(RUNTIME.contains("PrepareDraftEstimateProposalRequest"));
         assert!(RUNTIME.contains("fn cancel_model_analysis"));
         assert!(RUNTIME.contains("CancelModelAnalysisRequest"));
         assert!(!RUNTIME.contains("apply_pricing_policy"));
@@ -542,9 +608,14 @@ mod tests {
         assert!(!WEBVIEW.contains("COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION"));
         assert!(!WEBVIEW.contains("activate_shop_resource_selection"));
         assert!(!WEBVIEW.contains("save_shop_resource_catalog_draft"));
+        assert!(WEBVIEW.contains("catalog-editor-boundary"));
+        assert!(WEBVIEW.contains("Editing unavailable"));
+        assert!(WEBVIEW.contains("settings-save-status"));
+        assert!(WEBVIEW.contains("Save catalog draft"));
+        assert!(WEBVIEW.contains("trusted operator identity is not configured"));
         assert!(!SETTINGS_ADAPTER.contains("std::env"));
         assert!(!SETTINGS_ADAPTER.contains("PARTPROBE_CATALOG"));
-        assert_eq!(APPLICATION_COMMANDS.len(), 9);
+        assert_eq!(APPLICATION_COMMANDS.len(), 11);
     }
 
     fn quoted_values_in_rust_slice(source: &str, anchor: &str) -> BTreeSet<String> {
@@ -674,6 +745,23 @@ mod tests {
     }
 
     #[cfg(feature = "desktop-host")]
+    #[test]
+    #[ignore = "requires an extracted packaged native runtime and worker workspace"]
+    fn packaged_resource_worker_reaches_reviewed_model_sensitive_proposal_estimate() {
+        let resource_directory = std::env::var_os("PARTPROBE_DESKTOP_RESOURCE_DIRECTORY")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .expect("packaged smoke requires an explicit extracted resource directory");
+        let adapter =
+            crate::analysis::DesktopAnalysisConfiguration::from_deployment_resource_directory(
+                &resource_directory,
+            )
+            .and_then(crate::analysis::DesktopAnalysisConfiguration::build_adapter)
+            .expect("packaged resource runtime/workspace must verify before analysis");
+        assert_real_step_reaches_reviewed_proposal_estimate(adapter);
+    }
+
+    #[cfg(feature = "desktop-host")]
     fn assert_real_step_reaches_retained_estimate(
         adapter: DesktopAnalysisAdapter<GeometryWorkerSupervisor>,
     ) {
@@ -701,7 +789,7 @@ mod tests {
         let request =
             crate::estimate::complete_test_request(&source.selection_id, &analysis.analysis_id);
         let evaluation = state
-            .evaluate_draft_estimate(&request)
+            .evaluate_draft_estimate(&request, None)
             .expect("complete inputs must evaluate through the retained native session");
         assert_eq!(
             evaluation.state,
@@ -717,6 +805,170 @@ mod tests {
         let serialized = serde_json::to_string(&analysis).expect("analysis must serialize");
         assert!(!serialized.contains(fixture.to_string_lossy().as_ref()));
         assert!(!serialized.contains("fixtures/models"));
+    }
+
+    #[cfg(feature = "desktop-host")]
+    fn assert_real_step_reaches_reviewed_proposal_estimate(
+        adapter: DesktopAnalysisAdapter<GeometryWorkerSupervisor>,
+    ) {
+        let directory = TestDirectory::create("desktop-packaged-proposal").unwrap();
+        let settings_state = DesktopSettingsState::open(&directory.path().join("settings.sqlite3"))
+            .expect("temporary Settings repository must open");
+        let settings_request = live_test_settings_request();
+        settings_state
+            .save(&settings_request)
+            .expect("reviewed synthetic Settings draft must save");
+        let settings = settings_state
+            .current_settings_draft()
+            .expect("saved Settings draft must reload");
+
+        let state = DesktopSessionState::with_analysis_adapter(adapter);
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/models/rectangular_prism_12x8x5.step")
+            .canonicalize()
+            .expect("proposal STEP fixture must exist");
+        let source = state
+            .retain_selected_path(fixture.clone())
+            .expect("fixture must be retained behind an opaque selection token");
+        let analysis = state
+            .analyze_selected_source(&source.selection_id)
+            .expect("packaged worker must analyze the real STEP fixture");
+        let proposal = state
+            .prepare_draft_estimate_proposal(
+                &PrepareDraftEstimateProposalRequest {
+                    selection_id: source.selection_id.clone(),
+                    analysis_id: analysis.analysis_id.clone(),
+                },
+                &settings,
+            )
+            .expect("proposal command must return a typed state");
+        let DraftEstimateProposalEvaluation::Available { proposal } = proposal else {
+            panic!("one-solid STEP plus starter resources must produce a reviewable proposal");
+        };
+        assert_eq!(proposal.model_extents_mm, ["12", "8", "5"]);
+        assert_eq!(proposal.blank_dimensions_mm, ["15", "11", "7"]);
+        assert_eq!(proposal.blank_volume_mm3, "1155");
+        assert_eq!(proposal.removed_volume_mm3, "675");
+        assert_eq!(proposal.unit_stock_material_cost, "0.02650725");
+
+        let mut request =
+            crate::estimate::complete_test_request(&source.selection_id, &analysis.analysis_id);
+        request.rates = settings_request.rates;
+        request.pricing = settings_request.pricing;
+        request.proposal_adoption = Some(DraftEstimateProposalAdoptionInput {
+            settings_revision: proposal.settings_revision,
+            library_id: proposal.library_id.clone(),
+            library_version: proposal.library_version,
+            proposal_values_reviewed: true,
+            coarse_limitations_accepted: true,
+            review_reason: "reviewed synthetic values and named exclusions for package smoke"
+                .to_owned(),
+            deliver_quantity: "1".to_owned(),
+            planned_spares: "0".to_owned(),
+            destructive_samples: "0".to_owned(),
+        });
+        let evaluation = state
+            .evaluate_draft_estimate(&request, Some(&settings))
+            .expect("explicit proposal adoption must evaluate through the retained session");
+        assert_eq!(
+            evaluation.state,
+            partprobe_desktop_contract::DraftEstimateEvaluationState::Available
+        );
+        let serialized = serde_json::to_string(&evaluation).expect("result must serialize");
+        assert!(!serialized.contains(fixture.to_string_lossy().as_ref()));
+        assert!(!serialized.contains("fixtures/models"));
+        let result = evaluation
+            .result
+            .expect("available proposal estimate must contain a trace");
+        assert_ne!(
+            result.rounded_selling_price, "702",
+            "proposal adoption must not fall back to the fixed manual fixture"
+        );
+        assert_eq!(result.make_quantity, 1);
+        assert_eq!(result.input_trace.stock_volume_mm3, "1155");
+        assert_eq!(result.input_trace.density_kg_per_mm3, "0.0000027");
+        assert_eq!(result.input_trace.purchased_material, "0.02650725");
+        let adoption = result
+            .proposal_adoption
+            .expect("proposal estimate must retain adoption evidence");
+        assert_eq!(adoption.settings_revision, 1);
+        assert!(
+            adoption
+                .excluded_inputs
+                .contains(&"tooling_fixture_and_outside_processing".to_owned())
+        );
+    }
+
+    #[cfg(feature = "desktop-host")]
+    fn live_test_settings_request() -> SaveShopSettingsRequest {
+        SaveShopSettingsRequest {
+            expected_revision: None,
+            changed_by: "package-smoke-reviewer".to_owned(),
+            change_reason: "reviewed synthetic values for governed package smoke".to_owned(),
+            rates: DeveloperRateInputFields {
+                confirmed_for_session: true,
+                rate_card_id: "synthetic-demo-rates".to_owned(),
+                rate_card_version: "1".to_owned(),
+                effective_on: "2026-09-10".to_owned(),
+                currency: "USD".to_owned(),
+                setup_labor_per_hour: "85".to_owned(),
+                programming_per_hour: "95".to_owned(),
+                run_labor_per_hour: "45".to_owned(),
+                machine_per_hour: "110".to_owned(),
+                quality_inspection_per_hour: "75".to_owned(),
+            },
+            pricing: DeveloperPricingInputFields {
+                confirmed_for_session: true,
+                pricing_policy_id: "synthetic-demo-pricing".to_owned(),
+                pricing_policy_version: "1".to_owned(),
+                markup_rate: "0.25".to_owned(),
+                optional_price_floor: String::new(),
+                optional_minimum_order: String::new(),
+                rounding_decimal_places: "2".to_owned(),
+            },
+            resources: Some(ShopResourceInputFields {
+                confirmed_for_draft: true,
+                library_id: "synthetic-demo-resources".to_owned(),
+                library_version: "1".to_owned(),
+                material_id: "synthetic-al-6061-t6".to_owned(),
+                material_version: "1".to_owned(),
+                material_family: "Aluminum".to_owned(),
+                material_grade: "6061".to_owned(),
+                optional_material_specification: String::new(),
+                optional_material_condition: "T6".to_owned(),
+                density_kg_per_m3: "2700".to_owned(),
+                material_source: "synthetic-demo-handbook".to_owned(),
+                offer_id: "synthetic-al-6061-offer".to_owned(),
+                offer_version: "1".to_owned(),
+                supplier: "Synthetic demo supplier".to_owned(),
+                material_price_per_kg: "8.50".to_owned(),
+                offer_effective_on: "2026-09-10".to_owned(),
+                offer_source: "synthetic-demo-offer".to_owned(),
+                stock_profile_id: "synthetic-rectangular-stock".to_owned(),
+                stock_profile_version: "1".to_owned(),
+                stock_form: "rectangular".to_owned(),
+                stock_allowance_x_mm: "3".to_owned(),
+                stock_allowance_y_mm: "3".to_owned(),
+                stock_allowance_z_mm: "2".to_owned(),
+                stock_source: "synthetic-demo-stock-policy".to_owned(),
+                machine_id: "synthetic-vmc".to_owned(),
+                machine_version: "1".to_owned(),
+                machine_name: "Synthetic VMC".to_owned(),
+                process_class: "milling".to_owned(),
+                machine_envelope_x_mm: "762".to_owned(),
+                machine_envelope_y_mm: "508".to_owned(),
+                machine_envelope_z_mm: "508".to_owned(),
+                machine_source: "synthetic-demo-machine-profile".to_owned(),
+                runtime_profile_id: "synthetic-vmc-al-runtime".to_owned(),
+                runtime_profile_version: "1".to_owned(),
+                removal_rate_mm3_per_minute: "12000".to_owned(),
+                setup_minutes: "60".to_owned(),
+                programming_minutes: "45".to_owned(),
+                load_unload_minutes: "3".to_owned(),
+                inspection_minutes: "15".to_owned(),
+                runtime_source: "synthetic-demo-runtime-profile".to_owned(),
+            }),
+        }
     }
 
     #[cfg(feature = "desktop-host")]
@@ -769,7 +1021,7 @@ mod tests {
             let request =
                 crate::estimate::complete_test_request(&source.selection_id, &analysis.analysis_id);
             let evaluation = state
-                .evaluate_draft_estimate(&request)
+                .evaluate_draft_estimate(&request, None)
                 .expect("mesh estimate request must return an explicit unavailable state");
             assert_eq!(
                 evaluation.state,

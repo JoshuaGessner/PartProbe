@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-09-10
+> **Last updated:** 2026-09-12
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -14,6 +14,20 @@ All notable project changes are recorded here. This project follows Keep a Chang
 
 ### Added
 
+- VIS-2 `geometry-display-scene-v1`: a tested native-only manifest and deterministic artifact frame; worker request/response schema v2 with exact optional display request/reference fields that preserve schema-v1 analysis behavior; fixed dual output names claimed under one supervisor quota; and application retention of only source/analysis-bound nonserializable arrays plus sanitized diagnostics. Unsolicited, partial, mismatched, silently omitted, contradictory, malformed, stale, altered, non-finite, out-of-range, cancelled, or over-limit evidence fails closed. A real schema-v2 request preserves analysis and reports explicit display unavailability. No geometry or paths enter the WebView; native tessellation/emission, desktop activation, and renderer handoff remain open.
+- A developer-only VIS-1 same-window viewer: `partprobe-model-viewer` owns a safe bounded `wgpu` surface, and contract v11 adds one exact path-free workspace command. With the exact `viewer-spike` feature plus `--vis1-synthetic-viewer` flag, **Model & stock** opens beside a native Metal viewport inside the existing PartProbe window, resizes with it, and returns cleanly to the full Estimate workspace. The scene remains synthetic, carries no CAD or calculation authority, and is excluded from normal packages; Tauri feature-gates the developer child-WebView composition behind `unstable`.
+- A source-controlled, explicitly review-required Huntsville aerospace testing profile with documented public anchors, transparent assumptions, and a deployment replacement gate.
+- A five-increment model/stock visualizer and governed numeric stock-editor plan that keeps display geometry native and stock revisions auditable.
+
+### Changed
+
+- Cleaned the Estimate and Settings language for live testing, moved technical evidence behind disclosures, removed unfinished roadmap/empty-catalog UI, and reduced intake dead space without weakening review or diagnostic boundaries.
+
+- Additive exact STEP envelope derivative schema v1 and the `geometry-step-analysis-v1` controlled container. The container preserves the complete unchanged snapshot-v1 value, rejects mismatched source hashes, decodes alongside legacy exact/mesh results, and can be retained by the application without expanding the desktop contract. Native OCCT adapter ABI v4 now measures precise uninflated source-axis bounds and the worker emits this container.
+- `ExactStepStockProposalApplication`, a read-only application boundary that resolves only the catalog's exact active selection and pinned allowance against controlled envelope-bearing STEP evidence. Missing derivative, mesh evidence, or no active selection remains explicitly unavailable; a proposal remains `NeedsReview` and is not adopted into an estimate.
+- The initial pure USE-3 `setup-planner` crate and versioned rectangular stock-envelope proposal rule. It consumes source/output-bound positive single-solid exact-STEP AABB evidence plus an exact active-for-proposals selection, applies Reviewed-or-Approved rectangular allowances once as total dimensional additions, and returns model-sensitive blank/removed-volume evidence as `NeedsReview`. Native worker evidence now supplies the additive input, but no desktop proposal, estimate adoption, material price, persistence, or supported-import behavior changes.
+- The internal contract-v10 live-test bridge: path-free exact STEP bounds, one exact proposal command, a model-sensitive starter-Draft proposal for blank/material/coarse runtime, and explicit session-only adoption requiring review, limitation acceptance, quantity, native actor/time, and reason. The result traces every zero-valued excluded input. The user-invoked Huntsville test profile remains unconfirmed and unsaved until reviewed; it is documented research-informed test data, not a verified market benchmark, shop default, CAM result, approved quote, or production capability.
+- An identity-gated successor-draft boundary in the selected catalog record plus a compact persistent Settings save-status bar. The current shipped state explicitly reports no local catalog changes, keeps preparation/save disabled with the native-identity reason, and leaves the immutable catalog unchanged.
 - Focused Settings work-area navigation that separates estimate-authoritative rate/pricing review from reusable material, stock, machine, and runtime resources. Both areas retain one shared persistence boundary; the split adds no catalog mutation, identity, activation, or estimate authority.
 - A compact read-only Settings catalog browser using the live-UI-reviewed information shape: five resource categories, per-category search and result count, version/state-aware record selection, and one evidence inspector with responsive layout. It does not invoke contract v9, stage edits, authenticate an operator, review records, or activate proposal eligibility.
 - Desktop contract v9 and its native multi-entry catalog-draft save adapter. The exact ninth command accepts a complete bounded five-kind catalog snapshot, exact settings/catalog expectations, and a reason, but no selections, actor, time, profile, path, storage, policy, or audit authority. The host supplies native actor/time/profile evidence, validates record ceilings before typed mapping, preserves matching immutable source evidence despite equivalent decimal text normalization, rejects changed bytes under a reused record version, executes storage off the UI task, and returns a path-free Settings snapshot. Ordinary startup remains `native_identity_unavailable`; the WebView has no invocation or editor yet.
@@ -52,7 +66,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 - User-owned effective-dated rate cards, explicit approval/source/effective-period contracts, deterministic missing/ambiguity behavior, and no numeric production defaults.
 - Versioned rounding and pricing policies, CALC-007–CALC-018 deterministic foundations, and isolated synthetic EX-01/03/12 golden/replay tests.
 - Kernel-neutral geometry contracts, bounded schema-v2 worker control and transport, verified-copy plus exact Unix descriptor/Windows HANDLE direct delivery, worker-side source verification, cancellation/forced termination, private staging, controlled output claiming, and governed derivative handoff.
-- Optional OCCT 8.0.0 ABI-v3 Apple Silicon byte-stream parsing with provisional synthetic STEP measurements and cancellation polling; default builds remain native-feature-off.
+- Optional OCCT 8.0.0 ABI-v4 Apple-Silicon byte-stream parsing with precise uninflated source-axis AABB extents, additive `geometry-step-analysis-v1` emission, provisional STEP measurements, and cancellation polling; earlier Linux/Windows/package evidence remains ABI v3 and default builds remain native-feature-off.
 - Partial worker resource containment: Unix CPU/file/core/process-group controls, Linux memory limits, and suspended Windows Job CPU/memory/one-process/tree-kill controls.
 - A canonical testable-GUI plan separating the five-checkpoint internal STEP/session-only slice, optional viewport increment, cross-platform alpha, and release acceptance.
 - A validated schema for the existing provisional native geometry evidence, a decoder binding claimed output to its reference and authorized source, and a native-root fingerprint/strict-check/worker-build entry point for GUI-1.

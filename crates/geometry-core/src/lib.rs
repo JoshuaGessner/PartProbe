@@ -298,6 +298,11 @@ impl ProvisionalGeometryDecimal {
     const fn is_negative(&self) -> bool {
         self.0.as_bytes()[0] == b'-'
     }
+
+    #[must_use]
+    const fn is_positive(&self) -> bool {
+        !(self.is_negative() || self.0.len() == 1 && self.0.as_bytes()[0] == b'0')
+    }
 }
 
 impl<'de> Deserialize<'de> for ProvisionalGeometryDecimal {
@@ -331,6 +336,695 @@ fn is_canonical_provisional_decimal(value: &str) -> bool {
             && digits.bytes().all(|byte| byte.is_ascii_digit())
             && !digits.ends_with('0')
     })
+}
+
+/// First additive source-axis envelope derivative for exact STEP evidence.
+pub const EXACT_STEP_ENVELOPE_DERIVATIVE_SCHEMA_VERSION: u16 = 1;
+
+/// Positive exact STEP axis-aligned extents, separate from the retained snapshot-v1 schema.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ExactStepEnvelopeDerivative {
+    schema_version: u16,
+    evidence_state: String,
+    source_hash: Sha256Digest,
+    representation: RepresentationBasis,
+    canonical_units: ModelLengthUnit,
+    decimal_scale: u32,
+    aabb_extents_mm: [ProvisionalGeometryDecimal; 3],
+}
+
+#[derive(Deserialize)]
+struct ExactStepEnvelopeDerivativeWire {
+    schema_version: u16,
+    evidence_state: String,
+    source_hash: Sha256Digest,
+    representation: RepresentationBasis,
+    canonical_units: ModelLengthUnit,
+    decimal_scale: u32,
+    aabb_extents_mm: [ProvisionalGeometryDecimal; 3],
+}
+
+impl<'de> Deserialize<'de> for ExactStepEnvelopeDerivative {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = ExactStepEnvelopeDerivativeWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
+impl ExactStepEnvelopeDerivative {
+    /// Constructs the fixed-basis derivative without modifying `geometry-snapshot-v1`.
+    pub fn new(
+        source_hash: Sha256Digest,
+        aabb_extents_mm: [ProvisionalGeometryDecimal; 3],
+    ) -> Result<Self, DomainError> {
+        Self::from_wire(ExactStepEnvelopeDerivativeWire {
+            schema_version: EXACT_STEP_ENVELOPE_DERIVATIVE_SCHEMA_VERSION,
+            evidence_state: "provisional_exact_step_envelope".to_owned(),
+            source_hash,
+            representation: RepresentationBasis::ExactBrep,
+            canonical_units: ModelLengthUnit::Millimeter,
+            decimal_scale: PROVISIONAL_GEOMETRY_DECIMAL_SCALE,
+            aabb_extents_mm,
+        })
+    }
+
+    fn from_wire(wire: ExactStepEnvelopeDerivativeWire) -> Result<Self, DomainError> {
+        if wire.schema_version != EXACT_STEP_ENVELOPE_DERIVATIVE_SCHEMA_VERSION
+            || wire.evidence_state != "provisional_exact_step_envelope"
+            || wire.representation != RepresentationBasis::ExactBrep
+            || wire.canonical_units != ModelLengthUnit::Millimeter
+            || wire.decimal_scale != PROVISIONAL_GEOMETRY_DECIMAL_SCALE
+            || wire
+                .aabb_extents_mm
+                .iter()
+                .any(|value| !value.is_positive())
+        {
+            return Err(DomainError::InvalidValue {
+                field: "exact STEP envelope derivative",
+                reason: "schema, evidence state, representation, units, scale, or extents are unsupported",
+            });
+        }
+        Ok(Self {
+            schema_version: wire.schema_version,
+            evidence_state: wire.evidence_state,
+            source_hash: wire.source_hash,
+            representation: wire.representation,
+            canonical_units: wire.canonical_units,
+            decimal_scale: wire.decimal_scale,
+            aabb_extents_mm: wire.aabb_extents_mm,
+        })
+    }
+
+    #[must_use]
+    pub const fn schema_version(&self) -> u16 {
+        self.schema_version
+    }
+
+    #[must_use]
+    pub fn evidence_state(&self) -> &str {
+        &self.evidence_state
+    }
+
+    #[must_use]
+    pub const fn source_hash(&self) -> &Sha256Digest {
+        &self.source_hash
+    }
+
+    #[must_use]
+    pub const fn representation(&self) -> RepresentationBasis {
+        self.representation
+    }
+
+    #[must_use]
+    pub const fn canonical_units(&self) -> ModelLengthUnit {
+        self.canonical_units
+    }
+
+    #[must_use]
+    pub const fn decimal_scale(&self) -> u32 {
+        self.decimal_scale
+    }
+
+    #[must_use]
+    pub const fn aabb_extents_mm(&self) -> &[ProvisionalGeometryDecimal; 3] {
+        &self.aabb_extents_mm
+    }
+}
+
+/// First schema for a bounded native-only display derivative manifest.
+pub const GEOMETRY_DISPLAY_SCENE_SCHEMA_VERSION: u16 = 1;
+/// Stable controlled-output reference for the first display derivative manifest.
+pub const GEOMETRY_DISPLAY_SCENE_REFERENCE: &str = "geometry-display-scene-v1";
+/// Fixed evidence label distinguishing visualization data from measurement authority.
+pub const GEOMETRY_DISPLAY_SCENE_EVIDENCE_STATE: &str = "display_only";
+/// Reviewed tessellation profile implemented by the first display derivative.
+pub const DISPLAY_TESSELLATION_PROFILE_REFERENCE: &str = "partprobe-display-tessellation-v1";
+/// Version of the reviewed first display tessellation profile.
+pub const DISPLAY_TESSELLATION_PROFILE_VERSION: RuleVersion = RuleVersion::new(1, 0, 0);
+/// Maximum number of independently hashed chunks in one developer display scene.
+pub const MAX_DISPLAY_SCENE_CHUNKS: usize = 32;
+/// Maximum vertex count in one developer display scene.
+pub const MAX_DISPLAY_SCENE_VERTICES: u64 = 1_000_000;
+/// Maximum triangle count in one developer display scene.
+pub const MAX_DISPLAY_SCENE_TRIANGLES: u64 = 2_000_000;
+/// Maximum combined vertex and index bytes in one developer display scene.
+pub const MAX_DISPLAY_SCENE_BYTES: u64 = 32 * 1024 * 1024;
+
+const DISPLAY_VERTEX_STRIDE_BYTES: u64 = 3 * size_of::<f32>() as u64;
+const DISPLAY_TRIANGLE_STRIDE_BYTES: u64 = 3 * size_of::<u32>() as u64;
+
+/// Coordinate basis retained by a display-only scene.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplayCoordinateSpace {
+    /// Canonical millimetres derived from resolved model units.
+    CanonicalMillimeters,
+    /// Source coordinates whose physical unit is still unresolved.
+    UnresolvedSourceCoordinates,
+}
+
+/// Binary position layout required by `geometry-display-scene-v1`.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplayPositionEncoding {
+    /// Three finite little-endian IEEE-754 `f32` values per vertex.
+    Float32x3LittleEndian,
+}
+
+/// Binary index layout required by `geometry-display-scene-v1`.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplayIndexEncoding {
+    /// One little-endian `u32` per index.
+    Uint32LittleEndian,
+}
+
+/// Primitive topology required by `geometry-display-scene-v1`.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplayPrimitiveTopology {
+    /// Every consecutive three indices form one triangle.
+    TriangleList,
+}
+
+/// Stable snapshot-scoped body or region reference carried into native selection.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct DisplayGeometryReference(String);
+
+impl DisplayGeometryReference {
+    /// Validates a bounded opaque reference that cannot be confused with a path.
+    pub fn new(value: impl Into<String>) -> Result<Self, DomainError> {
+        let value = value.into();
+        if value.is_empty()
+            || value.len() > 128
+            || matches!(value.as_str(), "." | "..")
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+        {
+            return Err(DomainError::InvalidValue {
+                field: "display geometry reference",
+                reason: "must be a 1–128 character path-free ASCII token",
+            });
+        }
+        Ok(Self(value))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for DisplayGeometryReference {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Reviewed and replayable tessellation inputs for one display derivative.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct DisplayTessellationProfile {
+    reference: String,
+    version: RuleVersion,
+    linear_deflection: ProvisionalGeometryDecimal,
+    angular_deflection_degrees: ProvisionalGeometryDecimal,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DisplayTessellationProfileWire {
+    reference: String,
+    version: RuleVersion,
+    linear_deflection: ProvisionalGeometryDecimal,
+    angular_deflection_degrees: ProvisionalGeometryDecimal,
+}
+
+impl<'de> Deserialize<'de> for DisplayTessellationProfile {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = DisplayTessellationProfileWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
+impl DisplayTessellationProfile {
+    /// Constructs the current reviewed display tessellation profile.
+    pub fn new(
+        linear_deflection: ProvisionalGeometryDecimal,
+        angular_deflection_degrees: ProvisionalGeometryDecimal,
+    ) -> Result<Self, DomainError> {
+        Self::from_wire(DisplayTessellationProfileWire {
+            reference: DISPLAY_TESSELLATION_PROFILE_REFERENCE.to_owned(),
+            version: DISPLAY_TESSELLATION_PROFILE_VERSION,
+            linear_deflection,
+            angular_deflection_degrees,
+        })
+    }
+
+    fn from_wire(wire: DisplayTessellationProfileWire) -> Result<Self, DomainError> {
+        if wire.reference != DISPLAY_TESSELLATION_PROFILE_REFERENCE
+            || wire.version != DISPLAY_TESSELLATION_PROFILE_VERSION
+            || !wire.linear_deflection.is_positive()
+            || !wire.angular_deflection_degrees.is_positive()
+        {
+            return Err(DomainError::InvalidValue {
+                field: "display tessellation profile",
+                reason: "reference, version, or positive tolerances are unsupported",
+            });
+        }
+        Ok(Self {
+            reference: wire.reference,
+            version: wire.version,
+            linear_deflection: wire.linear_deflection,
+            angular_deflection_degrees: wire.angular_deflection_degrees,
+        })
+    }
+
+    #[must_use]
+    pub fn reference(&self) -> &str {
+        &self.reference
+    }
+
+    #[must_use]
+    pub const fn version(&self) -> RuleVersion {
+        self.version
+    }
+
+    #[must_use]
+    pub const fn linear_deflection(&self) -> &ProvisionalGeometryDecimal {
+        &self.linear_deflection
+    }
+
+    #[must_use]
+    pub const fn angular_deflection_degrees(&self) -> &ProvisionalGeometryDecimal {
+        &self.angular_deflection_degrees
+    }
+}
+
+/// Hash- and length-bound native buffer descriptor for one display chunk.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct DisplayMeshChunkDescriptor {
+    sequence: u32,
+    geometry_reference: DisplayGeometryReference,
+    vertex_count: u32,
+    triangle_count: u32,
+    vertex_byte_length: u64,
+    index_byte_length: u64,
+    vertex_sha256: Sha256Digest,
+    index_sha256: Sha256Digest,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DisplayMeshChunkDescriptorWire {
+    sequence: u32,
+    geometry_reference: DisplayGeometryReference,
+    vertex_count: u32,
+    triangle_count: u32,
+    vertex_byte_length: u64,
+    index_byte_length: u64,
+    vertex_sha256: Sha256Digest,
+    index_sha256: Sha256Digest,
+}
+
+impl<'de> Deserialize<'de> for DisplayMeshChunkDescriptor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = DisplayMeshChunkDescriptorWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
+impl DisplayMeshChunkDescriptor {
+    /// Constructs a descriptor using the schema's fixed vertex and triangle layouts.
+    pub fn new(
+        sequence: u32,
+        geometry_reference: DisplayGeometryReference,
+        vertex_count: u32,
+        triangle_count: u32,
+        vertex_sha256: Sha256Digest,
+        index_sha256: Sha256Digest,
+    ) -> Result<Self, DomainError> {
+        Self::from_wire(DisplayMeshChunkDescriptorWire {
+            sequence,
+            geometry_reference,
+            vertex_count,
+            triangle_count,
+            vertex_byte_length: u64::from(vertex_count) * DISPLAY_VERTEX_STRIDE_BYTES,
+            index_byte_length: u64::from(triangle_count) * DISPLAY_TRIANGLE_STRIDE_BYTES,
+            vertex_sha256,
+            index_sha256,
+        })
+    }
+
+    fn from_wire(wire: DisplayMeshChunkDescriptorWire) -> Result<Self, DomainError> {
+        let expected_vertex_bytes = u64::from(wire.vertex_count) * DISPLAY_VERTEX_STRIDE_BYTES;
+        let expected_index_bytes = u64::from(wire.triangle_count) * DISPLAY_TRIANGLE_STRIDE_BYTES;
+        if wire.vertex_count == 0
+            || wire.triangle_count == 0
+            || wire.vertex_byte_length != expected_vertex_bytes
+            || wire.index_byte_length != expected_index_bytes
+        {
+            return Err(DomainError::InvalidValue {
+                field: "display mesh chunk descriptor",
+                reason: "counts must be positive and byte lengths must match the fixed layouts",
+            });
+        }
+        Ok(Self {
+            sequence: wire.sequence,
+            geometry_reference: wire.geometry_reference,
+            vertex_count: wire.vertex_count,
+            triangle_count: wire.triangle_count,
+            vertex_byte_length: wire.vertex_byte_length,
+            index_byte_length: wire.index_byte_length,
+            vertex_sha256: wire.vertex_sha256,
+            index_sha256: wire.index_sha256,
+        })
+    }
+
+    #[must_use]
+    pub const fn sequence(&self) -> u32 {
+        self.sequence
+    }
+
+    #[must_use]
+    pub const fn geometry_reference(&self) -> &DisplayGeometryReference {
+        &self.geometry_reference
+    }
+
+    #[must_use]
+    pub const fn vertex_count(&self) -> u32 {
+        self.vertex_count
+    }
+
+    #[must_use]
+    pub const fn triangle_count(&self) -> u32 {
+        self.triangle_count
+    }
+
+    #[must_use]
+    pub const fn vertex_byte_length(&self) -> u64 {
+        self.vertex_byte_length
+    }
+
+    #[must_use]
+    pub const fn index_byte_length(&self) -> u64 {
+        self.index_byte_length
+    }
+
+    #[must_use]
+    pub const fn vertex_sha256(&self) -> &Sha256Digest {
+        &self.vertex_sha256
+    }
+
+    #[must_use]
+    pub const fn index_sha256(&self) -> &Sha256Digest {
+        &self.index_sha256
+    }
+}
+
+/// Bounded manifest for native-owned visualization buffers.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GeometryDisplaySceneManifest {
+    schema_version: u16,
+    reference: String,
+    evidence_state: String,
+    source_hash: Sha256Digest,
+    analysis_output_hash: Sha256Digest,
+    representation: RepresentationBasis,
+    coordinate_space: DisplayCoordinateSpace,
+    units: ModelLengthUnit,
+    position_encoding: DisplayPositionEncoding,
+    index_encoding: DisplayIndexEncoding,
+    primitive_topology: DisplayPrimitiveTopology,
+    tessellation_profile: DisplayTessellationProfile,
+    aabb_extents: [ProvisionalGeometryDecimal; 3],
+    total_vertex_count: u64,
+    total_triangle_count: u64,
+    total_byte_length: u64,
+    chunks: Vec<DisplayMeshChunkDescriptor>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GeometryDisplaySceneManifestWire {
+    schema_version: u16,
+    reference: String,
+    evidence_state: String,
+    source_hash: Sha256Digest,
+    analysis_output_hash: Sha256Digest,
+    representation: RepresentationBasis,
+    coordinate_space: DisplayCoordinateSpace,
+    units: ModelLengthUnit,
+    position_encoding: DisplayPositionEncoding,
+    index_encoding: DisplayIndexEncoding,
+    primitive_topology: DisplayPrimitiveTopology,
+    tessellation_profile: DisplayTessellationProfile,
+    aabb_extents: [ProvisionalGeometryDecimal; 3],
+    total_vertex_count: u64,
+    total_triangle_count: u64,
+    total_byte_length: u64,
+    chunks: Vec<DisplayMeshChunkDescriptor>,
+}
+
+impl<'de> Deserialize<'de> for GeometryDisplaySceneManifest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = GeometryDisplaySceneManifestWire::deserialize(deserializer)?;
+        Self::from_wire(wire).map_err(serde::de::Error::custom)
+    }
+}
+
+impl GeometryDisplaySceneManifest {
+    /// Constructs a display-only scene manifest from native buffer descriptors.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        source_hash: Sha256Digest,
+        analysis_output_hash: Sha256Digest,
+        representation: RepresentationBasis,
+        coordinate_space: DisplayCoordinateSpace,
+        units: ModelLengthUnit,
+        tessellation_profile: DisplayTessellationProfile,
+        aabb_extents: [ProvisionalGeometryDecimal; 3],
+        chunks: Vec<DisplayMeshChunkDescriptor>,
+    ) -> Result<Self, DomainError> {
+        let (total_vertex_count, total_triangle_count, total_byte_length) =
+            display_scene_totals(&chunks)?;
+        Self::from_wire(GeometryDisplaySceneManifestWire {
+            schema_version: GEOMETRY_DISPLAY_SCENE_SCHEMA_VERSION,
+            reference: GEOMETRY_DISPLAY_SCENE_REFERENCE.to_owned(),
+            evidence_state: GEOMETRY_DISPLAY_SCENE_EVIDENCE_STATE.to_owned(),
+            source_hash,
+            analysis_output_hash,
+            representation,
+            coordinate_space,
+            units,
+            position_encoding: DisplayPositionEncoding::Float32x3LittleEndian,
+            index_encoding: DisplayIndexEncoding::Uint32LittleEndian,
+            primitive_topology: DisplayPrimitiveTopology::TriangleList,
+            tessellation_profile,
+            aabb_extents,
+            total_vertex_count,
+            total_triangle_count,
+            total_byte_length,
+            chunks,
+        })
+    }
+
+    fn from_wire(wire: GeometryDisplaySceneManifestWire) -> Result<Self, DomainError> {
+        let coordinates_are_valid = matches!(
+            (wire.representation, wire.coordinate_space, wire.units),
+            (
+                RepresentationBasis::ExactBrep | RepresentationBasis::Mesh,
+                DisplayCoordinateSpace::CanonicalMillimeters,
+                ModelLengthUnit::Millimeter
+            ) | (
+                RepresentationBasis::Mesh,
+                DisplayCoordinateSpace::UnresolvedSourceCoordinates,
+                ModelLengthUnit::Unknown
+            )
+        );
+        if wire.schema_version != GEOMETRY_DISPLAY_SCENE_SCHEMA_VERSION
+            || wire.reference != GEOMETRY_DISPLAY_SCENE_REFERENCE
+            || wire.evidence_state != GEOMETRY_DISPLAY_SCENE_EVIDENCE_STATE
+            || !coordinates_are_valid
+            || wire.aabb_extents.iter().any(|extent| !extent.is_positive())
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry display scene manifest",
+                reason: "schema, binding, representation, units, or extents are unsupported",
+            });
+        }
+
+        let (vertex_count, triangle_count, byte_length) = display_scene_totals(&wire.chunks)?;
+        if wire.total_vertex_count != vertex_count
+            || wire.total_triangle_count != triangle_count
+            || wire.total_byte_length != byte_length
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry display scene totals",
+                reason: "declared totals must exactly match the ordered chunk descriptors",
+            });
+        }
+
+        Ok(Self {
+            schema_version: wire.schema_version,
+            reference: wire.reference,
+            evidence_state: wire.evidence_state,
+            source_hash: wire.source_hash,
+            analysis_output_hash: wire.analysis_output_hash,
+            representation: wire.representation,
+            coordinate_space: wire.coordinate_space,
+            units: wire.units,
+            position_encoding: wire.position_encoding,
+            index_encoding: wire.index_encoding,
+            primitive_topology: wire.primitive_topology,
+            tessellation_profile: wire.tessellation_profile,
+            aabb_extents: wire.aabb_extents,
+            total_vertex_count: wire.total_vertex_count,
+            total_triangle_count: wire.total_triangle_count,
+            total_byte_length: wire.total_byte_length,
+            chunks: wire.chunks,
+        })
+    }
+
+    #[must_use]
+    pub const fn schema_version(&self) -> u16 {
+        self.schema_version
+    }
+
+    #[must_use]
+    pub fn reference(&self) -> &str {
+        &self.reference
+    }
+
+    #[must_use]
+    pub fn evidence_state(&self) -> &str {
+        &self.evidence_state
+    }
+
+    #[must_use]
+    pub const fn source_hash(&self) -> &Sha256Digest {
+        &self.source_hash
+    }
+
+    #[must_use]
+    pub const fn analysis_output_hash(&self) -> &Sha256Digest {
+        &self.analysis_output_hash
+    }
+
+    #[must_use]
+    pub const fn representation(&self) -> RepresentationBasis {
+        self.representation
+    }
+
+    #[must_use]
+    pub const fn coordinate_space(&self) -> DisplayCoordinateSpace {
+        self.coordinate_space
+    }
+
+    #[must_use]
+    pub const fn units(&self) -> ModelLengthUnit {
+        self.units
+    }
+
+    #[must_use]
+    pub const fn tessellation_profile(&self) -> &DisplayTessellationProfile {
+        &self.tessellation_profile
+    }
+
+    #[must_use]
+    pub const fn aabb_extents(&self) -> &[ProvisionalGeometryDecimal; 3] {
+        &self.aabb_extents
+    }
+
+    #[must_use]
+    pub const fn total_vertex_count(&self) -> u64 {
+        self.total_vertex_count
+    }
+
+    #[must_use]
+    pub const fn total_triangle_count(&self) -> u64 {
+        self.total_triangle_count
+    }
+
+    #[must_use]
+    pub const fn total_byte_length(&self) -> u64 {
+        self.total_byte_length
+    }
+
+    #[must_use]
+    pub fn chunks(&self) -> &[DisplayMeshChunkDescriptor] {
+        &self.chunks
+    }
+}
+
+fn display_scene_totals(
+    chunks: &[DisplayMeshChunkDescriptor],
+) -> Result<(u64, u64, u64), DomainError> {
+    if chunks.is_empty() || chunks.len() > MAX_DISPLAY_SCENE_CHUNKS {
+        return Err(DomainError::InvalidValue {
+            field: "geometry display scene chunks",
+            reason: "chunk count is outside the reviewed display-scene ceiling",
+        });
+    }
+
+    let mut vertices = 0_u64;
+    let mut triangles = 0_u64;
+    let mut bytes = 0_u64;
+    for (expected_sequence, chunk) in chunks.iter().enumerate() {
+        if u32::try_from(expected_sequence) != Ok(chunk.sequence) {
+            return Err(DomainError::InvalidValue {
+                field: "geometry display scene chunks",
+                reason: "chunk sequences must be contiguous and start at zero",
+            });
+        }
+        vertices = vertices.checked_add(u64::from(chunk.vertex_count)).ok_or(
+            DomainError::InvalidValue {
+                field: "geometry display scene totals",
+                reason: "vertex total overflowed",
+            },
+        )?;
+        triangles = triangles
+            .checked_add(u64::from(chunk.triangle_count))
+            .ok_or(DomainError::InvalidValue {
+                field: "geometry display scene totals",
+                reason: "triangle total overflowed",
+            })?;
+        bytes = bytes
+            .checked_add(chunk.vertex_byte_length)
+            .and_then(|total| total.checked_add(chunk.index_byte_length))
+            .ok_or(DomainError::InvalidValue {
+                field: "geometry display scene totals",
+                reason: "byte total overflowed",
+            })?;
+    }
+
+    if vertices > MAX_DISPLAY_SCENE_VERTICES
+        || triangles > MAX_DISPLAY_SCENE_TRIANGLES
+        || bytes > MAX_DISPLAY_SCENE_BYTES
+    {
+        return Err(DomainError::InvalidValue {
+            field: "geometry display scene totals",
+            reason: "scene exceeds a reviewed vertex, triangle, or byte ceiling",
+        });
+    }
+    Ok((vertices, triangles, bytes))
 }
 
 /// Validated developer-only snapshot emitted by the current optional native STEP spike.

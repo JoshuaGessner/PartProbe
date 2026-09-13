@@ -1,7 +1,7 @@
 //! Optional, narrow C ABI boundary for the out-of-process OCCT adapter.
 
 /// Native adapter ABI version implemented by this crate.
-pub const OCCT_ADAPTER_ABI_VERSION: u32 = 3;
+pub const OCCT_ADAPTER_ABI_VERSION: u32 = 4;
 
 /// Returns whether this build contains the optional OCCT bridge.
 #[must_use]
@@ -23,6 +23,8 @@ pub struct NativeBasicProperties {
     pub enclosed_volume_mm3: f64,
     /// Center of mass in millimetres.
     pub center_of_mass_mm: [f64; 3],
+    /// Precise source-axis-aligned bounding extents in millimetres.
+    pub aabb_extents_mm: [f64; 3],
 }
 
 /// Sanitized adapter failure without native exception text or source paths.
@@ -64,6 +66,9 @@ mod native {
         center_of_mass_x_mm: f64,
         center_of_mass_y_mm: f64,
         center_of_mass_z_mm: f64,
+        aabb_extent_x_mm: f64,
+        aabb_extent_y_mm: f64,
+        aabb_extent_z_mm: f64,
         diagnostic_code: [c_char; DIAGNOSTIC_CAPACITY],
     }
 
@@ -187,6 +192,9 @@ mod native {
             center_of_mass_x_mm: 0.0,
             center_of_mass_y_mm: 0.0,
             center_of_mass_z_mm: 0.0,
+            aabb_extent_x_mm: 0.0,
+            aabb_extent_y_mm: 0.0,
+            aabb_extent_z_mm: 0.0,
             diagnostic_code: [0; DIAGNOSTIC_CAPACITY],
         };
         let status = analyze(
@@ -206,11 +214,17 @@ mod native {
                 result.center_of_mass_x_mm,
                 result.center_of_mass_y_mm,
                 result.center_of_mass_z_mm,
+                result.aabb_extent_x_mm,
+                result.aabb_extent_y_mm,
+                result.aabb_extent_z_mm,
             ]
             .iter()
             .any(|value| !value.is_finite())
             || result.surface_area_mm2 < 0.0
             || result.enclosed_volume_mm3 < 0.0
+            || result.aabb_extent_x_mm <= 0.0
+            || result.aabb_extent_y_mm <= 0.0
+            || result.aabb_extent_z_mm <= 0.0
         {
             return Err(NativeAdapterError {
                 diagnostic_code: "OCCT_INVALID_RESULT",
@@ -225,6 +239,11 @@ mod native {
                 result.center_of_mass_x_mm,
                 result.center_of_mass_y_mm,
                 result.center_of_mass_z_mm,
+            ],
+            aabb_extents_mm: [
+                result.aabb_extent_x_mm,
+                result.aabb_extent_y_mm,
+                result.aabb_extent_z_mm,
             ],
         })
     }
@@ -265,6 +284,7 @@ mod native {
             "STEP_READ_FAILED" => "STEP_READ_FAILED",
             "STEP_TRANSFER_FAILED" => "STEP_TRANSFER_FAILED",
             "STEP_NO_SHAPE" => "STEP_NO_SHAPE",
+            "OCCT_INVALID_BOUNDS" => "OCCT_INVALID_BOUNDS",
             "OCCT_STANDARD_FAILURE" => "OCCT_STANDARD_FAILURE",
             "OCCT_UNKNOWN_FAILURE" => "OCCT_UNKNOWN_FAILURE",
             _ => "OCCT_UNKNOWN_FAILURE",
@@ -315,6 +335,9 @@ mod native {
             for component in properties.center_of_mass_mm {
                 assert!((component - 5.0).abs() <= 0.000_001);
             }
+            for (actual, expected) in properties.aabb_extents_mm.into_iter().zip([10.0; 3]) {
+                assert!((actual - expected).abs() <= 0.000_001);
+            }
         }
 
         #[test]
@@ -329,6 +352,9 @@ mod native {
             assert!((properties.enclosed_volume_mm3 - 1000.0).abs() <= 0.000_001);
             for component in properties.center_of_mass_mm {
                 assert!((component - 5.0).abs() <= 0.000_001);
+            }
+            for (actual, expected) in properties.aabb_extents_mm.into_iter().zip([10.0; 3]) {
+                assert!((actual - expected).abs() <= 0.000_001);
             }
         }
 
@@ -347,6 +373,9 @@ mod native {
                 .into_iter()
                 .zip([6.0, 4.0, 2.5])
             {
+                assert!((actual - expected).abs() <= 0.000_001);
+            }
+            for (actual, expected) in properties.aabb_extents_mm.into_iter().zip([12.0, 8.0, 5.0]) {
                 assert!((actual - expected).abs() <= 0.000_001);
             }
         }

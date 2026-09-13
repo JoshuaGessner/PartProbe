@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-10
+- **Last updated:** 2026-09-12
 - **Related requirement IDs:** UX-001 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Prioritize library/admin screens after initial vertical-slice validation.
@@ -21,9 +21,9 @@
 | Quote workspace overview | Quote context and persistent total strip | 1 | Assumptions, next review action |
 | Part/package | Link model, drawing, specs, revision metadata | 1 | Hash, attachments, requirement gaps |
 | Model import | Controlled intake and file validation | 1 | Format, local handling, unit candidate |
-| Model viewer / geometry validation | Understand model integrity and basic properties | 1 | Geometry, warnings, units, measurements |
+| Model and stock review | View model, proposed stock, integrity, and basic properties without giving the renderer calculation authority | 1 / VIS-1 phases A/B implemented as developer preview; VIS-2–5 planned | Contract v11 exposes a clickable same-window destination, narrow textual inspector, native Metal viewport, return navigation, and resize lifecycle only behind the exact developer feature/flag. The scene is synthetic. Source-bound display data, complete keyboard scene controls, units/warnings/measurements, governed stock enclosure/placement, machine fit, and exact proposal/candidate pins remain |
 | Feature review | Inspect/add/accept/reject features | 3 | Geometry link, confidence, impact |
-| Stock selection | Compare editable stock candidates | 1 | Envelope, allowance, cost, yield |
+| Stock selection | Compare editable stock candidates | 1 / VIS-4 planned | Numeric envelope/allowance edits create immutable reviewed candidates; no drag-only or silent centered-placement assumption |
 | Setup/orientation review | Compare setup alternatives | 2 | Access/workholding confidence |
 | Routing editor | Build ordered operations | 1 | Times, machine, source, overrides |
 | Tool and feeds/speeds review | Validate proposed tooling parameters | 3 | Versioned source and constraints |
@@ -35,7 +35,7 @@
 | Risk review | Identify/resolve uncertainty and allowance | 1 | Owner, impact, mitigation, acceptance |
 | Approval review | Internal approval record | 1 | Thresholds, snapshot, exceptions |
 | Customer quote preview | Controlled outward-facing output | 1 | Exclusions, revision, export/print |
-| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Current GUI separates Rates & pricing from Resources through focused keyboard-operable work-area controls, persists rate/pricing plus one optional starter bundle, and reviews schema-v3 catalog identity, contents, and active-selection evidence. The catalog uses five compact categories, per-category search/result count, a version/state-aware record list, and one evidence inspector. Contract v9 adds the native draft-save adapter, but ordinary startup is identity-unavailable and the WebView invokes neither catalog command. Governed successor fields and the persistent save/review footer follow; authenticated identity/roles, a reviewed allow configuration, and enabled activation remain pending |
+| Shop Settings | Configure currency, rates, material/stock prices and allowances, machines/runtime profiles, and pricing policy without product numeric defaults | 1 | Current GUI separates Rates & pricing from Resources, persists rate/pricing plus one optional starter bundle, and can load the explicit unconfirmed `huntsville-2026q3-test-*` usability profile. Schema-v3 catalogs remain read-only/identity-gated. Validated multi-entry editing, dirty-state/discard handling, authenticated identity/roles, a reviewed allow configuration, and activation remain pending |
 | Advanced material/tool/machine/rate/vendor libraries | Govern reusable multi-user shop data | 4 | Version, approval, import staging, history |
 | Customer management | CRM and pricing policy context | 2 | Contacts, restrictions, history |
 | Historical actuals / variance | Compare original estimate and outcome | 6 | Bias evidence; controlled recommendation |

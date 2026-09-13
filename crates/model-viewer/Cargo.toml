@@ -1,0 +1,22 @@
+[package]
+name = "partprobe-model-viewer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+bytemuck.workspace = true
+pollster.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+wgpu = { workspace = true, features = ["std", "wgsl", "metal"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wgpu = { workspace = true, features = ["std", "wgsl", "dx12"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+wgpu = { workspace = true, features = ["std", "wgsl", "vulkan", "gles"] }
+
+[lints]
+workspace = true

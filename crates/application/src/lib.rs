@@ -2,6 +2,7 @@
 
 mod draft_estimate;
 pub mod shop_settings;
+mod stock_proposal;
 
 pub use draft_estimate::{
     AnalyzedGeometryEvidence, DraftBaseCostInputs, DraftEstimateApplication,
@@ -9,6 +10,9 @@ pub use draft_estimate::{
     DraftEstimateTrace, DraftGeometryRequestTemplate, DraftGeometryReview, DraftMaterialCostInputs,
     DraftOperationCostInputs, DraftQuantityInputs, DraftRateContext, DraftResolvedRates,
     DraftStockInputs, DraftTimeInputs, GeometryAnalysisFailure, GeometryAnalysisPort,
+};
+pub use partprobe_setup_planner::{
+    DeveloperEstimateInputProposal, DeveloperEstimateProposalReasonCode,
 };
 pub use shop_settings::{
     ActivateShopResourceSelectionRequest, DenyAllShopResourceCatalogAuthorizationPolicy,
@@ -19,6 +23,12 @@ pub use shop_settings::{
     ShopResourceCatalogDraftContents, ShopResourceCatalogDraftError, ShopResourceCatalogOperation,
     ShopSettingsApplication, ShopSettingsDraftRepository, ShopSettingsLoadState,
     ShopSettingsStoreError,
+};
+pub use stock_proposal::{
+    AdoptedDeveloperEstimateInputs, DEVELOPER_ESTIMATE_PROPOSAL_ADOPTION_RULE_ID,
+    DEVELOPER_ESTIMATE_PROPOSAL_ADOPTION_RULE_VERSION, DeveloperEstimateProposalAdoptionError,
+    DeveloperEstimateProposalApplication, DeveloperEstimateProposalReview,
+    ExactStepStockProposalApplication,
 };
 
 use std::path::Path;

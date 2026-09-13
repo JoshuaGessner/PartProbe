@@ -18,13 +18,15 @@ use partprobe_domain::{
     VolumeCubicMillimeters,
 };
 use partprobe_geometry_core::{
-    AnalysisProfile, AnalysisProfileId, GeometryStage, ProvisionalGeometryDecimal,
+    AnalysisProfile, AnalysisProfileId, DisplayTessellationProfile, ExactStepEnvelopeDerivative,
+    GeometryStage, ProvisionalGeometryDecimal,
 };
 use partprobe_geometry_import::{
-    AssetCapability, AssetReadGrant, ControlledGeometryResult, CorrelationId, GeometryJobId,
-    GeometryWorkerRequest, LocalAssetRoot, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
-    ProvisionalGeometrySnapshot, ProvisionalMeshGeometrySnapshot, ResourceQuotas, Sha256Digest,
-    SnapshotReference, StlLimits, analyze_stl,
+    AssetCapability, AssetReadGrant, ControlledGeometryResult, CorrelationId, DisplaySceneRequest,
+    GEOMETRY_WORKER_SCHEMA_VERSION, GeometryJobId, GeometryWorkerRequest, LocalAssetRoot,
+    PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+    ProvisionalExactStepAnalysis, ProvisionalGeometrySnapshot, ProvisionalMeshGeometrySnapshot,
+    ResourceQuotas, Sha256Digest, SnapshotReference, StlLimits, analyze_stl,
 };
 use partprobe_security::{
     AuditAppendError, AuditCorrelationId, AuthorizationAuditEvent, AuthorizationAuditSink,
@@ -46,6 +48,7 @@ static TEST_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 struct StaticAnalyzer {
     calls: Rc<Cell<u64>>,
     expected_source_hash: &'static str,
+    expect_display_scene: bool,
     evidence: AnalyzedGeometryEvidence,
 }
 
@@ -61,6 +64,7 @@ impl GeometryAnalysisPort for StaticAnalyzer {
             self.expected_source_hash
         );
         assert_eq!(grant.asset_capability(), request.asset_capability());
+        assert_eq!(request.display_scene().is_some(), self.expect_display_scene);
         self.calls.set(self.calls.get() + 1);
         Ok(self.evidence.clone())
     }
@@ -103,6 +107,7 @@ fn authorized_analysis_starts_ephemeral_session_with_no_numeric_defaults() {
         StaticAnalyzer {
             calls: Rc::clone(&calls),
             expected_source_hash: SOURCE_HASH,
+            expect_display_scene: false,
             evidence: geometry_evidence(),
         },
     );
@@ -131,6 +136,87 @@ fn authorized_analysis_starts_ephemeral_session_with_no_numeric_defaults() {
             .as_str(),
         SOURCE_HASH
     );
+    assert!(session.geometry().exact_step_envelope().is_none());
+    drop(session);
+    drop(root);
+    remove_test_root(&test_directory);
+}
+
+#[test]
+fn schema_v2_display_request_survives_authorized_source_fingerprinting() {
+    let test_directory = create_test_root("display-fingerprint");
+    let root = local_root(&test_directory, "root-display-fingerprint");
+    let calls = Rc::new(Cell::new(0));
+    let application = DraftEstimateApplication::new(
+        LocalAssetReadService::new(AllowPolicy, RecordingAudit::default()),
+        StaticAnalyzer {
+            calls: Rc::clone(&calls),
+            expected_source_hash: SYNTHETIC_SOURCE_HASH,
+            expect_display_scene: true,
+            evidence: geometry_evidence_for(SYNTHETIC_SOURCE_HASH),
+        },
+    );
+
+    let session = application
+        .start_session_from_unfingerprinted_source(
+            subject(),
+            &root,
+            &display_request_template(),
+            Path::new("part.step"),
+            &AtomicBool::new(false),
+        )
+        .expect("display request must survive authorized fingerprinting");
+
+    assert_eq!(calls.get(), 1);
+    assert!(session.geometry().display_scene().is_none());
+    drop(session);
+    drop(root);
+    remove_test_root(&test_directory);
+}
+
+#[test]
+fn additive_exact_step_envelope_reaches_the_session_without_changing_estimate_geometry() {
+    let test_directory = create_test_root("exact-envelope-start");
+    let root = local_root(&test_directory, "root-exact-envelope-start");
+    let application = DraftEstimateApplication::new(
+        LocalAssetReadService::new(AllowPolicy, RecordingAudit::default()),
+        StaticAnalyzer {
+            calls: Rc::new(Cell::new(0)),
+            expected_source_hash: SOURCE_HASH,
+            expect_display_scene: false,
+            evidence: geometry_evidence_with_envelope(),
+        },
+    );
+
+    let session = application
+        .start_session(
+            subject(),
+            &root,
+            &request(),
+            Path::new("part.step"),
+            &AtomicBool::new(false),
+        )
+        .expect("authorized envelope-bearing STEP evidence must start a session");
+
+    assert_eq!(
+        session
+            .geometry()
+            .exact_snapshot()
+            .expect("embedded snapshot-v1 must remain estimate geometry")
+            .enclosed_volume_mm3(),
+        "1000"
+    );
+    assert_eq!(
+        session
+            .geometry()
+            .exact_step_envelope()
+            .expect("additive envelope must be retained")
+            .aabb_extents_mm()
+            .each_ref()
+            .map(|value| value.as_str()),
+        ["10", "10", "10"]
+    );
+    assert!(matches!(session.evaluate(), ValueState::Unavailable { .. }));
     drop(session);
     drop(root);
     remove_test_root(&test_directory);
@@ -145,6 +231,7 @@ fn mesh_analysis_starts_a_reviewable_session_but_cannot_authorize_an_estimate() 
         StaticAnalyzer {
             calls: Rc::new(Cell::new(0)),
             expected_source_hash: SOURCE_HASH,
+            expect_display_scene: false,
             evidence: mesh_geometry_evidence(),
         },
     );
@@ -184,6 +271,7 @@ fn authorized_source_is_fingerprinted_before_the_pathless_worker_request_is_buil
         StaticAnalyzer {
             calls: Rc::clone(&calls),
             expected_source_hash: SYNTHETIC_SOURCE_HASH,
+            expect_display_scene: false,
             evidence: geometry_evidence_for(SYNTHETIC_SOURCE_HASH),
         },
     );
@@ -232,6 +320,7 @@ fn denied_source_never_reaches_geometry_analysis() {
         StaticAnalyzer {
             calls: Rc::clone(&calls),
             expected_source_hash: SOURCE_HASH,
+            expect_display_scene: false,
             evidence: geometry_evidence(),
         },
     );
@@ -271,6 +360,7 @@ fn denied_unfingerprinted_source_is_not_opened_or_hashed() {
         StaticAnalyzer {
             calls: Rc::clone(&calls),
             expected_source_hash: SYNTHETIC_SOURCE_HASH,
+            expect_display_scene: false,
             evidence: geometry_evidence_for(SYNTHETIC_SOURCE_HASH),
         },
     );
@@ -396,6 +486,7 @@ fn configured_session() -> partprobe_application::DraftEstimateSession {
         StaticAnalyzer {
             calls: Rc::new(Cell::new(0)),
             expected_source_hash: SOURCE_HASH,
+            expect_display_scene: false,
             evidence: geometry_evidence(),
         },
     );
@@ -495,6 +586,47 @@ fn geometry_evidence_for(source_hash: &str) -> AnalyzedGeometryEvidence {
     .expect("analyzed geometry evidence must be valid")
 }
 
+fn geometry_evidence_with_envelope() -> AnalyzedGeometryEvidence {
+    let snapshot = ProvisionalGeometrySnapshot::new(
+        digest(SOURCE_HASH),
+        "8.0.0",
+        3,
+        1,
+        1,
+        geometry_decimal("600"),
+        geometry_decimal("1000"),
+        [
+            geometry_decimal("5"),
+            geometry_decimal("5"),
+            geometry_decimal("5"),
+        ],
+    )
+    .expect("synthetic snapshot must be valid");
+    let envelope = ExactStepEnvelopeDerivative::new(
+        digest(SOURCE_HASH),
+        [
+            geometry_decimal("10"),
+            geometry_decimal("10"),
+            geometry_decimal("10"),
+        ],
+    )
+    .expect("synthetic envelope must be valid");
+    let analysis = ProvisionalExactStepAnalysis::new(snapshot, envelope)
+        .expect("source-bound exact STEP analysis must be valid");
+    AnalyzedGeometryEvidence::new(
+        partprobe_geometry_core::StageStatus::Succeeded,
+        Vec::new(),
+        SnapshotReference::new(PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE)
+            .expect("reference must be valid"),
+        digest(OUTPUT_HASH),
+        512,
+        ControlledGeometryResult::ExactBrepWithEnvelope(Box::new(analysis)),
+        None,
+        None,
+    )
+    .expect("envelope-bearing geometry evidence must be valid")
+}
+
 fn mesh_geometry_evidence() -> AnalyzedGeometryEvidence {
     let source = include_bytes!("../../../fixtures/models/cube_10mm_ascii.stl");
     let evidence = analyze_stl(
@@ -548,6 +680,27 @@ fn request_template() -> DraftGeometryRequestTemplate {
         ResourceQuotas::new(1_000_000, 1_000_000, 10_000, 5_000).expect("quotas must be valid"),
     )
     .expect("request template must be valid")
+}
+
+fn display_request_template() -> DraftGeometryRequestTemplate {
+    DraftGeometryRequestTemplate::new(
+        SchemaVersion::new(GEOMETRY_WORKER_SCHEMA_VERSION).expect("schema version must be valid"),
+        GeometryJobId::new("gui-4-display-job").expect("job ID must be valid"),
+        CorrelationId::new("gui-4-display-correlation").expect("correlation must be valid"),
+        AssetCapability::new("gui-4-display-capability").expect("capability must be valid"),
+        vec![GeometryStage::BasicProperties],
+        AnalysisProfile {
+            id: AnalysisProfileId::new("gui-4-display-profile").expect("profile must be valid"),
+            version: RuleVersion::new(1, 0, 0),
+        },
+        ResourceQuotas::new(1_000_000, 34_000_000, 10_000, 5_000).expect("quotas must be valid"),
+    )
+    .expect("request template must be valid")
+    .with_display_scene(DisplaySceneRequest::new(
+        DisplayTessellationProfile::new(geometry_decimal("0.1"), geometry_decimal("12"))
+            .expect("display profile must be valid"),
+    ))
+    .expect("display request template must be valid")
 }
 
 fn rate_card_and_policy() -> (RateCard, PricingPolicy) {

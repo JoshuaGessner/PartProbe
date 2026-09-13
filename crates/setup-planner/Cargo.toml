@@ -1,0 +1,14 @@
+[package]
+name = "partprobe-setup-planner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+partprobe-domain.workspace = true
+partprobe-geometry-core.workspace = true
+partprobe-geometry-import.workspace = true
+rust_decimal.workspace = true
+
+[lints]
+workspace = true

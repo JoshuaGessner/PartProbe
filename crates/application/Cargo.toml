@@ -12,6 +12,7 @@ partprobe-estimation-engine.workspace = true
 partprobe-geometry-core.workspace = true
 partprobe-geometry-import.workspace = true
 partprobe-security.workspace = true
+partprobe-setup-planner.workspace = true
 rust_decimal.workspace = true
 
 [dev-dependencies]

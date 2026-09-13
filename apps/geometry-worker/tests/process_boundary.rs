@@ -9,16 +9,18 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use partprobe_domain::{RuleVersion, SchemaVersion};
 use partprobe_geometry_core::{
-    AnalysisProfile, AnalysisProfileId, GeometryStage, Sha256Digest, StageStatus,
+    AnalysisProfile, AnalysisProfileId, DisplayTessellationProfile, GeometryStage,
+    ProvisionalGeometryDecimal, Sha256Digest, StageStatus,
 };
 #[cfg(feature = "native-occt")]
 use partprobe_geometry_import::WORKER_OUTPUT_FILENAME;
 #[cfg(all(not(feature = "native-occt"), not(any(unix, windows))))]
 use partprobe_geometry_import::WorkerAssetFallbackReason;
 use partprobe_geometry_import::{
-    AssetCapability, AssetReadGrant, CorrelationId, GeometryJobId, GeometryWorkerRequest,
-    GeometryWorkerSupervisor, ResourceQuotas, SupervisorPolicy, WORKER_INPUT_FILENAME,
-    WorkerAssetTransport, WorkerAssetTransportPolicy, open_local_source_read_only,
+    AssetCapability, AssetReadGrant, CorrelationId, DisplaySceneRequest,
+    GEOMETRY_WORKER_SCHEMA_VERSION, GeometryJobId, GeometryWorkerRequest, GeometryWorkerSupervisor,
+    ResourceQuotas, SupervisorPolicy, WORKER_INPUT_FILENAME, WorkerAssetTransport,
+    WorkerAssetTransportPolicy, open_local_source_read_only,
 };
 #[cfg(not(feature = "native-occt"))]
 use partprobe_geometry_import::{
@@ -33,6 +35,22 @@ fn request() -> GeometryWorkerRequest {
         "process-job-1",
         "process-correlation-1",
     )
+}
+
+fn display_request() -> GeometryWorkerRequest {
+    let mut value = serde_json::to_value(request()).expect("request must serialize");
+    value["schema_version"] = serde_json::json!(GEOMETRY_WORKER_SCHEMA_VERSION);
+    let request: GeometryWorkerRequest =
+        serde_json::from_value(value).expect("schema-v2 request must deserialize");
+    let decimal = |value| {
+        ProvisionalGeometryDecimal::new(value).expect("display tolerance must be canonical")
+    };
+    request
+        .with_display_scene(DisplaySceneRequest::new(
+            DisplayTessellationProfile::new(decimal("0.1"), decimal("12"))
+                .expect("display profile must be valid"),
+        ))
+        .expect("display request must be valid")
 }
 
 fn mesh_request(expected_hash: &str, job_id: &str, correlation_id: &str) -> GeometryWorkerRequest {
@@ -295,6 +313,63 @@ fn supervisor_executes_the_path_free_worker_contract() {
     assert_eq!(execution.fallback_reason(), None);
     assert!(execution.output().is_some());
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(not(feature = "native-occt"))]
+#[test]
+fn schema_v2_display_request_preserves_analysis_when_display_is_unavailable() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-worker-display-v2-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid");
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm_ascii.stl");
+    let request = display_request();
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+
+    assert_eq!(
+        execution.response().status(),
+        StageStatus::SucceededWithWarnings
+    );
+    assert!(execution.response().display_scene_reference().is_none());
+    assert!(
+        execution
+            .response()
+            .diagnostic_codes()
+            .iter()
+            .any(|code| code.as_str() == "DISPLAY_SCENE_UNAVAILABLE")
+    );
+    let output = execution
+        .output()
+        .expect("analysis output must remain available");
+    partprobe_geometry_import::decode_provisional_mesh_geometry_snapshot(
+        output,
+        request.expected_source_hash(),
+    )
+    .expect("analysis output must remain source-bound and valid");
+    assert!(execution.display_output().is_none());
+    assert!(
+        !job_directory
+            .join(partprobe_geometry_import::WORKER_DISPLAY_OUTPUT_FILENAME)
+            .exists()
+    );
     assert!(
         std::fs::read_dir(&job_directory)
             .expect("job root must be readable")
@@ -1244,7 +1319,7 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
             .snapshot_reference()
             .expect("success must reference a snapshot")
             .as_str(),
-        "geometry-snapshot-v1"
+        partprobe_geometry_import::PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE
     );
     let output = execution
         .output()
@@ -1257,15 +1332,24 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
     );
     assert!(output.byte_length() > 0);
     assert_eq!(output.content_hash().as_str().len(), 64);
-    let snapshot = partprobe_geometry_import::decode_provisional_geometry_snapshot(
+    let analysis = partprobe_geometry_import::decode_provisional_exact_step_analysis(
         output,
         request.expected_source_hash(),
     )
-    .expect("worker snapshot must satisfy the provisional schema and source binding");
+    .expect("worker analysis must satisfy the exact STEP schema and source binding");
+    let snapshot = analysis.snapshot();
     assert_eq!(snapshot.surface_area_mm2(), "600");
     assert_eq!(snapshot.enclosed_volume_mm3(), "1000");
     assert_eq!(snapshot.center_of_mass_mm(), ["5", "5", "5"]);
     assert_eq!(snapshot.solid_body_count(), 1);
+    assert_eq!(
+        analysis
+            .envelope()
+            .aabb_extents_mm()
+            .each_ref()
+            .map(|value| value.as_str()),
+        ["10", "10", "10"]
+    );
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     assert!(!job_directory.join(WORKER_OUTPUT_FILENAME).exists());
     assert!(
@@ -1310,18 +1394,34 @@ fn supervised_native_worker_measures_the_independently_authored_step_prism() {
     let response = execution.response();
 
     assert_eq!(response.status(), StageStatus::Succeeded);
+    assert_eq!(
+        response
+            .snapshot_reference()
+            .expect("success must reference an analysis")
+            .as_str(),
+        partprobe_geometry_import::PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE
+    );
     let output = execution
         .output()
         .expect("success must return claimed controlled output");
-    let snapshot = partprobe_geometry_import::decode_provisional_geometry_snapshot(
+    let analysis = partprobe_geometry_import::decode_provisional_exact_step_analysis(
         output,
         request.expected_source_hash(),
     )
-    .expect("independent worker snapshot must satisfy source-bound schema");
+    .expect("independent worker analysis must satisfy source-bound exact STEP schema");
+    let snapshot = analysis.snapshot();
     assert_eq!(snapshot.surface_area_mm2(), "392");
     assert_eq!(snapshot.enclosed_volume_mm3(), "480");
     assert_eq!(snapshot.center_of_mass_mm(), ["6", "4", "2.5"]);
     assert_eq!(snapshot.solid_body_count(), 1);
+    assert_eq!(
+        analysis
+            .envelope()
+            .aabb_extents_mm()
+            .each_ref()
+            .map(|value| value.as_str()),
+        ["12", "8", "5"]
+    );
     assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
     assert!(!job_directory.join(WORKER_OUTPUT_FILENAME).exists());
     assert!(

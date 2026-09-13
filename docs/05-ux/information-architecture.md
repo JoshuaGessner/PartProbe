@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-10
+- **Last updated:** 2026-09-11
 - **Related requirement IDs:** UX-001 through UX-012, UX-021 through UX-045, REQ-F-001 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Which roles can see pricing and rate-card administration in the first slice?
@@ -69,7 +69,7 @@ An estimate encountering missing, unapproved, expired, stale, or conflicting con
 
 Settings must remain usable as the resource catalog grows. Its first level has two focused work areas: **Rates & pricing** for the deterministic calculation basis and **Resources** for materials, offers, stock, machines, and runtime proposal inputs. The resource area uses compact category navigation for Materials, Offers, Stock, Machines, and Runtime; a searchable/selectable record list; and one contextual detail inspector/editor. One shared save/review boundary prevents the work-area split from implying separate authority. Save/review status and the local primary action stay visible in a persistent footer that cannot obscure keyboard focus or validation. The layout collapses to category → record → detail navigation at narrow widths instead of stacking every record form into one page.
 
-The [usable estimator plan](../07-delivery/usable-estimator-plan.md) governs the transition from the current developer form to this product shape. Settings persists one optional starter bundle or a bounded multi-entry catalog; separate governed application services edit catalog drafts and can newly version a reviewed selection as eligible for future proposals. Contract v9 maps complete bounded catalog drafts through a native-owned save command, while ordinary startup still lacks authenticated identity and the WebView exposes no catalog mutation action. Activation remains deny-all and absent from the GUI; no authenticated identity/role source or shop-reviewed allow configuration exists, and the estimate service does not consume saved resources. Until model-derived stock, material, process, and runtime proposals exist, temporary manual assumptions may remain behind progressive disclosure only when they are clearly labeled and cannot be mistaken for model-derived evidence.
+The [usable estimator plan](../07-delivery/usable-estimator-plan.md) governs the transition from the current developer form to this product shape. Settings persists one optional starter bundle or a bounded multi-entry catalog; separate governed application services edit catalog drafts and can newly version a reviewed selection as eligible for future proposals. Contract v10 can explicitly resolve a saved starter bundle with exact STEP bounds into a review-only stock/material/coarse-runtime proposal and adopt it only after explicit limitation review, quantity, and reason. Ordinary startup still lacks authenticated identity; catalog mutation remains absent from the WebView, activation stays deny-all, and the multi-entry catalog is not yet the estimate source. Temporary manual assumptions remain behind progressive disclosure only when clearly labeled and unavailable values never become implicit zeros.
 
 ## Saved views
 

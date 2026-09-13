@@ -14,14 +14,21 @@ pub fn selected_source_accessible_label(display_name: &str) -> String {
 #[must_use]
 pub fn provisional_geometry_accessible_label(geometry: &ProvisionalGeometryFacts) -> String {
     match geometry {
-        ProvisionalGeometryFacts::ExactBrep(facts) => format!(
-            "Provisional exact B-rep geometry available: surface area {} square millimeters; \
-             enclosed volume {} cubic millimeters; centroid {} millimeters; engine {}",
-            facts.surface_area_mm2,
-            facts.enclosed_volume_mm3,
-            facts.center_of_mass_mm.join(", "),
-            facts.geometry_engine,
-        ),
+        ProvisionalGeometryFacts::ExactBrep(facts) => {
+            let bounds = facts
+                .aabb_extents_mm
+                .as_ref()
+                .map_or_else(|| "unavailable".to_owned(), |value| value.join(", "));
+            format!(
+                "Provisional exact B-rep geometry available: source-axis bounds {bounds} \
+                 millimeters; surface area {} square millimeters; enclosed volume {} cubic \
+                 millimeters; centroid {} millimeters; engine {}",
+                facts.surface_area_mm2,
+                facts.enclosed_volume_mm3,
+                facts.center_of_mass_mm.join(", "),
+                facts.geometry_engine,
+            )
+        }
         ProvisionalGeometryFacts::Mesh(facts) => {
             let format = source_format_label(facts.detected_format);
             let units = length_unit_label(facts.source_units);
@@ -74,7 +81,7 @@ pub const fn length_unit_label(unit: ModelLengthUnit) -> &'static str {
 
 #[must_use]
 pub fn provisional_analysis_failure_accessible_label(diagnostic_id: &str) -> String {
-    format!("Provisional analysis failed safely: diagnostic {diagnostic_id}")
+    format!("Analysis could not be completed: diagnostic {diagnostic_id}")
 }
 
 #[cfg(any(target_arch = "wasm32", test))]
@@ -114,13 +121,13 @@ impl ModelPanelState {
     pub const fn status_detail(&self) -> &'static str {
         match self {
             Self::Empty => {
-                "Choose a local STEP, STL, or 3MF file to begin the provisional analysis workflow."
+                "Choose a local STEP model to begin. STL and 3MF files can be analyzed, but not estimated yet. Files stay on this computer."
             }
             Self::Selected(_) => {
-                "The source is retained only for this session. Analysis requires the explicit local worker, and estimating requires complete reviewed inputs."
+                "Ready to analyze locally. This file is available only for this session and is not saved."
             }
             Self::Failed => {
-                "PartProbe did not retain a source path. Choose another local model file or restart the session."
+                "No model was retained. Choose another local file or restart the session."
             }
         }
     }
@@ -160,7 +167,7 @@ impl AnalysisPanelState {
             Self::Cancelling => "Requesting analysis cancellation",
             Self::Cancelled => "Provisional analysis cancelled",
             Self::Available(_) => "Provisional geometry available",
-            Self::Failed(_) => "Provisional analysis failed safely",
+            Self::Failed(_) => "Analysis could not be completed",
         }
     }
 
@@ -275,7 +282,7 @@ mod tests {
         assert_eq!(state, ModelPanelState::Selected(source));
         assert!(state.status_heading().contains("analysis not started"));
         assert!(state.status_detail().contains("session"));
-        assert!(state.status_detail().contains("requires"));
+        assert!(state.status_detail().contains("not saved"));
     }
 
     #[test]
@@ -290,6 +297,7 @@ mod tests {
     fn provisional_geometry_accessible_label_carries_exact_path_free_evidence() {
         let geometry = ProvisionalGeometryFacts::ExactBrep(ProvisionalExactBrepFacts {
             canonical_units: CanonicalLengthUnit::Millimeter,
+            aabb_extents_mm: Some(["12".to_owned(), "8".to_owned(), "5".to_owned()]),
             surface_area_mm2: "392".to_owned(),
             enclosed_volume_mm3: "480".to_owned(),
             center_of_mass_mm: ["6".to_owned(), "4".to_owned(), "2.5".to_owned()],
@@ -303,7 +311,7 @@ mod tests {
         });
         assert_eq!(
             provisional_geometry_accessible_label(&geometry),
-            "Provisional exact B-rep geometry available: surface area 392 square millimeters; enclosed volume \
+            "Provisional exact B-rep geometry available: source-axis bounds 12, 8, 5 millimeters; surface area 392 square millimeters; enclosed volume \
              480 cubic millimeters; centroid 6, 4, 2.5 millimeters; engine OCCT 8.0.0"
         );
     }
@@ -312,7 +320,7 @@ mod tests {
     fn provisional_analysis_failure_label_carries_only_the_diagnostic() {
         assert_eq!(
             provisional_analysis_failure_accessible_label("GUI4-ANALYSIS-TEST"),
-            "Provisional analysis failed safely: diagnostic GUI4-ANALYSIS-TEST"
+            "Analysis could not be completed: diagnostic GUI4-ANALYSIS-TEST"
         );
     }
 
@@ -385,7 +393,7 @@ mod tests {
         let state =
             AnalysisPanelState::Failed(HostCommandError::analysis_failed("GUI4-ANALYSIS-TEST"));
 
-        assert!(state.status_heading().contains("failed safely"));
+        assert!(state.status_heading().contains("could not be completed"));
         assert!(state.status_detail().contains("remains available"));
     }
 

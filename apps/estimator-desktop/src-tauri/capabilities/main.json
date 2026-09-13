@@ -10,10 +10,12 @@
     "allow-analyze-model-source",
     "allow-cancel-model-analysis",
     "allow-evaluate-draft-estimate",
+    "allow-prepare-draft-estimate-proposal",
     "allow-load-shop-settings",
     "allow-save-shop-settings",
     "allow-activate-shop-resource-selection",
     "allow-save-shop-resource-catalog-draft",
+    "allow-set-model-viewer-workspace",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

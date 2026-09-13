@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-08-09
+- **Last updated:** 2026-09-11
 - **Related requirement IDs:** UX-001 through UX-010, REQ-NF-004
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Validate contrast tokens on calibrated shop-floor displays; choose icon license and font distribution strategy.
@@ -53,6 +53,8 @@ Show money in fixed-precision formatted currency and units beside every dimensio
 
 Dark and light themes map every semantic token; neither is a color inversion. Compact is default for expert workstation use; comfortable increases row/panel spacing, not just text zoom. OS text scaling and browser zoom remain supported. Theme and density are user preferences, and a quote never relies on a personal preference to communicate meaning.
 
-## Current GUI-3 implementation boundary
+## Current contract-v10 implementation boundary
 
-GUI-3 establishes only the shell foundation: project-owned CSS variables, quiet graphite surfaces, restrained blue focus/action treatment, sharp borders, native window chrome, semantic status text, tabular numerals, a skip link, visible focus, reduced-motion handling, and forced-color fallbacks. It intentionally uses no remote font or default-looking widget library. Contract-v7 catalog review reuses the same panel, status-chip, definition-list, border, color, typography, and responsive-grid vocabulary; it introduces no dependency or default widget family. Light theme, density switching, reusable component crates, measured token contrast, resizable panes, tables, inspector, menus, and viewport styling remain design-system work and are not implied complete by these screens.
+The current shell uses project-owned CSS variables, quiet graphite surfaces, restrained blue focus/action treatment, sharp borders, native window chrome, semantic status text, tabular numerals, a skip link, visible focus, reduced-motion handling, and forced-color fallbacks. Contract v10 keeps Estimate upload-first, moves reusable configuration to Settings, shows concise exact-STEP measurements, and exposes review-only model-sensitive stock/material/coarse-runtime evidence before one estimate action. Technical IDs and provenance stay behind disclosure unless needed for a failure. It intentionally uses no remote font or default-looking widget library. Light theme, density switching, reusable component crates, measured token contrast, resizable panes, tables, authenticated catalog editing, and the native model/stock viewport remain design-system work and are not implied complete by these screens.
+
+VIS-1 phase A uses renderer-owned semantic constants for a quiet graphite viewport, cyan model faces, translucent amber stock faces, and a brighter amber stock edge. These are candidate viewport tokens demonstrated only on the synthetic Metal frame. Before application integration they require dark/light theme mappings, measured model/stock/selection/enclosure contrast, forced-color behavior, a textual legend, and non-color state labels; raw per-component colors must not spread into host or WebView code.

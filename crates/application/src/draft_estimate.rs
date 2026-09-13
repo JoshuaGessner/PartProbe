@@ -13,14 +13,15 @@ use partprobe_estimation_engine::{
     cycle_time, extend_rate, make_quantity, material_cost, operation_cost, part_mass,
     removed_volume, resolve_rate, risk_reserve, run_cost, setup_lot_cost, total_internal_cost,
 };
-use partprobe_geometry_core::{GeometryStageReport, StageStatus};
+use partprobe_geometry_core::{ExactStepEnvelopeDerivative, GeometryStageReport, StageStatus};
 use partprobe_geometry_import::{
     AssetCapability, AssetReadGrant, ControlledGeometryResult, CorrelationId, GeometryJobId,
     GeometryWorkerRequest, GeometryWorkerSupervisor, LocalAssetRoot,
-    PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
-    ProvisionalGeometrySnapshot, ProvisionalMeshGeometrySnapshot, ResourceQuotas, Sha256Digest,
-    SnapshotReference, WorkerAssetFallbackReason, WorkerAssetTransport,
-    decode_controlled_geometry_result,
+    PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE, PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE,
+    PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE, ProvisionalGeometrySnapshot,
+    ProvisionalMeshGeometrySnapshot, ResourceQuotas, Sha256Digest, SnapshotReference,
+    ValidatedGeometryDisplayScene, WorkerAssetFallbackReason, WorkerAssetTransport,
+    decode_controlled_display_scene_artifact, decode_controlled_geometry_result,
 };
 use partprobe_security::{AuthorizationAuditSink, AuthorizationPolicy};
 use rust_decimal::Decimal;
@@ -41,6 +42,10 @@ pub enum GeometryAnalysisFailure {
     ControlledOutputMissing,
     /// Controlled output did not satisfy the pinned provisional snapshot contract.
     ControlledOutputInvalid,
+    /// A declared display derivative was not retained by the supervisor.
+    DisplayOutputMissing,
+    /// Display output did not satisfy the source/analysis-bound native contract.
+    DisplayOutputInvalid,
 }
 
 /// Port that turns one authorized, pathless source grant into validated geometry evidence.
@@ -92,7 +97,7 @@ impl DraftGeometryRequestTemplate {
         &self,
         source_hash: Sha256Digest,
     ) -> Result<GeometryWorkerRequest, DomainError> {
-        GeometryWorkerRequest::new(
+        let request = GeometryWorkerRequest::new(
             self.template.schema_version(),
             self.template.job_id().clone(),
             self.template.correlation_id().clone(),
@@ -101,7 +106,20 @@ impl DraftGeometryRequestTemplate {
             self.template.stages().to_vec(),
             self.template.analysis_profile().clone(),
             self.template.quotas(),
-        )
+        )?;
+        match self.template.display_scene().cloned() {
+            Some(display_scene) => request.with_display_scene(display_scene),
+            None => Ok(request),
+        }
+    }
+
+    /// Adds the schema-v2 display derivative request to the fingerprinting template.
+    pub fn with_display_scene(
+        mut self,
+        display_scene: partprobe_geometry_import::DisplaySceneRequest,
+    ) -> Result<Self, DomainError> {
+        self.template = self.template.with_display_scene(display_scene)?;
+        Ok(self)
     }
 
     /// Returns the opaque source capability bound to the eventual worker request.
@@ -125,7 +143,8 @@ impl GeometryAnalysisPort for GeometryWorkerSupervisor {
         cancellation: &AtomicBool,
     ) -> Result<AnalyzedGeometryEvidence, GeometryAnalysisFailure> {
         let execution = self.execute_with_grant(request, grant, cancellation);
-        let (response, output, asset_transport, fallback_reason) = execution.into_parts();
+        let (response, output, display_output, asset_transport, fallback_reason) =
+            execution.into_parts();
         if !response.status().permits_authoritative_output() {
             return Err(GeometryAnalysisFailure::WorkerUnavailable {
                 status: response.status(),
@@ -139,11 +158,16 @@ impl GeometryAnalysisPort for GeometryWorkerSupervisor {
         let output = output.ok_or(GeometryAnalysisFailure::ControlledOutputMissing)?;
         let result = decode_controlled_geometry_result(&output, request.expected_source_hash())
             .map_err(|_| GeometryAnalysisFailure::ControlledOutputInvalid)?;
+        let diagnostic_codes = response
+            .diagnostic_codes()
+            .iter()
+            .map(|code| code.as_str().to_owned())
+            .collect();
         let snapshot_reference = response
             .snapshot_reference()
             .cloned()
             .ok_or(GeometryAnalysisFailure::ControlledOutputMissing)?;
-        AnalyzedGeometryEvidence::new(
+        let mut evidence = AnalyzedGeometryEvidence::new(
             response.status(),
             response.stage_reports().to_vec(),
             snapshot_reference,
@@ -153,7 +177,25 @@ impl GeometryAnalysisPort for GeometryWorkerSupervisor {
             asset_transport,
             fallback_reason,
         )
-        .map_err(|_| GeometryAnalysisFailure::ControlledOutputInvalid)
+        .map_err(|_| GeometryAnalysisFailure::ControlledOutputInvalid)?;
+        evidence.diagnostic_codes = diagnostic_codes;
+        if response.display_scene_reference().is_some() {
+            let display_output =
+                display_output.ok_or(GeometryAnalysisFailure::DisplayOutputMissing)?;
+            let scene = decode_controlled_display_scene_artifact(
+                &display_output,
+                request.expected_source_hash(),
+                output.content_hash(),
+                Some(cancellation),
+            )
+            .map_err(|_| GeometryAnalysisFailure::DisplayOutputInvalid)?;
+            evidence = evidence
+                .with_display_scene(scene)
+                .map_err(|_| GeometryAnalysisFailure::DisplayOutputInvalid)?;
+        } else if display_output.is_some() {
+            return Err(GeometryAnalysisFailure::DisplayOutputInvalid);
+        }
+        Ok(evidence)
     }
 }
 
@@ -170,12 +212,14 @@ pub struct AnalyzedGeometryEvidence {
     pub output_hash: Sha256Digest,
     /// Exact controlled-output byte count.
     pub output_byte_length: u64,
-    /// Validated provisional exact-B-rep or mesh result.
+    /// Validated legacy exact-B-rep, envelope-bearing exact-B-rep, or mesh result.
     pub result: ControlledGeometryResult,
     /// Transport selected by the supervisor.
     pub asset_transport: Option<WorkerAssetTransport>,
     /// Explicit direct-transport fallback reason, when applicable.
     pub fallback_reason: Option<WorkerAssetFallbackReason>,
+    diagnostic_codes: Vec<String>,
+    display_scene: Option<ValidatedGeometryDisplayScene>,
 }
 
 impl AnalyzedGeometryEvidence {
@@ -193,6 +237,9 @@ impl AnalyzedGeometryEvidence {
     ) -> Result<Self, DomainError> {
         let expected_reference = match &result {
             ControlledGeometryResult::ExactBrep(_) => PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE,
+            ControlledGeometryResult::ExactBrepWithEnvelope(_) => {
+                PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE
+            }
             ControlledGeometryResult::Mesh(_) => PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
         };
         if !status.permits_authoritative_output()
@@ -213,7 +260,38 @@ impl AnalyzedGeometryEvidence {
             result,
             asset_transport,
             fallback_reason,
+            diagnostic_codes: Vec::new(),
+            display_scene: None,
         })
+    }
+
+    /// Retains an already-validated display derivative bound to this exact analysis output.
+    pub fn with_display_scene(
+        mut self,
+        display_scene: ValidatedGeometryDisplayScene,
+    ) -> Result<Self, DomainError> {
+        if display_scene.manifest().analysis_output_hash() != &self.output_hash
+            || display_scene.manifest().source_hash() != geometry_source_hash(&self.result)
+        {
+            return Err(DomainError::InvalidValue {
+                field: "analyzed geometry display scene",
+                reason: "source and analysis-output hashes must match the retained evidence",
+            });
+        }
+        self.display_scene = Some(display_scene);
+        Ok(self)
+    }
+
+    /// Returns the native-only source/analysis-bound display scene, when emitted.
+    #[must_use]
+    pub const fn display_scene(&self) -> Option<&ValidatedGeometryDisplayScene> {
+        self.display_scene.as_ref()
+    }
+
+    /// Returns sanitized worker diagnostics retained even when analysis succeeded.
+    #[must_use]
+    pub fn diagnostic_codes(&self) -> &[String] {
+        &self.diagnostic_codes
     }
 
     /// Returns exact-B-rep evidence when this analysis used the retained STEP contract.
@@ -221,7 +299,17 @@ impl AnalyzedGeometryEvidence {
     pub fn exact_snapshot(&self) -> Option<&ProvisionalGeometrySnapshot> {
         match &self.result {
             ControlledGeometryResult::ExactBrep(snapshot) => Some(snapshot),
+            ControlledGeometryResult::ExactBrepWithEnvelope(analysis) => Some(analysis.snapshot()),
             ControlledGeometryResult::Mesh(_) => None,
+        }
+    }
+
+    /// Returns the separately versioned exact STEP envelope derivative when supplied.
+    #[must_use]
+    pub fn exact_step_envelope(&self) -> Option<&ExactStepEnvelopeDerivative> {
+        match &self.result {
+            ControlledGeometryResult::ExactBrepWithEnvelope(analysis) => Some(analysis.envelope()),
+            ControlledGeometryResult::ExactBrep(_) | ControlledGeometryResult::Mesh(_) => None,
         }
     }
 
@@ -229,9 +317,20 @@ impl AnalyzedGeometryEvidence {
     #[must_use]
     pub fn mesh_snapshot(&self) -> Option<&ProvisionalMeshGeometrySnapshot> {
         match &self.result {
-            ControlledGeometryResult::ExactBrep(_) => None,
+            ControlledGeometryResult::ExactBrep(_)
+            | ControlledGeometryResult::ExactBrepWithEnvelope(_) => None,
             ControlledGeometryResult::Mesh(snapshot) => Some(snapshot),
         }
+    }
+}
+
+fn geometry_source_hash(result: &ControlledGeometryResult) -> &Sha256Digest {
+    match result {
+        ControlledGeometryResult::ExactBrep(snapshot) => snapshot.source_hash(),
+        ControlledGeometryResult::ExactBrepWithEnvelope(analysis) => {
+            analysis.snapshot().source_hash()
+        }
+        ControlledGeometryResult::Mesh(snapshot) => snapshot.source_hash(),
     }
 }
 

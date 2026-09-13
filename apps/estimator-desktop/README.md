@@ -38,6 +38,38 @@ cargo clippy -p partprobe-estimator-desktop-ui --target wasm32-unknown-unknown -
 cargo clippy -p partprobe-estimator-desktop --features desktop-host --all-targets --locked -- -D warnings
 ```
 
+### Developer-only VIS-1 in-window viewer
+
+The synthetic native-renderer spike can be launched with a separate Cargo feature and exact process flag:
+
+```sh
+cargo test -p partprobe-estimator-desktop --features viewer-spike --lib --locked
+cargo clippy -p partprobe-estimator-desktop --features viewer-spike --all-targets --locked -- -D warnings
+cargo run -p partprobe-estimator-desktop --features viewer-spike -- --vis1-synthetic-viewer
+```
+
+This adds a **Model & stock** destination to the existing PartProbe window and places the native Metal, D3D12, or Vulkan/GLES viewport beside a narrow WebView inspector in that same window. Returning to Estimate or Settings restores the full-width workspace. Contract v11 adds one exact path-free visible/hidden workspace command; no path, CAD bytes, vertex/index buffer, or geometry authority enters the WebView. It is not included in ordinary `desktop-host` builds or the current production package. The scene is fixed synthetic evidence—not the selected model or a valid stock placement—and its textual inspector is only preliminary accessibility evidence. Tauri 2.11.5 requires its `unstable` feature for the child-WebView composition used by `viewer-spike`; that feature does not create a second OS window. Do not use the synthetic view as industry estimate evidence.
+
+## Internal macOS live-test launcher
+
+After constructing the governed unsigned `.app` with its embedded verified runtime, launch the exact package from the repository root with:
+
+```sh
+scripts/launch_macos_demo.zsh
+```
+
+The launcher fails closed if the application executable or embedded runtime is missing/invalid, creates a new private external worker workspace, and removes that empty workspace after the app exits. Keep the launcher terminal open during the session. `PARTPROBE_DEMO_APP` may point to another explicitly selected `.app`; it does not change runtime discovery inside that package.
+
+For the internal live-test path:
+
+1. Open **Settings**, choose **Load Huntsville test profile**, review every USD/resource value, edit it if needed, check all three confirmation boxes, record the reviewer and reason, and save the first revision. These research-informed values are documented test inputs, not verified market, shop, approved, quote, or production rates.
+2. Return to **Estimate**, choose one one-solid STEP file, and analyze it. Use `fixtures/models/rectangular_prism_12x8x5.step` as the governed fallback; STL and 3MF are analysis-only.
+3. Review units/warnings, confirm the loaded rate and pricing basis for this session, and choose **Prepare proposal**.
+4. Review the model bounds, proposed blank/material/coarse runtime, and limitations. Enter quantity, accept both review statements, provide the estimate-review reason, and calculate.
+5. Present the result as **model-sensitive coarse / session only**. Call out the pinned proposal/adoption trace and named excluded groups. Do not present it as CAM, a complete manufacturing estimate, an approved quote, or saved work.
+
+Before an industry session, run the flow once with the intended public/demo STEP. Do not place customer CAD, shop rates, private estimates, or controlled data in this public repository.
+
 Build the local frontend without network access:
 
 ```sh
@@ -97,7 +129,9 @@ PARTPROBE_GEOMETRY_WORKSPACE=/private/tmp/partprobe-gui-worker \
 
 The host accepts no independent worker or library-root override. It derives both only from the schema-v1 manifest after verifying the exact pinned OCCT source/build/host provenance and every declared artifact. Missing configuration or any verification failure returns the bounded `GUI5-NATIVE-RUNTIME-VERIFY`/`AnalysisUnavailable` state without exposing a path. It does not trigger ambient discovery or in-process parsing. The current request limits are 64 MiB input, 1 MiB output, 2,000,000 entities, 30 seconds wall/CPU, 2 GiB worker memory, 1 MiB protocol frames, 10 ms polling, and 250 ms cancellation grace. These are internal developer-profile bounds, not production performance or support commitments.
 
-The estimate form starts empty for shop-owned numeric values. Enter `0` explicitly when zero is the intended value. Contract v7 provides path-free catalog Settings, contract v8 adds one exact host-evidence activation request, and contract v9 adds one complete bounded catalog-draft save request. Neither request accepts actor/time/profile/path/storage authority; the host supplies trusted identity/time evidence. Ordinary startup has no authenticated actor and returns explicit unavailability, the shipped activation policy remains deny-all, and the WebView invokes neither catalog command. The native draft adapter maps all five resource kinds into the governed immutable application service, enforces per-kind limits, preserves matching source evidence across equivalent decimal formatting, rejects changed content under reused versions, and returns a path-free reopened snapshot. The GUI now provides a compact read-only category/search/list/detail catalog browser; governed successor editing and save readiness are next. The host-owned application-data database stores immutable USD rate/pricing drafts plus an optional starter resource bundle containing separate material identity/offer, stock allowances, machine capability, and coarse runtime inputs. First run has no numeric shop values. Saving requires rate/pricing confirmations, actor, reason, and a separate resource-draft confirmation when that bundle is enabled; reloading clears every confirmation so persistence alone never activates authority. The Estimate workspace shows readiness and links to configuration rather than duplicating its editors. Stock, density, time, material/operation cost, base cost, and risk are still manual in this checkpoint: geometry supplies part volume, but the estimate service does not yet select material/stock or apply the saved runtime profile. Changing any form value clears a displayed estimate so stale output cannot appear current. The displayed estimate itself is still session-only, unapproved, and not a customer quote. Choosing a different source requests cancellation of active work and waits for bounded worker cleanup before another analysis may start. A cancelled analysis is shown distinctly from a failure. Canonical-unit and warning confirmations are analysis-revision-bound and reset whenever analysis state changes.
+The estimate form starts empty for shop-owned numeric values. Enter `0` explicitly when zero is intended. Contract v11 preserves v10's exact `prepare_draft_estimate_proposal` command, path-free exact STEP bounds, review-only stock/material/coarse-runtime evidence, and explicit adoption/result trace while adding only the path-free developer-viewer workspace control. First run still has no numeric shop values. **Load Huntsville test profile** fills the unsaved browser form with versioned values documented in `docs/01-research/huntsville-test-rate-baseline.md`; it does not confirm or save them, and the profile is not verified market or deployment pricing. Saving still requires rate/pricing/resource confirmation, actor, and reason; reloading clears confirmations.
+
+For one-solid STEP files, prepare the proposal after analysis. Review the source-axis blank, material/density/offer, machine, and coarse runtime, then affirm both the proposal and its named exclusions, enter quantity, and record a reason. The native application reloads the exact settings revision, recomputes the proposal from retained geometry, rejects stale pins, and constructs the deterministic input set. Non-cutting/in-cycle inspection, cut/cert/freight, tooling/fixture/outside processing, administration/overhead, and risk/rework become zero only under that explicit exclusion review and stay visible in the result trace. The complete manual path remains available when no proposal is prepared. This bridge is session-only, unapproved, not CAM, not a complete manufacturing estimate, and not a customer quote. STL/3MF remain analysis-only. Source or settings changes clear proposal/review state; cancellation and native-source boundaries remain unchanged.
 
 For a macOS smoke-test bundle that keeps the runtime external:
 

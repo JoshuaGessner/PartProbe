@@ -2,6 +2,7 @@
 
 mod ascii_stl;
 mod controlled_result;
+mod display_scene;
 mod mesh_analysis;
 mod three_mf;
 
@@ -11,10 +12,17 @@ pub use ascii_stl::{
     analyze_ascii_stl, analyze_binary_stl, analyze_stl,
 };
 pub use controlled_result::{
-    ControlledGeometryResult, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
-    PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_SCHEMA_VERSION, ProvisionalMeshEvidence,
-    ProvisionalMeshGeometrySnapshot, decode_controlled_geometry_result,
-    decode_provisional_mesh_geometry_snapshot,
+    ControlledGeometryResult, PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE,
+    PROVISIONAL_EXACT_STEP_ANALYSIS_SCHEMA_VERSION, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+    PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_SCHEMA_VERSION, ProvisionalExactStepAnalysis,
+    ProvisionalMeshEvidence, ProvisionalMeshGeometrySnapshot, decode_controlled_geometry_result,
+    decode_provisional_exact_step_analysis, decode_provisional_mesh_geometry_snapshot,
+};
+pub use display_scene::{
+    DISPLAY_SCENE_ARTIFACT_SCHEMA_VERSION, DisplayMeshChunkPayload, DisplaySceneDecodeError,
+    MAX_DISPLAY_SCENE_ARTIFACT_BYTES, MAX_DISPLAY_SCENE_MANIFEST_BYTES, ValidatedDisplayMeshChunk,
+    ValidatedGeometryDisplayScene, decode_controlled_display_scene_artifact, decode_display_scene,
+    encode_display_scene_artifact,
 };
 pub use mesh_analysis::{
     MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,
@@ -40,7 +48,10 @@ use std::time::{Duration, Instant};
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::ambient_authority;
 use partprobe_domain::{AssetRootId, DomainError, SchemaVersion};
-use partprobe_geometry_core::{AnalysisProfile, GeometryStage, GeometryStageReport, StageStatus};
+use partprobe_geometry_core::{
+    AnalysisProfile, DisplayTessellationProfile, GEOMETRY_DISPLAY_SCENE_REFERENCE, GeometryStage,
+    GeometryStageReport, StageStatus,
+};
 pub use partprobe_geometry_core::{ProvisionalGeometrySnapshot, Sha256Digest};
 use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
@@ -49,6 +60,12 @@ use sha2::{Digest, Sha256};
 pub const WORKER_INPUT_FILENAME: &str = "partprobe-input.asset";
 /// Fixed worker-local output name; the response carries only an opaque reference.
 pub const WORKER_OUTPUT_FILENAME: &str = "partprobe-output.json";
+/// Fixed worker-local display output name; no caller path crosses the protocol.
+pub const WORKER_DISPLAY_OUTPUT_FILENAME: &str = "partprobe-display-scene.bin";
+/// Legacy request/response schema without a display-derivative request.
+pub const LEGACY_GEOMETRY_WORKER_SCHEMA_VERSION: u16 = 1;
+/// Current request/response schema with a separately typed optional display derivative.
+pub const GEOMETRY_WORKER_SCHEMA_VERSION: u16 = 2;
 /// Current schema for the supervisor-to-worker control stream.
 pub const WORKER_CONTROL_SCHEMA_VERSION: u16 = 2;
 /// Current schema for the process-launch asset transport manifest.
@@ -174,6 +191,95 @@ protocol_token!(
     "snapshot reference"
 );
 
+/// Exact path-free identity for the separately framed display artifact.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct DisplaySceneArtifactReference(String);
+
+impl DisplaySceneArtifactReference {
+    /// Returns the only display-artifact reference supported by protocol schema v2.
+    #[must_use]
+    pub fn current() -> Self {
+        Self(GEOMETRY_DISPLAY_SCENE_REFERENCE.to_owned())
+    }
+
+    /// Returns the stable path-free reference.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    fn into_snapshot_reference(self) -> SnapshotReference {
+        SnapshotReference::new(self.0)
+            .expect("the governed display artifact reference must remain a valid protocol token")
+    }
+}
+
+impl<'de> Deserialize<'de> for DisplaySceneArtifactReference {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != GEOMETRY_DISPLAY_SCENE_REFERENCE {
+            return Err(serde::de::Error::custom(
+                "unsupported geometry display artifact reference",
+            ));
+        }
+        Ok(Self(value))
+    }
+}
+
+/// Explicit schema-v2 request for one native-only display derivative.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct DisplaySceneRequest {
+    artifact_reference: DisplaySceneArtifactReference,
+    tessellation_profile: DisplayTessellationProfile,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DisplaySceneRequestWire {
+    artifact_reference: DisplaySceneArtifactReference,
+    tessellation_profile: DisplayTessellationProfile,
+}
+
+impl<'de> Deserialize<'de> for DisplaySceneRequest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = DisplaySceneRequestWire::deserialize(deserializer)?;
+        Ok(Self {
+            artifact_reference: wire.artifact_reference,
+            tessellation_profile: wire.tessellation_profile,
+        })
+    }
+}
+
+impl DisplaySceneRequest {
+    /// Requests the current artifact framing with one governed tessellation profile.
+    #[must_use]
+    pub fn new(tessellation_profile: DisplayTessellationProfile) -> Self {
+        Self {
+            artifact_reference: DisplaySceneArtifactReference::current(),
+            tessellation_profile,
+        }
+    }
+
+    /// Returns the exact artifact identity expected from the worker.
+    #[must_use]
+    pub const fn artifact_reference(&self) -> &DisplaySceneArtifactReference {
+        &self.artifact_reference
+    }
+
+    /// Returns the governed tessellation inputs requested for this derivative.
+    #[must_use]
+    pub const fn tessellation_profile(&self) -> &DisplayTessellationProfile {
+        &self.tessellation_profile
+    }
+}
+
 /// Hard limits supplied to every worker job.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct ResourceQuotas {
@@ -272,6 +378,8 @@ pub struct GeometryWorkerRequest {
     stages: Vec<GeometryStage>,
     analysis_profile: AnalysisProfile,
     quotas: ResourceQuotas,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_scene: Option<DisplaySceneRequest>,
 }
 
 #[derive(Deserialize)]
@@ -284,6 +392,8 @@ struct GeometryWorkerRequestWire {
     stages: Vec<GeometryStage>,
     analysis_profile: AnalysisProfile,
     quotas: ResourceQuotas,
+    #[serde(default)]
+    display_scene: Option<DisplaySceneRequest>,
 }
 
 impl<'de> Deserialize<'de> for GeometryWorkerRequest {
@@ -292,7 +402,7 @@ impl<'de> Deserialize<'de> for GeometryWorkerRequest {
         D: Deserializer<'de>,
     {
         let wire = GeometryWorkerRequestWire::deserialize(deserializer)?;
-        Self::new(
+        let request = Self::new(
             wire.schema_version,
             wire.job_id,
             wire.correlation_id,
@@ -302,7 +412,13 @@ impl<'de> Deserialize<'de> for GeometryWorkerRequest {
             wire.analysis_profile,
             wire.quotas,
         )
-        .map_err(serde::de::Error::custom)
+        .map_err(serde::de::Error::custom)?;
+        match wire.display_scene {
+            Some(display_scene) => request
+                .with_display_scene(display_scene)
+                .map_err(serde::de::Error::custom),
+            None => Ok(request),
+        }
     }
 }
 
@@ -319,6 +435,15 @@ impl GeometryWorkerRequest {
         analysis_profile: AnalysisProfile,
         quotas: ResourceQuotas,
     ) -> Result<Self, DomainError> {
+        if !matches!(
+            schema_version.value(),
+            LEGACY_GEOMETRY_WORKER_SCHEMA_VERSION | GEOMETRY_WORKER_SCHEMA_VERSION
+        ) {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker schema version",
+                reason: "only request/response schema versions 1 and 2 are supported",
+            });
+        }
         if stages.is_empty() {
             return Err(DomainError::InvalidValue {
                 field: "geometry worker stages",
@@ -347,7 +472,23 @@ impl GeometryWorkerRequest {
             stages,
             analysis_profile,
             quotas,
+            display_scene: None,
         })
+    }
+
+    /// Adds the schema-v2 display derivative request without changing analysis authority.
+    pub fn with_display_scene(
+        mut self,
+        display_scene: DisplaySceneRequest,
+    ) -> Result<Self, DomainError> {
+        if self.schema_version.value() != GEOMETRY_WORKER_SCHEMA_VERSION {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker display request",
+                reason: "requires request/response schema version 2",
+            });
+        }
+        self.display_scene = Some(display_scene);
+        Ok(self)
     }
 
     /// Returns the schema version.
@@ -396,6 +537,12 @@ impl GeometryWorkerRequest {
     #[must_use]
     pub const fn quotas(&self) -> ResourceQuotas {
         self.quotas
+    }
+
+    /// Returns the optional native-only display derivative request.
+    #[must_use]
+    pub const fn display_scene(&self) -> Option<&DisplaySceneRequest> {
+        self.display_scene.as_ref()
     }
 }
 
@@ -764,6 +911,8 @@ pub struct GeometryWorkerResponse {
     status: StageStatus,
     stage_reports: Vec<GeometryStageReport>,
     snapshot_reference: Option<SnapshotReference>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_scene_reference: Option<DisplaySceneArtifactReference>,
     diagnostic_codes: Vec<DiagnosticCode>,
 }
 
@@ -775,6 +924,8 @@ struct GeometryWorkerResponseWire {
     status: StageStatus,
     stage_reports: Vec<GeometryStageReport>,
     snapshot_reference: Option<SnapshotReference>,
+    #[serde(default)]
+    display_scene_reference: Option<DisplaySceneArtifactReference>,
     diagnostic_codes: Vec<DiagnosticCode>,
 }
 
@@ -784,7 +935,7 @@ impl<'de> Deserialize<'de> for GeometryWorkerResponse {
         D: Deserializer<'de>,
     {
         let wire = GeometryWorkerResponseWire::deserialize(deserializer)?;
-        Self::new(
+        let response = Self::new(
             wire.schema_version,
             wire.job_id,
             wire.correlation_id,
@@ -793,7 +944,13 @@ impl<'de> Deserialize<'de> for GeometryWorkerResponse {
             wire.snapshot_reference,
             wire.diagnostic_codes,
         )
-        .map_err(serde::de::Error::custom)
+        .map_err(serde::de::Error::custom)?;
+        match wire.display_scene_reference {
+            Some(reference) => response
+                .with_display_scene_reference(reference)
+                .map_err(serde::de::Error::custom),
+            None => Ok(response),
+        }
     }
 }
 
@@ -809,6 +966,15 @@ impl GeometryWorkerResponse {
         snapshot_reference: Option<SnapshotReference>,
         diagnostic_codes: Vec<DiagnosticCode>,
     ) -> Result<Self, DomainError> {
+        if !matches!(
+            schema_version.value(),
+            LEGACY_GEOMETRY_WORKER_SCHEMA_VERSION | GEOMETRY_WORKER_SCHEMA_VERSION
+        ) {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker schema version",
+                reason: "only request/response schema versions 1 and 2 are supported",
+            });
+        }
         if !stage_reports
             .windows(2)
             .all(|pair| pair[0].stage() < pair[1].stage())
@@ -851,8 +1017,69 @@ impl GeometryWorkerResponse {
             status,
             stage_reports,
             snapshot_reference,
+            display_scene_reference: None,
             diagnostic_codes,
         })
+    }
+
+    /// Adds the separate schema-v2 display artifact reference to a successful response.
+    pub fn with_display_scene_reference(
+        mut self,
+        display_scene_reference: DisplaySceneArtifactReference,
+    ) -> Result<Self, DomainError> {
+        if self.schema_version.value() != GEOMETRY_WORKER_SCHEMA_VERSION
+            || !self.status.permits_authoritative_output()
+            || self.snapshot_reference.is_none()
+            || self
+                .diagnostic_codes
+                .iter()
+                .any(|code| code.as_str() == "DISPLAY_SCENE_UNAVAILABLE")
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker display response",
+                reason: "requires schema version 2 and a successful authoritative analysis output",
+            });
+        }
+        self.display_scene_reference = Some(display_scene_reference);
+        Ok(self)
+    }
+
+    /// Validates response identity and optional display evidence against one request.
+    pub fn validate_for(&self, request: &GeometryWorkerRequest) -> Result<(), DomainError> {
+        if self.schema_version != request.schema_version
+            || self.job_id != request.job_id
+            || self.correlation_id != request.correlation_id
+        {
+            return Err(DomainError::InvalidValue {
+                field: "geometry worker response identity",
+                reason: "schema, job, and correlation identity must match the request",
+            });
+        }
+        let display_unavailable = self
+            .diagnostic_codes
+            .iter()
+            .any(|code| code.as_str() == "DISPLAY_SCENE_UNAVAILABLE");
+        match (
+            request.display_scene.as_ref(),
+            self.display_scene_reference.as_ref(),
+            self.status.permits_authoritative_output(),
+            display_unavailable,
+        ) {
+            (None, None, _, false) => Ok(()),
+            (Some(_), None, false, false) => Ok(()),
+            (Some(_), None, true, true) if self.status == StageStatus::SucceededWithWarnings => {
+                Ok(())
+            }
+            (Some(expected), Some(actual), true, false)
+                if actual == expected.artifact_reference() =>
+            {
+                Ok(())
+            }
+            _ => Err(DomainError::InvalidValue {
+                field: "geometry worker display response",
+                reason: "display output must be requested, exact, and either supplied or explicitly unavailable",
+            }),
+        }
     }
 
     /// Returns the response schema version.
@@ -889,6 +1116,12 @@ impl GeometryWorkerResponse {
     #[must_use]
     pub const fn snapshot_reference(&self) -> Option<&SnapshotReference> {
         self.snapshot_reference.as_ref()
+    }
+
+    /// Returns the optional separately typed display artifact reference.
+    #[must_use]
+    pub const fn display_scene_reference(&self) -> Option<&DisplaySceneArtifactReference> {
+        self.display_scene_reference.as_ref()
     }
 
     /// Returns sanitized diagnostic identities.
@@ -1331,6 +1564,7 @@ pub fn decode_provisional_geometry_snapshot(
 pub struct GeometryWorkerExecution {
     response: GeometryWorkerResponse,
     output: Option<ControlledWorkerOutput>,
+    display_output: Option<ControlledWorkerOutput>,
     asset_transport: Option<WorkerAssetTransport>,
     fallback_reason: Option<WorkerAssetFallbackReason>,
 }
@@ -1339,12 +1573,14 @@ impl GeometryWorkerExecution {
     fn new(
         response: GeometryWorkerResponse,
         output: Option<ControlledWorkerOutput>,
+        display_output: Option<ControlledWorkerOutput>,
         asset_transport: Option<WorkerAssetTransport>,
         fallback_reason: Option<WorkerAssetFallbackReason>,
     ) -> Self {
         Self {
             response,
             output,
+            display_output,
             asset_transport,
             fallback_reason,
         }
@@ -1362,6 +1598,12 @@ impl GeometryWorkerExecution {
         self.output.as_ref()
     }
 
+    /// Returns the separately claimed display-only output, when supplied.
+    #[must_use]
+    pub const fn display_output(&self) -> Option<&ControlledWorkerOutput> {
+        self.display_output.as_ref()
+    }
+
     /// Returns the transport selected for this execution, when preparation reached that stage.
     #[must_use]
     pub const fn asset_transport(&self) -> Option<WorkerAssetTransport> {
@@ -1374,12 +1616,13 @@ impl GeometryWorkerExecution {
         self.fallback_reason
     }
 
-    /// Transfers the response and optional controlled output.
+    /// Transfers the response, separately claimed outputs, and transport evidence.
     #[must_use]
     pub fn into_parts(
         self,
     ) -> (
         GeometryWorkerResponse,
+        Option<ControlledWorkerOutput>,
         Option<ControlledWorkerOutput>,
         Option<WorkerAssetTransport>,
         Option<WorkerAssetFallbackReason>,
@@ -1387,6 +1630,7 @@ impl GeometryWorkerExecution {
         (
             self.response,
             self.output,
+            self.display_output,
             self.asset_transport,
             self.fallback_reason,
         )
@@ -1732,10 +1976,7 @@ impl GeometryWorkerSupervisor {
             Ok(response) => response,
             Err(_) => return response_for(request, WorkerTermination::MalformedResponse),
         };
-        if response.schema_version() != request.schema_version()
-            || response.job_id() != request.job_id()
-            || response.correlation_id() != request.correlation_id()
-        {
+        if response.validate_for(request).is_err() {
             return response_for(request, WorkerTermination::MalformedResponse);
         }
         let reported_cancellation = response.diagnostic_codes().iter().find_map(|code| {
@@ -1811,6 +2052,7 @@ impl GeometryWorkerSupervisor {
         };
         let staged_path = job_directory.join(WORKER_INPUT_FILENAME);
         let output_path = job_directory.join(WORKER_OUTPUT_FILENAME);
+        let display_output_path = job_directory.join(WORKER_DISPLAY_OUTPUT_FILENAME);
         let prepared = prepare_worker_asset(request, &mut grant, asset_transport, &staged_path);
         let (asset_manifest, direct_asset) = match prepared {
             Ok(prepared) => prepared,
@@ -1843,7 +2085,8 @@ impl GeometryWorkerSupervisor {
             &job_directory,
             expected_staged_input_bytes,
         );
-        let output = reconcile_worker_output(request, &response, &output_path);
+        let outputs =
+            reconcile_worker_outputs(request, &response, &output_path, &display_output_path);
         let asset_cleanup = remove_staged_asset(&staged_path);
         let workspace_cleanup = remove_job_directory(&job_directory);
 
@@ -1855,8 +2098,8 @@ impl GeometryWorkerSupervisor {
                 fallback_reason,
             );
         }
-        let output = match output {
-            Ok(output) => output,
+        let (output, display_output) = match outputs {
+            Ok(outputs) => outputs,
             Err(termination) => {
                 return failed_execution(
                     request,
@@ -1874,7 +2117,13 @@ impl GeometryWorkerSupervisor {
                 fallback_reason,
             );
         }
-        GeometryWorkerExecution::new(response, output, Some(asset_transport), fallback_reason)
+        GeometryWorkerExecution::new(
+            response,
+            output,
+            display_output,
+            Some(asset_transport),
+            fallback_reason,
+        )
     }
 }
 
@@ -2074,24 +2323,61 @@ fn remove_job_directory(job_directory: &Path) -> std::io::Result<()> {
     }
 }
 
-fn reconcile_worker_output(
+fn reconcile_worker_outputs(
     request: &GeometryWorkerRequest,
     response: &GeometryWorkerResponse,
     output_path: &Path,
-) -> Result<Option<ControlledWorkerOutput>, WorkerTermination> {
-    let Some(snapshot_reference) = response.snapshot_reference().cloned() else {
-        remove_worker_output(output_path).map_err(|_| WorkerTermination::OutputCleanupFailed)?;
-        return Ok(None);
-    };
-    let claimed = claim_worker_output(
-        snapshot_reference,
-        output_path,
-        request.quotas().max_output_bytes(),
-    );
+    display_output_path: &Path,
+) -> Result<
+    (
+        Option<ControlledWorkerOutput>,
+        Option<ControlledWorkerOutput>,
+    ),
+    WorkerTermination,
+> {
+    let claimed = (|| {
+        let output = match response.snapshot_reference().cloned() {
+            Some(snapshot_reference) => Some(claim_worker_output(
+                snapshot_reference,
+                output_path,
+                request.quotas().max_output_bytes(),
+            )?),
+            None => {
+                remove_worker_output(output_path)
+                    .map_err(|_| WorkerTermination::OutputCleanupFailed)?;
+                None
+            }
+        };
+        let remaining_output_bytes = request
+            .quotas()
+            .max_output_bytes()
+            .checked_sub(
+                output
+                    .as_ref()
+                    .map_or(0, ControlledWorkerOutput::byte_length),
+            )
+            .ok_or(WorkerTermination::OutputClaimFailed)?;
+        let display_output = match response.display_scene_reference().cloned() {
+            Some(display_reference) => Some(claim_worker_output(
+                display_reference.into_snapshot_reference(),
+                display_output_path,
+                remaining_output_bytes,
+            )?),
+            None => {
+                remove_worker_output(display_output_path)
+                    .map_err(|_| WorkerTermination::OutputCleanupFailed)?;
+                None
+            }
+        };
+        Ok((output, display_output))
+    })();
+
     match claimed {
-        Ok(output) => Ok(Some(output)),
+        Ok(outputs) => Ok(outputs),
         Err(termination) => {
-            if remove_worker_output(output_path).is_err() {
+            let analysis_cleanup = remove_worker_output(output_path);
+            let display_cleanup = remove_worker_output(display_output_path);
+            if analysis_cleanup.is_err() || display_cleanup.is_err() {
                 Err(WorkerTermination::OutputCleanupFailed)
             } else {
                 Err(termination)
@@ -2494,6 +2780,7 @@ fn failed_execution(
     GeometryWorkerExecution::new(
         response_for(request, termination),
         None,
+        None,
         asset_transport,
         fallback_reason,
     )
@@ -2502,6 +2789,50 @@ fn failed_execution(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn display_request(max_output_bytes: u64) -> GeometryWorkerRequest {
+        let decimal = |value| {
+            partprobe_geometry_core::ProvisionalGeometryDecimal::new(value)
+                .expect("test display tolerance must be valid")
+        };
+        GeometryWorkerRequest::new(
+            SchemaVersion::new(GEOMETRY_WORKER_SCHEMA_VERSION)
+                .expect("worker schema must be valid"),
+            GeometryJobId::new("display-output-job").expect("job ID must be valid"),
+            CorrelationId::new("display-output-correlation").expect("correlation ID must be valid"),
+            AssetCapability::new("display-output-capability").expect("capability must be valid"),
+            Sha256Digest::new("a".repeat(64)).expect("source hash must be valid"),
+            vec![GeometryStage::Intake],
+            AnalysisProfile {
+                id: partprobe_geometry_core::AnalysisProfileId::new("display-output-profile")
+                    .expect("profile ID must be valid"),
+                version: partprobe_domain::RuleVersion::new(1, 0, 0),
+            },
+            ResourceQuotas::new(1_024, max_output_bytes, 1_024, 1_000)
+                .expect("quotas must be valid"),
+        )
+        .expect("request must be valid")
+        .with_display_scene(DisplaySceneRequest::new(
+            DisplayTessellationProfile::new(decimal("0.1"), decimal("12"))
+                .expect("profile must be valid"),
+        ))
+        .expect("display request must be valid")
+    }
+
+    fn display_response(request: &GeometryWorkerRequest) -> GeometryWorkerResponse {
+        GeometryWorkerResponse::new(
+            request.schema_version(),
+            request.job_id().clone(),
+            request.correlation_id().clone(),
+            StageStatus::Succeeded,
+            Vec::new(),
+            Some(SnapshotReference::new("geometry-step-analysis-v1").expect("valid reference")),
+            Vec::new(),
+        )
+        .expect("analysis response must be valid")
+        .with_display_scene_reference(DisplaySceneArtifactReference::current())
+        .expect("display response must be valid")
+    }
 
     #[test]
     fn claimed_worker_output_is_hashed_unlinked_and_immutable() {
@@ -2529,6 +2860,96 @@ mod tests {
         );
 
         drop(output);
+        std::fs::remove_dir(job_directory).expect("empty private job directory must be removed");
+    }
+
+    #[test]
+    fn separate_analysis_and_display_outputs_share_one_claim_quota() {
+        let job_directory =
+            create_job_directory(&std::env::temp_dir()).expect("private job directory must exist");
+        let output_path = job_directory.join(WORKER_OUTPUT_FILENAME);
+        let display_output_path = job_directory.join(WORKER_DISPLAY_OUTPUT_FILENAME);
+        std::fs::write(&output_path, b"analysis-output").expect("analysis must be written");
+        std::fs::write(&display_output_path, b"display-output")
+            .expect("display artifact must be written");
+        let request = display_request(64);
+        let response = display_response(&request);
+
+        let (analysis, display) =
+            reconcile_worker_outputs(&request, &response, &output_path, &display_output_path)
+                .expect("both bounded files must be claimed");
+        let analysis = analysis.expect("analysis output must be retained");
+        let display = display.expect("display output must be retained");
+        assert_eq!(analysis.bytes(), b"analysis-output");
+        assert_eq!(display.bytes(), b"display-output");
+        assert_eq!(
+            display.snapshot_reference().as_str(),
+            GEOMETRY_DISPLAY_SCENE_REFERENCE
+        );
+        assert!(!output_path.exists());
+        assert!(!display_output_path.exists());
+
+        drop(analysis);
+        drop(display);
+        std::fs::remove_dir(job_directory).expect("empty private job directory must be removed");
+    }
+
+    #[test]
+    fn combined_output_claim_over_quota_fails_and_removes_both_files() {
+        let job_directory =
+            create_job_directory(&std::env::temp_dir()).expect("private job directory must exist");
+        let output_path = job_directory.join(WORKER_OUTPUT_FILENAME);
+        let display_output_path = job_directory.join(WORKER_DISPLAY_OUTPUT_FILENAME);
+        std::fs::write(&output_path, b"12345678").expect("analysis must be written");
+        std::fs::write(&display_output_path, b"abcdefgh").expect("display must be written");
+        let request = display_request(12);
+        let response = display_response(&request);
+
+        assert_eq!(
+            reconcile_worker_outputs(&request, &response, &output_path, &display_output_path,)
+                .expect_err("combined bytes must exceed the shared quota"),
+            WorkerTermination::OutputClaimFailed
+        );
+        assert!(!output_path.exists());
+        assert!(!display_output_path.exists());
+        std::fs::remove_dir(job_directory).expect("empty private job directory must be removed");
+    }
+
+    #[test]
+    fn unreported_display_file_is_removed_and_never_retained() {
+        let job_directory =
+            create_job_directory(&std::env::temp_dir()).expect("private job directory must exist");
+        let output_path = job_directory.join(WORKER_OUTPUT_FILENAME);
+        let display_output_path = job_directory.join(WORKER_DISPLAY_OUTPUT_FILENAME);
+        std::fs::write(&output_path, b"analysis-output").expect("analysis must be written");
+        std::fs::write(&display_output_path, b"unreported-display")
+            .expect("unreported display must be written");
+        let request = display_request(64);
+        let response = GeometryWorkerResponse::new(
+            request.schema_version(),
+            request.job_id().clone(),
+            request.correlation_id().clone(),
+            StageStatus::SucceededWithWarnings,
+            Vec::new(),
+            Some(SnapshotReference::new("geometry-step-analysis-v1").expect("valid reference")),
+            vec![
+                DiagnosticCode::new("DISPLAY_SCENE_UNAVAILABLE").expect("diagnostic must be valid"),
+            ],
+        )
+        .expect("explicit unavailable response must be valid");
+        response
+            .validate_for(&request)
+            .expect("unavailable response must match the request");
+
+        let (analysis, display) =
+            reconcile_worker_outputs(&request, &response, &output_path, &display_output_path)
+                .expect("analysis must remain claimable");
+        assert!(analysis.is_some());
+        assert!(display.is_none());
+        assert!(!output_path.exists());
+        assert!(!display_output_path.exists());
+
+        drop(analysis);
         std::fs::remove_dir(job_directory).expect("empty private job directory must be removed");
     }
 

@@ -313,7 +313,7 @@ impl DesktopSettingsState {
         })
     }
 
-    fn current_settings_draft(&self) -> Result<ShopSettingsDraft, HostCommandError> {
+    pub(crate) fn current_settings_draft(&self) -> Result<ShopSettingsDraft, HostCommandError> {
         let application = self
             .application
             .lock()

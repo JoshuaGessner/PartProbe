@@ -8,6 +8,7 @@ build = "build.rs"
 [features]
 default = []
 desktop-host = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-dialog"]
+viewer-spike = ["desktop-host", "dep:partprobe-model-viewer", "tauri/unstable"]
 
 [dependencies]
 partprobe-application.workspace = true
@@ -16,6 +17,7 @@ partprobe-domain.workspace = true
 partprobe-geometry-core.workspace = true
 partprobe-geometry-import.workspace = true
 partprobe-native-runtime.workspace = true
+partprobe-model-viewer = { workspace = true, optional = true }
 partprobe-persistence-sqlite.workspace = true
 partprobe-security.workspace = true
 rust_decimal.workspace = true

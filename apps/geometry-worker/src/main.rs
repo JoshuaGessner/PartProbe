@@ -384,11 +384,22 @@ fn build_step_response(
         provisional_centroid(properties.center_of_mass_mm)?,
     )
     .map_err(|_| ())?;
+    let envelope = partprobe_geometry_core::ExactStepEnvelopeDerivative::new(
+        request.expected_source_hash().clone(),
+        [
+            provisional_decimal(properties.aabb_extents_mm[0])?,
+            provisional_decimal(properties.aabb_extents_mm[1])?,
+            provisional_decimal(properties.aabb_extents_mm[2])?,
+        ],
+    )
+    .map_err(|_| ())?;
+    let analysis = partprobe_geometry_import::ProvisionalExactStepAnalysis::new(snapshot, envelope)
+        .map_err(|_| ())?;
     write_snapshot_response(
         request,
         cancellation,
-        serde_json::to_vec(&snapshot).map_err(|_| ())?,
-        partprobe_geometry_import::PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE,
+        serde_json::to_vec(&analysis).map_err(|_| ())?,
+        partprobe_geometry_import::PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE,
         Vec::new(),
     )
 }
@@ -442,11 +453,19 @@ fn write_snapshot_response(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ())?;
-    let status = if warnings.is_empty() {
+    let display_scene_unavailable = request.display_scene().is_some();
+    let status = if warnings.is_empty() && !display_scene_unavailable {
         StageStatus::Succeeded
     } else {
         StageStatus::SucceededWithWarnings
     };
+    let diagnostic_codes = display_scene_unavailable
+        .then(|| {
+            DiagnosticCode::new("DISPLAY_SCENE_UNAVAILABLE")
+                .expect("static diagnostic code must be valid")
+        })
+        .into_iter()
+        .collect();
     GeometryWorkerResponse::new(
         request.schema_version(),
         request.job_id().clone(),
@@ -454,7 +473,7 @@ fn write_snapshot_response(
         status,
         stage_reports,
         Some(SnapshotReference::new(snapshot_reference).map_err(|_| ())?),
-        Vec::new(),
+        diagnostic_codes,
     )
     .map_err(|_| ())
 }

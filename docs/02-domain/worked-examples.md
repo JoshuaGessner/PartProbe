@@ -1,7 +1,7 @@
 # Worked Estimate Examples
 
 > **Status:** Draft
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-09-10
 > **Related requirements:** REQ-F-002–REQ-F-010; CALC-001–CALC-020; TEST-002, TEST-005
 > **Related ADRs:** ADR-0002–ADR-0008
 > **Open questions:** OQ-009–OQ-20, OQ-027
@@ -9,6 +9,10 @@
 > **Supersedes:** None
 
 These synthetic examples force domain coverage; they are **not approved shop standards**. Currency is USD, times are lot hours unless `/part` is shown, and feeds/speeds are deliberately broad profiles rather than unsafe universal cutting data. Every example assumes one deliverable part unless quantity is stated. TASK-002 makes EX-01, EX-03, and EX-12 executable synthetic calculation fixtures using test-only rates; their geometry/runtime facts remain synthetic, and TASK-007 retains real-shop calibration.
+
+The first USE-3 analytic stock-proposal spike uses the same Reviewed-or-Approved rectangular allowance profile with total X/Y/Z additions of 3/3/2 mm. A 10×10×10 mm exact cube with 1,000 mm³ part volume produces a 13×13×12 mm blank, 2,028 mm³ blank volume, and 1,028 mm³ removed volume. The independent 12×8×5 mm exact prism with 480 mm³ part volume produces a 15×11×7 mm blank, 1,155 mm³ blank volume, and 675 mm³ removed volume. Both remain `NeedsReview` because only source-axis orientation is considered and neither standard size nor availability is resolved. ABI-v4 native adapter and supervised-worker tests now reproduce both AABBs within 0.000001 mm from the governed STEP bytes, proving model sensitivity through the real worker. No material cost or estimate is adopted.
+
+The separate internal live-test proposal uses a named synthetic Draft library: 2,700 kg/m³ aluminum density, USD 8.50/kg material, 3/3/2 mm total allowance, 16,000 mm³/min coarse removal, 60 minutes setup, 45 minutes programming, 3 minutes load/unload per item, and 15 minutes lot quality inspection. For the prism this produces 0.0031185 kg blank mass, USD 0.026507250 unrounded stock material per item, and 0.0421875 cutting minutes per item. An explicit quantity-three adoption produces USD 0.079521750 purchased material. The adoption sets non-cutting/in-cycle inspection, cut/cert/freight, tooling/fixture/outside processing, administration/overhead, and risk/rework to zero only after the user accepts those named omissions. This is executable synthetic developer evidence, not a shop benchmark, complete manufacturing estimate, CAM result, or quote.
 
 | # | Scenario and imported facts | Detected/model facts | Stock, process, setups, tools, feed/speed source |
 |---|---|---|---|
@@ -75,4 +79,4 @@ These synthetic examples force domain coverage; they are **not approved shop sta
 
 ## Acceptance path
 
-EX-01, EX-03, and EX-12 now have structured test-only rate, input, intermediate, output, pricing, rounding, and version evidence in [TASK-002 validation](../06-quality/task-002-validation.md). Fixture review confirms deterministic engineering behavior only. Remaining examples still require executable conversion. No numeric value in this document or its fixtures may seed production defaults; TASK-007/M0.2 must validate real shop categories and policy fit.
+EX-01, EX-03, and EX-12 now have structured test-only rate, input, intermediate, output, pricing, rounding, and version evidence in [TASK-002 validation](../06-quality/task-002-validation.md). The cube/prism stock values above are executable in [USE-3 stock proposal validation](../06-quality/use-3-stock-proposal-validation.md). Fixture review confirms deterministic engineering behavior only. Remaining examples still require executable conversion. No numeric value in this document or its fixtures may seed production defaults; TASK-007/M0.2 must validate real shop categories and policy fit.
