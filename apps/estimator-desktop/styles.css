@@ -177,6 +177,60 @@ h2 {
   color: var(--text-primary);
 }
 
+.viewer-view-controls {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(7, 13, 20, 0.4);
+}
+
+.viewer-view-controls legend {
+  padding: 0 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.viewer-view-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.viewer-view-action {
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  background: var(--surface-canvas);
+  cursor: pointer;
+}
+
+.viewer-view-action:hover:not(:disabled),
+.viewer-view-action.active {
+  border-color: var(--action-primary);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--action-primary) 10%, var(--surface-canvas));
+}
+
+.viewer-view-action:focus-visible {
+  outline: 3px solid var(--action-focus);
+  outline-offset: 2px;
+}
+
+.viewer-view-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.viewer-control-help {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .viewer-summary {
   display: grid;
   margin: 0;
@@ -204,6 +258,17 @@ h2 {
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-primary);
+}
+
+.viewer-text-equivalent {
+  display: grid;
+  gap: 8px;
+}
+
+.viewer-text-equivalent h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
 }
 
 .viewer-navigation-note {

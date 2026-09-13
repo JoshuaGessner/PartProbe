@@ -12,6 +12,7 @@ fn main() {
         "activate_shop_resource_selection",
         "save_shop_resource_catalog_draft",
         "set_model_viewer_workspace",
+        "set_model_viewer_view",
     ];
 
     tauri_build::try_build(

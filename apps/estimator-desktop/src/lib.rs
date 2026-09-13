@@ -3,8 +3,18 @@
 use partprobe_desktop_contract::{
     DraftEstimateEvaluation, GeometryConfidenceLevel, HostCommandError, HostErrorCode,
     ModelAnalysisResult, ModelLengthUnit, ModelSourceFormat, ModelSourceSelection,
-    ProvisionalGeometryFacts, SelectedModelSource,
+    ModelViewerStandardView, ProvisionalGeometryFacts, SelectedModelSource,
 };
+
+#[must_use]
+pub const fn model_view_label(view: ModelViewerStandardView) -> &'static str {
+    match view {
+        ModelViewerStandardView::Isometric => "Isometric",
+        ModelViewerStandardView::Front => "Front",
+        ModelViewerStandardView::Top => "Top",
+        ModelViewerStandardView::Right => "Right",
+    }
+}
 
 #[must_use]
 pub fn selected_source_accessible_label(display_name: &str) -> String {
@@ -283,6 +293,20 @@ mod tests {
         assert_eq!(state.status_heading(), "Model selected");
         assert!(state.status_detail().contains("session"));
         assert!(state.status_detail().contains("not saved"));
+    }
+
+    #[test]
+    fn model_view_labels_are_explicit() {
+        assert_eq!(
+            [
+                ModelViewerStandardView::Isometric,
+                ModelViewerStandardView::Front,
+                ModelViewerStandardView::Top,
+                ModelViewerStandardView::Right,
+            ]
+            .map(model_view_label),
+            ["Isometric", "Front", "Top", "Right"]
+        );
     }
 
     #[test]

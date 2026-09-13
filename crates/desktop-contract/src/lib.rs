@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const DESKTOP_CONTRACT_VERSION: u16 = 11;
+pub const DESKTOP_CONTRACT_VERSION: u16 = 12;
 pub const COMMAND_DESKTOP_CONTRACT: &str = "desktop_contract";
 pub const COMMAND_SELECT_MODEL_SOURCE: &str = "select_model_source";
 pub const COMMAND_ANALYZE_MODEL_SOURCE: &str = "analyze_model_source";
@@ -14,8 +14,9 @@ pub const COMMAND_SAVE_SHOP_SETTINGS: &str = "save_shop_settings";
 pub const COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION: &str = "activate_shop_resource_selection";
 pub const COMMAND_SAVE_SHOP_RESOURCE_CATALOG_DRAFT: &str = "save_shop_resource_catalog_draft";
 pub const COMMAND_SET_MODEL_VIEWER_WORKSPACE: &str = "set_model_viewer_workspace";
+pub const COMMAND_SET_MODEL_VIEWER_VIEW: &str = "set_model_viewer_view";
 pub const EVENT_MODEL_SOURCE_SELECTED: &str = "partprobe:model-source-selected";
-pub const APPLICATION_COMMANDS: [&str; 11] = [
+pub const APPLICATION_COMMANDS: [&str; 12] = [
     COMMAND_DESKTOP_CONTRACT,
     COMMAND_SELECT_MODEL_SOURCE,
     COMMAND_ANALYZE_MODEL_SOURCE,
@@ -27,6 +28,7 @@ pub const APPLICATION_COMMANDS: [&str; 11] = [
     COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION,
     COMMAND_SAVE_SHOP_RESOURCE_CATALOG_DRAFT,
     COMMAND_SET_MODEL_VIEWER_WORKSPACE,
+    COMMAND_SET_MODEL_VIEWER_VIEW,
 ];
 pub const APPLICATION_EVENTS: [&str; 1] = [EVENT_MODEL_SOURCE_SELECTED];
 
@@ -109,8 +111,27 @@ pub struct SetModelViewerWorkspaceRequest {
 #[serde(rename_all = "snake_case")]
 pub struct ModelViewerWorkspaceResult {
     pub mode: ModelViewerWorkspaceMode,
+    pub view: ModelViewerStandardView,
     pub scene_reference: Option<String>,
     pub notice: String,
+}
+
+/// Four bounded, deterministic orientations supported by the first native viewer slice.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelViewerStandardView {
+    #[default]
+    Isometric,
+    Front,
+    Top,
+    Right,
+}
+
+/// Path-free view intent. Camera transforms and renderer state remain host-owned.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SetModelViewerViewRequest {
+    pub view: ModelViewerStandardView,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1096,7 +1117,7 @@ mod tests {
         let contract = DesktopContract::current();
 
         assert_eq!(contract.contract_version, DESKTOP_CONTRACT_VERSION);
-        assert_eq!(contract.contract_version, 11);
+        assert_eq!(contract.contract_version, 12);
         assert_eq!(contract.commands, APPLICATION_COMMANDS);
         assert_eq!(contract.events, APPLICATION_EVENTS);
         assert_eq!(
@@ -1118,20 +1139,29 @@ mod tests {
         };
         let synthetic_result = ModelViewerWorkspaceResult {
             mode: ModelViewerWorkspaceMode::Visible,
+            view: ModelViewerStandardView::Isometric,
             scene_reference: Some("synthetic-viewer-spike-v1".to_owned()),
             notice: "Synthetic renderer preview; selected-model display is unavailable.".to_owned(),
         };
         let source_result = ModelViewerWorkspaceResult {
             mode: ModelViewerWorkspaceMode::Visible,
+            view: ModelViewerStandardView::Front,
             scene_reference: Some("geometry-display-scene-v1".to_owned()),
             notice:
                 "Selected B-rep display derivative; stock is hidden until placement is governed."
                     .to_owned(),
         };
+        let view_request = SetModelViewerViewRequest {
+            view: ModelViewerStandardView::Right,
+        };
         let serialized =
-            serde_json::to_string(&(request, synthetic_result, source_result)).unwrap();
+            serde_json::to_string(&(request, synthetic_result, source_result, view_request))
+                .unwrap();
 
         assert!(serialized.contains("visible"));
+        assert!(serialized.contains("isometric"));
+        assert!(serialized.contains("front"));
+        assert!(serialized.contains("right"));
         assert!(serialized.contains("synthetic-viewer-spike-v1"));
         assert!(serialized.contains("geometry-display-scene-v1"));
         assert!(!serialized.contains("/"));

@@ -3,15 +3,16 @@ use partprobe_desktop_contract::{
     AnalysisCancellationAcknowledgement, AnalyzeModelSourceRequest, COMMAND_ANALYZE_MODEL_SOURCE,
     COMMAND_CANCEL_MODEL_ANALYSIS, COMMAND_DESKTOP_CONTRACT, COMMAND_EVALUATE_DRAFT_ESTIMATE,
     COMMAND_LOAD_SHOP_SETTINGS, COMMAND_PREPARE_DRAFT_ESTIMATE_PROPOSAL,
-    COMMAND_SAVE_SHOP_SETTINGS, COMMAND_SELECT_MODEL_SOURCE, COMMAND_SET_MODEL_VIEWER_WORKSPACE,
-    CancelModelAnalysisRequest, DesktopContract, DeveloperPricingInputFields,
-    DeveloperRateInputFields, DraftEstimateEvaluation, DraftEstimateEvaluationState,
-    DraftEstimateInputFields, DraftEstimateProposalAdoptionInput, DraftEstimateProposalEvaluation,
-    DraftEstimateProposalSummary, EvaluateDraftEstimateRequest, GeometryConfidenceLevel,
-    GeometryReviewInput, HostCommandError, MeshMeasurementBasis, MeshSelfIntersectionState,
-    MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection, ModelViewerAvailability,
-    ModelViewerWorkspaceMode, ModelViewerWorkspaceResult, PrepareDraftEstimateProposalRequest,
-    ProvisionalGeometryFacts, SaveShopSettingsRequest, SelectedModelSource,
+    COMMAND_SAVE_SHOP_SETTINGS, COMMAND_SELECT_MODEL_SOURCE, COMMAND_SET_MODEL_VIEWER_VIEW,
+    COMMAND_SET_MODEL_VIEWER_WORKSPACE, CancelModelAnalysisRequest, DesktopContract,
+    DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateEvaluation,
+    DraftEstimateEvaluationState, DraftEstimateInputFields, DraftEstimateProposalAdoptionInput,
+    DraftEstimateProposalEvaluation, DraftEstimateProposalSummary, EvaluateDraftEstimateRequest,
+    GeometryConfidenceLevel, GeometryReviewInput, HostCommandError, MeshMeasurementBasis,
+    MeshSelfIntersectionState, MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection,
+    ModelViewerAvailability, ModelViewerStandardView, ModelViewerWorkspaceMode,
+    ModelViewerWorkspaceResult, PrepareDraftEstimateProposalRequest, ProvisionalGeometryFacts,
+    SaveShopSettingsRequest, SelectedModelSource, SetModelViewerViewRequest,
     SetModelViewerWorkspaceRequest, ShopResourceCatalogSnapshot, ShopResourceInputFields,
     ShopResourceRecordState, ShopResourceSelectionState, ShopSettingsSnapshot, ShopSettingsState,
     StlEncoding, UnitResolution,
@@ -20,7 +21,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     AnalysisPanelState, DraftEstimatePanelState, GeometryReviewConfirmation, ModelPanelState,
-    analysis_supports_draft_estimate, length_unit_label,
+    analysis_supports_draft_estimate, length_unit_label, model_view_label,
     provisional_analysis_failure_accessible_label, provisional_geometry_accessible_label,
     selected_source_accessible_label, source_format_label,
 };
@@ -63,6 +64,11 @@ struct SaveShopSettingsArgs {
 #[derive(serde::Serialize)]
 struct SetModelViewerWorkspaceArgs {
     request: SetModelViewerWorkspaceRequest,
+}
+
+#[derive(serde::Serialize)]
+struct SetModelViewerViewArgs {
+    request: SetModelViewerViewRequest,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -846,6 +852,43 @@ fn App() -> impl IntoView {
         });
     });
 
+    let set_model_view = Callback::new(move |view: ModelViewerStandardView| {
+        if !matches!(
+            viewer_state.get_untracked(),
+            ModelViewerPanelState::Active(_)
+        ) {
+            return;
+        }
+        set_viewer_state.set(ModelViewerPanelState::Switching);
+        leptos::task::spawn_local(async move {
+            let request = SetModelViewerViewRequest { view };
+            let args = serde_wasm_bindgen::to_value(&SetModelViewerViewArgs { request })
+                .unwrap_or(JsValue::UNDEFINED);
+            match invoke_partprobe(COMMAND_SET_MODEL_VIEWER_VIEW, args).await {
+                Ok(value) => {
+                    match serde_wasm_bindgen::from_value::<ModelViewerWorkspaceResult>(value) {
+                        Ok(result)
+                            if result.mode == ModelViewerWorkspaceMode::Visible
+                                && result.view == view =>
+                        {
+                            set_viewer_state.set(ModelViewerPanelState::Active(result));
+                        }
+                        _ => set_viewer_state.set(ModelViewerPanelState::Failed(
+                            HostCommandError::host_state_unavailable("VIS1-VIEW-RESULT"),
+                        )),
+                    }
+                }
+                Err(error) => {
+                    let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                        .unwrap_or_else(|_| {
+                            HostCommandError::host_state_unavailable("VIS1-VIEW-INVOKE")
+                        });
+                    set_viewer_state.set(ModelViewerPanelState::Failed(error));
+                }
+            }
+        });
+    });
+
     let load_settings = Callback::new(move |()| {
         set_settings_state.set(SettingsPanelState::Loading);
         leptos::task::spawn_local(async move {
@@ -1087,7 +1130,13 @@ fn App() -> impl IntoView {
                 <Show
                     when=move || active_view.get() == WorkspaceView::Settings
                     fallback=move || view! {
-                        <ModelViewerWorkspace model_state analysis_state proposal_state viewer_state />
+                        <ModelViewerWorkspace
+                            model_state
+                            analysis_state
+                            proposal_state
+                            viewer_state
+                            set_model_view
+                        />
                     }
                 >
                     <SettingsWorkspace form settings_state set_active_view save_settings load_settings />
@@ -1176,12 +1225,168 @@ fn App() -> impl IntoView {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ViewerGeometryText {
+    representation: String,
+    units: String,
+    dimensions: String,
+    warnings: String,
+    confidence: String,
+    analysis_reference: String,
+}
+
+impl ViewerGeometryText {
+    fn unavailable(state: &str) -> Self {
+        Self {
+            representation: "Not available".to_owned(),
+            units: "Not available".to_owned(),
+            dimensions: "Not available".to_owned(),
+            warnings: state.to_owned(),
+            confidence: "Not available".to_owned(),
+            analysis_reference: "Not available".to_owned(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ViewerStockText {
+    dimensions: String,
+    material: String,
+    removed_volume: String,
+    machine: String,
+    evidence: String,
+}
+
+impl ViewerStockText {
+    fn unavailable(state: &str) -> Self {
+        Self {
+            dimensions: "Not available".to_owned(),
+            material: "Not available".to_owned(),
+            removed_volume: "Not available".to_owned(),
+            machine: "Not available".to_owned(),
+            evidence: state.to_owned(),
+        }
+    }
+}
+
+fn viewer_geometry_text(state: &AnalysisPanelState) -> ViewerGeometryText {
+    let AnalysisPanelState::Available(result) = state else {
+        return ViewerGeometryText::unavailable(state.status_heading());
+    };
+    let warnings = result
+        .stages
+        .iter()
+        .flat_map(|stage| stage.warning_codes.iter())
+        .cloned()
+        .collect::<Vec<_>>();
+    let warnings = if warnings.is_empty() {
+        "None".to_owned()
+    } else {
+        warnings.join(", ")
+    };
+    match &result.geometry {
+        ProvisionalGeometryFacts::ExactBrep(geometry) => ViewerGeometryText {
+            representation: "Exact B-rep source (tessellated for display)".to_owned(),
+            units: "Millimeters".to_owned(),
+            dimensions: geometry.aabb_extents_mm.as_ref().map_or_else(
+                || "Unavailable in legacy analysis".to_owned(),
+                |extents| format!("{} × {} × {} mm", extents[0], extents[1], extents[2]),
+            ),
+            warnings,
+            confidence: "Provisional exact geometry · review required".to_owned(),
+            analysis_reference: result.analysis_id.clone(),
+        },
+        ProvisionalGeometryFacts::Mesh(geometry) => {
+            let confidence = confidence_label(geometry.confidence_level);
+            let confidence = if geometry.confidence_reason_codes.is_empty() {
+                confidence.to_owned()
+            } else {
+                format!(
+                    "{} — {}",
+                    confidence,
+                    geometry.confidence_reason_codes.join(", ")
+                )
+            };
+            ViewerGeometryText {
+                representation: "Mesh source".to_owned(),
+                units: length_unit_label(geometry.source_units).to_owned(),
+                dimensions: geometry.aabb_extents.join(" × "),
+                warnings,
+                confidence,
+                analysis_reference: result.analysis_id.clone(),
+            }
+        }
+    }
+}
+
+fn viewer_stock_text(state: &ProposalPanelState) -> ViewerStockText {
+    match state {
+        ProposalPanelState::Evaluated(evaluation) => match evaluation.as_ref() {
+            DraftEstimateProposalEvaluation::Available { proposal } => ViewerStockText {
+                dimensions: format!("{} mm", proposal.blank_dimensions_mm.join(" × ")),
+                material: proposal.material_grade.clone(),
+                removed_volume: format!("{} mm³", proposal.removed_volume_mm3),
+                machine: proposal.machine_name.clone(),
+                evidence: format!(
+                    "Review-only · settings r{} · {} v{}",
+                    proposal.settings_revision, proposal.rule_id, proposal.rule_version
+                ),
+            },
+            DraftEstimateProposalEvaluation::Unavailable { reason }
+            | DraftEstimateProposalEvaluation::Blocked { reason } => {
+                ViewerStockText::unavailable(reason)
+            }
+        },
+        ProposalPanelState::Loading => ViewerStockText::unavailable("Proposal loading"),
+        ProposalPanelState::Failed(error) => {
+            ViewerStockText::unavailable(&format!("Proposal failed · {}", error.diagnostic_id))
+        }
+        ProposalPanelState::NotRequested => ViewerStockText::unavailable("Proposal not prepared"),
+    }
+}
+
+#[component]
+fn ViewerViewButton(
+    view: ModelViewerStandardView,
+    viewer_state: ReadSignal<ModelViewerPanelState>,
+    set_model_view: Callback<ModelViewerStandardView>,
+) -> impl IntoView {
+    let label = model_view_label(view);
+    let enabled = move || {
+        matches!(
+            viewer_state.get(),
+            ModelViewerPanelState::Active(result) if result.scene_reference.is_some()
+        )
+    };
+    view! {
+        <button
+            type="button"
+            class=move || match viewer_state.get() {
+                ModelViewerPanelState::Active(result) if result.view == view => {
+                    "viewer-view-action active"
+                }
+                _ => "viewer-view-action",
+            }
+            aria-label=format!("Show {label} model view")
+            aria-pressed=move || matches!(
+                viewer_state.get(),
+                ModelViewerPanelState::Active(result) if result.view == view
+            )
+            disabled=move || !enabled()
+            on:click=move |_| set_model_view.run(view)
+        >
+            {label}
+        </button>
+    }
+}
+
 #[component]
 fn ModelViewerWorkspace(
     model_state: ReadSignal<ModelPanelState>,
     analysis_state: ReadSignal<AnalysisPanelState>,
     proposal_state: ReadSignal<ProposalPanelState>,
     viewer_state: ReadSignal<ModelViewerPanelState>,
+    set_model_view: Callback<ModelViewerStandardView>,
 ) -> impl IntoView {
     let source = move || {
         model_state.get().selected_source().map_or_else(
@@ -1214,7 +1419,10 @@ fn ModelViewerWorkspace(
     let viewer_notice = move || match viewer_state.get() {
         ModelViewerPanelState::Active(result) => result.notice,
         ModelViewerPanelState::Failed(error) => {
-            format!("{} Diagnostic: {}", error.message, error.diagnostic_id)
+            format!(
+                "{} Model facts remain available below. Leave and return to retry. Diagnostic: {}",
+                error.message, error.diagnostic_id
+            )
         }
         _ => "Native viewport is changing state.".to_owned(),
     };
@@ -1227,7 +1435,12 @@ fn ModelViewerWorkspace(
             AnalysisPanelState::Running | AnalysisPanelState::Cancelling => "Preparing display",
             _ => "Display unavailable",
         },
-        _ => "Changing state",
+        ModelViewerPanelState::Failed(_) | ModelViewerPanelState::Unavailable => {
+            "Display unavailable"
+        }
+        ModelViewerPanelState::Loading
+        | ModelViewerPanelState::Ready
+        | ModelViewerPanelState::Switching => "Changing state",
     };
     let viewer_badge_class = move || match viewer_state.get() {
         ModelViewerPanelState::Active(result) if result.scene_reference.is_some() => {
@@ -1237,11 +1450,26 @@ fn ModelViewerWorkspace(
     };
     let viewer_view = move || match viewer_state.get() {
         ModelViewerPanelState::Active(result) if result.scene_reference.is_some() => {
-            "Isometric · opaque model"
+            format!("{} · opaque model", model_view_label(result.view))
         }
-        ModelViewerPanelState::Active(_) => "No model displayed",
-        _ => "Changing state",
+        ModelViewerPanelState::Active(_)
+        | ModelViewerPanelState::Failed(_)
+        | ModelViewerPanelState::Unavailable => "No model displayed".to_owned(),
+        ModelViewerPanelState::Loading
+        | ModelViewerPanelState::Ready
+        | ModelViewerPanelState::Switching => "Changing state".to_owned(),
     };
+    let representation = move || viewer_geometry_text(&analysis_state.get()).representation;
+    let units = move || viewer_geometry_text(&analysis_state.get()).units;
+    let dimensions = move || viewer_geometry_text(&analysis_state.get()).dimensions;
+    let warnings = move || viewer_geometry_text(&analysis_state.get()).warnings;
+    let confidence = move || viewer_geometry_text(&analysis_state.get()).confidence;
+    let analysis_reference = move || viewer_geometry_text(&analysis_state.get()).analysis_reference;
+    let stock_dimensions = move || viewer_stock_text(&proposal_state.get()).dimensions;
+    let stock_material = move || viewer_stock_text(&proposal_state.get()).material;
+    let stock_removed_volume = move || viewer_stock_text(&proposal_state.get()).removed_volume;
+    let stock_machine = move || viewer_stock_text(&proposal_state.get()).machine;
+    let stock_evidence = move || viewer_stock_text(&proposal_state.get()).evidence;
 
     view! {
         <main id="workspace" class="model-viewer-workspace">
@@ -1259,12 +1487,64 @@ fn ModelViewerWorkspace(
                     <p>{viewer_notice}</p>
                 </div>
 
+                <fieldset class="viewer-view-controls">
+                    <legend>"View orientation"</legend>
+                    <div class="viewer-view-grid">
+                        <ViewerViewButton
+                            view=ModelViewerStandardView::Isometric
+                            viewer_state
+                            set_model_view
+                        />
+                        <ViewerViewButton
+                            view=ModelViewerStandardView::Front
+                            viewer_state
+                            set_model_view
+                        />
+                        <ViewerViewButton
+                            view=ModelViewerStandardView::Top
+                            viewer_state
+                            set_model_view
+                        />
+                        <ViewerViewButton
+                            view=ModelViewerStandardView::Right
+                            viewer_state
+                            set_model_view
+                        />
+                    </div>
+                    <p class="viewer-control-help">
+                        "Tab to a view and press Space or Return. Every view automatically fits the complete displayed model."
+                    </p>
+                </fieldset>
+
                 <dl class="viewer-summary">
                     <div><dt>"Selected source"</dt><dd>{source}</dd></div>
                     <div><dt>"Analysis"</dt><dd>{analysis}</dd></div>
                     <div><dt>"Stock proposal"</dt><dd>{proposal}</dd></div>
                     <div><dt>"View"</dt><dd>{viewer_view}</dd></div>
                 </dl>
+
+                <section class="viewer-text-equivalent" aria-labelledby="viewer-model-evidence-heading">
+                    <h3 id="viewer-model-evidence-heading">"Model evidence"</h3>
+                    <dl class="viewer-summary">
+                        <div><dt>"Representation"</dt><dd>{representation}</dd></div>
+                        <div><dt>"Units"</dt><dd>{units}</dd></div>
+                        <div><dt>"Model dimensions"</dt><dd>{dimensions}</dd></div>
+                        <div><dt>"Warnings"</dt><dd>{warnings}</dd></div>
+                        <div><dt>"Confidence"</dt><dd>{confidence}</dd></div>
+                        <div><dt>"Analysis reference"</dt><dd>{analysis_reference}</dd></div>
+                    </dl>
+                </section>
+
+                <section class="viewer-text-equivalent" aria-labelledby="viewer-stock-evidence-heading">
+                    <h3 id="viewer-stock-evidence-heading">"Proposed stock evidence"</h3>
+                    <dl class="viewer-summary">
+                        <div><dt>"Blank dimensions"</dt><dd>{stock_dimensions}</dd></div>
+                        <div><dt>"Material"</dt><dd>{stock_material}</dd></div>
+                        <div><dt>"Removed volume"</dt><dd>{stock_removed_volume}</dd></div>
+                        <div><dt>"Machine candidate"</dt><dd>{stock_machine}</dd></div>
+                        <div><dt>"Proposal basis"</dt><dd>{stock_evidence}</dd></div>
+                    </dl>
+                </section>
 
                 <p class="evidence-note">
                     "The viewport stays inside this PartProbe window. Selected-model geometry is a display-only derivative, not measurement, stock, workholding, or CAM authority. Stock remains hidden until placement is governed."
@@ -2841,6 +3121,20 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn viewer_text_equivalent_preserves_missing_analysis_and_stock() {
+        let geometry = viewer_geometry_text(&AnalysisPanelState::NotStarted);
+        let stock = viewer_stock_text(&ProposalPanelState::NotRequested);
+
+        assert_eq!(geometry.representation, "Not available");
+        assert_eq!(geometry.dimensions, "Not available");
+        assert_eq!(geometry.warnings, "Provisional analysis not started");
+        assert_eq!(stock.dimensions, "Not available");
+        assert_eq!(stock.evidence, "Proposal not prepared");
+        assert!(!geometry.dimensions.contains('0'));
+        assert!(!stock.dimensions.contains('0'));
+    }
 
     #[test]
     fn huntsville_test_profile_is_versioned_complete_and_requires_review() {

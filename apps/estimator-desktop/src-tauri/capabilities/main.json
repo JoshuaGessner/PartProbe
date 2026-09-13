@@ -16,6 +16,7 @@
     "allow-activate-shop-resource-selection",
     "allow-save-shop-resource-catalog-draft",
     "allow-set-model-viewer-workspace",
+    "allow-set-model-viewer-view",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

@@ -6,8 +6,9 @@ use partprobe_desktop_contract::{
     DraftEstimateEvaluation, DraftEstimateProposalEvaluation, EVENT_MODEL_SOURCE_SELECTED,
     EvaluateDraftEstimateRequest, HostCommandError, ModelAnalysisResult, ModelSourceSelectedEvent,
     ModelSourceSelection, ModelViewerWorkspaceResult, PrepareDraftEstimateProposalRequest,
-    SaveShopResourceCatalogDraftRequest, SaveShopSettingsRequest, SetModelViewerWorkspaceRequest,
-    ShopResourceCatalogActivationResult, ShopResourceCatalogDraftSaveResult, ShopSettingsState,
+    SaveShopResourceCatalogDraftRequest, SaveShopSettingsRequest, SetModelViewerViewRequest,
+    SetModelViewerWorkspaceRequest, ShopResourceCatalogActivationResult,
+    ShopResourceCatalogDraftSaveResult, ShopSettingsState,
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
@@ -31,6 +32,14 @@ fn set_model_viewer_workspace(
 ) -> Result<ModelViewerWorkspaceResult, HostCommandError> {
     app.state::<DesktopModelViewerState>()
         .set_workspace(request)
+}
+
+#[tauri::command]
+fn set_model_viewer_view(
+    app: tauri::AppHandle,
+    request: SetModelViewerViewRequest,
+) -> Result<ModelViewerWorkspaceResult, HostCommandError> {
+    app.state::<DesktopModelViewerState>().set_view(request)
 }
 
 #[tauri::command]
@@ -245,7 +254,8 @@ pub fn run() {
             save_shop_settings,
             activate_shop_resource_selection,
             save_shop_resource_catalog_draft,
-            set_model_viewer_workspace
+            set_model_viewer_workspace,
+            set_model_viewer_view
         ])
         .run(tauri::generate_context!())
         .expect("PartProbe desktop host failed");

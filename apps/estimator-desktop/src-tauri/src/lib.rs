@@ -482,6 +482,12 @@ mod tests {
         assert!(RUNTIME.contains("begin_selection"));
         assert!(RUNTIME.contains("retained_display_scene"));
         assert!(RUNTIME.contains("accept_analysis_scene"));
+        assert!(RUNTIME.contains("set_model_viewer_view"));
+        assert!(WEBVIEW.contains("COMMAND_SET_MODEL_VIEWER_VIEW"));
+        assert!(WEBVIEW.contains("View orientation"));
+        assert!(WEBVIEW.contains("Model evidence"));
+        assert!(WEBVIEW.contains("Proposed stock evidence"));
+        assert!(WEBVIEW.contains("Not available"));
         assert!(!WEBVIEW.contains("ValidatedGeometryDisplayScene"));
     }
 
@@ -514,6 +520,7 @@ mod tests {
                 "allow-save-shop-resource-catalog-draft",
                 "allow-save-shop-settings",
                 "allow-select-model-source",
+                "allow-set-model-viewer-view",
                 "allow-set-model-viewer-workspace",
                 "core:event:allow-listen",
                 "core:event:allow-unlisten",
@@ -640,7 +647,7 @@ mod tests {
         assert!(WEBVIEW.contains("trusted operator identity is not configured"));
         assert!(!SETTINGS_ADAPTER.contains("std::env"));
         assert!(!SETTINGS_ADAPTER.contains("PARTPROBE_CATALOG"));
-        assert_eq!(APPLICATION_COMMANDS.len(), 11);
+        assert_eq!(APPLICATION_COMMANDS.len(), 12);
     }
 
     fn quoted_values_in_rust_slice(source: &str, anchor: &str) -> BTreeSet<String> {

@@ -369,6 +369,12 @@ impl NativeSurfaceRenderer {
         &self.backend
     }
 
+    /// Current deterministic camera orientation.
+    #[must_use]
+    pub const fn view(&self) -> StandardView {
+        self.view
+    }
+
     /// Replace the synthetic model with an already-validated source-bound display derivative.
     ///
     /// Stock is deliberately hidden until a versioned placement policy supplies an authoritative

@@ -1,12 +1,14 @@
-use std::{
-    ffi::OsString,
-    sync::{Arc, Mutex},
-};
+#[cfg(any(feature = "viewer-spike", test))]
+use std::ffi::OsString;
+#[cfg(feature = "viewer-spike")]
+use std::sync::{Arc, Mutex};
 
 use partprobe_desktop_contract::{
-    HostCommandError, ModelViewerAvailability, ModelViewerWorkspaceMode,
-    ModelViewerWorkspaceResult, SetModelViewerWorkspaceRequest,
+    HostCommandError, ModelViewerAvailability, ModelViewerWorkspaceResult,
+    SetModelViewerViewRequest, SetModelViewerWorkspaceRequest,
 };
+#[cfg(feature = "viewer-spike")]
+use partprobe_desktop_contract::{ModelViewerStandardView, ModelViewerWorkspaceMode};
 #[cfg(feature = "viewer-spike")]
 use partprobe_geometry_core::GEOMETRY_DISPLAY_SCENE_REFERENCE;
 use partprobe_geometry_import::ValidatedGeometryDisplayScene;
@@ -14,10 +16,10 @@ use partprobe_geometry_import::ValidatedGeometryDisplayScene;
 use partprobe_model_viewer::{
     NativeSurfaceRenderer, StandardView, SurfaceFrameStatus, SurfaceViewport,
 };
-use tauri::Manager;
 #[cfg(feature = "viewer-spike")]
-use tauri::{WebviewUrl, webview::WebviewBuilder};
+use tauri::{Manager, WebviewUrl, webview::WebviewBuilder};
 
+#[cfg(any(feature = "viewer-spike", test))]
 const SYNTHETIC_VIEWER_FLAG: &str = "--vis1-synthetic-viewer";
 #[cfg(feature = "viewer-spike")]
 const SYNTHETIC_SCENE_REFERENCE: &str = "synthetic-viewer-spike-v1";
@@ -36,10 +38,16 @@ const VIEWER_SIDEBAR_LOGICAL_WIDTH: f64 = 400.0;
 const VIEWER_WORKSPACE_WEBVIEW_LABEL: &str = "model-viewer-workspace";
 
 #[derive(Clone)]
+#[cfg(feature = "viewer-spike")]
 pub(super) struct DesktopModelViewerState {
     inner: Arc<Mutex<ModelViewerRuntime>>,
 }
 
+#[derive(Clone)]
+#[cfg(not(feature = "viewer-spike"))]
+pub(super) struct DesktopModelViewerState;
+
+#[cfg(feature = "viewer-spike")]
 struct ModelViewerRuntime {
     #[cfg(feature = "viewer-spike")]
     active: bool,
@@ -107,6 +115,11 @@ impl ViewerSceneStatus {
 
 impl DesktopModelViewerState {
     pub(super) fn unavailable() -> Self {
+        #[cfg(not(feature = "viewer-spike"))]
+        {
+            Self
+        }
+        #[cfg(feature = "viewer-spike")]
         Self {
             inner: Arc::new(Mutex::new(ModelViewerRuntime {
                 #[cfg(feature = "viewer-spike")]
@@ -140,9 +153,9 @@ impl DesktopModelViewerState {
         #[cfg(not(feature = "viewer-spike"))]
         {
             let _ = request;
-            return Err(HostCommandError::host_state_unavailable(
+            Err(HostCommandError::host_state_unavailable(
                 "VIS1-VIEWER-NOT-CONFIGURED",
-            ));
+            ))
         }
 
         #[cfg(feature = "viewer-spike")]
@@ -164,14 +177,49 @@ impl DesktopModelViewerState {
                 let _ = apply_layout(&mut runtime);
                 return Err(error);
             }
-            let (scene_reference, notice) = runtime.scene_status.visible_summary();
-            Ok(ModelViewerWorkspaceResult {
-                mode: request.mode,
-                scene_reference: (request.mode == ModelViewerWorkspaceMode::Visible)
-                    .then_some(scene_reference)
-                    .flatten(),
-                notice: notice.to_owned(),
-            })
+            Ok(workspace_result(&runtime, request.mode))
+        }
+    }
+
+    pub(super) fn set_view(
+        &self,
+        request: SetModelViewerViewRequest,
+    ) -> Result<ModelViewerWorkspaceResult, HostCommandError> {
+        #[cfg(not(feature = "viewer-spike"))]
+        {
+            let _ = request;
+            Err(HostCommandError::host_state_unavailable(
+                "VIS1-VIEWER-NOT-CONFIGURED",
+            ))
+        }
+
+        #[cfg(feature = "viewer-spike")]
+        {
+            let mut runtime = self
+                .inner
+                .lock()
+                .map_err(|_| HostCommandError::host_state_unavailable("VIS1-VIEWER-STATE"))?;
+            if runtime.renderer.is_none() || runtime.window.is_none() || runtime.workspace.is_none()
+            {
+                return Err(HostCommandError::host_state_unavailable(
+                    "VIS1-VIEWER-NOT-CONFIGURED",
+                ));
+            }
+            if !runtime.active {
+                return Err(HostCommandError::host_state_unavailable(
+                    "VIS1-VIEWER-NOT-VISIBLE",
+                ));
+            }
+            let renderer = runtime.renderer.as_mut().ok_or_else(|| {
+                HostCommandError::host_state_unavailable("VIS1-VIEWER-NOT-CONFIGURED")
+            })?;
+            renderer
+                .set_view(renderer_view(request.view))
+                .map_err(|_| HostCommandError::host_state_unavailable("VIS1-SURFACE-RENDER"))?;
+            Ok(workspace_result(
+                &runtime,
+                ModelViewerWorkspaceMode::Visible,
+            ))
         }
     }
 
@@ -230,6 +278,48 @@ impl DesktopModelViewerState {
         }
         #[cfg(not(feature = "viewer-spike"))]
         let _ = (selection_id, analysis_id, scene);
+    }
+}
+
+#[cfg(feature = "viewer-spike")]
+fn workspace_result(
+    runtime: &ModelViewerRuntime,
+    mode: ModelViewerWorkspaceMode,
+) -> ModelViewerWorkspaceResult {
+    let (scene_reference, notice) = runtime.scene_status.visible_summary();
+    let view = runtime
+        .renderer
+        .as_ref()
+        .map_or(ModelViewerStandardView::Isometric, |renderer| {
+            contract_view(renderer.view())
+        });
+    ModelViewerWorkspaceResult {
+        mode,
+        view,
+        scene_reference: (mode == ModelViewerWorkspaceMode::Visible)
+            .then_some(scene_reference)
+            .flatten(),
+        notice: notice.to_owned(),
+    }
+}
+
+#[cfg(feature = "viewer-spike")]
+const fn renderer_view(view: ModelViewerStandardView) -> StandardView {
+    match view {
+        ModelViewerStandardView::Isometric => StandardView::Isometric,
+        ModelViewerStandardView::Front => StandardView::Front,
+        ModelViewerStandardView::Top => StandardView::Top,
+        ModelViewerStandardView::Right => StandardView::Right,
+    }
+}
+
+#[cfg(feature = "viewer-spike")]
+const fn contract_view(view: StandardView) -> ModelViewerStandardView {
+    match view {
+        StandardView::Isometric => ModelViewerStandardView::Isometric,
+        StandardView::Front => ModelViewerStandardView::Front,
+        StandardView::Top => ModelViewerStandardView::Top,
+        StandardView::Right => ModelViewerStandardView::Right,
     }
 }
 
@@ -397,6 +487,7 @@ fn apply_layout(runtime: &mut ModelViewerRuntime) -> Result<(), HostCommandError
     Ok(())
 }
 
+#[cfg(any(feature = "viewer-spike", test))]
 fn arguments_request_synthetic_viewer(arguments: &[OsString]) -> bool {
     arguments
         .iter()
@@ -425,6 +516,19 @@ mod tests {
             DesktopModelViewerState::unavailable().availability(),
             ModelViewerAvailability::Unavailable
         );
+    }
+
+    #[test]
+    fn unconfigured_state_rejects_standard_view_changes() {
+        let error = DesktopModelViewerState::unavailable()
+            .set_view(SetModelViewerViewRequest {
+                view: partprobe_desktop_contract::ModelViewerStandardView::Front,
+            })
+            .expect_err("an unconfigured viewer must reject camera changes");
+
+        assert_eq!(error.diagnostic_id, "VIS1-VIEWER-NOT-CONFIGURED");
+        assert!(!error.message.contains('/'));
+        assert!(!error.message.contains('\\'));
     }
 
     #[cfg(feature = "viewer-spike")]
@@ -459,5 +563,18 @@ mod tests {
         assert!(!pending.selection_matches("selection-1"));
         assert!(source.selection_matches("selection-2"));
         assert!(!ViewerSceneStatus::Synthetic.selection_matches("selection-2"));
+    }
+
+    #[cfg(feature = "viewer-spike")]
+    #[test]
+    fn contract_standard_views_map_exactly_to_renderer_views() {
+        for view in [
+            ModelViewerStandardView::Isometric,
+            ModelViewerStandardView::Front,
+            ModelViewerStandardView::Top,
+            ModelViewerStandardView::Right,
+        ] {
+            assert_eq!(contract_view(renderer_view(view)), view);
+        }
     }
 }
