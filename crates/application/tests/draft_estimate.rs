@@ -18,15 +18,18 @@ use partprobe_domain::{
     VolumeCubicMillimeters,
 };
 use partprobe_geometry_core::{
-    AnalysisProfile, AnalysisProfileId, DisplayTessellationProfile, ExactStepEnvelopeDerivative,
-    GeometryStage, ProvisionalGeometryDecimal,
+    AnalysisProfile, AnalysisProfileId, DisplayCoordinateSpace, DisplayGeometryReference,
+    DisplayMeshChunkDescriptor, DisplayTessellationProfile, ExactStepEnvelopeDerivative,
+    GeometryDisplaySceneManifest, GeometryStage, ModelLengthUnit, ProvisionalGeometryDecimal,
+    RepresentationBasis,
 };
 use partprobe_geometry_import::{
-    AssetCapability, AssetReadGrant, ControlledGeometryResult, CorrelationId, DisplaySceneRequest,
-    GEOMETRY_WORKER_SCHEMA_VERSION, GeometryJobId, GeometryWorkerRequest, LocalAssetRoot,
-    PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE, PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
-    ProvisionalExactStepAnalysis, ProvisionalGeometrySnapshot, ProvisionalMeshGeometrySnapshot,
-    ResourceQuotas, Sha256Digest, SnapshotReference, StlLimits, analyze_stl,
+    AssetCapability, AssetReadGrant, ControlledGeometryResult, CorrelationId,
+    DisplayMeshChunkPayload, DisplaySceneRequest, GEOMETRY_WORKER_SCHEMA_VERSION, GeometryJobId,
+    GeometryWorkerRequest, LocalAssetRoot, PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE,
+    PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE, ProvisionalExactStepAnalysis,
+    ProvisionalGeometrySnapshot, ProvisionalMeshGeometrySnapshot, ResourceQuotas, Sha256Digest,
+    SnapshotReference, StlLimits, analyze_stl, decode_display_scene, display_content_sha256,
 };
 use partprobe_security::{
     AuditAppendError, AuditCorrelationId, AuthorizationAuditEvent, AuthorizationAuditSink,
@@ -172,6 +175,43 @@ fn schema_v2_display_request_survives_authorized_source_fingerprinting() {
     drop(session);
     drop(root);
     remove_test_root(&test_directory);
+}
+
+#[test]
+fn analyzed_evidence_retains_only_an_exactly_bound_native_display_scene() {
+    let source_hash = Sha256Digest::new(SOURCE_HASH).expect("source hash must be valid");
+    let output_hash = Sha256Digest::new(OUTPUT_HASH).expect("output hash must be valid");
+    let (manifest, payload) = one_triangle_display_scene(&source_hash, &output_hash);
+    let scene = decode_display_scene(&source_hash, &output_hash, manifest, vec![payload], None)
+        .expect("display fixture must satisfy its source and analysis bindings");
+
+    let evidence = geometry_evidence()
+        .with_display_scene(scene)
+        .expect("matching display scene must be retained");
+
+    assert_eq!(
+        evidence
+            .display_scene()
+            .expect("matching scene must remain native-only session evidence")
+            .chunks()[0]
+            .geometry_reference()
+            .as_str(),
+        "exact-brep-root-0"
+    );
+
+    let stale_output_hash =
+        Sha256Digest::new("3333333333333333333333333333333333333333333333333333333333333333")
+            .expect("stale output hash must be valid");
+    let (manifest, payload) = one_triangle_display_scene(&source_hash, &stale_output_hash);
+    let stale_scene = decode_display_scene(
+        &source_hash,
+        &stale_output_hash,
+        manifest,
+        vec![payload],
+        None,
+    )
+    .expect("stale scene remains internally valid for its own analysis");
+    assert!(geometry_evidence().with_display_scene(stale_scene).is_err());
 }
 
 #[test]
@@ -647,6 +687,52 @@ fn mesh_geometry_evidence() -> AnalyzedGeometryEvidence {
         None,
     )
     .expect("mesh geometry evidence must be valid")
+}
+
+fn one_triangle_display_scene(
+    source_hash: &Sha256Digest,
+    analysis_output_hash: &Sha256Digest,
+) -> (GeometryDisplaySceneManifest, DisplayMeshChunkPayload) {
+    let mut vertex_bytes = Vec::new();
+    for position in [[0.0_f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]] {
+        for coordinate in position {
+            vertex_bytes.extend_from_slice(&coordinate.to_le_bytes());
+        }
+    }
+    let mut index_bytes = Vec::new();
+    for index in [0_u32, 1, 2] {
+        index_bytes.extend_from_slice(&index.to_le_bytes());
+    }
+    let descriptor = DisplayMeshChunkDescriptor::new(
+        0,
+        DisplayGeometryReference::new("exact-brep-root-0")
+            .expect("display reference must be valid"),
+        3,
+        1,
+        display_content_sha256(&vertex_bytes),
+        display_content_sha256(&index_bytes),
+    )
+    .expect("display descriptor must be valid");
+    let manifest = GeometryDisplaySceneManifest::new(
+        source_hash.clone(),
+        analysis_output_hash.clone(),
+        RepresentationBasis::ExactBrep,
+        DisplayCoordinateSpace::CanonicalMillimeters,
+        ModelLengthUnit::Millimeter,
+        DisplayTessellationProfile::new(geometry_decimal("0.1"), geometry_decimal("12"))
+            .expect("display profile must be valid"),
+        [
+            geometry_decimal("1"),
+            geometry_decimal("1"),
+            geometry_decimal("1"),
+        ],
+        vec![descriptor],
+    )
+    .expect("display manifest must be valid");
+    (
+        manifest,
+        DisplayMeshChunkPayload::new(0, vertex_bytes, index_bytes),
+    )
 }
 
 fn request() -> GeometryWorkerRequest {

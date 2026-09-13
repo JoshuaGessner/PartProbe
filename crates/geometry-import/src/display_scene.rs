@@ -26,6 +26,18 @@ pub const MAX_DISPLAY_SCENE_ARTIFACT_BYTES: u64 = DISPLAY_SCENE_ARTIFACT_HEADER_
     + DISPLAY_SCENE_CHUNK_HEADER_BYTES * MAX_DISPLAY_SCENE_CHUNKS as u64
     + MAX_DISPLAY_SCENE_BYTES;
 
+/// Computes the canonical lowercase SHA-256 digest used by display manifests and artifacts.
+#[must_use]
+pub fn display_content_sha256(bytes: &[u8]) -> Sha256Digest {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let mut digest = String::with_capacity(64);
+    for byte in hasher.finalize() {
+        write!(&mut digest, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    Sha256Digest::new(digest).expect("a lowercase SHA-256 digest must satisfy the schema")
+}
+
 /// Native-owned encoded bytes for one manifest-described display chunk.
 #[derive(Debug, Eq, PartialEq)]
 pub struct DisplayMeshChunkPayload {

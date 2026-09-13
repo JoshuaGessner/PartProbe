@@ -3290,11 +3290,13 @@ dependencies = [
 name = "partprobe-geometry-worker"
 version = "0.1.0"
 dependencies = [
+ "partprobe-application",
  "partprobe-domain",
  "partprobe-geometry-core",
  "partprobe-geometry-import",
  "partprobe-geometry-occt-adapter",
  "partprobe-platform",
+ "partprobe-security",
  "partprobe-test-support",
  "serde",
  "serde_json",

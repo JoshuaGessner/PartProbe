@@ -27,7 +27,9 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+partprobe-application.workspace = true
 partprobe-domain.workspace = true
+partprobe-security.workspace = true
 partprobe-test-support.workspace = true
 
 [lints]

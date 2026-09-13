@@ -4,13 +4,13 @@
 > **Last updated:** 2026-09-12
 > **Related requirements:** REQ-F-022–REQ-F-024, REQ-NF-011, REQ-NF-013, GEO-003, GEO-007, GEO-010, SEC-004
 > **Related ADRs:** ADR-0003, ADR-0005
-> **Open questions:** STEP tessellation implementation, progressive levels, and stock-placement policy
+> **Open questions:** Desktop scene activation, progressive levels, and stock-placement policy
 > **Dependencies:** `docs/04-architecture/model-viewer.md`, `docs/04-architecture/geometry-engine.md`, `docs/06-quality/vis-1-renderer-validation.md`
 > **Supersedes:** None
 
 ## Scope
 
-The current VIS-2 checkpoints add the metadata contract for `geometry-display-scene-v1` in `partprobe-geometry-core`; native chunk validation, deterministic controlled-artifact framing, worker request/response schema v2, and dual-output supervisor claiming in `partprobe-geometry-import`; an explicit worker fallback while tessellation is unavailable; and a native application-session retention seam. They remain native-only and display-only. The manifest does not contain paths, CAD bytes, filenames, renderer handles, stock placement, feature authority, or estimating authority, and neither the manifest nor its vertex/index buffers cross the desktop WebView contract.
+The current VIS-2 checkpoints add the metadata contract for `geometry-display-scene-v1` in `partprobe-geometry-core`; native chunk validation, deterministic controlled-artifact framing, worker request/response schema v2, and dual-output supervisor claiming in `partprobe-geometry-import`; native OCCT STEP tessellation under the requested profile; worker emission of one bounded exact-B-rep display artifact; and source/analysis-bound application-session retention. They remain native-only and display-only. The manifest does not contain paths, CAD bytes, filenames, renderer handles, stock placement, feature authority, or estimating authority, and neither the manifest nor its vertex/index buffers cross the desktop WebView contract.
 
 The manifest binds one display derivative to both the immutable source hash and the accepted analysis-output hash. It records representation, coordinate space, units, a fixed versioned tessellation profile and its positive linear/angular tolerances, positive AABB extents, fixed binary layouts, exact totals, and ordered per-chunk bounded path-free snapshot-scoped geometry references plus buffer hashes and lengths.
 
@@ -24,7 +24,8 @@ The manifest binds one display derivative to both the immutable source hash and 
 - Tessellation profile: `partprobe-display-tessellation-v1`, version 1.0.0.
 - Position layout: finite little-endian `f32 × 3`; index layout: little-endian `u32`; primitive topology: triangle list.
 - This is additive. It does not modify or migrate `geometry-snapshot-v1`, `geometry-step-analysis-v1`, or `geometry-mesh-snapshot-v1`.
-- No persisted customer/display artifact migration exists because the worker does not emit a display artifact yet. A future accepted-boundary, framing, layout, reference, coordinate, profile, error, or limit change requires a new schema/profile/artifact decision and replay tests.
+- The established measurement ABI remains version 4. The new display-tessellation ABI is independently versioned as `1`, so display-only evolution cannot silently change authoritative measurement interpretation.
+- No persisted customer/display artifact migration exists. The emitted derivative remains session-only and is discarded with the native analysis session. A future accepted-boundary, framing, layout, reference, coordinate, profile, error, or limit change requires a new schema/profile/artifact decision and replay tests.
 
 ## Reviewed comparison ceilings
 
@@ -62,6 +63,14 @@ The supervisor claims the authoritative output first and subtracts its exact cla
 
 The decoder does not read files, reopen paths, allocate GPU objects, accept renderer handles, or expose its arrays to the desktop contract. When a display artifact is supplied, `DraftEstimateApplication` decodes it against the current source hash and the exact claimed analysis-output hash, then retains only the validated native scene in the ephemeral session. Successful worker diagnostics are also retained so explicit display unavailability cannot disappear at the application boundary.
 
+## Native STEP tessellation and emission
+
+The optional OCCT adapter exposes an additive display ABI v1 beside measurement ABI v4. It accepts only the same already-authorized bounded immutable STEP bytes used by the worker, a validated positive profile, explicit vertex/triangle/byte ceilings, and the panic-contained cancellation probe. The bridge transfers the STEP roots, runs `BRepMesh_IncrementalMesh` with the exact linear deflection and degree-to-radian angular deflection from the request, reads each face triangulation with its location transform, preserves reversed-face orientation, and returns one flattened root mesh. Rust owns the result only long enough to copy it into bounded vectors and always releases the matching C++ allocation through the ABI free function.
+
+The worker performs authoritative analysis first, hashes those exact controlled-output bytes, and then performs the separate display parse/tessellation pass over the same immutable source bytes. It emits one chunk named `exact-brep-root-0` in canonical millimetres, encodes finite little-endian positions and in-range triangle indices, binds the manifest to the exact source and analysis hashes, and writes the existing deterministic `PPDSCENE` artifact. The second parse is deliberate display-only work; it does not replace the already accepted shape measurements. Cancellation remains cooperative at the exposed probes, with the supervisor's forced cleanup as the bound for uninterruptible native meshing work.
+
+Native display failure is non-authoritative: the accepted analysis remains available and the worker returns `succeeded_with_warnings` plus `DISPLAY_SCENE_UNAVAILABLE`. A combined output-quota shortage also drops the derivative instead of disguising analysis failure. A display write failure removes both fixed worker-visible outputs and fails the execution rather than returning a partial claim.
+
 ## Executable evidence
 
 ```sh
@@ -75,12 +84,14 @@ Thirteen focused geometry-core contract tests pass, including three display-scen
 
 Seven focused native decoder/artifact tests use a deterministic analytic 10 mm cube payload. They prove exact artifact and renderer-array round trips with the `body-0` reference, and reject stale source/analysis identity, cancellation, chunk count/sequence mismatches, both vertex/index length and hash mismatches, non-finite positions, out-of-range indices, wrong controlled reference, invalid magic, malformed manifest, truncation, trailing bytes, and oversized declared spans. This in-memory decoder fixture does not replace the governed persisted STEP fixture or establish worker tessellation accuracy.
 
-Twenty protocol tests cover v1 compatibility, path-free schema-v2 requests, exact separately typed response references, unknown-version/reference rejection, explicit-unavailability semantics, and existing control/transport behavior. Five internal supervisor tests include dual output claiming, combined-quota rejection with cleanup, and unreported-display removal. Twenty-five default worker process tests include a real schema-v2 STL request that preserves and validates the authoritative mesh analysis while returning explicit display unavailability and no display file. The application suite proves the display request survives authorized source fingerprinting; the retained-scene decode path compiles behind the typed application service and remains unactivated by the desktop adapter.
+Twenty protocol tests cover v1 compatibility, path-free schema-v2 requests, exact separately typed response references, unknown-version/reference rejection, explicit-unavailability semantics, and existing control/transport behavior. Five internal supervisor tests include dual output claiming, combined-quota rejection with cleanup, and unreported-display removal. Twenty-five default worker process tests include a real schema-v2 STL request that preserves and validates the authoritative mesh analysis while returning explicit display unavailability and no display file. Ten draft-estimate application tests prove the display request survives authorized source fingerprinting and only an exactly source/analysis-bound scene can be retained; the desktop adapter remains unactivated.
+
+Fresh Apple-Silicon native evidence uses exact OCCT `V8_0_0` commit `d3056ef80c9668f395da40f5fd7be186cae4501f`. Four adapter cases prove governed cube and independently authored prism tessellation, deterministic output, hard vertex-ceiling rejection, and cancellation. The cube and prism each produce 24 flattened vertices and 12 triangles; their decoded maxima reproduce 10 × 10 × 10 mm and 12 × 8 × 5 mm source bounds. Eighteen native worker process tests include source/analysis-bound display emission for both fixtures through the real supervisor. A separate real `DraftEstimateApplication` test proves that the prism derivative survives authorization, worker execution, supervisor claim, controlled decoding, and ephemeral session retention while the private workspace returns empty.
 
 ## Evidence not established
 
-The running worker accepts schema-v2 display requests but deliberately emits no display artifact yet. Its explicit-unavailability result is negative integration evidence, not tessellation support. Dual-file supervisor claim behavior is proven with bounded synthetic worker-owned bytes; native OCCT still must tessellate the governed STEP fixtures and produce exact cube/prism scenes under the pinned profile. The ordinary desktop adapter still creates schema-v1 requests, so no selected model reaches the viewer. No native worker-emitted display output, source-bound GPU frame, renderer handoff, progressive loading, stock placement, accessibility, device-loss, three-OS package, or representative-corpus evidence is established here.
+The ordinary desktop adapter still creates schema-v1 requests, so no selected model reaches the viewer and the current in-window scene remains synthetic. The native evidence is one fresh Apple-Silicon developer build, one coarse profile, two public synthetic STEP fixtures, and one flattened root chunk. It does not establish progressive loading, source-bound GPU rendering, stock placement, representative-model performance, accessibility, device-loss recovery, Windows/Linux ABI-v1 display behavior, package integration, signed distribution, or supported importer status.
 
 ## Next gate
 
-Implement native STEP tessellation under the exact requested profile, emit the already-framed display artifact, and exercise governed cube/prism output plus cancellation and malformed-artifact failures through the real supervisor/application path. Then activate schema v2 in the native desktop adapter and connect only the fully validated native derivative to the same-window renderer. Govern stock AABB placement, orientation, and per-side allowance interpretation before replacing the synthetic stock overlay.
+Activate schema v2 in the native desktop adapter, retain only the fully validated derivative in native session state, and connect that scene to the existing same-window renderer without adding geometry to the WebView contract. Preserve a clear unavailable/fallback state. Govern stock AABB placement, orientation, and per-side allowance interpretation before replacing the synthetic stock overlay.

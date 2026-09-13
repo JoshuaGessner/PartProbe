@@ -22,7 +22,7 @@ pub use display_scene::{
     DISPLAY_SCENE_ARTIFACT_SCHEMA_VERSION, DisplayMeshChunkPayload, DisplaySceneDecodeError,
     MAX_DISPLAY_SCENE_ARTIFACT_BYTES, MAX_DISPLAY_SCENE_MANIFEST_BYTES, ValidatedDisplayMeshChunk,
     ValidatedGeometryDisplayScene, decode_controlled_display_scene_artifact, decode_display_scene,
-    encode_display_scene_artifact,
+    display_content_sha256, encode_display_scene_artifact,
 };
 pub use mesh_analysis::{
     MESH_CONFIDENCE_POLICY_VERSION, MESH_SELF_INTERSECTION_ALGORITHM_VERSION,

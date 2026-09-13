@@ -2,6 +2,8 @@
 
 /// Native adapter ABI version implemented by this crate.
 pub const OCCT_ADAPTER_ABI_VERSION: u32 = 4;
+/// First additive native display-tessellation ABI implemented by this crate.
+pub const OCCT_DISPLAY_TESSELLATION_ABI_VERSION: u32 = 1;
 
 /// Returns whether this build contains the optional OCCT bridge.
 #[must_use]
@@ -25,6 +27,62 @@ pub struct NativeBasicProperties {
     pub center_of_mass_mm: [f64; 3],
     /// Precise source-axis-aligned bounding extents in millimetres.
     pub aabb_extents_mm: [f64; 3],
+}
+
+/// Caller-supplied ceilings enforced before native tessellation crosses the ABI.
+#[cfg(feature = "native-occt")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeTessellationLimits {
+    /// Maximum flattened display vertices.
+    max_vertices: u64,
+    /// Maximum flattened display triangles.
+    max_triangles: u64,
+    /// Maximum combined position and index bytes.
+    max_bytes: u64,
+}
+
+#[cfg(feature = "native-occt")]
+impl NativeTessellationLimits {
+    /// Creates positive display-tessellation ceilings.
+    pub fn new(
+        max_vertices: u64,
+        max_triangles: u64,
+        max_bytes: u64,
+    ) -> Result<Self, NativeAdapterError> {
+        if max_vertices == 0 || max_triangles == 0 || max_bytes == 0 {
+            return Err(NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_INVALID_LIMITS",
+            });
+        }
+        Ok(Self {
+            max_vertices,
+            max_triangles,
+            max_bytes,
+        })
+    }
+}
+
+/// Native display-only triangle mesh copied into Rust-owned finite arrays.
+#[cfg(feature = "native-occt")]
+#[derive(Debug, PartialEq)]
+pub struct NativeDisplayMesh {
+    positions_mm: Vec<[f32; 3]>,
+    triangle_indices: Vec<u32>,
+}
+
+#[cfg(feature = "native-occt")]
+impl NativeDisplayMesh {
+    /// Returns canonical-millimetre display positions.
+    #[must_use]
+    pub fn positions_mm(&self) -> &[[f32; 3]] {
+        &self.positions_mm
+    }
+
+    /// Returns a flattened triangle-list index buffer.
+    #[must_use]
+    pub fn triangle_indices(&self) -> &[u32] {
+        &self.triangle_indices
+    }
 }
 
 /// Sanitized adapter failure without native exception text or source paths.
@@ -51,7 +109,10 @@ mod native {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::path::Path;
 
-    use super::{NativeAdapterError, NativeBasicProperties, OCCT_ADAPTER_ABI_VERSION};
+    use super::{
+        NativeAdapterError, NativeBasicProperties, NativeDisplayMesh, NativeTessellationLimits,
+        OCCT_ADAPTER_ABI_VERSION, OCCT_DISPLAY_TESSELLATION_ABI_VERSION,
+    };
 
     const DIAGNOSTIC_CAPACITY: usize = 64;
 
@@ -72,6 +133,19 @@ mod native {
         diagnostic_code: [c_char; DIAGNOSTIC_CAPACITY],
     }
 
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct NativeDisplayResult {
+        abi_version: u32,
+        reserved: u32,
+        vertex_count: u64,
+        triangle_count: u64,
+        positions: *const f32,
+        triangle_indices: *const u32,
+        ownership: *mut c_void,
+        diagnostic_code: [c_char; DIAGNOSTIC_CAPACITY],
+    }
+
     unsafe extern "C" {
         fn partprobe_occt_abi_version() -> u32;
         fn partprobe_occt_analyze_step_bytes(
@@ -89,6 +163,20 @@ mod native {
             cancellation_probe: extern "C" fn(*const c_void) -> u8,
             cancellation_context: *const c_void,
         ) -> c_int;
+        fn partprobe_occt_tessellate_step_bytes(
+            bytes: *const u8,
+            byte_count: usize,
+            linear_deflection_mm: f64,
+            angular_deflection_degrees: f64,
+            max_vertices: u64,
+            max_triangles: u64,
+            max_bytes: u64,
+            result: *mut NativeDisplayResult,
+            result_size: usize,
+            cancellation_probe: extern "C" fn(*const c_void) -> u8,
+            cancellation_context: *const c_void,
+        ) -> c_int;
+        fn partprobe_occt_free_display_mesh(ownership: *mut c_void);
         #[cfg(feature = "fixture-tools")]
         fn partprobe_occt_write_step_cube(path: *const c_char, size_mm: f64) -> c_int;
     }
@@ -157,6 +245,167 @@ mod native {
                 )
             }
         })
+    }
+
+    pub fn tessellate_step_bytes_with_cancellation<P>(
+        step_bytes: &[u8],
+        linear_deflection_mm: f64,
+        angular_deflection_degrees: f64,
+        limits: NativeTessellationLimits,
+        cancellation_probe: &P,
+    ) -> Result<NativeDisplayMesh, NativeAdapterError>
+    where
+        P: Fn() -> bool + Sync,
+    {
+        extern "C" fn probe<P>(context: *const c_void) -> u8
+        where
+            P: Fn() -> bool + Sync,
+        {
+            if context.is_null() {
+                return 1;
+            }
+            // SAFETY: the context points to the borrowed probe for the duration of the blocking
+            // native call. `P: Sync` permits concurrent read-only callback invocation.
+            let probe = unsafe { &*context.cast::<P>() };
+            u8::from(catch_unwind(AssertUnwindSafe(probe)).unwrap_or(true))
+        }
+
+        if !linear_deflection_mm.is_finite()
+            || linear_deflection_mm <= 0.0
+            || !angular_deflection_degrees.is_finite()
+            || angular_deflection_degrees <= 0.0
+        {
+            return Err(NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_INVALID_PROFILE",
+            });
+        }
+
+        let mut result = NativeDisplayResult {
+            abi_version: OCCT_DISPLAY_TESSELLATION_ABI_VERSION,
+            reserved: 0,
+            vertex_count: 0,
+            triangle_count: 0,
+            positions: std::ptr::null(),
+            triangle_indices: std::ptr::null(),
+            ownership: std::ptr::null_mut(),
+            diagnostic_code: [0; DIAGNOSTIC_CAPACITY],
+        };
+        let status = unsafe {
+            partprobe_occt_tessellate_step_bytes(
+                step_bytes.as_ptr(),
+                step_bytes.len(),
+                linear_deflection_mm,
+                angular_deflection_degrees,
+                limits.max_vertices,
+                limits.max_triangles,
+                limits.max_bytes,
+                &mut result,
+                size_of::<NativeDisplayResult>(),
+                probe::<P>,
+                std::ptr::from_ref(cancellation_probe).cast::<c_void>(),
+            )
+        };
+        let ownership = DisplayMeshOwnership(result.ownership);
+        if status != 0 {
+            return Err(NativeAdapterError {
+                diagnostic_code: display_diagnostic_code(&result),
+            });
+        }
+        let position_value_count = result
+            .vertex_count
+            .checked_mul(3)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or(NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_INVALID_RESULT",
+            })?;
+        let index_count = result
+            .triangle_count
+            .checked_mul(3)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or(NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_INVALID_RESULT",
+            })?;
+        let byte_count = result
+            .vertex_count
+            .checked_mul(12)
+            .and_then(|value| result.triangle_count.checked_mul(12)?.checked_add(value))
+            .ok_or(NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_INVALID_RESULT",
+            })?;
+        if result.abi_version != OCCT_DISPLAY_TESSELLATION_ABI_VERSION
+            || result.reserved != 0
+            || result.vertex_count == 0
+            || result.triangle_count == 0
+            || result.vertex_count > limits.max_vertices
+            || result.triangle_count > limits.max_triangles
+            || byte_count > limits.max_bytes
+            || result.positions.is_null()
+            || result.triangle_indices.is_null()
+            || ownership.0.is_null()
+        {
+            return Err(NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_INVALID_RESULT",
+            });
+        }
+
+        // SAFETY: a successful native call owns arrays with the exact validated counts until the
+        // guard is dropped. Both pointers are non-null and the values are copied before that drop.
+        let native_positions =
+            unsafe { std::slice::from_raw_parts(result.positions, position_value_count) };
+        // SAFETY: same ownership and count proof as the position slice above.
+        let native_indices =
+            unsafe { std::slice::from_raw_parts(result.triangle_indices, index_count) };
+        let mut positions_mm = Vec::new();
+        positions_mm
+            .try_reserve_exact(usize::try_from(result.vertex_count).map_err(|_| {
+                NativeAdapterError {
+                    diagnostic_code: "OCCT_TESSELLATION_INVALID_RESULT",
+                }
+            })?)
+            .map_err(|_| NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_ALLOCATION_FAILED",
+            })?;
+        for coordinates in native_positions.chunks_exact(3) {
+            let position = [coordinates[0], coordinates[1], coordinates[2]];
+            if position.iter().any(|coordinate| !coordinate.is_finite()) {
+                return Err(NativeAdapterError {
+                    diagnostic_code: "OCCT_TESSELLATION_INVALID_RESULT",
+                });
+            }
+            positions_mm.push(position);
+        }
+        if native_indices
+            .iter()
+            .any(|index| u64::from(*index) >= result.vertex_count)
+        {
+            return Err(NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_INVALID_RESULT",
+            });
+        }
+        let mut triangle_indices = Vec::new();
+        triangle_indices
+            .try_reserve_exact(index_count)
+            .map_err(|_| NativeAdapterError {
+                diagnostic_code: "OCCT_TESSELLATION_ALLOCATION_FAILED",
+            })?;
+        triangle_indices.extend_from_slice(native_indices);
+        drop(ownership);
+        Ok(NativeDisplayMesh {
+            positions_mm,
+            triangle_indices,
+        })
+    }
+
+    struct DisplayMeshOwnership(*mut c_void);
+
+    impl Drop for DisplayMeshOwnership {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // SAFETY: the opaque allocation came from the matching OCCT bridge function and
+                // this guard is its sole Rust owner.
+                unsafe { partprobe_occt_free_display_mesh(self.0) };
+            }
+        }
     }
 
     fn analyze_with_cancellation<P>(
@@ -291,6 +540,29 @@ mod native {
         }
     }
 
+    fn display_diagnostic_code(result: &NativeDisplayResult) -> &'static str {
+        // SAFETY: C++ always zero-initializes the fixed buffer and writes bounded static codes.
+        let code = unsafe { CStr::from_ptr(result.diagnostic_code.as_ptr()) }
+            .to_str()
+            .unwrap_or("");
+        match code {
+            "OCCT_CANCELLED" => "OCCT_CANCELLED",
+            "OCCT_INVALID_ARGUMENT" => "OCCT_INVALID_ARGUMENT",
+            "OCCT_TESSELLATION_INVALID_PROFILE" => "OCCT_TESSELLATION_INVALID_PROFILE",
+            "OCCT_TESSELLATION_INVALID_LIMITS" => "OCCT_TESSELLATION_INVALID_LIMITS",
+            "OCCT_TESSELLATION_FAILED" => "OCCT_TESSELLATION_FAILED",
+            "OCCT_TESSELLATION_EMPTY" => "OCCT_TESSELLATION_EMPTY",
+            "OCCT_TESSELLATION_LIMIT_EXCEEDED" => "OCCT_TESSELLATION_LIMIT_EXCEEDED",
+            "OCCT_TESSELLATION_ALLOCATION_FAILED" => "OCCT_TESSELLATION_ALLOCATION_FAILED",
+            "STEP_READ_FAILED" => "STEP_READ_FAILED",
+            "STEP_TRANSFER_FAILED" => "STEP_TRANSFER_FAILED",
+            "STEP_NO_SHAPE" => "STEP_NO_SHAPE",
+            "OCCT_STANDARD_FAILURE" => "OCCT_STANDARD_FAILURE",
+            "OCCT_UNKNOWN_FAILURE" => "OCCT_UNKNOWN_FAILURE",
+            _ => "OCCT_UNKNOWN_FAILURE",
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -406,6 +678,98 @@ mod native {
 
             assert_eq!(error.diagnostic_code(), "OCCT_CANCELLED");
         }
+
+        fn display_limits() -> NativeTessellationLimits {
+            NativeTessellationLimits::new(1_000_000, 2_000_000, 32 * 1024 * 1024)
+                .expect("governed display limits must be valid")
+        }
+
+        #[test]
+        fn analytic_step_cube_tessellates_into_bounded_canonical_arrays() {
+            let bytes = include_bytes!("../../../fixtures/models/cube_10mm.step");
+            let mesh = tessellate_step_bytes_with_cancellation(
+                bytes,
+                0.1,
+                12.0,
+                display_limits(),
+                &|| false,
+            )
+            .expect("analytic cube must tessellate");
+
+            assert_eq!(mesh.positions_mm().len(), 24);
+            assert_eq!(mesh.triangle_indices().len(), 36);
+            assert!(mesh.positions_mm().iter().flatten().all(|value| {
+                value.is_finite() && *value >= -0.000_001 && *value <= 10.000_001
+            }));
+            assert!(
+                mesh.triangle_indices()
+                    .iter()
+                    .all(|index| (*index as usize) < mesh.positions_mm().len())
+            );
+        }
+
+        #[test]
+        fn independently_authored_step_prism_tessellation_is_deterministic() {
+            let bytes = include_bytes!("../../../fixtures/models/rectangular_prism_12x8x5.step");
+            let first = tessellate_step_bytes_with_cancellation(
+                bytes,
+                0.1,
+                12.0,
+                display_limits(),
+                &|| false,
+            )
+            .expect("independent prism must tessellate");
+            let second = tessellate_step_bytes_with_cancellation(
+                bytes,
+                0.1,
+                12.0,
+                display_limits(),
+                &|| false,
+            )
+            .expect("repeated prism tessellation must succeed");
+
+            assert_eq!(first, second);
+            assert_eq!(first.positions_mm().len(), 24);
+            assert_eq!(first.triangle_indices().len(), 36);
+            let maximums =
+                first
+                    .positions_mm()
+                    .iter()
+                    .fold([f32::NEG_INFINITY; 3], |mut bounds, position| {
+                        for axis in 0..3 {
+                            bounds[axis] = bounds[axis].max(position[axis]);
+                        }
+                        bounds
+                    });
+            assert_eq!(maximums, [12.0, 8.0, 5.0]);
+        }
+
+        #[test]
+        fn tessellation_fails_closed_at_the_caller_limits() {
+            let bytes = include_bytes!("../../../fixtures/models/cube_10mm.step");
+            let limits = NativeTessellationLimits::new(23, 12, 1_000)
+                .expect("positive test limits must be valid");
+            let error =
+                tessellate_step_bytes_with_cancellation(bytes, 0.1, 12.0, limits, &|| false)
+                    .expect_err("cube must not cross a 23-vertex limit");
+
+            assert_eq!(error.diagnostic_code(), "OCCT_TESSELLATION_LIMIT_EXCEEDED");
+        }
+
+        #[test]
+        fn tessellation_cancellation_is_sanitized() {
+            let bytes = include_bytes!("../../../fixtures/models/cube_10mm.step");
+            let error = tessellate_step_bytes_with_cancellation(
+                bytes,
+                0.1,
+                12.0,
+                display_limits(),
+                &|| true,
+            )
+            .expect_err("pre-requested cancellation must stop tessellation");
+
+            assert_eq!(error.diagnostic_code(), "OCCT_CANCELLED");
+        }
     }
 }
 
@@ -440,6 +804,32 @@ where
     P: Fn() -> bool + Sync,
 {
     native::analyze_step_bytes_with_cancellation(step_bytes, cancellation_probe)
+}
+
+/// Tessellates caller-bounded STEP bytes into one flattened display-only triangle mesh.
+///
+/// The additive display ABI enforces the caller's vertex, triangle, and combined-byte ceilings
+/// before any native array is exposed. Rust revalidates the ABI, counts, finite positions, and
+/// index bounds while copying into Rust-owned arrays. This output is visualization evidence only;
+/// it does not replace exact B-rep measurements or imply CAM/topology authority.
+#[cfg(feature = "native-occt")]
+pub fn tessellate_step_bytes_with_cancellation<P>(
+    step_bytes: &[u8],
+    linear_deflection_mm: f64,
+    angular_deflection_degrees: f64,
+    limits: NativeTessellationLimits,
+    cancellation_probe: &P,
+) -> Result<NativeDisplayMesh, NativeAdapterError>
+where
+    P: Fn() -> bool + Sync,
+{
+    native::tessellate_step_bytes_with_cancellation(
+        step_bytes,
+        linear_deflection_mm,
+        angular_deflection_degrees,
+        limits,
+        cancellation_probe,
+    )
 }
 
 /// Imports one controlled STEP asset and returns basic unrounded native measurements.

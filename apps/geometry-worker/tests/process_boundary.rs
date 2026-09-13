@@ -12,8 +12,6 @@ use partprobe_geometry_core::{
     AnalysisProfile, AnalysisProfileId, DisplayTessellationProfile, GeometryStage,
     ProvisionalGeometryDecimal, Sha256Digest, StageStatus,
 };
-#[cfg(feature = "native-occt")]
-use partprobe_geometry_import::WORKER_OUTPUT_FILENAME;
 #[cfg(all(not(feature = "native-occt"), not(any(unix, windows))))]
 use partprobe_geometry_import::WorkerAssetFallbackReason;
 use partprobe_geometry_import::{
@@ -27,6 +25,8 @@ use partprobe_geometry_import::{
     GeometryWorkerControlMessage, GeometryWorkerResponse, WorkerAssetManifest,
 };
 #[cfg(feature = "native-occt")]
+use partprobe_geometry_import::{WORKER_DISPLAY_OUTPUT_FILENAME, WORKER_OUTPUT_FILENAME};
+#[cfg(feature = "native-occt")]
 use partprobe_test_support::geometry_fixtures::GeometryImportFailureExpectation;
 
 fn request() -> GeometryWorkerRequest {
@@ -37,8 +37,8 @@ fn request() -> GeometryWorkerRequest {
     )
 }
 
-fn display_request() -> GeometryWorkerRequest {
-    let mut value = serde_json::to_value(request()).expect("request must serialize");
+fn with_display_request(request: GeometryWorkerRequest) -> GeometryWorkerRequest {
+    let mut value = serde_json::to_value(request).expect("request must serialize");
     value["schema_version"] = serde_json::json!(GEOMETRY_WORKER_SCHEMA_VERSION);
     let request: GeometryWorkerRequest =
         serde_json::from_value(value).expect("schema-v2 request must deserialize");
@@ -51,6 +51,11 @@ fn display_request() -> GeometryWorkerRequest {
                 .expect("display profile must be valid"),
         ))
         .expect("display request must be valid")
+}
+
+#[cfg(not(feature = "native-occt"))]
+fn display_request() -> GeometryWorkerRequest {
+    with_display_request(request())
 }
 
 fn mesh_request(expected_hash: &str, job_id: &str, correlation_id: &str) -> GeometryWorkerRequest {
@@ -276,6 +281,15 @@ fn native_request(
         ResourceQuotas::new(1_000_000, 65_536, 100_000, 5_000).expect("quotas must be valid"),
     )
     .expect("request must be valid")
+}
+
+#[cfg(feature = "native-occt")]
+fn native_display_request(
+    expected_hash: &str,
+    job_id: &str,
+    correlation_id: &str,
+) -> GeometryWorkerRequest {
+    with_display_request(native_request(expected_hash, job_id, correlation_id))
 }
 
 #[cfg(feature = "native-occt")]
@@ -1359,6 +1373,152 @@ fn supervised_native_worker_measures_the_analytic_step_cube() {
             .is_none()
     );
 
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(feature = "native-occt")]
+#[test]
+fn supervised_native_worker_emits_source_bound_cube_display_scene() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-native-display-worker-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let occt_root =
+        PathBuf::from(std::env::var_os("PARTPROBE_OCCT_ROOT").expect("OCCT root must be set"));
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid")
+    .with_native_library_directory(native_library_directory(&occt_root))
+    .expect("native library directory must be valid");
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/models/cube_10mm.step");
+    let request = native_display_request(
+        "031304b3a6d9dd55a97b3329e7238286ccfdaa7f13030bbe6e5c4c5744fcc8a2",
+        "native-display-process-job-1",
+        "native-display-process-correlation-1",
+    );
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+
+    assert_eq!(execution.response().status(), StageStatus::Succeeded);
+    assert!(execution.response().diagnostic_codes().is_empty());
+    assert_eq!(
+        execution
+            .response()
+            .display_scene_reference()
+            .expect("display success must carry the exact display reference")
+            .as_str(),
+        partprobe_geometry_core::GEOMETRY_DISPLAY_SCENE_REFERENCE
+    );
+    let analysis_output = execution
+        .output()
+        .expect("display success must retain authoritative analysis");
+    let display_output = execution
+        .display_output()
+        .expect("display success must return a separately claimed artifact");
+    let scene = partprobe_geometry_import::decode_controlled_display_scene_artifact(
+        display_output,
+        request.expected_source_hash(),
+        analysis_output.content_hash(),
+        None,
+    )
+    .expect("claimed display output must satisfy every source/analysis binding");
+    assert_eq!(scene.manifest().total_vertex_count(), 24);
+    assert_eq!(scene.manifest().total_triangle_count(), 12);
+    assert_eq!(scene.chunks().len(), 1);
+    assert_eq!(
+        scene.chunks()[0].geometry_reference().as_str(),
+        "exact-brep-root-0"
+    );
+    assert_eq!(scene.chunks()[0].positions().len(), 24);
+    assert_eq!(scene.chunks()[0].triangle_indices().len(), 36);
+    assert!(!job_directory.join(WORKER_INPUT_FILENAME).exists());
+    assert!(!job_directory.join(WORKER_OUTPUT_FILENAME).exists());
+    assert!(!job_directory.join(WORKER_DISPLAY_OUTPUT_FILENAME).exists());
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
+    std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
+}
+
+#[cfg(feature = "native-occt")]
+#[test]
+fn supervised_native_worker_emits_the_independent_prism_display_bounds() {
+    let job_directory = std::env::temp_dir().join(format!(
+        "partprobe-native-prism-display-worker-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&job_directory).expect("job directory must be created");
+    let occt_root =
+        PathBuf::from(std::env::var_os("PARTPROBE_OCCT_ROOT").expect("OCCT root must be set"));
+    let supervisor = GeometryWorkerSupervisor::new(
+        PathBuf::from(env!("CARGO_BIN_EXE_partprobe-geometry-worker")),
+        job_directory.clone(),
+        SupervisorPolicy::new(65_536, 5, 250, 2 * 1024 * 1024 * 1024, 60_000)
+            .expect("policy must be valid"),
+    )
+    .expect("supervisor must be valid")
+    .with_native_library_directory(native_library_directory(&occt_root))
+    .expect("native library directory must be valid");
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/models/rectangular_prism_12x8x5.step");
+    let request = native_display_request(
+        "a3a2cceef68a98212a2b05ac376da747758cc360fb02085fee3f6db766dc2138",
+        "native-prism-display-process-job-1",
+        "native-prism-display-process-correlation-1",
+    );
+    let grant = asset_grant(&request, &source);
+
+    let execution = supervisor.execute_with_grant(&request, grant, &AtomicBool::new(false));
+
+    assert_eq!(execution.response().status(), StageStatus::Succeeded);
+    let analysis_output = execution
+        .output()
+        .expect("prism display success must retain authoritative analysis");
+    let scene = partprobe_geometry_import::decode_controlled_display_scene_artifact(
+        execution
+            .display_output()
+            .expect("prism display success must return its artifact"),
+        request.expected_source_hash(),
+        analysis_output.content_hash(),
+        None,
+    )
+    .expect("prism display output must satisfy every binding");
+    assert_eq!(
+        scene
+            .manifest()
+            .aabb_extents()
+            .each_ref()
+            .map(|extent| extent.as_str()),
+        ["12", "8", "5"]
+    );
+    assert_eq!(scene.manifest().total_vertex_count(), 24);
+    assert_eq!(scene.manifest().total_triangle_count(), 12);
+    let positions = scene.chunks()[0].positions();
+    let maximums = positions
+        .iter()
+        .fold([f32::NEG_INFINITY; 3], |mut bounds, position| {
+            for axis in 0..3 {
+                bounds[axis] = bounds[axis].max(position[axis]);
+            }
+            bounds
+        });
+    assert_eq!(maximums, [12.0, 8.0, 5.0]);
+    assert!(
+        std::fs::read_dir(&job_directory)
+            .expect("job root must be readable")
+            .next()
+            .is_none()
+    );
     std::fs::remove_dir(job_directory).expect("empty job directory must be removed");
 }
 

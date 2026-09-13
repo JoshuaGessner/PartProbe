@@ -6,6 +6,12 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
+#[cfg(feature = "native-occt")]
+use partprobe_geometry_core::{
+    DisplayCoordinateSpace, DisplayGeometryReference, DisplayMeshChunkDescriptor,
+    GeometryDisplaySceneManifest, MAX_DISPLAY_SCENE_BYTES, MAX_DISPLAY_SCENE_TRIANGLES,
+    MAX_DISPLAY_SCENE_VERTICES, ModelLengthUnit, RepresentationBasis,
+};
 use partprobe_geometry_core::{
     GeometryStage, GeometryStageReport, GeometryWarning, GeometryWarningCode, StageStatus,
     WarningSeverity,
@@ -15,10 +21,12 @@ use partprobe_geometry_import::verify_worker_asset_direct;
 use partprobe_geometry_import::{
     DiagnosticCode, GeometryWorkerControlMessage, GeometryWorkerRequest, GeometryWorkerResponse,
     ProvisionalMeshGeometrySnapshot, SnapshotReference, StlLimits, ThreeMfLimits,
-    VerifiedWorkerAsset, WORKER_OUTPUT_FILENAME, WorkerAssetManifest, WorkerAssetTransport,
-    WorkerCancellationReason, WorkerTermination, analyze_3mf, analyze_stl,
-    recoverable_termination_response, verify_worker_asset_copy,
+    VerifiedWorkerAsset, WORKER_DISPLAY_OUTPUT_FILENAME, WORKER_OUTPUT_FILENAME,
+    WorkerAssetManifest, WorkerAssetTransport, WorkerCancellationReason, WorkerTermination,
+    analyze_3mf, analyze_stl, recoverable_termination_response, verify_worker_asset_copy,
 };
+#[cfg(feature = "native-occt")]
+use partprobe_geometry_import::{display_content_sha256, encode_display_scene_artifact};
 
 const MAX_CONTROL_MESSAGE_BYTES: usize = 1_048_576;
 const CANCELLATION_NONE: u8 = 0;
@@ -309,6 +317,7 @@ fn build_mesh_response(
         cancellation,
         serde_json::to_vec(&snapshot).map_err(|_| ())?,
         partprobe_geometry_import::PROVISIONAL_MESH_GEOMETRY_SNAPSHOT_REFERENCE,
+        None,
         warnings,
     )
 }
@@ -384,24 +393,145 @@ fn build_step_response(
         provisional_centroid(properties.center_of_mass_mm)?,
     )
     .map_err(|_| ())?;
+    let aabb_extents = [
+        provisional_decimal(properties.aabb_extents_mm[0])?,
+        provisional_decimal(properties.aabb_extents_mm[1])?,
+        provisional_decimal(properties.aabb_extents_mm[2])?,
+    ];
     let envelope = partprobe_geometry_core::ExactStepEnvelopeDerivative::new(
         request.expected_source_hash().clone(),
-        [
-            provisional_decimal(properties.aabb_extents_mm[0])?,
-            provisional_decimal(properties.aabb_extents_mm[1])?,
-            provisional_decimal(properties.aabb_extents_mm[2])?,
-        ],
+        aabb_extents.clone(),
     )
     .map_err(|_| ())?;
     let analysis = partprobe_geometry_import::ProvisionalExactStepAnalysis::new(snapshot, envelope)
         .map_err(|_| ())?;
+    let analysis_bytes = serde_json::to_vec(&analysis).map_err(|_| ())?;
+    let display_artifact = match build_step_display_artifact(
+        request,
+        asset,
+        cancellation,
+        &analysis_bytes,
+        aabb_extents,
+    )? {
+        StepDisplayArtifact::Available(artifact) => Some(artifact),
+        StepDisplayArtifact::Unavailable => None,
+        StepDisplayArtifact::Cancelled(response) => return Ok(response),
+    };
     write_snapshot_response(
         request,
         cancellation,
-        serde_json::to_vec(&analysis).map_err(|_| ())?,
+        analysis_bytes,
         partprobe_geometry_import::PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE,
+        display_artifact,
         Vec::new(),
     )
+}
+
+#[cfg(feature = "native-occt")]
+enum StepDisplayArtifact {
+    Available(Box<[u8]>),
+    Unavailable,
+    Cancelled(GeometryWorkerResponse),
+}
+
+#[cfg(feature = "native-occt")]
+fn build_step_display_artifact(
+    request: &GeometryWorkerRequest,
+    asset: &VerifiedWorkerAsset,
+    cancellation: &AtomicU8,
+    analysis_bytes: &[u8],
+    aabb_extents: [partprobe_geometry_core::ProvisionalGeometryDecimal; 3],
+) -> Result<StepDisplayArtifact, ()> {
+    let Some(display_request) = request.display_scene() else {
+        return Ok(StepDisplayArtifact::Unavailable);
+    };
+    let profile = display_request.tessellation_profile();
+    let Ok(linear_deflection_mm) = profile.linear_deflection().as_str().parse::<f64>() else {
+        return Ok(StepDisplayArtifact::Unavailable);
+    };
+    let Ok(angular_deflection_degrees) =
+        profile.angular_deflection_degrees().as_str().parse::<f64>()
+    else {
+        return Ok(StepDisplayArtifact::Unavailable);
+    };
+    let Ok(limits) = partprobe_geometry_occt_adapter::NativeTessellationLimits::new(
+        MAX_DISPLAY_SCENE_VERTICES,
+        MAX_DISPLAY_SCENE_TRIANGLES,
+        MAX_DISPLAY_SCENE_BYTES,
+    ) else {
+        return Ok(StepDisplayArtifact::Unavailable);
+    };
+    let mesh = match partprobe_geometry_occt_adapter::tessellate_step_bytes_with_cancellation(
+        asset.bytes(),
+        linear_deflection_mm,
+        angular_deflection_degrees,
+        limits,
+        &|| cancellation.load(Ordering::Acquire) != CANCELLATION_NONE,
+    ) {
+        Ok(mesh) => mesh,
+        Err(error) if error.diagnostic_code() == "OCCT_CANCELLED" => {
+            return cancellation_response(request, cancellation)?
+                .map(StepDisplayArtifact::Cancelled)
+                .ok_or(());
+        }
+        Err(_) => return Ok(StepDisplayArtifact::Unavailable),
+    };
+    if let Some(response) = cancellation_response(request, cancellation)? {
+        return Ok(StepDisplayArtifact::Cancelled(response));
+    }
+
+    let artifact = (|| -> Result<Box<[u8]>, ()> {
+        let vertex_count = u32::try_from(mesh.positions_mm().len()).map_err(|_| ())?;
+        let triangle_count = u32::try_from(mesh.triangle_indices().len() / 3).map_err(|_| ())?;
+        let mut vertex_bytes = Vec::new();
+        vertex_bytes
+            .try_reserve_exact(mesh.positions_mm().len().checked_mul(12).ok_or(())?)
+            .map_err(|_| ())?;
+        for position in mesh.positions_mm() {
+            for coordinate in position {
+                vertex_bytes.extend_from_slice(&coordinate.to_le_bytes());
+            }
+        }
+        let mut index_bytes = Vec::new();
+        index_bytes
+            .try_reserve_exact(mesh.triangle_indices().len().checked_mul(4).ok_or(())?)
+            .map_err(|_| ())?;
+        for index in mesh.triangle_indices() {
+            index_bytes.extend_from_slice(&index.to_le_bytes());
+        }
+        let descriptor = DisplayMeshChunkDescriptor::new(
+            0,
+            DisplayGeometryReference::new("exact-brep-root-0").map_err(|_| ())?,
+            vertex_count,
+            triangle_count,
+            display_content_sha256(&vertex_bytes),
+            display_content_sha256(&index_bytes),
+        )
+        .map_err(|_| ())?;
+        let manifest = GeometryDisplaySceneManifest::new(
+            request.expected_source_hash().clone(),
+            display_content_sha256(analysis_bytes),
+            RepresentationBasis::ExactBrep,
+            DisplayCoordinateSpace::CanonicalMillimeters,
+            ModelLengthUnit::Millimeter,
+            profile.clone(),
+            aabb_extents,
+            vec![descriptor],
+        )
+        .map_err(|_| ())?;
+        let payload =
+            partprobe_geometry_import::DisplayMeshChunkPayload::new(0, vertex_bytes, index_bytes);
+        encode_display_scene_artifact(&manifest, &[payload], None).map_err(|_| ())
+    })();
+    let artifact = match artifact {
+        Ok(artifact) => artifact,
+        Err(()) => return Ok(StepDisplayArtifact::Unavailable),
+    };
+    if let Some(response) = cancellation_response(request, cancellation)? {
+        Ok(StepDisplayArtifact::Cancelled(response))
+    } else {
+        Ok(StepDisplayArtifact::Available(artifact))
+    }
 }
 
 fn write_snapshot_response(
@@ -409,17 +539,28 @@ fn write_snapshot_response(
     cancellation: &AtomicU8,
     snapshot_bytes: Vec<u8>,
     snapshot_reference: &str,
+    mut display_artifact: Option<Box<[u8]>>,
     warnings: Vec<GeometryWarning>,
 ) -> Result<GeometryWorkerResponse, ()> {
-    if u64::try_from(snapshot_bytes.len()).map_err(|_| ())? > request.quotas().max_output_bytes() {
+    let snapshot_length = u64::try_from(snapshot_bytes.len()).map_err(|_| ())?;
+    if snapshot_length > request.quotas().max_output_bytes() {
         return failed_response(request, "OUTPUT_QUOTA_EXCEEDED");
+    }
+    if display_artifact.as_ref().is_some_and(|artifact| {
+        u64::try_from(artifact.len()).map_or(true, |length| {
+            snapshot_length
+                .checked_add(length)
+                .is_none_or(|total| total > request.quotas().max_output_bytes())
+        })
+    }) {
+        display_artifact = None;
     }
     if let Some(response) = cancellation_response(request, cancellation)? {
         return Ok(response);
     }
-    let output = std::env::current_dir()
-        .map_err(|_| ())?
-        .join(WORKER_OUTPUT_FILENAME);
+    let working_directory = std::env::current_dir().map_err(|_| ())?;
+    let output = working_directory.join(WORKER_OUTPUT_FILENAME);
+    let display_output = working_directory.join(WORKER_DISPLAY_OUTPUT_FILENAME);
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -431,6 +572,30 @@ fn write_snapshot_response(
     }
     if let Some(response) = cancellation_response(request, cancellation)? {
         let _ = std::fs::remove_file(output);
+        return Ok(response);
+    }
+
+    if let Some(artifact) = display_artifact.as_ref() {
+        let mut display_file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&display_output)
+        {
+            Ok(file) => file,
+            Err(_) => {
+                let _ = std::fs::remove_file(&output);
+                return failed_response(request, "OUTPUT_WRITE_FAILED");
+            }
+        };
+        if display_file.write_all(artifact).is_err() || display_file.flush().is_err() {
+            let _ = std::fs::remove_file(&display_output);
+            let _ = std::fs::remove_file(&output);
+            return failed_response(request, "OUTPUT_WRITE_FAILED");
+        }
+    }
+    if let Some(response) = cancellation_response(request, cancellation)? {
+        let _ = std::fs::remove_file(&display_output);
+        let _ = std::fs::remove_file(&output);
         return Ok(response);
     }
 
@@ -453,7 +618,7 @@ fn write_snapshot_response(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ())?;
-    let display_scene_unavailable = request.display_scene().is_some();
+    let display_scene_unavailable = request.display_scene().is_some() && display_artifact.is_none();
     let status = if warnings.is_empty() && !display_scene_unavailable {
         StageStatus::Succeeded
     } else {
@@ -466,7 +631,7 @@ fn write_snapshot_response(
         })
         .into_iter()
         .collect();
-    GeometryWorkerResponse::new(
+    let response = GeometryWorkerResponse::new(
         request.schema_version(),
         request.job_id().clone(),
         request.correlation_id().clone(),
@@ -475,7 +640,20 @@ fn write_snapshot_response(
         Some(SnapshotReference::new(snapshot_reference).map_err(|_| ())?),
         diagnostic_codes,
     )
-    .map_err(|_| ())
+    .map_err(|_| ())?;
+    if display_artifact.is_some() {
+        response
+            .with_display_scene_reference(
+                request
+                    .display_scene()
+                    .expect("an emitted artifact requires a display request")
+                    .artifact_reference()
+                    .clone(),
+            )
+            .map_err(|_| ())
+    } else {
+        Ok(response)
+    }
 }
 
 #[cfg(feature = "native-occt")]
