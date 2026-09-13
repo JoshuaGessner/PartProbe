@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-11
+- **Last updated:** 2026-09-13
 - **Related requirement IDs:** UX-003, UX-004, UX-006, GEO-001 through GEO-012, REQ-F-006 through REQ-F-012
 - **Related architecture decision IDs:** ADR-0001, ADR-0003, ADR-0004
 - **Open questions:** Exact first-slice geometry warning taxonomy and default confidence thresholds.
@@ -29,7 +29,7 @@ Left: model tree and selection filters. Center: viewport with orientation cube, 
 
 For the first stock-review increment, open this workspace from the Estimate screen with `View model & stock`. Limit the tree to Model and Proposed stock, the viewport to standard views/fit/edges/stock visibility, and the inspector to model size, proposed stock size, total X/Y/Z allowance, material/mass/removal, availability, machine fit, and proposal evidence. The stock overlay is translucent with a high-contrast boundary; enclosure violations also have explicit text. Initial edits use labeled numeric fields with units and a reason, not pointer-only handles. `Use this stock candidate` is the single primary action and creates or adopts a review-bound candidate revision; it never edits source geometry.
 
-The ordinary contract-v11 UI remains facts-only. A separately feature/flag-gated developer build can open the same-window synthetic viewport, while the Estimate workspace shows exact STEP measurements and a model-sensitive rectangular stock proposal. Do not present either as source-bound visualizer evidence until native tessellation/emission, desktop schema-v2 activation, and renderer handoff pass.
+The ordinary contract-v11 UI remains facts-only. A separately feature/flag-gated developer build can open the same-window native viewport and now replace its pre-analysis synthetic model with the matching validated selected-STEP display derivative, while the Estimate workspace shows exact STEP measurements and a model-sensitive rectangular stock proposal. This is source-bound developer display evidence only after live visual inspection; it is not measurement, stock-placement, CAM, or estimate authority. Real stock remains hidden until its origin/orientation/per-side rule is governed.
 
 ## Viewport behavior
 

@@ -55,6 +55,8 @@ async fn select_model_source(
     let path = desktop_path(selected)?;
     let state = app.state::<DesktopSessionState>();
     let source = state.retain_selected_path(path)?;
+    app.state::<DesktopModelViewerState>()
+        .begin_selection(&source.selection_id);
     let event = ModelSourceSelectedEvent {
         source: source.clone(),
     };
@@ -69,12 +71,20 @@ async fn analyze_model_source(
     app: tauri::AppHandle,
     request: AnalyzeModelSourceRequest,
 ) -> Result<ModelAnalysisResult, HostCommandError> {
-    tauri::async_runtime::spawn_blocking(move || {
-        app.state::<DesktopSessionState>()
+    let analysis_app = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        analysis_app
+            .state::<DesktopSessionState>()
             .analyze_selected_source(&request.selection_id)
     })
     .await
-    .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-TASK"))?
+    .map_err(|_| HostCommandError::host_state_unavailable("GUI4-ANALYSIS-TASK"))??;
+    let scene = app
+        .state::<DesktopSessionState>()
+        .retained_display_scene(&result.selection_id, &result.analysis_id)?;
+    app.state::<DesktopModelViewerState>()
+        .accept_analysis_scene(&result.selection_id, &result.analysis_id, scene);
+    Ok(result)
 }
 
 #[tauri::command]
@@ -189,7 +199,11 @@ pub fn run() {
                     )
                     .map_err(|_| ())
                 })
-                .and_then(|configuration| configuration.build_adapter().map_err(|_| ()))
+                .and_then(|configuration| {
+                    configuration
+                        .build_adapter_with_display_scene(crate::viewer::source_scene_requested())
+                        .map_err(|_| ())
+                })
                 .map_or_else(
                     |_| DesktopSessionState::default(),
                     DesktopSessionState::with_analysis_adapter,

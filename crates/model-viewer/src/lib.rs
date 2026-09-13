@@ -1,10 +1,12 @@
 //! Native-only rendering boundary for PartProbe model review.
 //!
-//! VIS-1 deliberately renders a bounded synthetic scene. It proves the GPU path and visual
-//! language without accepting CAD bytes, source paths, estimate authority, or WebView geometry.
+//! VIS-1 proves the native GPU path and visual language with a bounded synthetic scene. VIS-2 may
+//! additionally supply an already-validated, source-bound native display derivative. This crate
+//! never accepts CAD bytes, source paths, estimate authority, or WebView geometry.
 
 use std::{fmt, path::Path, sync::mpsc};
 
+use partprobe_geometry_import::ValidatedGeometryDisplayScene;
 use wgpu::util::DeviceExt;
 
 /// Stable identifier for the non-authoritative VIS-1 scene.
@@ -32,6 +34,9 @@ const MODEL_FACE_COLORS: [[f32; 4]; 6] = [
 ];
 const STOCK_FACE_COLOR: [f32; 4] = [0.98, 0.59, 0.16, 0.13];
 const STOCK_EDGE_COLOR: [f32; 4] = [1.0, 0.69, 0.22, 0.95];
+const SOURCE_SCREEN_MARGIN: f32 = 0.88;
+const SOURCE_DEPTH_MARGIN: f32 = 0.45;
+const SOURCE_MODEL_COLOR: [f32; 4] = [0.18, 0.78, 0.78, 1.0];
 
 /// Standard camera orientations required by the first model-and-stock workspace.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -80,6 +85,7 @@ pub enum ViewerError {
     InvalidFrameSize { width: u32, height: u32 },
     InvalidSurfaceSize { width: u32, height: u32 },
     InvalidSurfaceViewport,
+    InvalidModelScene,
     SurfaceCreation(String),
     SurfaceUnsupported,
     SurfaceUnavailable(String),
@@ -105,6 +111,8 @@ impl fmt::Display for ViewerError {
             Self::InvalidSurfaceViewport => {
                 formatter.write_str("viewer viewport is outside the bounded native surface")
             }
+            Self::InvalidModelScene => formatter
+                .write_str("validated model display scene cannot be framed by the native renderer"),
             Self::AdapterUnavailable => {
                 formatter.write_str("no compatible native graphics adapter is available")
             }
@@ -175,10 +183,17 @@ impl SurfaceViewport {
     }
 }
 
-/// A bounded native-window renderer for the synthetic VIS-1 review scene.
+enum NativeScene {
+    Synthetic,
+    Empty,
+    SourceBound(Box<ValidatedGeometryDisplayScene>),
+}
+
+/// A bounded native-window renderer for synthetic or validated source-bound review scenes.
 ///
-/// The owned surface retains the native window handle supplied to [`Self::attach`]. This type
-/// accepts no model bytes, source paths, estimate data, or WebView-owned geometry.
+/// The owned surface retains the native window handle supplied to [`Self::attach`]. Source-bound
+/// input must have crossed `geometry-import`'s complete display-scene decoder first. This type
+/// accepts no CAD bytes, source paths, estimate data, or WebView-owned geometry.
 pub struct NativeSurfaceRenderer {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -191,10 +206,13 @@ pub struct NativeSurfaceRenderer {
     opaque_pipeline: wgpu::RenderPipeline,
     translucent_pipeline: wgpu::RenderPipeline,
     line_pipeline: wgpu::RenderPipeline,
+    scene: NativeScene,
     model_buffer: wgpu::Buffer,
+    model_index_buffer: Option<wgpu::Buffer>,
     stock_buffer: wgpu::Buffer,
     edge_buffer: wgpu::Buffer,
     model_vertex_count: u32,
+    model_index_count: u32,
     stock_vertex_count: u32,
     edge_vertex_count: u32,
     backend: String,
@@ -311,7 +329,14 @@ impl NativeSurfaceRenderer {
         );
         let (depth_texture, depth_view) = create_depth_target(&device, width, height);
         let viewport = SurfaceViewport::full(width, height);
-        let scene = create_scene_vertex_buffers(&device, view, viewport.width, viewport.height);
+        let native_scene = NativeScene::Synthetic;
+        let scene = create_scene_vertex_buffers(
+            &device,
+            &native_scene,
+            view,
+            viewport.width,
+            viewport.height,
+        )?;
 
         Ok(Self {
             surface,
@@ -325,10 +350,13 @@ impl NativeSurfaceRenderer {
             opaque_pipeline,
             translucent_pipeline,
             line_pipeline,
+            scene: native_scene,
             model_buffer: scene.model_buffer,
+            model_index_buffer: scene.model_index_buffer,
             stock_buffer: scene.stock_buffer,
             edge_buffer: scene.edge_buffer,
             model_vertex_count: scene.model_vertex_count,
+            model_index_count: scene.model_index_count,
             stock_vertex_count: scene.stock_vertex_count,
             edge_vertex_count: scene.edge_vertex_count,
             backend,
@@ -339,6 +367,42 @@ impl NativeSurfaceRenderer {
     #[must_use]
     pub fn backend(&self) -> &str {
         &self.backend
+    }
+
+    /// Replace the synthetic model with an already-validated source-bound display derivative.
+    ///
+    /// Stock is deliberately hidden until a versioned placement policy supplies an authoritative
+    /// display transform; the source model remains visualization evidence only.
+    pub fn set_source_scene(
+        &mut self,
+        scene: ValidatedGeometryDisplayScene,
+    ) -> Result<SurfaceFrameStatus, ViewerError> {
+        let native_scene = NativeScene::SourceBound(Box::new(scene));
+        let buffers = create_scene_vertex_buffers(
+            &self.device,
+            &native_scene,
+            self.view,
+            self.viewport.width,
+            self.viewport.height,
+        )?;
+        self.scene = native_scene;
+        self.replace_scene_buffers(buffers);
+        self.render()
+    }
+
+    /// Remove any prior source scene while selection or analysis state changes.
+    pub fn clear_source_scene(&mut self) -> Result<SurfaceFrameStatus, ViewerError> {
+        let native_scene = NativeScene::Empty;
+        let buffers = create_scene_vertex_buffers(
+            &self.device,
+            &native_scene,
+            self.view,
+            self.viewport.width,
+            self.viewport.height,
+        )?;
+        self.scene = native_scene;
+        self.replace_scene_buffers(buffers);
+        self.render()
     }
 
     /// Reconfigure and redraw after a nonzero native window resize.
@@ -365,7 +429,7 @@ impl NativeSurfaceRenderer {
         let (depth_texture, depth_view) = create_depth_target(&self.device, width, height);
         self._depth_texture = depth_texture;
         self.depth_view = depth_view;
-        self.rebuild_scene();
+        self.rebuild_scene()?;
         self.render()
     }
 
@@ -376,28 +440,36 @@ impl NativeSurfaceRenderer {
     ) -> Result<SurfaceFrameStatus, ViewerError> {
         validate_surface_viewport(self.config.width, self.config.height, viewport)?;
         self.viewport = viewport;
-        self.rebuild_scene();
+        self.rebuild_scene()?;
         self.render()
     }
 
     /// Change to one of the governed standard views and redraw.
     pub fn set_view(&mut self, view: StandardView) -> Result<SurfaceFrameStatus, ViewerError> {
         self.view = view;
-        self.rebuild_scene();
+        self.rebuild_scene()?;
         self.render()
     }
 
-    fn rebuild_scene(&mut self) {
+    fn rebuild_scene(&mut self) -> Result<(), ViewerError> {
         let scene = create_scene_vertex_buffers(
             &self.device,
+            &self.scene,
             self.view,
             self.viewport.width,
             self.viewport.height,
-        );
+        )?;
+        self.replace_scene_buffers(scene);
+        Ok(())
+    }
+
+    fn replace_scene_buffers(&mut self, scene: SceneVertexBuffers) {
         self.model_buffer = scene.model_buffer;
+        self.model_index_buffer = scene.model_index_buffer;
         self.stock_buffer = scene.stock_buffer;
         self.edge_buffer = scene.edge_buffer;
         self.model_vertex_count = scene.model_vertex_count;
+        self.model_index_count = scene.model_index_count;
         self.stock_vertex_count = scene.stock_vertex_count;
         self.edge_vertex_count = scene.edge_vertex_count;
     }
@@ -473,7 +545,12 @@ impl NativeSurfaceRenderer {
             pass.draw(0..self.stock_vertex_count, 0..1);
             pass.set_pipeline(&self.opaque_pipeline);
             pass.set_vertex_buffer(0, self.model_buffer.slice(..));
-            pass.draw(0..self.model_vertex_count, 0..1);
+            if let Some(index_buffer) = self.model_index_buffer.as_ref() {
+                pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..self.model_index_count, 0, 0..1);
+            } else {
+                pass.draw(0..self.model_vertex_count, 0..1);
+            }
             pass.set_pipeline(&self.line_pipeline);
             pass.set_vertex_buffer(0, self.edge_buffer.slice(..));
             pass.draw(0..self.edge_vertex_count, 0..1);
@@ -805,10 +882,30 @@ fn create_vertex_buffer(
     label: &'static str,
     vertices: &[f32],
 ) -> wgpu::Buffer {
+    if vertices.is_empty() {
+        return device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(label),
+            size: std::mem::size_of::<f32>() as u64,
+            usage: wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
+        });
+    }
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some(label),
         contents: bytemuck::cast_slice(vertices),
         usage: wgpu::BufferUsages::VERTEX,
+    })
+}
+
+fn create_index_buffer(
+    device: &wgpu::Device,
+    label: &'static str,
+    indices: &[u32],
+) -> wgpu::Buffer {
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some(label),
+        contents: bytemuck::cast_slice(indices),
+        usage: wgpu::BufferUsages::INDEX,
     })
 }
 
@@ -841,26 +938,39 @@ fn create_depth_target(
 
 struct SceneVertexBuffers {
     model_buffer: wgpu::Buffer,
+    model_index_buffer: Option<wgpu::Buffer>,
     stock_buffer: wgpu::Buffer,
     edge_buffer: wgpu::Buffer,
     model_vertex_count: u32,
+    model_index_count: u32,
     stock_vertex_count: u32,
     edge_vertex_count: u32,
 }
 
 fn create_scene_vertex_buffers(
     device: &wgpu::Device,
+    source: &NativeScene,
     view: StandardView,
     width: u32,
     height: u32,
-) -> SceneVertexBuffers {
-    let scene = build_scene(view, width as f32 / height as f32);
-    SceneVertexBuffers {
-        model_buffer: create_vertex_buffer(
-            device,
-            "PartProbe VIS-1 native model vertices",
-            &scene.model,
-        ),
+) -> Result<SceneVertexBuffers, ViewerError> {
+    let scene = match source {
+        NativeScene::Synthetic => build_scene(view, width as f32 / height as f32),
+        NativeScene::Empty => SceneBuffers::empty(),
+        NativeScene::SourceBound(scene) => {
+            build_source_bound_scene(scene, view, width as f32 / height as f32)?
+        }
+    };
+    let model_index_count = scene
+        .model_indices
+        .as_ref()
+        .map_or(0, |indices| indices.len() as u32);
+    let model_index_buffer = scene.model_indices.as_ref().map(|indices| {
+        create_index_buffer(device, "PartProbe VIS-2 source model indices", indices)
+    });
+    Ok(SceneVertexBuffers {
+        model_buffer: create_vertex_buffer(device, "PartProbe native model vertices", &scene.model),
+        model_index_buffer,
         stock_buffer: create_vertex_buffer(
             device,
             "PartProbe VIS-1 native stock faces",
@@ -872,15 +982,28 @@ fn create_scene_vertex_buffers(
             &scene.edges,
         ),
         model_vertex_count: vertex_count(&scene.model),
+        model_index_count,
         stock_vertex_count: vertex_count(&scene.stock),
         edge_vertex_count: vertex_count(&scene.edges),
-    }
+    })
 }
 
 struct SceneBuffers {
     model: Vec<f32>,
+    model_indices: Option<Vec<u32>>,
     stock: Vec<f32>,
     edges: Vec<f32>,
+}
+
+impl SceneBuffers {
+    fn empty() -> Self {
+        Self {
+            model: Vec::new(),
+            model_indices: None,
+            stock: Vec::new(),
+            edges: Vec::new(),
+        }
+    }
 }
 
 fn build_scene(view: StandardView, aspect: f32) -> SceneBuffers {
@@ -888,9 +1011,131 @@ fn build_scene(view: StandardView, aspect: f32) -> SceneBuffers {
     let stock_bounds = Box3::centered([0.06, -0.03, 0.02], [1.34, 0.90, 0.72]);
     SceneBuffers {
         model: box_faces(model_bounds, view, aspect, MODEL_FACE_COLORS),
+        model_indices: None,
         stock: box_faces(stock_bounds, view, aspect, [STOCK_FACE_COLOR; 6]),
         edges: box_edges(stock_bounds, view, aspect, STOCK_EDGE_COLOR),
     }
+}
+
+fn build_source_bound_scene(
+    scene: &ValidatedGeometryDisplayScene,
+    view: StandardView,
+    aspect: f32,
+) -> Result<SceneBuffers, ViewerError> {
+    let mut minimum = [f32::INFINITY; 3];
+    let mut maximum = [f32::NEG_INFINITY; 3];
+    for chunk in scene.chunks() {
+        for position in chunk.positions() {
+            for axis in 0..3 {
+                minimum[axis] = minimum[axis].min(position[axis]);
+                maximum[axis] = maximum[axis].max(position[axis]);
+            }
+        }
+    }
+    let spans = [
+        maximum[0] - minimum[0],
+        maximum[1] - minimum[1],
+        maximum[2] - minimum[2],
+    ];
+    let maximum_span = spans.into_iter().fold(0.0_f32, f32::max);
+    if !maximum_span.is_finite() || maximum_span <= 0.0 {
+        return Err(ViewerError::InvalidModelScene);
+    }
+    let center = [
+        (minimum[0] + maximum[0]) / 2.0,
+        (minimum[1] + maximum[1]) / 2.0,
+        (minimum[2] + maximum[2]) / 2.0,
+    ];
+    if center.iter().any(|coordinate| !coordinate.is_finite()) {
+        return Err(ViewerError::InvalidModelScene);
+    }
+    let mut maximum_screen_extent = 0.0_f32;
+    let mut maximum_depth_extent = 0.0_f32;
+    for chunk in scene.chunks() {
+        for position in chunk.positions() {
+            let centered = subtract(*position, center);
+            let projected = project(centered, view, aspect);
+            maximum_screen_extent = maximum_screen_extent
+                .max(projected[0].abs())
+                .max(projected[1].abs());
+            maximum_depth_extent = maximum_depth_extent.max((projected[2] - 0.5).abs());
+        }
+    }
+    let screen_fit = if maximum_screen_extent > f32::EPSILON {
+        SOURCE_SCREEN_MARGIN / maximum_screen_extent
+    } else {
+        f32::INFINITY
+    };
+    let depth_fit = if maximum_depth_extent > f32::EPSILON {
+        SOURCE_DEPTH_MARGIN / maximum_depth_extent
+    } else {
+        f32::INFINITY
+    };
+    let fit_scale = screen_fit.min(depth_fit);
+    if !fit_scale.is_finite() || fit_scale <= 0.0 {
+        return Err(ViewerError::InvalidModelScene);
+    }
+    let vertex_capacity = usize::try_from(scene.manifest().total_vertex_count())
+        .ok()
+        .and_then(|count| count.checked_mul(FLOATS_PER_VERTEX))
+        .ok_or(ViewerError::InvalidModelScene)?;
+    let index_capacity = usize::try_from(scene.manifest().total_triangle_count())
+        .ok()
+        .and_then(|count| count.checked_mul(3))
+        .ok_or(ViewerError::InvalidModelScene)?;
+    let mut model = Vec::new();
+    model
+        .try_reserve_exact(vertex_capacity)
+        .map_err(|_| ViewerError::InvalidModelScene)?;
+    let mut model_indices = Vec::new();
+    model_indices
+        .try_reserve_exact(index_capacity)
+        .map_err(|_| ViewerError::InvalidModelScene)?;
+    for chunk in scene.chunks() {
+        let base_index = u32::try_from(model.len() / FLOATS_PER_VERTEX)
+            .map_err(|_| ViewerError::InvalidModelScene)?;
+        let mut normals = Vec::new();
+        normals
+            .try_reserve_exact(chunk.positions().len())
+            .map_err(|_| ViewerError::InvalidModelScene)?;
+        normals.resize(chunk.positions().len(), [0.0_f32; 3]);
+        for triangle in chunk.triangle_indices().chunks_exact(3) {
+            let first = chunk.positions()[triangle[0] as usize];
+            let second = chunk.positions()[triangle[1] as usize];
+            let third = chunk.positions()[triangle[2] as usize];
+            let normal = cross(subtract(second, first), subtract(third, first));
+            for index in triangle {
+                for axis in 0..3 {
+                    normals[*index as usize][axis] += normal[axis];
+                }
+            }
+        }
+        for (position, normal) in chunk.positions().iter().zip(normals) {
+            let projected = project(subtract(*position, center), view, aspect);
+            let fitted = [
+                projected[0] * fit_scale,
+                projected[1] * fit_scale,
+                0.5 + (projected[2] - 0.5) * fit_scale,
+            ];
+            push_vertex(&mut model, fitted, source_model_color(normal));
+        }
+        for index in chunk.triangle_indices() {
+            model_indices.push(
+                base_index
+                    .checked_add(*index)
+                    .ok_or(ViewerError::InvalidModelScene)?,
+            );
+        }
+    }
+    if model.len() != vertex_capacity || model_indices.len() != index_capacity {
+        return Err(ViewerError::InvalidModelScene);
+    }
+    Ok(SceneBuffers {
+        model,
+        model_indices: Some(model_indices),
+        stock: Vec::new(),
+        edges: Vec::new(),
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -1034,6 +1279,27 @@ fn cross(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
     ]
 }
 
+fn subtract(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+    [left[0] - right[0], left[1] - right[1], left[2] - right[2]]
+}
+
+fn source_model_color(normal: [f32; 3]) -> [f32; 4] {
+    let length_squared = dot(normal, normal);
+    let intensity = if length_squared > f32::EPSILON && length_squared.is_finite() {
+        let unit = normalize(normal);
+        let light = normalize([0.35, -0.45, 0.82]);
+        (0.45 + 0.55 * dot(unit, light).max(0.0)).clamp(0.45, 1.0)
+    } else {
+        0.65
+    };
+    [
+        SOURCE_MODEL_COLOR[0] * intensity,
+        SOURCE_MODEL_COLOR[1] * intensity,
+        SOURCE_MODEL_COLOR[2] * intensity,
+        SOURCE_MODEL_COLOR[3],
+    ]
+}
+
 fn normalize(value: [f32; 3]) -> [f32; 3] {
     let length = dot(value, value).sqrt();
     [value[0] / length, value[1] / length, value[2] / length]
@@ -1041,6 +1307,15 @@ fn normalize(value: [f32; 3]) -> [f32; 3] {
 
 #[cfg(test)]
 mod tests {
+    use partprobe_geometry_core::{
+        DisplayCoordinateSpace, DisplayGeometryReference, DisplayMeshChunkDescriptor,
+        DisplayTessellationProfile, GeometryDisplaySceneManifest, ModelLengthUnit,
+        ProvisionalGeometryDecimal, RepresentationBasis, Sha256Digest,
+    };
+    use partprobe_geometry_import::{
+        DisplayMeshChunkPayload, decode_display_scene, display_content_sha256,
+    };
+
     use super::*;
 
     #[test]
@@ -1049,6 +1324,51 @@ mod tests {
         assert_eq!(vertex_count(&scene.model), 36);
         assert_eq!(vertex_count(&scene.stock), 36);
         assert_eq!(vertex_count(&scene.edges), 24);
+    }
+
+    #[test]
+    fn validated_source_scene_is_fitted_and_never_invents_stock() {
+        let scene = one_triangle_display_scene();
+
+        let buffers = build_source_bound_scene(&scene, StandardView::Isometric, 1.5)
+            .expect("validated source scene must fit the native viewport");
+
+        assert_eq!(vertex_count(&buffers.model), 3);
+        assert_eq!(buffers.model_indices.as_deref(), Some(&[0, 1, 2][..]));
+        assert!(buffers.stock.is_empty());
+        assert!(buffers.edges.is_empty());
+        for vertex in buffers.model.chunks_exact(FLOATS_PER_VERTEX) {
+            assert!(vertex[..3].iter().all(|coordinate| coordinate.is_finite()));
+            assert!((-1.0..=1.0).contains(&vertex[0]));
+            assert!((-1.0..=1.0).contains(&vertex[1]));
+            assert!((0.0..=1.0).contains(&vertex[2]));
+        }
+    }
+
+    #[test]
+    fn source_cube_fit_accounts_for_rotated_screen_extents() {
+        let scene = cube_display_scene();
+
+        for view in [
+            StandardView::Isometric,
+            StandardView::Front,
+            StandardView::Top,
+            StandardView::Right,
+        ] {
+            for aspect in [0.5, 1.0, 1.5] {
+                let buffers = build_source_bound_scene(&scene, view, aspect)
+                    .expect("validated cube must fit every standard viewport");
+                assert_eq!(buffers.model_indices.as_ref().map(Vec::len), Some(36));
+                for vertex in buffers.model.chunks_exact(FLOATS_PER_VERTEX) {
+                    assert!(vertex[0].abs() <= SOURCE_SCREEN_MARGIN + f32::EPSILON);
+                    assert!(vertex[1].abs() <= SOURCE_SCREEN_MARGIN + f32::EPSILON);
+                    assert!(
+                        ((0.5 - SOURCE_DEPTH_MARGIN)..=(0.5 + SOURCE_DEPTH_MARGIN))
+                            .contains(&vertex[2])
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -1116,6 +1436,99 @@ mod tests {
             ),
             Err(ViewerError::InvalidSurfaceViewport)
         ));
+    }
+
+    fn one_triangle_display_scene() -> ValidatedGeometryDisplayScene {
+        display_scene(
+            &[
+                [10.0_f32, 20.0, 30.0],
+                [12.0, 20.0, 30.0],
+                [10.0, 21.0, 30.0],
+            ],
+            &[0, 1, 2],
+            ["2", "1", "1"],
+        )
+    }
+
+    fn cube_display_scene() -> ValidatedGeometryDisplayScene {
+        display_scene(
+            &[
+                [0.0, 0.0, 0.0],
+                [10.0, 0.0, 0.0],
+                [10.0, 10.0, 0.0],
+                [0.0, 10.0, 0.0],
+                [0.0, 0.0, 10.0],
+                [10.0, 0.0, 10.0],
+                [10.0, 10.0, 10.0],
+                [0.0, 10.0, 10.0],
+            ],
+            &[
+                0, 1, 2, 0, 2, 3, 4, 7, 6, 4, 6, 5, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2,
+                7, 3, 3, 7, 4, 3, 4, 0,
+            ],
+            ["10", "10", "10"],
+        )
+    }
+
+    fn display_scene(
+        positions: &[[f32; 3]],
+        indices: &[u32],
+        extents: [&str; 3],
+    ) -> ValidatedGeometryDisplayScene {
+        let mut vertex_bytes = Vec::new();
+        for position in positions {
+            for coordinate in position {
+                vertex_bytes.extend_from_slice(&coordinate.to_le_bytes());
+            }
+        }
+        let mut index_bytes = Vec::new();
+        for index in indices {
+            index_bytes.extend_from_slice(&index.to_le_bytes());
+        }
+        let descriptor = DisplayMeshChunkDescriptor::new(
+            0,
+            DisplayGeometryReference::new("exact-brep-root-0").expect("reference must be valid"),
+            positions
+                .len()
+                .try_into()
+                .expect("test vertex count must fit"),
+            (indices.len() / 3)
+                .try_into()
+                .expect("test triangle count must fit"),
+            display_content_sha256(&vertex_bytes),
+            display_content_sha256(&index_bytes),
+        )
+        .expect("descriptor must be valid");
+        let source_hash = Sha256Digest::new("a".repeat(64)).expect("source hash must be valid");
+        let analysis_hash = Sha256Digest::new("b".repeat(64)).expect("analysis hash must be valid");
+        let manifest = GeometryDisplaySceneManifest::new(
+            source_hash.clone(),
+            analysis_hash.clone(),
+            RepresentationBasis::ExactBrep,
+            DisplayCoordinateSpace::CanonicalMillimeters,
+            ModelLengthUnit::Millimeter,
+            DisplayTessellationProfile::new(decimal("0.1"), decimal("12"))
+                .expect("profile must be valid"),
+            [
+                decimal(extents[0]),
+                decimal(extents[1]),
+                decimal(extents[2]),
+            ],
+            vec![descriptor],
+        )
+        .expect("manifest must be valid");
+        decode_display_scene(
+            &source_hash,
+            &analysis_hash,
+            manifest,
+            vec![DisplayMeshChunkPayload::new(0, vertex_bytes, index_bytes)],
+            None,
+        )
+        .expect("display scene must be fully validated")
+    }
+
+    fn decimal(value: &str) -> ProvisionalGeometryDecimal {
+        ProvisionalGeometryDecimal::new(value).expect("decimal must be valid")
     }
 
     #[test]

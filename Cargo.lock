@@ -3307,6 +3307,8 @@ name = "partprobe-model-viewer"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "partprobe-geometry-core",
+ "partprobe-geometry-import",
  "pollster",
  "wgpu",
 ]

@@ -12,6 +12,8 @@ use partprobe_desktop_contract::{
 };
 use partprobe_domain::ShopSettingsDraft;
 use partprobe_geometry_import::GeometryWorkerSupervisor;
+#[cfg(feature = "desktop-host")]
+use partprobe_geometry_import::ValidatedGeometryDisplayScene;
 
 mod analysis;
 mod estimate;
@@ -285,6 +287,25 @@ impl DesktopSessionState {
         ))
     }
 
+    #[cfg(feature = "desktop-host")]
+    pub(crate) fn retained_display_scene(
+        &self,
+        selection_id: &str,
+        analysis_id: &str,
+    ) -> Result<Option<ValidatedGeometryDisplayScene>, HostCommandError> {
+        let retained = self
+            .analysis_session
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("VIS2-ANALYSIS-SCENE"))?;
+        let retained = retained
+            .as_ref()
+            .filter(|retained| {
+                retained.selection_id == selection_id && retained.analysis_id == analysis_id
+            })
+            .ok_or_else(|| HostCommandError::stale_selection("VIS2-STALE-ANALYSIS-SCENE"))?;
+        Ok(retained.session.geometry().display_scene().cloned())
+    }
+
     fn finish_analysis(&self, analysis_number: u64) -> Result<(), HostCommandError> {
         let mut active = self
             .active_analysis
@@ -458,6 +479,10 @@ mod tests {
         assert!(!VIEWER_ADAPTER.contains("source_path"));
         assert!(!VIEWER_ADAPTER.contains("vertex_buffer"));
         assert!(!VIEWER_ADAPTER.contains("index_buffer"));
+        assert!(RUNTIME.contains("begin_selection"));
+        assert!(RUNTIME.contains("retained_display_scene"));
+        assert!(RUNTIME.contains("accept_analysis_scene"));
+        assert!(!WEBVIEW.contains("ValidatedGeometryDisplayScene"));
     }
 
     #[test]
@@ -725,6 +750,35 @@ mod tests {
             .and_then(crate::analysis::DesktopAnalysisConfiguration::build_adapter)
             .expect("GUI-5 requires verified native-runtime/workspace configuration");
         assert_real_meshes_reach_unavailable_estimates(adapter);
+    }
+
+    #[cfg(feature = "desktop-host")]
+    #[test]
+    #[ignore = "requires an explicit verified native runtime and worker workspace"]
+    fn vis2_configured_worker_retains_the_source_bound_desktop_scene() {
+        let adapter = crate::analysis::DesktopAnalysisConfiguration::from_environment()
+            .and_then(|configuration| configuration.build_adapter_with_display_scene(true))
+            .expect("VIS-2 requires verified native-runtime/workspace configuration");
+        let state = DesktopSessionState::with_analysis_adapter(adapter);
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/models/rectangular_prism_12x8x5.step")
+            .canonicalize()
+            .expect("VIS-2 STEP fixture must exist");
+        let source = state
+            .retain_selected_path(fixture)
+            .expect("fixture must be retained behind an opaque selection token");
+
+        let analysis = state
+            .analyze_selected_source(&source.selection_id)
+            .expect("configured worker must emit the display derivative");
+        let scene = state
+            .retained_display_scene(&source.selection_id, &analysis.analysis_id)
+            .expect("desktop session identity must remain current")
+            .expect("configured desktop analysis must retain a validated scene");
+
+        assert_eq!(scene.manifest().total_vertex_count(), 24);
+        assert_eq!(scene.manifest().total_triangle_count(), 12);
+        assert_eq!(scene.chunks()[0].triangle_indices().len(), 36);
     }
 
     #[cfg(feature = "desktop-host")]

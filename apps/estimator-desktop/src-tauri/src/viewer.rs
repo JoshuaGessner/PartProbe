@@ -8,6 +8,9 @@ use partprobe_desktop_contract::{
     ModelViewerWorkspaceResult, SetModelViewerWorkspaceRequest,
 };
 #[cfg(feature = "viewer-spike")]
+use partprobe_geometry_core::GEOMETRY_DISPLAY_SCENE_REFERENCE;
+use partprobe_geometry_import::ValidatedGeometryDisplayScene;
+#[cfg(feature = "viewer-spike")]
 use partprobe_model_viewer::{
     NativeSurfaceRenderer, StandardView, SurfaceFrameStatus, SurfaceViewport,
 };
@@ -19,7 +22,14 @@ const SYNTHETIC_VIEWER_FLAG: &str = "--vis1-synthetic-viewer";
 #[cfg(feature = "viewer-spike")]
 const SYNTHETIC_SCENE_REFERENCE: &str = "synthetic-viewer-spike-v1";
 #[cfg(feature = "viewer-spike")]
-const VIEWER_NOTICE: &str = "Synthetic renderer preview; selected-model display and governed stock placement are not connected yet.";
+const SYNTHETIC_VIEWER_NOTICE: &str =
+    "Synthetic renderer validation scene; it is not the selected model or stock authority.";
+#[cfg(feature = "viewer-spike")]
+const PENDING_VIEWER_NOTICE: &str = "Selected-model display is waiting for a validated analysis derivative; no prior model is shown.";
+#[cfg(feature = "viewer-spike")]
+const SOURCE_VIEWER_NOTICE: &str = "Selected exact B-rep model, tessellated for display from the current validated analysis. Stock is hidden until placement is governed.";
+#[cfg(feature = "viewer-spike")]
+const UNAVAILABLE_VIEWER_NOTICE: &str = "Selected-model display is unavailable; accepted analysis and estimate evidence remain usable. Stock is hidden until placement is governed.";
 #[cfg(feature = "viewer-spike")]
 const VIEWER_SIDEBAR_LOGICAL_WIDTH: f64 = 400.0;
 #[cfg(feature = "viewer-spike")]
@@ -39,6 +49,60 @@ struct ModelViewerRuntime {
     workspace: Option<tauri::Webview>,
     #[cfg(feature = "viewer-spike")]
     renderer: Option<NativeSurfaceRenderer>,
+    #[cfg(feature = "viewer-spike")]
+    scene_status: ViewerSceneStatus,
+}
+
+#[cfg(feature = "viewer-spike")]
+enum ViewerSceneStatus {
+    Synthetic,
+    Pending {
+        selection_id: String,
+    },
+    SourceBound {
+        selection_id: String,
+        analysis_id: String,
+    },
+    Unavailable {
+        selection_id: String,
+    },
+}
+
+#[cfg(feature = "viewer-spike")]
+impl ViewerSceneStatus {
+    fn selection_matches(&self, selection_id: &str) -> bool {
+        match self {
+            Self::Pending {
+                selection_id: current,
+            }
+            | Self::SourceBound {
+                selection_id: current,
+                ..
+            }
+            | Self::Unavailable {
+                selection_id: current,
+            } => current == selection_id,
+            Self::Synthetic => false,
+        }
+    }
+
+    fn visible_summary(&self) -> (Option<String>, &'static str) {
+        match self {
+            Self::Synthetic => (
+                Some(SYNTHETIC_SCENE_REFERENCE.to_owned()),
+                SYNTHETIC_VIEWER_NOTICE,
+            ),
+            Self::Pending { .. } => (None, PENDING_VIEWER_NOTICE),
+            Self::SourceBound { analysis_id, .. } => {
+                let _ = analysis_id;
+                (
+                    Some(GEOMETRY_DISPLAY_SCENE_REFERENCE.to_owned()),
+                    SOURCE_VIEWER_NOTICE,
+                )
+            }
+            Self::Unavailable { .. } => (None, UNAVAILABLE_VIEWER_NOTICE),
+        }
+    }
 }
 
 impl DesktopModelViewerState {
@@ -53,6 +117,8 @@ impl DesktopModelViewerState {
                 workspace: None,
                 #[cfg(feature = "viewer-spike")]
                 renderer: None,
+                #[cfg(feature = "viewer-spike")]
+                scene_status: ViewerSceneStatus::Synthetic,
             })),
         }
     }
@@ -98,13 +164,83 @@ impl DesktopModelViewerState {
                 let _ = apply_layout(&mut runtime);
                 return Err(error);
             }
+            let (scene_reference, notice) = runtime.scene_status.visible_summary();
             Ok(ModelViewerWorkspaceResult {
                 mode: request.mode,
                 scene_reference: (request.mode == ModelViewerWorkspaceMode::Visible)
-                    .then(|| SYNTHETIC_SCENE_REFERENCE.to_owned()),
-                notice: VIEWER_NOTICE.to_owned(),
+                    .then_some(scene_reference)
+                    .flatten(),
+                notice: notice.to_owned(),
             })
         }
+    }
+
+    pub(super) fn begin_selection(&self, selection_id: &str) {
+        #[cfg(feature = "viewer-spike")]
+        if let Ok(mut runtime) = self.inner.lock() {
+            if let Some(renderer) = runtime.renderer.as_mut() {
+                let _ = renderer.clear_source_scene();
+            }
+            runtime.scene_status = ViewerSceneStatus::Pending {
+                selection_id: selection_id.to_owned(),
+            };
+        }
+        #[cfg(not(feature = "viewer-spike"))]
+        let _ = selection_id;
+    }
+
+    pub(super) fn accept_analysis_scene(
+        &self,
+        selection_id: &str,
+        analysis_id: &str,
+        scene: Option<ValidatedGeometryDisplayScene>,
+    ) {
+        #[cfg(feature = "viewer-spike")]
+        if let Ok(mut runtime) = self.inner.lock() {
+            if !runtime.scene_status.selection_matches(selection_id) {
+                return;
+            }
+            let accepted = match (runtime.renderer.as_mut(), scene) {
+                (Some(renderer), Some(scene)) => {
+                    if renderer.set_source_scene(scene).is_ok() {
+                        true
+                    } else {
+                        // A rejected or unrenderable replacement must not leave either the
+                        // preceding selection or a partially installed source scene visible.
+                        let _ = renderer.clear_source_scene();
+                        false
+                    }
+                }
+                (Some(renderer), None) => {
+                    let _ = renderer.clear_source_scene();
+                    false
+                }
+                (None, _) => false,
+            };
+            runtime.scene_status = if accepted {
+                ViewerSceneStatus::SourceBound {
+                    selection_id: selection_id.to_owned(),
+                    analysis_id: analysis_id.to_owned(),
+                }
+            } else {
+                ViewerSceneStatus::Unavailable {
+                    selection_id: selection_id.to_owned(),
+                }
+            };
+        }
+        #[cfg(not(feature = "viewer-spike"))]
+        let _ = (selection_id, analysis_id, scene);
+    }
+}
+
+pub(super) fn source_scene_requested() -> bool {
+    #[cfg(feature = "viewer-spike")]
+    {
+        arguments_request_synthetic_viewer(&std::env::args_os().collect::<Vec<_>>())
+    }
+    #[cfg(not(feature = "viewer-spike"))]
+    {
+        false
     }
 }
 
@@ -119,8 +255,7 @@ pub(super) fn configure_in_window_viewer(
 
     #[cfg(feature = "viewer-spike")]
     {
-        let arguments = std::env::args_os().collect::<Vec<_>>();
-        if !arguments_request_synthetic_viewer(&arguments) {
+        if !source_scene_requested() {
             return Ok(DesktopModelViewerState::unavailable());
         }
 
@@ -158,6 +293,7 @@ pub(super) fn configure_in_window_viewer(
                 window: Some(window.clone()),
                 workspace: Some(workspace),
                 renderer: Some(renderer),
+                scene_status: ViewerSceneStatus::Synthetic,
             })),
         };
         let state_for_events = state.clone();
@@ -289,5 +425,39 @@ mod tests {
             DesktopModelViewerState::unavailable().availability(),
             ModelViewerAvailability::Unavailable
         );
+    }
+
+    #[cfg(feature = "viewer-spike")]
+    #[test]
+    fn source_bound_workspace_summary_is_path_free_and_hides_stock_authority() {
+        let status = ViewerSceneStatus::SourceBound {
+            selection_id: "selection-1".to_owned(),
+            analysis_id: "analysis-1".to_owned(),
+        };
+
+        let (reference, notice) = status.visible_summary();
+
+        assert_eq!(reference.as_deref(), Some(GEOMETRY_DISPLAY_SCENE_REFERENCE));
+        assert!(notice.contains("Selected exact B-rep model"));
+        assert!(notice.contains("Stock is hidden"));
+        assert!(!notice.contains('/'));
+        assert!(!notice.contains('\\'));
+    }
+
+    #[cfg(feature = "viewer-spike")]
+    #[test]
+    fn viewer_scene_status_is_bound_to_the_current_selection() {
+        let pending = ViewerSceneStatus::Pending {
+            selection_id: "selection-2".to_owned(),
+        };
+        let source = ViewerSceneStatus::SourceBound {
+            selection_id: "selection-2".to_owned(),
+            analysis_id: "analysis-2".to_owned(),
+        };
+
+        assert!(pending.selection_matches("selection-2"));
+        assert!(!pending.selection_matches("selection-1"));
+        assert!(source.selection_matches("selection-2"));
+        assert!(!ViewerSceneStatus::Synthetic.selection_matches("selection-2"));
     }
 }

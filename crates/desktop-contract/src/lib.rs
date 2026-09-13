@@ -1116,15 +1116,24 @@ mod tests {
         let request = SetModelViewerWorkspaceRequest {
             mode: ModelViewerWorkspaceMode::Visible,
         };
-        let result = ModelViewerWorkspaceResult {
+        let synthetic_result = ModelViewerWorkspaceResult {
             mode: ModelViewerWorkspaceMode::Visible,
             scene_reference: Some("synthetic-viewer-spike-v1".to_owned()),
             notice: "Synthetic renderer preview; selected-model display is unavailable.".to_owned(),
         };
-        let serialized = serde_json::to_string(&(request, result)).unwrap();
+        let source_result = ModelViewerWorkspaceResult {
+            mode: ModelViewerWorkspaceMode::Visible,
+            scene_reference: Some("geometry-display-scene-v1".to_owned()),
+            notice:
+                "Selected B-rep display derivative; stock is hidden until placement is governed."
+                    .to_owned(),
+        };
+        let serialized =
+            serde_json::to_string(&(request, synthetic_result, source_result)).unwrap();
 
         assert!(serialized.contains("visible"));
         assert!(serialized.contains("synthetic-viewer-spike-v1"));
+        assert!(serialized.contains("geometry-display-scene-v1"));
         assert!(!serialized.contains("/"));
         assert!(!serialized.contains("\\"));
         assert!(!serialized.contains("vertex"));

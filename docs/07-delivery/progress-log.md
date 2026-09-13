@@ -1,12 +1,22 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-09-12
+> **Last updated:** 2026-09-13
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-09-13 — VIS-2 source-bound desktop renderer handoff
+
+- Activated worker request schema v2 only for the exact `viewer-spike` plus `--vis1-synthetic-viewer` developer configuration. Ordinary desktop/package behavior remains schema v1 with the viewer unavailable. The requested profile is fixed to the governed 0.1 mm linear and 12 degree angular values, and the analysis plus display artifact share the existing bounded output quota.
+- Added a desktop-owned retained-scene lookup that succeeds only for the exact current selection and analysis identities. A new native selection clears the prior renderer scene immediately; stale analysis cannot replace a later selection. Display absence or replacement/render failure clears source buffers and becomes a path-free unavailable state without discarding accepted analysis or estimate state.
+- Extended `partprobe-model-viewer` to consume only `ValidatedGeometryDisplayScene`, preserving the nonserializable application boundary. It concatenates bounded chunks with checked index offsets, builds indexed GPU buffers, fits the selected model from actual finite decoded bounds, and derives deterministic display-only vertex shading. Source mode deliberately has no stock faces or edges until origin, orientation, and per-side placement semantics are governed.
+- Kept desktop contract v11 at exactly eleven commands with no DTO or permission migration. Its existing optional scene reference can now report only the fixed `geometry-display-scene-v1` value; pending/unavailable states carry no reference plus content-minimized text. Paths, CAD bytes, vertices, indices, renderer handles, and measurement/estimate authority remain outside the WebView.
+- Six ordinary renderer tests pass with one GPU smoke ignored, including projected-extents fitting across four views/multiple aspect ratios and no-stock evidence. The feature-enabled desktop host passes 48 ordinary tests with five opt-in smokes ignored. A fresh manifest-bound Apple-Silicon OCCT runtime explicitly passes the configured desktop scene-retention smoke: the governed 12 × 8 × 5 mm prism reaches desktop native state as 24 vertices, 12 triangles, and 36 indices.
+- Built and drove the corrected external-runtime developer `.app` through the real host-owned picker and native OCCT path. Selecting the governed 10 mm cube cleared the prior scene and showed exact pending/no-model state; analysis returned 10 × 10 × 10 mm, 600 mm², 1,000 mm³, and `(5, 5, 5)` mm; and the same-window Metal view displayed the complete source-bound cube with stock hidden. Live inspection found that longest-world-axis fitting clipped a rotated cube, so fitting now uses actual projected screen/depth extents and a deterministic regression covers all four views at three aspect ratios.
+- Closeout passes 304 default-workspace runtime tests plus one compile-fail doctest, 48 feature-host tests with five opt-in smokes ignored, six renderer tests with one native GPU smoke ignored, strict workspace/viewer-feature/WASM Clippy, the offline release frontend build, all 74 Python tooling tests, all sixty-nine fixture hashes, 151-file planning validation, formatting, and diff hygiene. Keyboard/textual equivalence, device-loss/failure fallback, governed stock placement/revision, representative performance, normal package integration, and Linux/Windows display evidence remain open. This is developer visualization evidence, not a supported importer, CAM result, stock proposal, or estimate authority.
 
 ## 2026-09-12 — VIS-2 native STEP display artifact and application retention
 

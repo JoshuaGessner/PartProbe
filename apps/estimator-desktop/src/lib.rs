@@ -112,7 +112,7 @@ impl ModelPanelState {
     pub const fn status_heading(&self) -> &'static str {
         match self {
             Self::Empty => "No model selected",
-            Self::Selected(_) => "Model selected — analysis not started",
+            Self::Selected(_) => "Model selected",
             Self::Failed => "Model selection failed",
         }
     }
@@ -124,7 +124,7 @@ impl ModelPanelState {
                 "Choose a local STEP model to begin. STL and 3MF files can be analyzed, but not estimated yet. Files stay on this computer."
             }
             Self::Selected(_) => {
-                "Ready to analyze locally. This file is available only for this session and is not saved."
+                "Available for local analysis. This file is available only for this session and is not saved."
             }
             Self::Failed => {
                 "No model was retained. Choose another local file or restart the session."
@@ -280,7 +280,7 @@ mod tests {
         });
 
         assert_eq!(state, ModelPanelState::Selected(source));
-        assert!(state.status_heading().contains("analysis not started"));
+        assert_eq!(state.status_heading(), "Model selected");
         assert!(state.status_detail().contains("session"));
         assert!(state.status_detail().contains("not saved"));
     }

@@ -27,11 +27,13 @@ use partprobe_domain::{
     RecordVersionId, RecordedAt, RuleVersion, SchemaVersion, ValueState,
 };
 use partprobe_geometry_core::{
-    AnalysisProfile, AnalysisProfileId, GeometryConfidence, GeometryConfidenceLevel, GeometryStage,
-    ModelLengthUnit, StageStatus, UnitResolutionMethod,
+    AnalysisProfile, AnalysisProfileId, DisplayTessellationProfile, GeometryConfidence,
+    GeometryConfidenceLevel, GeometryStage, ModelLengthUnit, ProvisionalGeometryDecimal,
+    StageStatus, UnitResolutionMethod,
 };
 use partprobe_geometry_import::{
-    AssetCapability, CorrelationId, GeometryJobId, LocalAssetRoot, MeshSelfIntersectionState,
+    AssetCapability, CorrelationId, DisplaySceneRequest, GEOMETRY_WORKER_SCHEMA_VERSION,
+    GeometryJobId, LocalAssetRoot, MAX_DISPLAY_SCENE_ARTIFACT_BYTES, MeshSelfIntersectionState,
     MeshTopologyIdentity, MeshVector3, MeshWeldingStatus, ProvisionalMeshEvidence, ResourceQuotas,
     StlEncoding,
 };
@@ -50,7 +52,8 @@ const DEVELOPER_PROJECT_ID: &str = "gui-4-developer-slice";
 const DEVELOPER_CLASSIFICATION_ID: &str = "local-test-data";
 const DEVELOPER_RECORD_STATE_ID: &str = "ephemeral-draft";
 const MAX_INPUT_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_OUTPUT_BYTES: u64 = 1024 * 1024;
+const MAX_ANALYSIS_OUTPUT_BYTES: u64 = 1024 * 1024;
+const MAX_OUTPUT_BYTES: u64 = MAX_ANALYSIS_OUTPUT_BYTES + MAX_DISPLAY_SCENE_ARTIFACT_BYTES;
 const MAX_ENTITIES: u64 = 2_000_000;
 const WALL_TIME_MILLIS: u64 = 30_000;
 #[cfg(feature = "desktop-host")]
@@ -113,8 +116,16 @@ impl DesktopAnalysisConfiguration {
         })
     }
 
+    #[cfg(test)]
     pub fn build_adapter(
         self,
+    ) -> Result<DesktopAnalysisAdapter<GeometryWorkerSupervisor>, HostCommandError> {
+        self.build_adapter_with_display_scene(false)
+    }
+
+    pub fn build_adapter_with_display_scene(
+        self,
+        request_display_scene: bool,
     ) -> Result<DesktopAnalysisAdapter<GeometryWorkerSupervisor>, HostCommandError> {
         let policy = SupervisorPolicy::new(
             1024 * 1024,
@@ -130,7 +141,10 @@ impl DesktopAnalysisConfiguration {
                     supervisor.with_native_library_directory(self.native_library_directory)
                 })
                 .map_err(|_| HostCommandError::analysis_unavailable("GUI4-ANALYSIS-SUPERVISOR"))?;
-        Ok(DesktopAnalysisAdapter::new(supervisor))
+        Ok(DesktopAnalysisAdapter::with_display_scene_request(
+            supervisor,
+            request_display_scene,
+        ))
     }
 }
 
@@ -163,14 +177,20 @@ pub struct DesktopAnalysisAdapter<G> {
         InMemoryAuthorizationAudit,
         G,
     >,
+    request_display_scene: bool,
 }
 
 impl<G> DesktopAnalysisAdapter<G>
 where
     G: GeometryAnalysisPort,
 {
-    #[cfg(any(feature = "desktop-host", test))]
+    #[cfg(test)]
     pub fn new(geometry_analysis: G) -> Self {
+        Self::with_display_scene_request(geometry_analysis, false)
+    }
+
+    #[cfg(any(feature = "desktop-host", test))]
+    pub fn with_display_scene_request(geometry_analysis: G, request_display_scene: bool) -> Self {
         Self {
             application: DraftEstimateApplication::new(
                 LocalAssetReadService::new(
@@ -179,6 +199,7 @@ where
                 ),
                 geometry_analysis,
             ),
+            request_display_scene,
         }
     }
 
@@ -205,7 +226,7 @@ where
         let ids = AnalysisIdentifiers::new(analysis_number)?;
         let root = LocalAssetRoot::open(ids.asset_root_id.clone(), parent)
             .map_err(|_| HostCommandError::invalid_selection("GUI4-ANALYSIS-SOURCE-ROOT"))?;
-        let template = request_template(&ids)?;
+        let template = request_template(&ids, self.request_display_scene)?;
         let subject = asset_subject(&ids)?;
         let session = self
             .application
@@ -266,9 +287,20 @@ impl AnalysisIdentifiers {
 
 fn request_template(
     ids: &AnalysisIdentifiers,
+    request_display_scene: bool,
 ) -> Result<DraftGeometryRequestTemplate, HostCommandError> {
-    DraftGeometryRequestTemplate::new(
-        SchemaVersion::new(1).map_err(|_| internal_contract_error())?,
+    let schema_version = if request_display_scene {
+        GEOMETRY_WORKER_SCHEMA_VERSION
+    } else {
+        1
+    };
+    let max_output_bytes = if request_display_scene {
+        MAX_OUTPUT_BYTES
+    } else {
+        MAX_ANALYSIS_OUTPUT_BYTES
+    };
+    let template = DraftGeometryRequestTemplate::new(
+        SchemaVersion::new(schema_version).map_err(|_| internal_contract_error())?,
         ids.job_id.clone(),
         ids.correlation_id.clone(),
         ids.asset_capability.clone(),
@@ -287,13 +319,27 @@ fn request_template(
         },
         ResourceQuotas::new(
             MAX_INPUT_BYTES,
-            MAX_OUTPUT_BYTES,
+            max_output_bytes,
             MAX_ENTITIES,
             WALL_TIME_MILLIS,
         )
         .map_err(|_| internal_contract_error())?,
     )
-    .map_err(|_| internal_contract_error())
+    .map_err(|_| internal_contract_error())?;
+    if request_display_scene {
+        template
+            .with_display_scene(DisplaySceneRequest::new(
+                DisplayTessellationProfile::new(
+                    ProvisionalGeometryDecimal::new("0.1")
+                        .map_err(|_| internal_contract_error())?,
+                    ProvisionalGeometryDecimal::new("12").map_err(|_| internal_contract_error())?,
+                )
+                .map_err(|_| internal_contract_error())?,
+            ))
+            .map_err(|_| internal_contract_error())
+    } else {
+        Ok(template)
+    }
 }
 
 fn asset_subject(ids: &AnalysisIdentifiers) -> Result<AssetReadSubject, HostCommandError> {
@@ -694,6 +740,7 @@ mod tests {
     #[derive(Debug, Default)]
     struct StaticAnalyzer {
         calls: AtomicU64,
+        expect_display_scene: bool,
     }
 
     #[derive(Debug, Default)]
@@ -710,6 +757,15 @@ mod tests {
             _cancellation: &AtomicBool,
         ) -> Result<AnalyzedGeometryEvidence, GeometryAnalysisFailure> {
             assert_eq!(grant.asset_capability(), request.asset_capability());
+            assert_eq!(request.display_scene().is_some(), self.expect_display_scene);
+            assert_eq!(
+                request.quotas().max_output_bytes(),
+                if self.expect_display_scene {
+                    MAX_OUTPUT_BYTES
+                } else {
+                    MAX_ANALYSIS_OUTPUT_BYTES
+                }
+            );
             self.calls.fetch_add(1, Ordering::Relaxed);
             let snapshot = ProvisionalGeometrySnapshot::new(
                 request.expected_source_hash().clone(),
@@ -877,6 +933,32 @@ mod tests {
                 .rounded_selling_price,
             "702"
         );
+    }
+
+    #[test]
+    fn viewer_enabled_analysis_requests_the_governed_display_profile() {
+        let adapter = DesktopAnalysisAdapter::with_display_scene_request(
+            StaticAnalyzer {
+                calls: AtomicU64::new(0),
+                expect_display_scene: true,
+            },
+            true,
+        );
+        let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/models/rectangular_prism_12x8x5.step");
+
+        let (_, result) = adapter
+            .analyze(
+                "selection-display",
+                ModelSourceFormat::Step,
+                &source,
+                2,
+                &AtomicBool::new(false),
+            )
+            .expect("viewer-enabled analysis must carry a valid display request");
+
+        assert_eq!(result.analysis_id, "analysis-2");
+        assert_eq!(adapter.audit_event_count(), 1);
     }
 
     #[test]

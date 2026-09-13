@@ -1218,6 +1218,30 @@ fn ModelViewerWorkspace(
         }
         _ => "Native viewport is changing state.".to_owned(),
     };
+    let viewer_badge = move || match viewer_state.get() {
+        ModelViewerPanelState::Active(result) if result.scene_reference.is_some() => {
+            "Native display"
+        }
+        ModelViewerPanelState::Active(_) => match analysis_state.get() {
+            AnalysisPanelState::NotStarted => "Waiting for analysis",
+            AnalysisPanelState::Running | AnalysisPanelState::Cancelling => "Preparing display",
+            _ => "Display unavailable",
+        },
+        _ => "Changing state",
+    };
+    let viewer_badge_class = move || match viewer_state.get() {
+        ModelViewerPanelState::Active(result) if result.scene_reference.is_some() => {
+            "status-chip available"
+        }
+        _ => "status-chip blocked",
+    };
+    let viewer_view = move || match viewer_state.get() {
+        ModelViewerPanelState::Active(result) if result.scene_reference.is_some() => {
+            "Isometric · opaque model"
+        }
+        ModelViewerPanelState::Active(_) => "No model displayed",
+        _ => "Changing state",
+    };
 
     view! {
         <main id="workspace" class="model-viewer-workspace">
@@ -1225,13 +1249,13 @@ fn ModelViewerWorkspace(
                 <div class="panel-heading">
                     <div>
                         <p class="section-index">"VISUAL REVIEW"</p>
-                        <h2 id="model-viewer-heading">"Model & proposed stock"</h2>
+                        <h2 id="model-viewer-heading">"Model & stock review"</h2>
                     </div>
-                    <span class="status-chip blocked">"Synthetic preview"</span>
+                    <span class=viewer_badge_class>{viewer_badge}</span>
                 </div>
 
                 <div class="viewer-preview-notice" role="status">
-                    <p class="blocked-title">"Renderer validation scene"</p>
+                    <p class="blocked-title">"Native visualization status"</p>
                     <p>{viewer_notice}</p>
                 </div>
 
@@ -1239,11 +1263,11 @@ fn ModelViewerWorkspace(
                     <div><dt>"Selected source"</dt><dd>{source}</dd></div>
                     <div><dt>"Analysis"</dt><dd>{analysis}</dd></div>
                     <div><dt>"Stock proposal"</dt><dd>{proposal}</dd></div>
-                    <div><dt>"View"</dt><dd>"Isometric · model opaque · stock translucent"</dd></div>
+                    <div><dt>"View"</dt><dd>{viewer_view}</dd></div>
                 </dl>
 
                 <p class="evidence-note">
-                    "The native viewport is inside this PartProbe window. Its current shapes are a fixed renderer test—not the selected model, stock authority, workholding, or CAM evidence."
+                    "The viewport stays inside this PartProbe window. Selected-model geometry is a display-only derivative, not measurement, stock, workholding, or CAM authority. Stock remains hidden until placement is governed."
                 </p>
                 <p class="viewer-navigation-note">
                     "Use Estimate or Settings above to return to the full workspace."
