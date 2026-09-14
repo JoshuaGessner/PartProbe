@@ -131,15 +131,26 @@ async fn prepare_draft_estimate_proposal(
     app: tauri::AppHandle,
     request: PrepareDraftEstimateProposalRequest,
 ) -> Result<DraftEstimateProposalEvaluation, HostCommandError> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let settings = app
+    app.state::<DesktopModelViewerState>()
+        .clear_proposed_stock();
+    let task_app = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let settings = task_app
             .state::<DesktopSettingsState>()
             .current_settings_draft()?;
-        app.state::<DesktopSessionState>()
+        task_app
+            .state::<DesktopSessionState>()
             .prepare_draft_estimate_proposal(&request, &settings)
     })
     .await
-    .map_err(|_| HostCommandError::host_state_unavailable("USE3-PROPOSAL-TASK"))?
+    .map_err(|_| HostCommandError::host_state_unavailable("USE3-PROPOSAL-TASK"))??;
+    if let DraftEstimateProposalEvaluation::Available { proposal } = &result
+        && let Some(dimensions_mm) = proposal_blank_dimensions(&proposal.blank_dimensions_mm)
+    {
+        app.state::<DesktopModelViewerState>()
+            .accept_proposed_stock(&proposal.selection_id, &proposal.analysis_id, dimensions_mm);
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -154,9 +165,40 @@ async fn save_shop_settings(
     app: tauri::AppHandle,
     request: SaveShopSettingsRequest,
 ) -> Result<ShopSettingsState, HostCommandError> {
-    tauri::async_runtime::spawn_blocking(move || app.state::<DesktopSettingsState>().save(&request))
-        .await
-        .map_err(|_| HostCommandError::settings_unavailable("USE2-SETTINGS-SAVE-TASK"))?
+    let task_app = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        task_app.state::<DesktopSettingsState>().save(&request)
+    })
+    .await
+    .map_err(|_| HostCommandError::settings_unavailable("USE2-SETTINGS-SAVE-TASK"))??;
+    app.state::<DesktopModelViewerState>()
+        .clear_proposed_stock();
+    Ok(result)
+}
+
+fn proposal_blank_dimensions(values: &[String; 3]) -> Option<[f32; 3]> {
+    Some([
+        values[0].parse().ok()?,
+        values[1].parse().ok()?,
+        values[2].parse().ok()?,
+    ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::proposal_blank_dimensions;
+
+    #[test]
+    fn proposal_stock_dimensions_map_only_complete_numeric_evidence() {
+        assert_eq!(
+            proposal_blank_dimensions(&["18.4".into(), "14.4".into(), "11.4".into()]),
+            Some([18.4, 14.4, 11.4])
+        );
+        assert_eq!(
+            proposal_blank_dimensions(&["18.4".into(), "not-a-number".into(), "11.4".into()]),
+            None
+        );
+    }
 }
 
 #[tauri::command]

@@ -107,6 +107,10 @@ impl ProposalPanelState {
 }
 
 impl SettingsPanelState {
+    fn has_saved_draft(&self) -> bool {
+        matches!(self, Self::Available(_))
+    }
+
     fn revision(&self) -> Option<u32> {
         match self {
             Self::Available(settings) => Some(settings.revision),
@@ -461,8 +465,9 @@ impl DeveloperEstimateForm {
 
     /// Loads the versioned Huntsville aerospace testing baseline into the unsaved form.
     ///
-    /// The user must still review, confirm, and save them; this action never creates shop or
-    /// production authority and is intentionally unavailable as an automatic startup default.
+    /// The explicit install action is the user's review/confirmation for this internal test
+    /// profile. It never creates shop or production authority and is intentionally unavailable
+    /// as an automatic startup default.
     fn load_huntsville_test_values(&mut self) {
         self.rate_card_id = "huntsville-2026q3-test-rates".to_owned();
         self.rate_card_version = "1".to_owned();
@@ -523,11 +528,44 @@ impl DeveloperEstimateForm {
             inspection_minutes: "15".to_owned(),
             runtime_source: "generic-aluminum-test-assumption-not-cam".to_owned(),
         };
-        self.rates_confirmed = false;
-        self.pricing_confirmed = false;
+        self.confirm_saved_settings_for_session();
         self.settings_changed_by = "local-test-operator".to_owned();
         self.settings_change_reason =
             "Load research-informed Huntsville aerospace testing baseline".to_owned();
+    }
+
+    fn confirm_saved_settings_for_session(&mut self) {
+        self.rates_confirmed = true;
+        self.pricing_confirmed = true;
+        if self.resources.enabled {
+            self.resources.confirmed_for_draft = true;
+        }
+    }
+
+    fn set_geometry_reviewed(&mut self, reviewed: bool) {
+        self.geometry_review.canonical_units_reviewed = reviewed;
+        self.geometry_review.warnings_reviewed = reviewed;
+    }
+
+    fn set_proposal_reviewed(&mut self, reviewed: bool) {
+        self.proposal_values_reviewed = reviewed;
+        self.coarse_limitations_accepted = reviewed;
+        if reviewed && self.proposal_review_reason.trim().is_empty() {
+            self.proposal_review_reason =
+                "Reviewed model-derived test proposal and named limitations".to_owned();
+        } else if !reviewed {
+            self.proposal_review_reason.clear();
+        }
+    }
+
+    fn set_no_additional_test_pieces(&mut self, none: bool) {
+        if none {
+            self.planned_spares = "0".to_owned();
+            self.destructive_samples = "0".to_owned();
+        } else if self.planned_spares == "0" && self.destructive_samples == "0" {
+            self.planned_spares.clear();
+            self.destructive_samples.clear();
+        }
     }
 
     fn estimate_inputs_complete(&self) -> bool {
@@ -645,7 +683,11 @@ impl DeveloperEstimateForm {
         }
     }
 
-    fn apply_settings(&mut self, settings: &ShopSettingsSnapshot) {
+    fn apply_settings(
+        &mut self,
+        settings: &ShopSettingsSnapshot,
+        reset_session_confirmation: bool,
+    ) {
         self.currency.clone_from(&settings.currency);
         if let Some(rates) = settings.rates.as_ref() {
             self.rate_card_id.clone_from(&rates.rate_card_id);
@@ -690,9 +732,14 @@ impl DeveloperEstimateForm {
             self.optional_minimum_order.clear();
             self.rounding_decimal_places.clear();
         }
-        self.rates_confirmed = false;
-        self.pricing_confirmed = false;
+        if reset_session_confirmation {
+            self.rates_confirmed = false;
+            self.pricing_confirmed = false;
+        }
         self.resources.apply(settings.resources.as_ref());
+        if !reset_session_confirmation && self.resources.enabled {
+            self.resources.confirmed_for_draft = true;
+        }
         self.settings_change_reason.clear();
     }
 
@@ -898,7 +945,7 @@ fn App() -> impl IntoView {
                         set_settings_state.set(SettingsPanelState::NotConfigured);
                     }
                     Ok(ShopSettingsState::Available { settings }) => {
-                        form.update(|current| current.apply_settings(&settings));
+                        form.update(|current| current.apply_settings(&settings, true));
                         set_settings_state.set(SettingsPanelState::Available(settings));
                     }
                     Err(_) => set_settings_state.set(SettingsPanelState::Failed {
@@ -934,8 +981,11 @@ fn App() -> impl IntoView {
             match invoke_partprobe(COMMAND_SAVE_SHOP_SETTINGS, args).await {
                 Ok(value) => match serde_wasm_bindgen::from_value::<ShopSettingsState>(value) {
                     Ok(ShopSettingsState::Available { settings }) => {
-                        form.update(|current| current.apply_settings(&settings));
+                        // Saving is the explicit confirmation for this running session. Preserve
+                        // it so a successful save cannot immediately look incomplete.
+                        form.update(|current| current.apply_settings(&settings, false));
                         set_settings_state.set(SettingsPanelState::Available(settings));
+                        set_active_view.set(WorkspaceView::Estimate);
                     }
                     Ok(ShopSettingsState::NotConfigured) | Err(_) => {
                         set_settings_state.set(SettingsPanelState::Failed {
@@ -958,6 +1008,11 @@ fn App() -> impl IntoView {
                 }
             }
         });
+    });
+
+    let install_huntsville_profile = Callback::new(move |()| {
+        form.update(DeveloperEstimateForm::load_huntsville_test_values);
+        save_settings.run(());
     });
 
     Effect::new(move |_| {
@@ -1139,7 +1194,14 @@ fn App() -> impl IntoView {
                         />
                     }
                 >
-                    <SettingsWorkspace form settings_state set_active_view save_settings load_settings />
+                    <SettingsWorkspace
+                        form
+                        settings_state
+                        set_active_view
+                        save_settings
+                        load_settings
+                        install_huntsville_profile
+                    />
                 </Show>
             }
         >
@@ -1217,6 +1279,7 @@ fn App() -> impl IntoView {
                     set_proposal_state
                     estimate_state
                     set_estimate_state
+                    settings_state
                     form
                     set_active_view
                 />
@@ -1450,7 +1513,11 @@ fn ModelViewerWorkspace(
     };
     let viewer_view = move || match viewer_state.get() {
         ModelViewerPanelState::Active(result) if result.scene_reference.is_some() => {
-            format!("{} · opaque model", model_view_label(result.view))
+            if proposal_state.get().is_available() {
+                format!("{} · model + proposed stock", model_view_label(result.view))
+            } else {
+                format!("{} · model", model_view_label(result.view))
+            }
         }
         ModelViewerPanelState::Active(_)
         | ModelViewerPanelState::Failed(_)
@@ -1547,7 +1614,7 @@ fn ModelViewerWorkspace(
                 </section>
 
                 <p class="evidence-note">
-                    "The viewport stays inside this PartProbe window. Selected-model geometry is a display-only derivative, not measurement, stock, workholding, or CAM authority. Stock remains hidden until placement is governed."
+                    "The viewport stays inside this PartProbe window. Model and proposed stock are display-only review layers, not measurement, standard-size availability, workholding, purchasing, or CAM authority."
                 </p>
                 <p class="viewer-navigation-note">
                     "Use Estimate or Settings above to return to the full workspace."
@@ -1802,7 +1869,7 @@ fn ProposalEvidence(
     move || match state.get() {
         ProposalPanelState::NotRequested => view! {
             <p class="estimate-readiness">
-                "Save complete test settings, then prepare estimate inputs."
+                "Analyze a STEP model to prepare model-specific estimate inputs automatically."
             </p>
         }
         .into_any(),
@@ -1852,22 +1919,20 @@ fn ProposalEvidence(
                             <legend>"Review proposal"</legend>
                             <ReviewCheckbox
                                 form
-                                label="The proposed stock, material, machine, and times look reasonable for this test."
+                                label="I reviewed the proposed stock, material, machine, times, and the named test limitations."
                                 read=|form| form.proposal_values_reviewed
-                                write=|form, value| form.proposal_values_reviewed = value
+                                    && form.coarse_limitations_accepted
+                                write=DeveloperEstimateForm::set_proposal_reviewed
                             />
-                            <ReviewCheckbox
-                                form
-                                label="I understand this estimate excludes tooling, fixtures, outside processes, freight, overhead, risk, and detailed cycle analysis."
-                                read=|form| form.coarse_limitations_accepted
-                                write=|form, value| form.coarse_limitations_accepted = value
-                            />
-                            <TextInput
-                                form
-                                label="Review note"
-                                read=|form| &form.proposal_review_reason
-                                write=|form, value| form.proposal_review_reason = value
-                            />
+                            <details>
+                                <summary>"Edit review note"</summary>
+                                <TextInput
+                                    form
+                                    label="Review note"
+                                    read=|form| &form.proposal_review_reason
+                                    write=|form, value| form.proposal_review_reason = value
+                                />
+                            </details>
                         </fieldset>
                     </section>
                 }
@@ -1877,7 +1942,7 @@ fn ProposalEvidence(
                 <section class="analysis-error" role="status">
                     <p class="blocked-title">"Proposal unavailable"</p>
                     <p>{reason}</p>
-                    <p>"Open Settings to save and confirm a complete starter resource draft."</p>
+                    <p>"Open Settings only if the saved test profile needs to be changed."</p>
                 </section>
             }
             .into_any(),
@@ -1907,6 +1972,7 @@ fn EstimateWorkspace(
     set_proposal_state: WriteSignal<ProposalPanelState>,
     estimate_state: ReadSignal<DraftEstimatePanelState>,
     set_estimate_state: WriteSignal<DraftEstimatePanelState>,
+    settings_state: ReadSignal<SettingsPanelState>,
     form: RwSignal<DeveloperEstimateForm>,
     set_active_view: WriteSignal<WorkspaceView>,
 ) -> impl IntoView {
@@ -1920,7 +1986,12 @@ fn EstimateWorkspace(
         });
         set_proposal_state.set(ProposalPanelState::NotRequested);
     });
-    let prepare_proposal = move |_| {
+    let prepare_proposal = Callback::new(move |()| {
+        if !settings_state.get_untracked().has_saved_draft() {
+            set_proposal_state.set(ProposalPanelState::NotRequested);
+            set_active_view.set(WorkspaceView::Settings);
+            return;
+        }
         let Some((selection_id, analysis_id)) = (match analysis_state.get_untracked() {
             AnalysisPanelState::Available(result) => {
                 Some((result.selection_id.clone(), result.analysis_id.clone()))
@@ -1961,7 +2032,16 @@ fn EstimateWorkspace(
                 }
             }
         });
-    };
+    });
+    Effect::new(move |_| {
+        let analysis_ready = matches!(analysis_state.get(), AnalysisPanelState::Available(_));
+        let saved_settings_ready = settings_state.get().has_saved_draft();
+        let proposal_not_requested =
+            matches!(proposal_state.get(), ProposalPanelState::NotRequested);
+        if analysis_ready && saved_settings_ready && proposal_not_requested {
+            prepare_proposal.run(());
+        }
+    });
     let submit = move |event: leptos::ev::SubmitEvent| {
         event.prevent_default();
         let Some((selection_id, analysis_id)) = (match analysis_state.get_untracked() {
@@ -2044,18 +2124,30 @@ fn EstimateWorkspace(
                             <div>
                                 <p class="section-index">"ESTIMATE BASIS"</p>
                                 <h3 id="proposal-heading">"Estimated stock and run time"</h3>
-                                <p>"Uses the model dimensions and saved test settings. Review these values before calculating."</p>
+                                <p>{move || if settings_state.get().has_saved_draft() {
+                                    "Uses the model dimensions and saved test settings. Review these values before calculating."
+                                } else {
+                                    "Save a reviewed test-settings revision before preparing model-specific stock and runtime inputs."
+                                }}</p>
                             </div>
                             <button
                                 type="button"
                                 class="secondary-action"
-                                disabled=move || matches!(proposal_state.get(), ProposalPanelState::Loading)
-                                on:click=prepare_proposal
+                                disabled=move || {
+                                    matches!(proposal_state.get(), ProposalPanelState::Loading)
+                                        || proposal_state.get().is_available()
+                                        || matches!(settings_state.get(), SettingsPanelState::Loading | SettingsPanelState::Saving)
+                                }
+                                on:click=move |_| prepare_proposal.run(())
                             >
                                 {move || if matches!(proposal_state.get(), ProposalPanelState::Loading) {
-                                    "Preparing inputs"
+                                    "Preparing automatically"
+                                } else if !settings_state.get().has_saved_draft() {
+                                    "Set up test profile"
+                                } else if proposal_state.get().is_available() {
+                                    "Inputs ready"
                                 } else {
-                                    "Prepare estimate inputs"
+                                    "Retry preparation"
                                 }}
                             </button>
                         </section>
@@ -2065,34 +2157,59 @@ fn EstimateWorkspace(
                                 <p class="section-index">"SHOP CONFIGURATION"</p>
                                 <h3 id="settings-summary-heading">"Rates and pricing"</h3>
                                 <p>
-                                    {move || if form.with(DeveloperEstimateForm::session_settings_ready) {
-                                        "Session settings are complete and confirmed."
+                                    {move || if settings_state.get().has_saved_draft()
+                                        && form.with(DeveloperEstimateForm::session_settings_ready) {
+                                        format!(
+                                            "Saved revision {} is selected for this test session.",
+                                            settings_state.get().revision().unwrap_or_default(),
+                                        )
+                                    } else if form.with(DeveloperEstimateForm::session_settings_ready) {
+                                        "These values are confirmed but not saved. Save them in Settings before preparing inputs."
+                                            .to_owned()
+                                    } else if settings_state.get().has_saved_draft() {
+                                        format!(
+                                            "Saved revision {} is loaded. Confirm it once for this test session.",
+                                            settings_state.get().revision().unwrap_or_default(),
+                                        )
                                     } else {
-                                        "Configure and confirm rates and pricing before calculating."
+                                        "Install the local test profile once in Settings.".to_owned()
                                     }}
                                 </p>
                             </div>
                             <button
                                 type="button"
-                                class="secondary-action"
-                                on:click=move |_| set_active_view.set(WorkspaceView::Settings)
+                                class=move || if settings_state.get().has_saved_draft()
+                                    && !form.with(DeveloperEstimateForm::session_settings_ready) {
+                                    "primary-action"
+                                } else {
+                                    "secondary-action"
+                                }
+                                on:click=move |_| {
+                                    if settings_state.get_untracked().has_saved_draft()
+                                        && !form.with_untracked(DeveloperEstimateForm::session_settings_ready)
+                                    {
+                                        form.update(DeveloperEstimateForm::confirm_saved_settings_for_session);
+                                    } else {
+                                        set_active_view.set(WorkspaceView::Settings);
+                                    }
+                                }
                             >
-                                "Open settings"
+                                {move || if settings_state.get().has_saved_draft()
+                                    && !form.with(DeveloperEstimateForm::session_settings_ready) {
+                                    "Use saved profile"
+                                } else {
+                                    "Open settings"
+                                }}
                             </button>
                         </section>
                         <fieldset>
-                            <legend>"Geometry review"</legend>
+                            <legend>"Analysis review"</legend>
                             <ReviewCheckbox
                                 form
-                                label="Units are correct: millimeters."
+                                label="I reviewed the millimeter units and analysis warnings."
                                 read=|form| form.geometry_review.canonical_units_reviewed
-                                write=|form, value| form.geometry_review.canonical_units_reviewed = value
-                            />
-                            <ReviewCheckbox
-                                form
-                                label="I reviewed the analysis warnings."
-                                read=|form| form.geometry_review.warnings_reviewed
-                                write=|form, value| form.geometry_review.warnings_reviewed = value
+                                    && form.geometry_review.warnings_reviewed
+                                write=DeveloperEstimateForm::set_geometry_reviewed
                             />
                         </fieldset>
 
@@ -2114,6 +2231,13 @@ fn EstimateWorkspace(
                                 <ExactInput form label="Planned spares" unit="items" read=|f| &f.planned_spares write=|f, v| f.planned_spares = v />
                                 <ExactInput form label="Destructive samples" unit="items" read=|f| &f.destructive_samples write=|f, v| f.destructive_samples = v />
                             </div>
+                            <ReviewCheckbox
+                                form
+                                label="No additional spares or destructive test pieces."
+                                read=|form| form.planned_spares == "0"
+                                    && form.destructive_samples == "0"
+                                write=DeveloperEstimateForm::set_no_additional_test_pieces
+                            />
                         </fieldset>
 
                         <Show when=move || !proposal_state.get().is_available()>
@@ -2168,7 +2292,7 @@ fn EstimateWorkspace(
 
                         <p class="estimate-readiness" role="status">
                             {move || if !form.with(DeveloperEstimateForm::session_settings_ready) {
-                                "Complete your test settings to continue."
+                                "Confirm the saved test profile once to continue."
                             } else if proposal_state.get().is_available()
                                 && !form.with(DeveloperEstimateForm::proposal_adoption_ready)
                             {
@@ -2231,6 +2355,7 @@ fn SettingsWorkspace(
     set_active_view: WriteSignal<WorkspaceView>,
     save_settings: Callback<()>,
     load_settings: Callback<()>,
+    install_huntsville_profile: Callback<()>,
 ) -> impl IntoView {
     let (settings_section, set_settings_section) = signal(SettingsSection::RatesAndPricing);
 
@@ -2243,12 +2368,19 @@ fn SettingsWorkspace(
                         <h2 id="settings-heading">"Shop rates and resources"</h2>
                     </div>
                     <span class=move || if form.with(DeveloperEstimateForm::session_settings_ready) {
-                        "status-chip available"
+                        if settings_state.get().has_saved_draft() {
+                            "status-chip available"
+                        } else {
+                            "status-chip blocked"
+                        }
                     } else {
                         "status-chip blocked"
                     }>
-                        {move || if form.with(DeveloperEstimateForm::session_settings_ready) {
+                        {move || if settings_state.get().has_saved_draft()
+                            && form.with(DeveloperEstimateForm::session_settings_ready) {
                             "Ready"
+                        } else if form.with(DeveloperEstimateForm::session_settings_ready) {
+                            "Save required"
                         } else {
                             "Setup required"
                         }}
@@ -2269,16 +2401,33 @@ fn SettingsWorkspace(
                             SettingsPanelState::Failed { error, .. } => format!("{} Diagnostic: {}", error.message, error.diagnostic_id),
                         }}
                     </p>
-                    <button
-                        type="button"
-                        class="secondary-action"
-                        on:click=move |_| form.update(DeveloperEstimateForm::load_huntsville_test_values)
+                    <Show
+                        when=move || !settings_state.get().has_saved_draft()
+                        fallback=move || view! {
+                            <p class="fieldset-note">
+                                {move || format!(
+                                    "Saved revision {} is available. Detailed rates and resources remain editable below.",
+                                    settings_state.get().revision().unwrap_or_default(),
+                                )}
+                            </p>
+                        }
                     >
-                        "Load Huntsville test profile"
-                    </button>
-                    <p class="fieldset-note">
-                        "Research-informed testing baseline—not verified shop pricing. Review every field before saving or calculating."
-                    </p>
+                        <p class="fieldset-note">
+                            "6061-T651 aluminum · rectangular allowance · reference 3-axis VMC · coarse runtime · USD test rates. This is an internal testing baseline, not verified shop pricing."
+                        </p>
+                        <button
+                            type="button"
+                            class="primary-action"
+                            disabled=move || matches!(settings_state.get(), SettingsPanelState::Saving)
+                            on:click=move |_| install_huntsville_profile.run(())
+                        >
+                            {move || if matches!(settings_state.get(), SettingsPanelState::Saving) {
+                                "Installing test profile"
+                            } else {
+                                "Install Huntsville test profile"
+                            }}
+                        </button>
+                    </Show>
                 </section>
 
                 <nav class="settings-section-nav" aria-label="Settings work areas">
@@ -2472,8 +2621,11 @@ fn SettingsWorkspace(
                     <p id="settings-save-status" aria-live="polite">
                         {move || if settings_state.get().resource_catalog().is_some() {
                             "Catalog changes: none. Save unavailable—trusted operator identity is not configured. The current catalog remains unchanged."
+                        } else if !settings_state.get().has_saved_draft()
+                            && form.with(DeveloperEstimateForm::session_settings_ready) {
+                            "Values are confirmed for this session. Save this first local revision before preparing estimate inputs."
                         } else if form.with(DeveloperEstimateForm::session_settings_ready) {
-                            "Rate and pricing settings are confirmed for this session."
+                            "Saved rate and pricing settings are confirmed for this session."
                         } else {
                             "Complete required rate/pricing fields and confirmations. If included, the starter resource bundle must also be complete."
                         }}
@@ -3137,7 +3289,7 @@ mod tests {
     }
 
     #[test]
-    fn huntsville_test_profile_is_versioned_complete_and_requires_review() {
+    fn huntsville_test_profile_install_is_versioned_complete_and_explicitly_confirmed() {
         let mut form = DeveloperEstimateForm::new();
 
         form.load_huntsville_test_values();
@@ -3156,10 +3308,29 @@ mod tests {
         assert_eq!(form.resources.stock_allowance_z_mm, "6.4");
         assert_eq!(form.resources.removal_rate_mm3_per_minute, "250000");
         assert_eq!(form.resources.machine_envelope_y_mm, "406");
-        assert!(!form.rates_confirmed);
-        assert!(!form.pricing_confirmed);
-        assert!(!form.resources.confirmed_for_draft);
-        assert!(!form.session_settings_ready());
+        assert!(form.rates_confirmed);
+        assert!(form.pricing_confirmed);
+        assert!(form.resources.confirmed_for_draft);
+        assert!(form.session_settings_ready());
+    }
+
+    #[test]
+    fn proposal_preparation_requires_a_saved_settings_revision() {
+        let missing = SettingsPanelState::NotConfigured;
+        let saved = SettingsPanelState::Available(Box::new(ShopSettingsSnapshot {
+            revision: 1,
+            currency: "USD".to_owned(),
+            rates: None,
+            pricing: None,
+            resources: None,
+            resource_catalog: None,
+            changed_by: "test-operator".to_owned(),
+            changed_at: "2026-09-13T12:00:00Z".to_owned(),
+            change_reason: "test fixture".to_owned(),
+        }));
+
+        assert!(!missing.has_saved_draft());
+        assert!(saved.has_saved_draft());
     }
 
     #[test]
@@ -3181,7 +3352,7 @@ mod tests {
             change_reason: "removed optional libraries".to_owned(),
         };
 
-        form.apply_settings(&settings);
+        form.apply_settings(&settings, true);
 
         assert!(form.rate_card_id.is_empty());
         assert!(form.setup_labor_per_hour.is_empty());
@@ -3190,6 +3361,49 @@ mod tests {
         assert!(!form.resources.enabled);
         assert!(!form.rates_confirmed);
         assert!(!form.pricing_confirmed);
+    }
+
+    #[test]
+    fn successful_save_preserves_session_confirmation_while_reload_clears_it() {
+        let settings = ShopSettingsSnapshot {
+            revision: 2,
+            currency: "USD".to_owned(),
+            rates: None,
+            pricing: None,
+            resources: None,
+            resource_catalog: None,
+            changed_by: "operator".to_owned(),
+            changed_at: "2026-09-13T12:00:00Z".to_owned(),
+            change_reason: "saved profile".to_owned(),
+        };
+        let mut form = DeveloperEstimateForm::new();
+        form.rates_confirmed = true;
+        form.pricing_confirmed = true;
+
+        form.apply_settings(&settings, false);
+        assert!(form.rates_confirmed);
+        assert!(form.pricing_confirmed);
+
+        form.apply_settings(&settings, true);
+        assert!(!form.rates_confirmed);
+        assert!(!form.pricing_confirmed);
+    }
+
+    #[test]
+    fn streamlined_review_actions_record_each_required_confirmation_and_explicit_zero() {
+        let mut form = DeveloperEstimateForm::new();
+
+        form.set_geometry_reviewed(true);
+        form.set_proposal_reviewed(true);
+        form.set_no_additional_test_pieces(true);
+
+        assert!(form.geometry_review.canonical_units_reviewed);
+        assert!(form.geometry_review.warnings_reviewed);
+        assert!(form.proposal_values_reviewed);
+        assert!(form.coarse_limitations_accepted);
+        assert!(!form.proposal_review_reason.is_empty());
+        assert_eq!(form.planned_spares, "0");
+        assert_eq!(form.destructive_samples, "0");
     }
 
     #[test]

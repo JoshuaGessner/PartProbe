@@ -17,12 +17,6 @@ fi
 python3 "${repository_root}/scripts/assemble_native_runtime.py" verify \
   --runtime-root "${runtime_root}"
 
-worker_workspace=$(mktemp -d "${TMPDIR:-/private/tmp}/partprobe-demo-worker.XXXXXX")
-cleanup_workspace() {
-  rmdir "${worker_workspace}" 2>/dev/null || true
-}
-trap cleanup_workspace EXIT INT TERM
-
 print "Launching PartProbe from ${application_bundle}"
-print "Close PartProbe to finish this launcher and remove its temporary worker workspace."
-PARTPROBE_GEOMETRY_WORKSPACE=${worker_workspace} "${application_binary}"
+print "The packaged host will create and remove its private worker workspace."
+"${application_binary}"

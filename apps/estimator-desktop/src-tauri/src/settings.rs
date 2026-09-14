@@ -326,8 +326,8 @@ impl DesktopSettingsState {
             .map_err(|error| map_store_error(error, "USE2-SETTINGS-LOAD"))?
         {
             ShopSettingsLoadState::Available(draft) => Ok(*draft),
-            ShopSettingsLoadState::NotConfigured => Err(HostCommandError::settings_unavailable(
-                "USE2-SETTINGS-NOT-CONFIGURED",
+            ShopSettingsLoadState::NotConfigured => Err(HostCommandError::settings_not_configured(
+                "USE2-SETTINGS-DRAFT-MISSING",
             )),
         }
     }
@@ -1444,6 +1444,9 @@ mod tests {
         let database = directory.path().join("settings.sqlite3");
         let state = DesktopSettingsState::open(&database).unwrap();
         assert_eq!(state.load().unwrap(), ShopSettingsState::NotConfigured);
+        let missing = state.current_settings_draft().unwrap_err();
+        assert_eq!(missing.diagnostic_id, "USE2-SETTINGS-DRAFT-MISSING");
+        assert!(missing.message.contains("No shop settings are saved yet"));
 
         let saved = state.save(&request(None)).unwrap();
         let ShopSettingsState::Available { settings } = saved else {

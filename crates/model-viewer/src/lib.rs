@@ -17,7 +17,7 @@ const MAX_FRAME_EDGE: u32 = 2_048;
 const MAX_SURFACE_EDGE: u32 = 4_096;
 const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-const FLOATS_PER_VERTEX: usize = 7;
+const FLOATS_PER_VERTEX: usize = 10;
 const VIEWPORT_BACKGROUND: wgpu::Color = wgpu::Color {
     r: 0.025,
     g: 0.038,
@@ -36,7 +36,7 @@ const STOCK_FACE_COLOR: [f32; 4] = [0.98, 0.59, 0.16, 0.13];
 const STOCK_EDGE_COLOR: [f32; 4] = [1.0, 0.69, 0.22, 0.95];
 const SOURCE_SCREEN_MARGIN: f32 = 0.88;
 const SOURCE_DEPTH_MARGIN: f32 = 0.45;
-const SOURCE_MODEL_COLOR: [f32; 4] = [0.18, 0.78, 0.78, 1.0];
+const SOURCE_MODEL_COLOR: [f32; 4] = [0.18, 0.66, 0.78, 1.0];
 
 /// Standard camera orientations required by the first model-and-stock workspace.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -86,6 +86,7 @@ pub enum ViewerError {
     InvalidSurfaceSize { width: u32, height: u32 },
     InvalidSurfaceViewport,
     InvalidModelScene,
+    InvalidProposedStock,
     SurfaceCreation(String),
     SurfaceUnsupported,
     SurfaceUnavailable(String),
@@ -113,6 +114,9 @@ impl fmt::Display for ViewerError {
             }
             Self::InvalidModelScene => formatter
                 .write_str("validated model display scene cannot be framed by the native renderer"),
+            Self::InvalidProposedStock => formatter.write_str(
+                "proposed stock dimensions must be finite, positive, and enclose the source model",
+            ),
             Self::AdapterUnavailable => {
                 formatter.write_str("no compatible native graphics adapter is available")
             }
@@ -186,7 +190,35 @@ impl SurfaceViewport {
 enum NativeScene {
     Synthetic,
     Empty,
-    SourceBound(Box<ValidatedGeometryDisplayScene>),
+    SourceBound {
+        scene: Box<ValidatedGeometryDisplayScene>,
+        proposed_stock: Option<ProposedStockDimensions>,
+    },
+}
+
+/// Display-only rectangular stock dimensions produced by the reviewed proposal policy.
+///
+/// This value controls visualization only. It cannot select purchasable stock, authorize an
+/// estimate, or change the retained geometry analysis.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ProposedStockDimensions([f32; 3]);
+
+impl ProposedStockDimensions {
+    /// Create bounded positive canonical-millimetre dimensions.
+    pub fn new(dimensions_mm: [f32; 3]) -> Result<Self, ViewerError> {
+        if dimensions_mm
+            .iter()
+            .any(|value| !value.is_finite() || *value <= 0.0)
+        {
+            return Err(ViewerError::InvalidProposedStock);
+        }
+        Ok(Self(dimensions_mm))
+    }
+
+    #[must_use]
+    pub const fn dimensions_mm(self) -> [f32; 3] {
+        self.0
+    }
 }
 
 /// A bounded native-window renderer for synthetic or validated source-bound review scenes.
@@ -377,13 +409,16 @@ impl NativeSurfaceRenderer {
 
     /// Replace the synthetic model with an already-validated source-bound display derivative.
     ///
-    /// Stock is deliberately hidden until a versioned placement policy supplies an authoritative
-    /// display transform; the source model remains visualization evidence only.
+    /// Stock remains hidden until a reviewed proposal supplies dimensions through
+    /// [`Self::set_proposed_stock`]; the source model remains visualization evidence only.
     pub fn set_source_scene(
         &mut self,
         scene: ValidatedGeometryDisplayScene,
     ) -> Result<SurfaceFrameStatus, ViewerError> {
-        let native_scene = NativeScene::SourceBound(Box::new(scene));
+        let native_scene = NativeScene::SourceBound {
+            scene: Box::new(scene),
+            proposed_stock: None,
+        };
         let buffers = create_scene_vertex_buffers(
             &self.device,
             &native_scene,
@@ -393,6 +428,37 @@ impl NativeSurfaceRenderer {
         )?;
         self.scene = native_scene;
         self.replace_scene_buffers(buffers);
+        self.render()
+    }
+
+    /// Show a review-only rectangular blank centered on the retained source-axis model bounds.
+    ///
+    /// Centering and splitting each total allowance equally between opposing faces is the
+    /// `proposed-stock-display-placement-v1` policy. The dimensions must enclose the source AABB.
+    pub fn set_proposed_stock(
+        &mut self,
+        stock: ProposedStockDimensions,
+    ) -> Result<SurfaceFrameStatus, ViewerError> {
+        let NativeScene::SourceBound {
+            scene,
+            proposed_stock,
+        } = &mut self.scene
+        else {
+            return Err(ViewerError::InvalidProposedStock);
+        };
+        validate_stock_encloses_scene(scene, stock)?;
+        *proposed_stock = Some(stock);
+        self.rebuild_scene()?;
+        self.render()
+    }
+
+    /// Hide any displayed proposal stock while retaining the current source model.
+    pub fn clear_proposed_stock(&mut self) -> Result<SurfaceFrameStatus, ViewerError> {
+        let NativeScene::SourceBound { proposed_stock, .. } = &mut self.scene else {
+            return Ok(SurfaceFrameStatus::Skipped);
+        };
+        *proposed_stock = None;
+        self.rebuild_scene()?;
         self.render()
     }
 
@@ -830,8 +896,8 @@ fn create_pipeline(
     layout: &wgpu::PipelineLayout,
     spec: PipelineSpec,
 ) -> wgpu::RenderPipeline {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4];
+    const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
+        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4];
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(spec.label),
         layout: Some(layout),
@@ -963,9 +1029,10 @@ fn create_scene_vertex_buffers(
     let scene = match source {
         NativeScene::Synthetic => build_scene(view, width as f32 / height as f32),
         NativeScene::Empty => SceneBuffers::empty(),
-        NativeScene::SourceBound(scene) => {
-            build_source_bound_scene(scene, view, width as f32 / height as f32)?
-        }
+        NativeScene::SourceBound {
+            scene,
+            proposed_stock,
+        } => build_source_bound_scene(scene, *proposed_stock, view, width as f32 / height as f32)?,
     };
     let model_index_count = scene
         .model_indices
@@ -1025,6 +1092,7 @@ fn build_scene(view: StandardView, aspect: f32) -> SceneBuffers {
 
 fn build_source_bound_scene(
     scene: &ValidatedGeometryDisplayScene,
+    proposed_stock: Option<ProposedStockDimensions>,
     view: StandardView,
     aspect: f32,
 ) -> Result<SceneBuffers, ViewerError> {
@@ -1055,12 +1123,26 @@ fn build_source_bound_scene(
     if center.iter().any(|coordinate| !coordinate.is_finite()) {
         return Err(ViewerError::InvalidModelScene);
     }
+    if let Some(stock) = proposed_stock {
+        validate_stock_encloses_spans(spans, stock)?;
+    }
+    let stock_bounds =
+        proposed_stock.map(|stock| Box3::centered([0.0, 0.0, 0.0], stock.dimensions_mm()));
     let mut maximum_screen_extent = 0.0_f32;
     let mut maximum_depth_extent = 0.0_f32;
     for chunk in scene.chunks() {
         for position in chunk.positions() {
             let centered = subtract(*position, center);
             let projected = project(centered, view, aspect);
+            maximum_screen_extent = maximum_screen_extent
+                .max(projected[0].abs())
+                .max(projected[1].abs());
+            maximum_depth_extent = maximum_depth_extent.max((projected[2] - 0.5).abs());
+        }
+    }
+    if let Some(bounds) = stock_bounds {
+        for position in bounds.corners {
+            let projected = project(position, view, aspect);
             maximum_screen_extent = maximum_screen_extent
                 .max(projected[0].abs())
                 .max(projected[1].abs());
@@ -1123,7 +1205,12 @@ fn build_source_bound_scene(
                 projected[1] * fit_scale,
                 0.5 + (projected[2] - 0.5) * fit_scale,
             ];
-            push_vertex(&mut model, fitted, source_model_color(normal));
+            push_vertex(
+                &mut model,
+                fitted,
+                project_normal(normal, view),
+                SOURCE_MODEL_COLOR,
+            );
         }
         for index in chunk.triangle_indices() {
             model_indices.push(
@@ -1136,12 +1223,58 @@ fn build_source_bound_scene(
     if model.len() != vertex_capacity || model_indices.len() != index_capacity {
         return Err(ViewerError::InvalidModelScene);
     }
+    let (stock, edges) = stock_bounds.map_or_else(
+        || (Vec::new(), Vec::new()),
+        |bounds| {
+            (
+                box_faces_fitted(bounds, view, aspect, fit_scale, [STOCK_FACE_COLOR; 6]),
+                box_edges_fitted(bounds, view, aspect, fit_scale, STOCK_EDGE_COLOR),
+            )
+        },
+    );
     Ok(SceneBuffers {
         model,
         model_indices: Some(model_indices),
-        stock: Vec::new(),
-        edges: Vec::new(),
+        stock,
+        edges,
     })
+}
+
+fn validate_stock_encloses_scene(
+    scene: &ValidatedGeometryDisplayScene,
+    stock: ProposedStockDimensions,
+) -> Result<(), ViewerError> {
+    let mut minimum = [f32::INFINITY; 3];
+    let mut maximum = [f32::NEG_INFINITY; 3];
+    for chunk in scene.chunks() {
+        for position in chunk.positions() {
+            for axis in 0..3 {
+                minimum[axis] = minimum[axis].min(position[axis]);
+                maximum[axis] = maximum[axis].max(position[axis]);
+            }
+        }
+    }
+    let spans = [
+        maximum[0] - minimum[0],
+        maximum[1] - minimum[1],
+        maximum[2] - minimum[2],
+    ];
+    validate_stock_encloses_spans(spans, stock)
+}
+
+fn validate_stock_encloses_spans(
+    spans: [f32; 3],
+    stock: ProposedStockDimensions,
+) -> Result<(), ViewerError> {
+    if spans.iter().any(|span| !span.is_finite() || *span <= 0.0)
+        || spans
+            .iter()
+            .zip(stock.dimensions_mm())
+            .any(|(span, stock_dimension)| stock_dimension < *span)
+    {
+        return Err(ViewerError::InvalidProposedStock);
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -1210,10 +1343,15 @@ fn box_faces(bounds: Box3, view: StandardView, aspect: f32, colors: [[f32; 4]; 6
     ];
     let mut output = Vec::with_capacity(6 * 6 * FLOATS_PER_VERTEX);
     for (face, color) in FACES.into_iter().zip(colors) {
+        let normal = cross(
+            subtract(bounds.corners[face[1]], bounds.corners[face[0]]),
+            subtract(bounds.corners[face[2]], bounds.corners[face[0]]),
+        );
         for corner in [face[0], face[1], face[2], face[0], face[2], face[3]] {
             push_vertex(
                 &mut output,
                 project(bounds.corners[corner], view, aspect),
+                project_normal(normal, view),
                 color,
             );
         }
@@ -1242,6 +1380,7 @@ fn box_edges(bounds: Box3, view: StandardView, aspect: f32, color: [f32; 4]) -> 
             push_vertex(
                 &mut output,
                 project(bounds.corners[corner], view, aspect),
+                [0.0; 3],
                 color,
             );
         }
@@ -1249,13 +1388,111 @@ fn box_edges(bounds: Box3, view: StandardView, aspect: f32, color: [f32; 4]) -> 
     output
 }
 
-fn push_vertex(output: &mut Vec<f32>, position: [f32; 3], color: [f32; 4]) {
+fn box_faces_fitted(
+    bounds: Box3,
+    view: StandardView,
+    aspect: f32,
+    fit_scale: f32,
+    colors: [[f32; 4]; 6],
+) -> Vec<f32> {
+    const FACES: [[usize; 4]; 6] = [
+        [0, 1, 2, 3],
+        [4, 7, 6, 5],
+        [0, 4, 5, 1],
+        [1, 5, 6, 2],
+        [2, 6, 7, 3],
+        [3, 7, 4, 0],
+    ];
+    let mut output = Vec::with_capacity(6 * 6 * FLOATS_PER_VERTEX);
+    for (face, color) in FACES.into_iter().zip(colors) {
+        let normal = cross(
+            subtract(bounds.corners[face[1]], bounds.corners[face[0]]),
+            subtract(bounds.corners[face[2]], bounds.corners[face[0]]),
+        );
+        for corner in [face[0], face[1], face[2], face[0], face[2], face[3]] {
+            push_vertex(
+                &mut output,
+                fit_project(bounds.corners[corner], view, aspect, fit_scale),
+                project_normal(normal, view),
+                color,
+            );
+        }
+    }
+    output
+}
+
+fn box_edges_fitted(
+    bounds: Box3,
+    view: StandardView,
+    aspect: f32,
+    fit_scale: f32,
+    color: [f32; 4],
+) -> Vec<f32> {
+    const EDGES: [[usize; 2]; 12] = [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 0],
+        [4, 5],
+        [5, 6],
+        [6, 7],
+        [7, 4],
+        [0, 4],
+        [1, 5],
+        [2, 6],
+        [3, 7],
+    ];
+    let mut output = Vec::with_capacity(12 * 2 * FLOATS_PER_VERTEX);
+    for edge in EDGES {
+        for corner in edge {
+            push_vertex(
+                &mut output,
+                fit_project(bounds.corners[corner], view, aspect, fit_scale),
+                [0.0; 3],
+                color,
+            );
+        }
+    }
+    output
+}
+
+fn push_vertex(output: &mut Vec<f32>, position: [f32; 3], normal: [f32; 3], color: [f32; 4]) {
     output.extend_from_slice(&position);
+    output.extend_from_slice(&normal);
     output.extend_from_slice(&color);
 }
 
 fn project(point: [f32; 3], view: StandardView, aspect: f32) -> [f32; 3] {
-    let (right, up, forward) = match view {
+    let (right, up, forward) = view_axes(view);
+    let scale = 0.78;
+    [
+        dot(point, right) * scale / aspect.max(1.0),
+        dot(point, up) * scale * aspect.min(1.0),
+        0.5 + dot(point, forward) * 0.22,
+    ]
+}
+
+fn fit_project(point: [f32; 3], view: StandardView, aspect: f32, scale: f32) -> [f32; 3] {
+    let projected = project(point, view, aspect);
+    [
+        projected[0] * scale,
+        projected[1] * scale,
+        0.5 + (projected[2] - 0.5) * scale,
+    ]
+}
+
+fn project_normal(normal: [f32; 3], view: StandardView) -> [f32; 3] {
+    let length_squared = dot(normal, normal);
+    if !length_squared.is_finite() || length_squared <= f32::EPSILON {
+        return [0.0; 3];
+    }
+    let normal = normalize(normal);
+    let (right, up, forward) = view_axes(view);
+    [dot(normal, right), dot(normal, up), dot(normal, forward)]
+}
+
+fn view_axes(view: StandardView) -> ([f32; 3], [f32; 3], [f32; 3]) {
+    match view {
         StandardView::Isometric => {
             let forward = normalize([1.0, -1.0, 0.78]);
             let right = normalize(cross([0.0, 0.0, 1.0], forward));
@@ -1264,13 +1501,7 @@ fn project(point: [f32; 3], view: StandardView, aspect: f32) -> [f32; 3] {
         StandardView::Front => ([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]),
         StandardView::Top => ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]),
         StandardView::Right => ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-    };
-    let scale = 0.78;
-    [
-        dot(point, right) * scale / aspect.max(1.0),
-        dot(point, up) * scale * aspect.min(1.0),
-        0.5 + dot(point, forward) * 0.22,
-    ]
+    }
 }
 
 fn dot(left: [f32; 3], right: [f32; 3]) -> f32 {
@@ -1287,23 +1518,6 @@ fn cross(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
 
 fn subtract(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
     [left[0] - right[0], left[1] - right[1], left[2] - right[2]]
-}
-
-fn source_model_color(normal: [f32; 3]) -> [f32; 4] {
-    let length_squared = dot(normal, normal);
-    let intensity = if length_squared > f32::EPSILON && length_squared.is_finite() {
-        let unit = normalize(normal);
-        let light = normalize([0.35, -0.45, 0.82]);
-        (0.45 + 0.55 * dot(unit, light).max(0.0)).clamp(0.45, 1.0)
-    } else {
-        0.65
-    };
-    [
-        SOURCE_MODEL_COLOR[0] * intensity,
-        SOURCE_MODEL_COLOR[1] * intensity,
-        SOURCE_MODEL_COLOR[2] * intensity,
-        SOURCE_MODEL_COLOR[3],
-    ]
 }
 
 fn normalize(value: [f32; 3]) -> [f32; 3] {
@@ -1336,7 +1550,7 @@ mod tests {
     fn validated_source_scene_is_fitted_and_never_invents_stock() {
         let scene = one_triangle_display_scene();
 
-        let buffers = build_source_bound_scene(&scene, StandardView::Isometric, 1.5)
+        let buffers = build_source_bound_scene(&scene, None, StandardView::Isometric, 1.5)
             .expect("validated source scene must fit the native viewport");
 
         assert_eq!(vertex_count(&buffers.model), 3);
@@ -1362,7 +1576,7 @@ mod tests {
             StandardView::Right,
         ] {
             for aspect in [0.5, 1.0, 1.5] {
-                let buffers = build_source_bound_scene(&scene, view, aspect)
+                let buffers = build_source_bound_scene(&scene, None, view, aspect)
                     .expect("validated cube must fit every standard viewport");
                 assert_eq!(buffers.model_indices.as_ref().map(Vec::len), Some(36));
                 for vertex in buffers.model.chunks_exact(FLOATS_PER_VERTEX) {
@@ -1375,6 +1589,53 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn reviewed_stock_is_centered_fitted_and_visibly_distinct() {
+        let scene = cube_display_scene();
+        let stock = ProposedStockDimensions::new([16.4, 16.4, 16.4])
+            .expect("reviewed positive dimensions must be valid");
+
+        let buffers = build_source_bound_scene(&scene, Some(stock), StandardView::Isometric, 1.5)
+            .expect("stock larger than the model must be displayable");
+
+        assert_eq!(vertex_count(&buffers.stock), 36);
+        assert_eq!(vertex_count(&buffers.edges), 24);
+        for vertex in buffers.stock.chunks_exact(FLOATS_PER_VERTEX) {
+            assert!(vertex[..3].iter().all(|coordinate| coordinate.is_finite()));
+            assert_eq!(&vertex[6..10], &STOCK_FACE_COLOR);
+        }
+        for vertex in buffers.edges.chunks_exact(FLOATS_PER_VERTEX) {
+            assert_eq!(&vertex[3..6], &[0.0; 3]);
+            assert_eq!(&vertex[6..10], &STOCK_EDGE_COLOR);
+        }
+    }
+
+    #[test]
+    fn proposed_stock_rejects_invalid_or_non_enclosing_dimensions() {
+        assert!(matches!(
+            ProposedStockDimensions::new([16.4, 0.0, 16.4]),
+            Err(ViewerError::InvalidProposedStock)
+        ));
+        let scene = cube_display_scene();
+        let too_small = ProposedStockDimensions::new([9.9, 16.4, 16.4])
+            .expect("positive dimensions can be structurally valid");
+        assert!(matches!(
+            build_source_bound_scene(&scene, Some(too_small), StandardView::Front, 1.0),
+            Err(ViewerError::InvalidProposedStock)
+        ));
+    }
+
+    #[test]
+    fn source_vertices_retain_normals_for_gpu_lighting() {
+        let scene = one_triangle_display_scene();
+        let buffers = build_source_bound_scene(&scene, None, StandardView::Front, 1.0)
+            .expect("validated source scene must build");
+        let vertex = &buffers.model[..FLOATS_PER_VERTEX];
+        assert!(vertex[3..6].iter().any(|component| component.abs() > 0.0));
+        assert_eq!(&vertex[6..10], &SOURCE_MODEL_COLOR);
+        assert!(include_str!("shader.wgsl").contains("rim"));
     }
 
     #[test]

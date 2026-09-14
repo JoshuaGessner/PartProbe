@@ -492,6 +492,18 @@ mod tests {
     }
 
     #[test]
+    fn proposal_ui_preserves_saved_state_and_streamlines_internal_test_setup() {
+        assert!(WEBVIEW.contains("has_saved_draft"));
+        assert!(WEBVIEW.contains("Install Huntsville test profile"));
+        assert!(WEBVIEW.contains("Use saved profile"));
+        assert!(WEBVIEW.contains("Preparing automatically"));
+        assert!(WEBVIEW.contains("These values are confirmed but not saved"));
+        assert!(WEBVIEW.contains("Save required"));
+        assert!(SETTINGS_ADAPTER.contains("settings_not_configured"));
+        assert!(SETTINGS_ADAPTER.contains("USE2-SETTINGS-DRAFT-MISSING"));
+    }
+
+    #[test]
     fn main_capability_is_exact_and_has_no_remote_or_broad_plugin_permission() {
         let capability: Value = serde_json::from_str(CAPABILITY).unwrap();
         assert_eq!(capability["windows"], serde_json::json!(["main"]));

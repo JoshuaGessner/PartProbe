@@ -1061,6 +1061,16 @@ impl HostCommandError {
     }
 
     #[must_use]
+    pub fn settings_not_configured(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::SettingsUnavailable,
+            message: "No shop settings are saved yet. Open Settings, review the test values, and save a revision before preparing estimate inputs."
+                .to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
     pub fn invalid_settings_input(diagnostic_id: impl Into<String>) -> Self {
         Self {
             code: HostErrorCode::InvalidSettingsInput,
@@ -1176,6 +1186,10 @@ mod tests {
             serde_json::to_value(ShopSettingsState::NotConfigured).unwrap(),
             serde_json::json!({"state": "not_configured"})
         );
+        let missing = HostCommandError::settings_not_configured("USE2-SETTINGS-DRAFT-MISSING");
+        assert_eq!(missing.code, HostErrorCode::SettingsUnavailable);
+        assert!(missing.message.contains("No shop settings are saved yet"));
+        assert_eq!(missing.diagnostic_id, "USE2-SETTINGS-DRAFT-MISSING");
         let request = SaveShopSettingsRequest {
             expected_revision: None,
             changed_by: "operator-1".to_owned(),

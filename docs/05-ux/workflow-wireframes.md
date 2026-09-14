@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** Draft
-- **Last updated:** 2026-09-11
+- **Last updated:** 2026-09-13
 - **Related requirement IDs:** UX-001 through UX-012, UX-021 through UX-045, REQ-F-001, REQ-F-006 through REQ-F-065
 - **Related architecture decision IDs:** ADR-0001
 - **Open questions:** Validate compact pane widths and total-strip contents with estimators.
@@ -31,7 +31,7 @@ These are structural wireframes, not visual designs. They specify hierarchy, vis
 
 CSV and bulk-paste actions first open a bounded dry-run table with row-level errors; no imported row becomes authoritative until validation and explicit acceptance. A missing/conflicting-rate link from an estimate opens this screen with the affected category and scope selected.
 
-The current contract-v10 checkpoint separates the upload/analyze Estimate workspace from durable local Settings. Rate/pricing drafts and one optional typed material/offer/stock/machine/runtime starter bundle persist as immutable revisions; reload clears confirmations. An explicit proposal command now applies the saved starter bundle to exact STEP bounds, returns review-only model-sensitive stock/material/coarse-runtime inputs, and requires review plus named limitation acceptance before estimate adoption. The ordinary workflow never silently loads test values. Settings offers an explicit Huntsville research-informed testing profile that remains unconfirmed and unsaved until reviewed; it is not verified market or deployment pricing.
+The current contract-v12 checkpoint separates the upload/analyze Estimate workspace from durable local Settings. Rate/pricing drafts and one optional typed material/offer/stock/machine/runtime starter bundle persist as immutable revisions. First run offers one explicit **Install Huntsville test profile** action that shows the concise test-only basis, records the fixed local-test actor/reason, confirms it, saves the immutable revision, and returns to Estimate; it is not verified market or deployment pricing. Reload requires one **Use saved profile** confirmation for the session, while the saved-revision chip remains distinct from session use. After exact STEP analysis with saved settings, proposal preparation starts automatically. Analysis units/warnings use one explicit review, proposal values/named limitations use one explicit review with an editable reason, and a separate checkbox records explicit zero spares/destructive samples. The primary path is therefore choose, analyze, review proposal, enter quantity, calculate; detailed rates/resources stay in Settings and technical evidence stays behind disclosure.
 
 ## Shop resource catalog
 

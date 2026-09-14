@@ -1,6 +1,8 @@
 use std::path::Path;
 #[cfg(feature = "desktop-host")]
 use std::path::PathBuf;
+#[cfg(feature = "desktop-host")]
+use std::sync::atomic::AtomicU64;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -58,6 +60,68 @@ const MAX_ENTITIES: u64 = 2_000_000;
 const WALL_TIME_MILLIS: u64 = 30_000;
 #[cfg(feature = "desktop-host")]
 const BUNDLED_NATIVE_RUNTIME_DIRECTORY: &str = "partprobe-native-runtime";
+#[cfg(feature = "desktop-host")]
+const HOST_WORKSPACE_NAME_PREFIX: &str = "partprobe-estimator-worker";
+#[cfg(feature = "desktop-host")]
+static HOST_WORKSPACE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(feature = "desktop-host")]
+#[derive(Debug)]
+struct HostOwnedWorkerWorkspace {
+    path: PathBuf,
+}
+
+#[cfg(feature = "desktop-host")]
+impl HostOwnedWorkerWorkspace {
+    fn create() -> Result<Self, HostCommandError> {
+        let temporary_directory = std::env::temp_dir();
+        let process_id = std::process::id();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| HostCommandError::analysis_unavailable("GUI5-HOST-WORKSPACE-CREATE"))?
+            .as_nanos();
+
+        for _ in 0..32 {
+            let sequence = HOST_WORKSPACE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let path = temporary_directory.join(format!(
+                "{HOST_WORKSPACE_NAME_PREFIX}-{process_id}-{timestamp}-{sequence}"
+            ));
+            let mut builder = std::fs::DirBuilder::new();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            match builder.create(&path) {
+                Ok(()) => return Ok(Self { path }),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(_) => {
+                    return Err(HostCommandError::analysis_unavailable(
+                        "GUI5-HOST-WORKSPACE-CREATE",
+                    ));
+                }
+            }
+        }
+
+        Err(HostCommandError::analysis_unavailable(
+            "GUI5-HOST-WORKSPACE-CREATE",
+        ))
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+#[cfg(feature = "desktop-host")]
+impl Drop for HostOwnedWorkerWorkspace {
+    fn drop(&mut self) {
+        // The supervisor owns and removes its per-job children. Remove only the exact,
+        // newly-created empty root; retaining a non-empty root is safer than recursively
+        // deleting state whose ownership can no longer be proven during shutdown.
+        let _ = std::fs::remove_dir(&self.path);
+    }
+}
 
 #[cfg(feature = "desktop-host")]
 #[derive(Debug)]
@@ -65,6 +129,7 @@ pub struct DesktopAnalysisConfiguration {
     worker_executable: PathBuf,
     worker_workspace: PathBuf,
     native_library_directory: PathBuf,
+    owned_worker_workspace: Option<HostOwnedWorkerWorkspace>,
 }
 
 #[cfg(feature = "desktop-host")]
@@ -72,7 +137,8 @@ impl DesktopAnalysisConfiguration {
     #[cfg(test)]
     pub fn from_environment() -> Result<Self, HostCommandError> {
         let runtime_root = required_path("PARTPROBE_NATIVE_RUNTIME")?;
-        Self::from_runtime_root(runtime_root)
+        let worker_workspace = required_path("PARTPROBE_GEOMETRY_WORKSPACE")?;
+        Self::from_runtime_root(runtime_root, worker_workspace, None)
     }
 
     pub fn from_deployment_resource_directory(
@@ -82,24 +148,62 @@ impl DesktopAnalysisConfiguration {
             resource_directory,
             optional_path("PARTPROBE_NATIVE_RUNTIME"),
         );
-        Self::from_runtime_root(runtime_root)
-    }
-
-    fn from_runtime_root(runtime_root: PathBuf) -> Result<Self, HostCommandError> {
-        let worker_workspace = required_path("PARTPROBE_GEOMETRY_WORKSPACE")?;
         let runtime = VerifiedNativeRuntime::verify(runtime_root)
             .map_err(|_| HostCommandError::analysis_unavailable("GUI5-NATIVE-RUNTIME-VERIFY"))?;
-        Self::new(
+        let (worker_workspace, owned_worker_workspace) =
+            match optional_path("PARTPROBE_GEOMETRY_WORKSPACE") {
+                Some(path) => (path, None),
+                None => {
+                    let owned = HostOwnedWorkerWorkspace::create()?;
+                    (owned.path().to_path_buf(), Some(owned))
+                }
+            };
+        Self::from_verified_runtime(runtime, worker_workspace, owned_worker_workspace)
+    }
+
+    #[cfg(test)]
+    fn from_runtime_root(
+        runtime_root: PathBuf,
+        worker_workspace: PathBuf,
+        owned_worker_workspace: Option<HostOwnedWorkerWorkspace>,
+    ) -> Result<Self, HostCommandError> {
+        let runtime = VerifiedNativeRuntime::verify(runtime_root)
+            .map_err(|_| HostCommandError::analysis_unavailable("GUI5-NATIVE-RUNTIME-VERIFY"))?;
+        Self::from_verified_runtime(runtime, worker_workspace, owned_worker_workspace)
+    }
+
+    fn from_verified_runtime(
+        runtime: VerifiedNativeRuntime,
+        worker_workspace: PathBuf,
+        owned_worker_workspace: Option<HostOwnedWorkerWorkspace>,
+    ) -> Result<Self, HostCommandError> {
+        Self::new_with_workspace_owner(
             runtime.worker_executable().to_path_buf(),
             worker_workspace,
             runtime.native_library_directory().to_path_buf(),
+            owned_worker_workspace,
         )
     }
 
+    #[cfg(test)]
     pub fn new(
         worker_executable: PathBuf,
         worker_workspace: PathBuf,
         native_library_directory: PathBuf,
+    ) -> Result<Self, HostCommandError> {
+        Self::new_with_workspace_owner(
+            worker_executable,
+            worker_workspace,
+            native_library_directory,
+            None,
+        )
+    }
+
+    fn new_with_workspace_owner(
+        worker_executable: PathBuf,
+        worker_workspace: PathBuf,
+        native_library_directory: PathBuf,
+        owned_worker_workspace: Option<HostOwnedWorkerWorkspace>,
     ) -> Result<Self, HostCommandError> {
         if !worker_executable.is_file()
             || !worker_workspace.is_dir()
@@ -113,6 +217,7 @@ impl DesktopAnalysisConfiguration {
             worker_executable,
             worker_workspace,
             native_library_directory,
+            owned_worker_workspace,
         })
     }
 
@@ -127,6 +232,12 @@ impl DesktopAnalysisConfiguration {
         self,
         request_display_scene: bool,
     ) -> Result<DesktopAnalysisAdapter<GeometryWorkerSupervisor>, HostCommandError> {
+        let Self {
+            worker_executable,
+            worker_workspace,
+            native_library_directory,
+            owned_worker_workspace,
+        } = self;
         let policy = SupervisorPolicy::new(
             1024 * 1024,
             10,
@@ -135,16 +246,15 @@ impl DesktopAnalysisConfiguration {
             WALL_TIME_MILLIS,
         )
         .map_err(|_| HostCommandError::analysis_unavailable("GUI4-ANALYSIS-POLICY"))?;
-        let supervisor =
-            GeometryWorkerSupervisor::new(self.worker_executable, self.worker_workspace, policy)
-                .and_then(|supervisor| {
-                    supervisor.with_native_library_directory(self.native_library_directory)
-                })
-                .map_err(|_| HostCommandError::analysis_unavailable("GUI4-ANALYSIS-SUPERVISOR"))?;
-        Ok(DesktopAnalysisAdapter::with_display_scene_request(
-            supervisor,
-            request_display_scene,
-        ))
+        let supervisor = GeometryWorkerSupervisor::new(worker_executable, worker_workspace, policy)
+            .and_then(|supervisor| {
+                supervisor.with_native_library_directory(native_library_directory)
+            })
+            .map_err(|_| HostCommandError::analysis_unavailable("GUI4-ANALYSIS-SUPERVISOR"))?;
+        let mut adapter =
+            DesktopAnalysisAdapter::with_display_scene_request(supervisor, request_display_scene);
+        adapter._owned_worker_workspace = owned_worker_workspace;
+        Ok(adapter)
     }
 }
 
@@ -165,6 +275,7 @@ fn optional_path(name: &str) -> Option<PathBuf> {
 }
 
 #[cfg(feature = "desktop-host")]
+#[cfg(test)]
 fn required_path(name: &str) -> Result<PathBuf, HostCommandError> {
     optional_path(name)
         .ok_or_else(|| HostCommandError::analysis_unavailable("GUI4-ANALYSIS-CONFIG-MISSING"))
@@ -178,6 +289,8 @@ pub struct DesktopAnalysisAdapter<G> {
         G,
     >,
     request_display_scene: bool,
+    #[cfg(feature = "desktop-host")]
+    _owned_worker_workspace: Option<HostOwnedWorkerWorkspace>,
 }
 
 impl<G> DesktopAnalysisAdapter<G>
@@ -200,6 +313,8 @@ where
                 geometry_analysis,
             ),
             request_display_scene,
+            #[cfg(feature = "desktop-host")]
+            _owned_worker_workspace: None,
         }
     }
 
@@ -1131,6 +1246,50 @@ mod tests {
             ),
             PathBuf::from("explicit-developer-runtime")
         );
+    }
+
+    #[cfg(feature = "desktop-host")]
+    #[test]
+    fn host_owned_worker_workspace_is_private_and_removed_when_empty() {
+        let workspace = HostOwnedWorkerWorkspace::create().expect("host workspace must be created");
+        let path = workspace.path().to_path_buf();
+
+        assert!(path.is_dir());
+        assert_eq!(
+            path.parent(),
+            Some(std::env::temp_dir().as_path()),
+            "the host workspace must stay directly beneath the OS temporary root"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path)
+                .expect("workspace metadata must remain readable")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o700);
+        }
+
+        drop(workspace);
+
+        assert!(!path.exists());
+    }
+
+    #[cfg(feature = "desktop-host")]
+    #[test]
+    fn host_owned_worker_workspace_never_recursively_deletes_unknown_content() {
+        let workspace = HostOwnedWorkerWorkspace::create().expect("host workspace must be created");
+        let path = workspace.path().to_path_buf();
+        let retained_file = path.join("unexpected-retained-entry");
+        std::fs::write(&retained_file, b"retained")
+            .expect("test must be able to place an unexpected entry");
+
+        drop(workspace);
+
+        assert!(retained_file.is_file());
+        std::fs::remove_file(retained_file).expect("test retained file must be removable");
+        std::fs::remove_dir(path).expect("test workspace must be removable after emptying");
     }
 
     fn decimal(value: &str) -> ProvisionalGeometryDecimal {

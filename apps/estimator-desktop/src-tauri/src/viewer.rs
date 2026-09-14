@@ -1,5 +1,3 @@
-#[cfg(any(feature = "viewer-spike", test))]
-use std::ffi::OsString;
 #[cfg(feature = "viewer-spike")]
 use std::sync::{Arc, Mutex};
 
@@ -14,13 +12,12 @@ use partprobe_geometry_core::GEOMETRY_DISPLAY_SCENE_REFERENCE;
 use partprobe_geometry_import::ValidatedGeometryDisplayScene;
 #[cfg(feature = "viewer-spike")]
 use partprobe_model_viewer::{
-    NativeSurfaceRenderer, StandardView, SurfaceFrameStatus, SurfaceViewport,
+    NativeSurfaceRenderer, ProposedStockDimensions, StandardView, SurfaceFrameStatus,
+    SurfaceViewport,
 };
 #[cfg(feature = "viewer-spike")]
 use tauri::{Manager, WebviewUrl, webview::WebviewBuilder};
 
-#[cfg(any(feature = "viewer-spike", test))]
-const SYNTHETIC_VIEWER_FLAG: &str = "--vis1-synthetic-viewer";
 #[cfg(feature = "viewer-spike")]
 const SYNTHETIC_SCENE_REFERENCE: &str = "synthetic-viewer-spike-v1";
 #[cfg(feature = "viewer-spike")]
@@ -29,9 +26,11 @@ const SYNTHETIC_VIEWER_NOTICE: &str =
 #[cfg(feature = "viewer-spike")]
 const PENDING_VIEWER_NOTICE: &str = "Selected-model display is waiting for a validated analysis derivative; no prior model is shown.";
 #[cfg(feature = "viewer-spike")]
-const SOURCE_VIEWER_NOTICE: &str = "Selected exact B-rep model, tessellated for display from the current validated analysis. Stock is hidden until placement is governed.";
+const SOURCE_VIEWER_NOTICE: &str = "Selected exact B-rep model, tessellated for display from the current validated analysis. Proposed stock will appear after automatic estimate-input preparation succeeds.";
 #[cfg(feature = "viewer-spike")]
-const UNAVAILABLE_VIEWER_NOTICE: &str = "Selected-model display is unavailable; accepted analysis and estimate evidence remain usable. Stock is hidden until placement is governed.";
+const SOURCE_WITH_STOCK_VIEWER_NOTICE: &str = "Selected exact B-rep model with review-only proposed rectangular stock. Stock is source-axis aligned and centered under proposed-stock-display-placement-v1; standard size and availability remain unresolved.";
+#[cfg(feature = "viewer-spike")]
+const UNAVAILABLE_VIEWER_NOTICE: &str = "Selected-model display is unavailable; accepted analysis and estimate evidence remain usable. Proposed stock cannot be shown without the matching source display.";
 #[cfg(feature = "viewer-spike")]
 const VIEWER_SIDEBAR_LOGICAL_WIDTH: f64 = 400.0;
 #[cfg(feature = "viewer-spike")]
@@ -70,6 +69,7 @@ enum ViewerSceneStatus {
     SourceBound {
         selection_id: String,
         analysis_id: String,
+        proposed_stock_visible: bool,
     },
     Unavailable {
         selection_id: String,
@@ -101,11 +101,19 @@ impl ViewerSceneStatus {
                 SYNTHETIC_VIEWER_NOTICE,
             ),
             Self::Pending { .. } => (None, PENDING_VIEWER_NOTICE),
-            Self::SourceBound { analysis_id, .. } => {
+            Self::SourceBound {
+                analysis_id,
+                proposed_stock_visible,
+                ..
+            } => {
                 let _ = analysis_id;
                 (
                     Some(GEOMETRY_DISPLAY_SCENE_REFERENCE.to_owned()),
-                    SOURCE_VIEWER_NOTICE,
+                    if *proposed_stock_visible {
+                        SOURCE_WITH_STOCK_VIEWER_NOTICE
+                    } else {
+                        SOURCE_VIEWER_NOTICE
+                    },
                 )
             }
             Self::Unavailable { .. } => (None, UNAVAILABLE_VIEWER_NOTICE),
@@ -114,6 +122,7 @@ impl ViewerSceneStatus {
 }
 
 impl DesktopModelViewerState {
+    #[cfg(any(not(feature = "viewer-spike"), test))]
     pub(super) fn unavailable() -> Self {
         #[cfg(not(feature = "viewer-spike"))]
         {
@@ -269,6 +278,7 @@ impl DesktopModelViewerState {
                 ViewerSceneStatus::SourceBound {
                     selection_id: selection_id.to_owned(),
                     analysis_id: analysis_id.to_owned(),
+                    proposed_stock_visible: false,
                 }
             } else {
                 ViewerSceneStatus::Unavailable {
@@ -278,6 +288,58 @@ impl DesktopModelViewerState {
         }
         #[cfg(not(feature = "viewer-spike"))]
         let _ = (selection_id, analysis_id, scene);
+    }
+
+    pub(super) fn accept_proposed_stock(
+        &self,
+        selection_id: &str,
+        analysis_id: &str,
+        dimensions_mm: [f32; 3],
+    ) {
+        #[cfg(feature = "viewer-spike")]
+        if let Ok(mut runtime) = self.inner.lock() {
+            let matches_current = matches!(
+                &runtime.scene_status,
+                ViewerSceneStatus::SourceBound {
+                    selection_id: current_selection,
+                    analysis_id: current_analysis,
+                    ..
+                } if current_selection == selection_id && current_analysis == analysis_id
+            );
+            if !matches_current {
+                return;
+            }
+            let accepted = ProposedStockDimensions::new(dimensions_mm)
+                .ok()
+                .and_then(|stock| runtime.renderer.as_mut()?.set_proposed_stock(stock).ok())
+                .is_some();
+            if accepted
+                && let ViewerSceneStatus::SourceBound {
+                    proposed_stock_visible,
+                    ..
+                } = &mut runtime.scene_status
+            {
+                *proposed_stock_visible = true;
+            }
+        }
+        #[cfg(not(feature = "viewer-spike"))]
+        let _ = (selection_id, analysis_id, dimensions_mm);
+    }
+
+    pub(super) fn clear_proposed_stock(&self) {
+        #[cfg(feature = "viewer-spike")]
+        if let Ok(mut runtime) = self.inner.lock() {
+            if let Some(renderer) = runtime.renderer.as_mut() {
+                let _ = renderer.clear_proposed_stock();
+            }
+            if let ViewerSceneStatus::SourceBound {
+                proposed_stock_visible,
+                ..
+            } = &mut runtime.scene_status
+            {
+                *proposed_stock_visible = false;
+            }
+        }
     }
 }
 
@@ -324,14 +386,7 @@ const fn contract_view(view: StandardView) -> ModelViewerStandardView {
 }
 
 pub(super) fn source_scene_requested() -> bool {
-    #[cfg(feature = "viewer-spike")]
-    {
-        arguments_request_synthetic_viewer(&std::env::args_os().collect::<Vec<_>>())
-    }
-    #[cfg(not(feature = "viewer-spike"))]
-    {
-        false
-    }
+    cfg!(feature = "viewer-spike")
 }
 
 pub(super) fn configure_in_window_viewer(
@@ -345,10 +400,6 @@ pub(super) fn configure_in_window_viewer(
 
     #[cfg(feature = "viewer-spike")]
     {
-        if !source_scene_requested() {
-            return Ok(DesktopModelViewerState::unavailable());
-        }
-
         let original_webview = app
             .get_webview_window("main")
             .ok_or("configured main window is missing")?;
@@ -487,27 +538,13 @@ fn apply_layout(runtime: &mut ModelViewerRuntime) -> Result<(), HostCommandError
     Ok(())
 }
 
-#[cfg(any(feature = "viewer-spike", test))]
-fn arguments_request_synthetic_viewer(arguments: &[OsString]) -> bool {
-    arguments
-        .iter()
-        .any(|argument| argument == SYNTHETIC_VIEWER_FLAG)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn exact_developer_flag_requests_the_synthetic_viewer() {
-        assert!(arguments_request_synthetic_viewer(&[
-            "partprobe".into(),
-            SYNTHETIC_VIEWER_FLAG.into(),
-        ]));
-        assert!(!arguments_request_synthetic_viewer(&[
-            "partprobe".into(),
-            "--vis1-synthetic-viewer-extra".into(),
-        ]));
+    fn viewer_activation_matches_the_build_profile() {
+        assert_eq!(source_scene_requested(), cfg!(feature = "viewer-spike"));
     }
 
     #[test]
@@ -533,17 +570,18 @@ mod tests {
 
     #[cfg(feature = "viewer-spike")]
     #[test]
-    fn source_bound_workspace_summary_is_path_free_and_hides_stock_authority() {
+    fn source_bound_workspace_summary_is_path_free_and_awaits_stock_proposal() {
         let status = ViewerSceneStatus::SourceBound {
             selection_id: "selection-1".to_owned(),
             analysis_id: "analysis-1".to_owned(),
+            proposed_stock_visible: false,
         };
 
         let (reference, notice) = status.visible_summary();
 
         assert_eq!(reference.as_deref(), Some(GEOMETRY_DISPLAY_SCENE_REFERENCE));
         assert!(notice.contains("Selected exact B-rep model"));
-        assert!(notice.contains("Stock is hidden"));
+        assert!(notice.contains("automatic estimate-input preparation"));
         assert!(!notice.contains('/'));
         assert!(!notice.contains('\\'));
     }
@@ -557,12 +595,31 @@ mod tests {
         let source = ViewerSceneStatus::SourceBound {
             selection_id: "selection-2".to_owned(),
             analysis_id: "analysis-2".to_owned(),
+            proposed_stock_visible: false,
         };
 
         assert!(pending.selection_matches("selection-2"));
         assert!(!pending.selection_matches("selection-1"));
         assert!(source.selection_matches("selection-2"));
         assert!(!ViewerSceneStatus::Synthetic.selection_matches("selection-2"));
+    }
+
+    #[cfg(feature = "viewer-spike")]
+    #[test]
+    fn proposed_stock_summary_keeps_review_and_availability_limits_visible() {
+        let status = ViewerSceneStatus::SourceBound {
+            selection_id: "selection-1".to_owned(),
+            analysis_id: "analysis-1".to_owned(),
+            proposed_stock_visible: true,
+        };
+
+        let (_, notice) = status.visible_summary();
+
+        assert!(notice.contains("review-only proposed rectangular stock"));
+        assert!(notice.contains("centered"));
+        assert!(notice.contains("availability remain unresolved"));
+        assert!(!notice.contains('/'));
+        assert!(!notice.contains('\\'));
     }
 
     #[cfg(feature = "viewer-spike")]
