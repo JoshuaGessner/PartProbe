@@ -1,7 +1,7 @@
 # GUI-5 Configured Native Desktop Validation
 
 > **Status:** Complete for the bounded internal developer checkpoint
-> **Last updated:** 2026-09-13
+> **Last updated:** 2026-09-14
 > **Related requirements:** REQ-F-002–REQ-F-010, REQ-F-032; REQ-NF-001, REQ-NF-004–REQ-NF-006, REQ-NF-010–REQ-NF-014; TEST-002, TEST-003, TEST-008, TEST-011, TEST-012, TEST-014, TEST-019, TEST-021, TEST-024, TEST-030
 > **Related ADRs:** ADR-0001–ADR-0003, ADR-0005, ADR-0007, ADR-0008
 > **Open questions:** Formal GUI-1 fixture approval, signed/notarized native distribution, three-platform native desktop evidence, full assistive-technology matrix
@@ -21,6 +21,8 @@ On 2026-09-13, the prior external-runtime viewer handoff was replaced with a fre
 The next internal-build correction removes launcher-only authority. The package still re-verifies the embedded runtime before deriving worker/library paths, but now creates and retains its own private `0700` per-process supervisor root when no explicit developer workspace override is supplied. The `viewer-spike` build profile enables the same-window viewer and display derivative without a process flag. `scripts/launch_macos_demo.zsh` remains an optional preflight that verifies the embedded runtime before launching the unchanged app binary; direct Finder launch is now the intended tester path. Focused tests prove private-root creation, empty-root cleanup, and refusal to recursively remove unexpected content.
 
 The corrected source was rebuilt as a fresh 203 MiB unsigned arm64 package with GUI SHA-256 `da508da1e20d3ae4a6549be82254a4311bec89171ff36ab323c7711ed86915c2`; the same 72-artifact embedded runtime and worker SHA-256 `d27e4d7c0520d91abd76585d9f2eb4417663f06184f781714f74f79e8d8ec939` reverify. Both package-contained real-STEP smokes and configured scene retention pass. A direct binary launch with no environment or process flags selected the governed cube through the native dialog, analyzed exact 10 × 10 × 10 mm/600 mm²/1,000 mm³ evidence, reused saved Settings revision 2 with one session confirmation, automatically prepared 16.4 × 16.4 × 16.4 mm stock, completed the combined reviews and explicit-zero test-piece input, and returned a USD 236.75 internal test estimate. The same-window Metal screen visibly showed shaded source faces and the translucent amber stock. Signing, notarization, installation, supported import, and release acceptance remain absent.
+
+On 2026-09-14, the bounded graphics fallback and workspace-focus follow-up rebuilt that same package profile with GUI SHA-256 `f60470ff14aede2bc0c033bc1cf4ed467cd04da4aacf0575b786e24387638666`; the worker hash and 72-artifact runtime remain unchanged and reverify. Both package-contained real-STEP smokes and configured scene retention pass again. Live macOS accessibility-bridge inspection confirms pointer and keyboard navigation focus the exact Settings, Model & stock, and Estimate level-two headings after successful transitions, keyboard activation visibly draws the heading focus ring, and the next Tab from Estimate reaches Choose model. This adds exact platform focus evidence but is not a VoiceOver comprehension session or full TEST-012 acceptance.
 
 ## USE-1 workflow guardrail
 

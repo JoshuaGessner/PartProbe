@@ -13,7 +13,7 @@ use partprobe_geometry_import::ValidatedGeometryDisplayScene;
 #[cfg(feature = "viewer-spike")]
 use partprobe_model_viewer::{
     NativeSurfaceRenderer, ProposedStockDimensions, StandardView, SurfaceFrameStatus,
-    SurfaceViewport,
+    SurfaceViewport, ViewerError,
 };
 #[cfg(feature = "viewer-spike")]
 use tauri::{Manager, WebviewUrl, webview::WebviewBuilder};
@@ -31,6 +31,10 @@ const SOURCE_VIEWER_NOTICE: &str = "Selected exact B-rep model, tessellated for 
 const SOURCE_WITH_STOCK_VIEWER_NOTICE: &str = "Selected exact B-rep model with review-only proposed rectangular stock. Stock is source-axis aligned and centered under proposed-stock-display-placement-v1; standard size and availability remain unresolved.";
 #[cfg(feature = "viewer-spike")]
 const UNAVAILABLE_VIEWER_NOTICE: &str = "Selected-model display is unavailable; accepted analysis and estimate evidence remain usable. Proposed stock cannot be shown without the matching source display.";
+#[cfg(feature = "viewer-spike")]
+const STARTUP_LIMITED_VIEWER_NOTICE: &str = "3D display could not start with the available graphics configuration. PartProbe is using text-only model and proposed-stock review; analysis and estimate evidence remain usable.";
+#[cfg(feature = "viewer-spike")]
+const GRAPHICS_FAILURE_VIEWER_NOTICE: &str = "3D display stopped after a graphics failure. PartProbe switched to text-only model and proposed-stock review; accepted analysis and estimate evidence were preserved. Reopen the app to retry graphics.";
 #[cfg(feature = "viewer-spike")]
 const VIEWER_SIDEBAR_LOGICAL_WIDTH: f64 = 400.0;
 #[cfg(feature = "viewer-spike")]
@@ -58,6 +62,15 @@ struct ModelViewerRuntime {
     renderer: Option<NativeSurfaceRenderer>,
     #[cfg(feature = "viewer-spike")]
     scene_status: ViewerSceneStatus,
+    #[cfg(feature = "viewer-spike")]
+    view: StandardView,
+}
+
+#[cfg(feature = "viewer-spike")]
+#[derive(Clone, Copy)]
+enum ViewerLimitedModeCause {
+    StartupUnavailable,
+    GraphicsFailure,
 }
 
 #[cfg(feature = "viewer-spike")]
@@ -73,6 +86,10 @@ enum ViewerSceneStatus {
     },
     Unavailable {
         selection_id: String,
+    },
+    Limited {
+        selection_id: Option<String>,
+        cause: ViewerLimitedModeCause,
     },
 }
 
@@ -90,6 +107,13 @@ impl ViewerSceneStatus {
             | Self::Unavailable {
                 selection_id: current,
             } => current == selection_id,
+            Self::Limited {
+                selection_id: Some(current),
+                ..
+            } => current == selection_id,
+            Self::Limited {
+                selection_id: None, ..
+            } => false,
             Self::Synthetic => false,
         }
     }
@@ -117,6 +141,13 @@ impl ViewerSceneStatus {
                 )
             }
             Self::Unavailable { .. } => (None, UNAVAILABLE_VIEWER_NOTICE),
+            Self::Limited { cause, .. } => (
+                None,
+                match cause {
+                    ViewerLimitedModeCause::StartupUnavailable => STARTUP_LIMITED_VIEWER_NOTICE,
+                    ViewerLimitedModeCause::GraphicsFailure => GRAPHICS_FAILURE_VIEWER_NOTICE,
+                },
+            ),
         }
     }
 }
@@ -141,15 +172,19 @@ impl DesktopModelViewerState {
                 renderer: None,
                 #[cfg(feature = "viewer-spike")]
                 scene_status: ViewerSceneStatus::Synthetic,
+                #[cfg(feature = "viewer-spike")]
+                view: StandardView::Isometric,
             })),
         }
     }
 
     pub(super) fn availability(&self) -> ModelViewerAvailability {
         #[cfg(feature = "viewer-spike")]
-        if self.inner.lock().is_ok_and(|runtime| {
-            runtime.renderer.is_some() && runtime.window.is_some() && runtime.workspace.is_some()
-        }) {
+        if self
+            .inner
+            .lock()
+            .is_ok_and(|runtime| runtime.window.is_some() && runtime.workspace.is_some())
+        {
             return ModelViewerAvailability::DeveloperPreview;
         }
         ModelViewerAvailability::Unavailable
@@ -173,8 +208,7 @@ impl DesktopModelViewerState {
                 .inner
                 .lock()
                 .map_err(|_| HostCommandError::host_state_unavailable("VIS1-VIEWER-STATE"))?;
-            if runtime.renderer.is_none() || runtime.window.is_none() || runtime.workspace.is_none()
-            {
+            if runtime.window.is_none() || runtime.workspace.is_none() {
                 return Err(HostCommandError::host_state_unavailable(
                     "VIS1-VIEWER-NOT-CONFIGURED",
                 ));
@@ -208,8 +242,7 @@ impl DesktopModelViewerState {
                 .inner
                 .lock()
                 .map_err(|_| HostCommandError::host_state_unavailable("VIS1-VIEWER-STATE"))?;
-            if runtime.renderer.is_none() || runtime.window.is_none() || runtime.workspace.is_none()
-            {
+            if runtime.window.is_none() || runtime.workspace.is_none() {
                 return Err(HostCommandError::host_state_unavailable(
                     "VIS1-VIEWER-NOT-CONFIGURED",
                 ));
@@ -219,12 +252,22 @@ impl DesktopModelViewerState {
                     "VIS1-VIEWER-NOT-VISIBLE",
                 ));
             }
-            let renderer = runtime.renderer.as_mut().ok_or_else(|| {
-                HostCommandError::host_state_unavailable("VIS1-VIEWER-NOT-CONFIGURED")
-            })?;
-            renderer
-                .set_view(renderer_view(request.view))
-                .map_err(|_| HostCommandError::host_state_unavailable("VIS1-SURFACE-RENDER"))?;
+            let requested_view = renderer_view(request.view);
+            runtime.view = requested_view;
+            let render_result = runtime
+                .renderer
+                .as_mut()
+                .map(|renderer| renderer.set_view(requested_view));
+            if let Some(Err(error)) = render_result {
+                if renderer_failure_requires_limited_mode(&error) {
+                    enter_limited_mode(&mut runtime, ViewerLimitedModeCause::GraphicsFailure);
+                    apply_layout(&mut runtime)?;
+                } else {
+                    return Err(HostCommandError::host_state_unavailable(
+                        "VIS1-SURFACE-RENDER",
+                    ));
+                }
+            }
             Ok(workspace_result(
                 &runtime,
                 ModelViewerWorkspaceMode::Visible,
@@ -235,12 +278,15 @@ impl DesktopModelViewerState {
     pub(super) fn begin_selection(&self, selection_id: &str) {
         #[cfg(feature = "viewer-spike")]
         if let Ok(mut runtime) = self.inner.lock() {
-            if let Some(renderer) = runtime.renderer.as_mut() {
-                let _ = renderer.clear_source_scene();
+            let clear_result = runtime
+                .renderer
+                .as_mut()
+                .map(NativeSurfaceRenderer::clear_source_scene);
+            if matches!(clear_result, Some(Err(ref error)) if renderer_failure_requires_limited_mode(error))
+            {
+                enter_limited_mode(&mut runtime, ViewerLimitedModeCause::GraphicsFailure);
             }
-            runtime.scene_status = ViewerSceneStatus::Pending {
-                selection_id: selection_id.to_owned(),
-            };
+            set_selection_transition_status(&mut runtime, selection_id, true);
         }
         #[cfg(not(feature = "viewer-spike"))]
         let _ = selection_id;
@@ -257,15 +303,20 @@ impl DesktopModelViewerState {
             if !runtime.scene_status.selection_matches(selection_id) {
                 return;
             }
+            let mut graphics_failure = false;
             let accepted = match (runtime.renderer.as_mut(), scene) {
                 (Some(renderer), Some(scene)) => {
-                    if renderer.set_source_scene(scene).is_ok() {
-                        true
-                    } else {
-                        // A rejected or unrenderable replacement must not leave either the
-                        // preceding selection or a partially installed source scene visible.
-                        let _ = renderer.clear_source_scene();
-                        false
+                    match renderer.set_source_scene(scene) {
+                        Ok(_) => true,
+                        Err(error) => {
+                            graphics_failure = renderer_failure_requires_limited_mode(&error);
+                            // A rejected or unrenderable replacement must not leave either the
+                            // preceding selection or a partially installed source scene visible.
+                            if !graphics_failure {
+                                let _ = renderer.clear_source_scene();
+                            }
+                            false
+                        }
                     }
                 }
                 (Some(renderer), None) => {
@@ -274,17 +325,22 @@ impl DesktopModelViewerState {
                 }
                 (None, _) => false,
             };
-            runtime.scene_status = if accepted {
-                ViewerSceneStatus::SourceBound {
+            if graphics_failure {
+                enter_limited_mode(&mut runtime, ViewerLimitedModeCause::GraphicsFailure);
+                set_selection_transition_status(&mut runtime, selection_id, false);
+            } else if accepted {
+                runtime.scene_status = ViewerSceneStatus::SourceBound {
                     selection_id: selection_id.to_owned(),
                     analysis_id: analysis_id.to_owned(),
                     proposed_stock_visible: false,
-                }
-            } else {
-                ViewerSceneStatus::Unavailable {
+                };
+            } else if runtime.renderer.is_some() {
+                runtime.scene_status = ViewerSceneStatus::Unavailable {
                     selection_id: selection_id.to_owned(),
-                }
-            };
+                };
+            } else {
+                set_selection_transition_status(&mut runtime, selection_id, false);
+            }
         }
         #[cfg(not(feature = "viewer-spike"))]
         let _ = (selection_id, analysis_id, scene);
@@ -309,10 +365,21 @@ impl DesktopModelViewerState {
             if !matches_current {
                 return;
             }
-            let accepted = ProposedStockDimensions::new(dimensions_mm)
-                .ok()
-                .and_then(|stock| runtime.renderer.as_mut()?.set_proposed_stock(stock).ok())
-                .is_some();
+            let render_result =
+                ProposedStockDimensions::new(dimensions_mm)
+                    .ok()
+                    .and_then(|stock| {
+                        runtime
+                            .renderer
+                            .as_mut()
+                            .map(|renderer| renderer.set_proposed_stock(stock))
+                    });
+            if matches!(render_result, Some(Err(ref error)) if renderer_failure_requires_limited_mode(error))
+            {
+                enter_limited_mode(&mut runtime, ViewerLimitedModeCause::GraphicsFailure);
+                return;
+            }
+            let accepted = matches!(render_result, Some(Ok(_)));
             if accepted
                 && let ViewerSceneStatus::SourceBound {
                     proposed_stock_visible,
@@ -329,8 +396,14 @@ impl DesktopModelViewerState {
     pub(super) fn clear_proposed_stock(&self) {
         #[cfg(feature = "viewer-spike")]
         if let Ok(mut runtime) = self.inner.lock() {
-            if let Some(renderer) = runtime.renderer.as_mut() {
-                let _ = renderer.clear_proposed_stock();
+            let clear_result = runtime
+                .renderer
+                .as_mut()
+                .map(NativeSurfaceRenderer::clear_proposed_stock);
+            if matches!(clear_result, Some(Err(ref error)) if renderer_failure_requires_limited_mode(error))
+            {
+                enter_limited_mode(&mut runtime, ViewerLimitedModeCause::GraphicsFailure);
+                return;
             }
             if let ViewerSceneStatus::SourceBound {
                 proposed_stock_visible,
@@ -344,17 +417,64 @@ impl DesktopModelViewerState {
 }
 
 #[cfg(feature = "viewer-spike")]
+const fn renderer_failure_requires_limited_mode(error: &ViewerError) -> bool {
+    error.requires_renderer_recreation()
+}
+
+#[cfg(feature = "viewer-spike")]
+fn enter_limited_mode(runtime: &mut ModelViewerRuntime, cause: ViewerLimitedModeCause) {
+    let selection_id = match &runtime.scene_status {
+        ViewerSceneStatus::Pending { selection_id }
+        | ViewerSceneStatus::SourceBound { selection_id, .. }
+        | ViewerSceneStatus::Unavailable { selection_id } => Some(selection_id.clone()),
+        ViewerSceneStatus::Limited { selection_id, .. } => selection_id.clone(),
+        ViewerSceneStatus::Synthetic => None,
+    };
+    runtime.renderer.take();
+    runtime.scene_status = ViewerSceneStatus::Limited {
+        selection_id,
+        cause,
+    };
+}
+
+#[cfg(feature = "viewer-spike")]
+fn set_selection_transition_status(
+    runtime: &mut ModelViewerRuntime,
+    selection_id: &str,
+    pending: bool,
+) {
+    let limited_cause = match &runtime.scene_status {
+        ViewerSceneStatus::Limited { cause, .. } => Some(*cause),
+        _ => None,
+    };
+    if let Some(cause) = limited_cause {
+        runtime.scene_status = ViewerSceneStatus::Limited {
+            selection_id: Some(selection_id.to_owned()),
+            cause,
+        };
+    } else if runtime.renderer.is_none() {
+        runtime.scene_status = ViewerSceneStatus::Limited {
+            selection_id: Some(selection_id.to_owned()),
+            cause: ViewerLimitedModeCause::GraphicsFailure,
+        };
+    } else if pending {
+        runtime.scene_status = ViewerSceneStatus::Pending {
+            selection_id: selection_id.to_owned(),
+        };
+    } else {
+        runtime.scene_status = ViewerSceneStatus::Unavailable {
+            selection_id: selection_id.to_owned(),
+        };
+    }
+}
+
+#[cfg(feature = "viewer-spike")]
 fn workspace_result(
     runtime: &ModelViewerRuntime,
     mode: ModelViewerWorkspaceMode,
 ) -> ModelViewerWorkspaceResult {
     let (scene_reference, notice) = runtime.scene_status.visible_summary();
-    let view = runtime
-        .renderer
-        .as_ref()
-        .map_or(ModelViewerStandardView::Isometric, |renderer| {
-            contract_view(renderer.view())
-        });
+    let view = contract_view(runtime.view);
     ModelViewerWorkspaceResult {
         mode,
         view,
@@ -407,12 +527,21 @@ pub(super) fn configure_in_window_viewer(
             .get_window("main")
             .ok_or("configured main native window is missing")?;
         let size = window.inner_size()?;
-        let renderer = NativeSurfaceRenderer::attach(
+        let (renderer, scene_status) = match NativeSurfaceRenderer::attach(
             window.clone(),
             size.width,
             size.height,
             StandardView::Isometric,
-        )?;
+        ) {
+            Ok(renderer) => (Some(renderer), ViewerSceneStatus::Synthetic),
+            Err(_) => (
+                None,
+                ViewerSceneStatus::Limited {
+                    selection_id: None,
+                    cause: ViewerLimitedModeCause::StartupUnavailable,
+                },
+            ),
+        };
         let scale_factor = window.scale_factor()?;
         let logical_size = size.to_logical::<f64>(scale_factor);
         let workspace = window.add_child(
@@ -433,8 +562,9 @@ pub(super) fn configure_in_window_viewer(
                 active: false,
                 window: Some(window.clone()),
                 workspace: Some(workspace),
-                renderer: Some(renderer),
-                scene_status: ViewerSceneStatus::Synthetic,
+                renderer,
+                scene_status,
+                view: StandardView::Isometric,
             })),
         };
         let state_for_events = state.clone();
@@ -445,11 +575,18 @@ pub(super) fn configure_in_window_viewer(
                 }
             }
             tauri::WindowEvent::Focused(true) => {
-                if let Ok(mut runtime) = state_for_events.inner.lock()
-                    && runtime.active
-                    && let Some(renderer) = runtime.renderer.as_mut()
-                {
-                    let _ = renderer.render();
+                if let Ok(mut runtime) = state_for_events.inner.lock() && runtime.active {
+                    let render_result = runtime
+                        .renderer
+                        .as_mut()
+                        .map(NativeSurfaceRenderer::render);
+                    if matches!(render_result, Some(Err(ref error)) if renderer_failure_requires_limited_mode(error)) {
+                        enter_limited_mode(
+                            &mut runtime,
+                            ViewerLimitedModeCause::GraphicsFailure,
+                        );
+                        let _ = apply_layout(&mut runtime);
+                    }
                 }
             }
             tauri::WindowEvent::Destroyed => {
@@ -481,11 +618,7 @@ fn apply_layout(runtime: &mut ModelViewerRuntime) -> Result<(), HostCommandError
     if surface_size.width == 0 || surface_size.height == 0 {
         return Ok(());
     }
-    let renderer = runtime
-        .renderer
-        .as_mut()
-        .ok_or_else(|| HostCommandError::host_state_unavailable("VIS1-VIEWER-NOT-CONFIGURED"))?;
-    if runtime.active {
+    if runtime.active && runtime.renderer.is_some() {
         let scale_factor = window
             .scale_factor()
             .map_err(|_| HostCommandError::host_state_unavailable("VIS1-WINDOW-SCALE"))?;
@@ -504,7 +637,10 @@ fn apply_layout(runtime: &mut ModelViewerRuntime) -> Result<(), HostCommandError
         workspace
             .set_bounds(requested_bounds)
             .map_err(|_| HostCommandError::host_state_unavailable("VIS1-WEBVIEW-BOUNDS"))?;
-        renderer
+        let render_result = runtime
+            .renderer
+            .as_mut()
+            .expect("renderer presence was checked")
             .resize_with_viewport(
                 surface_size.width,
                 surface_size.height,
@@ -514,28 +650,54 @@ fn apply_layout(runtime: &mut ModelViewerRuntime) -> Result<(), HostCommandError
                     width: viewport_width,
                     height: surface_size.height,
                 },
-            )
-            .map_err(|_| HostCommandError::host_state_unavailable("VIS1-SURFACE-RENDER"))?;
-    } else {
-        workspace
-            .set_bounds(tauri::Rect {
-                position: tauri::PhysicalPosition::new(0, 0).into(),
-                size: surface_size.into(),
-            })
-            .map_err(|_| HostCommandError::host_state_unavailable("VIS1-WEBVIEW-BOUNDS"))?;
-        workspace
-            .set_auto_resize(true)
-            .map_err(|_| HostCommandError::host_state_unavailable("VIS1-WEBVIEW-BOUNDS"))?;
-        match renderer.resize(surface_size.width, surface_size.height) {
-            Ok(SurfaceFrameStatus::Presented | SurfaceFrameStatus::Skipped) => {}
-            Err(_) => {
+            );
+        if let Err(error) = render_result {
+            if renderer_failure_requires_limited_mode(&error) {
+                enter_limited_mode(runtime, ViewerLimitedModeCause::GraphicsFailure);
+                set_full_workspace_bounds(&workspace, surface_size)?;
+            } else {
                 return Err(HostCommandError::host_state_unavailable(
                     "VIS1-SURFACE-RENDER",
                 ));
             }
         }
+    } else {
+        set_full_workspace_bounds(&workspace, surface_size)?;
+        if let Some(renderer) = runtime.renderer.as_mut() {
+            match renderer.resize(surface_size.width, surface_size.height) {
+                Ok(
+                    SurfaceFrameStatus::Presented
+                    | SurfaceFrameStatus::RecoveredAndPresented
+                    | SurfaceFrameStatus::Skipped,
+                ) => {}
+                Err(error) if renderer_failure_requires_limited_mode(&error) => {
+                    enter_limited_mode(runtime, ViewerLimitedModeCause::GraphicsFailure);
+                }
+                Err(_) => {
+                    return Err(HostCommandError::host_state_unavailable(
+                        "VIS1-SURFACE-RENDER",
+                    ));
+                }
+            }
+        }
     }
     Ok(())
+}
+
+#[cfg(feature = "viewer-spike")]
+fn set_full_workspace_bounds(
+    workspace: &tauri::Webview,
+    surface_size: tauri::PhysicalSize<u32>,
+) -> Result<(), HostCommandError> {
+    workspace
+        .set_bounds(tauri::Rect {
+            position: tauri::PhysicalPosition::new(0, 0).into(),
+            size: surface_size.into(),
+        })
+        .map_err(|_| HostCommandError::host_state_unavailable("VIS1-WEBVIEW-BOUNDS"))?;
+    workspace
+        .set_auto_resize(true)
+        .map_err(|_| HostCommandError::host_state_unavailable("VIS1-WEBVIEW-BOUNDS"))
 }
 
 #[cfg(test)]
@@ -620,6 +782,36 @@ mod tests {
         assert!(notice.contains("availability remain unresolved"));
         assert!(!notice.contains('/'));
         assert!(!notice.contains('\\'));
+    }
+
+    #[cfg(feature = "viewer-spike")]
+    #[test]
+    fn limited_mode_summary_is_path_free_and_preserves_text_review() {
+        for (cause, expected) in [
+            (
+                ViewerLimitedModeCause::StartupUnavailable,
+                "could not start with the available graphics configuration",
+            ),
+            (
+                ViewerLimitedModeCause::GraphicsFailure,
+                "switched to text-only",
+            ),
+        ] {
+            let status = ViewerSceneStatus::Limited {
+                selection_id: Some("selection-1".to_owned()),
+                cause,
+            };
+
+            let (reference, notice) = status.visible_summary();
+
+            assert_eq!(reference, None);
+            assert!(notice.contains(expected));
+            assert!(notice.contains("analysis and estimate evidence"));
+            assert!(!notice.contains('/'));
+            assert!(!notice.contains('\\'));
+            assert!(status.selection_matches("selection-1"));
+            assert!(!status.selection_matches("selection-2"));
+        }
     }
 
     #[cfg(feature = "viewer-spike")]

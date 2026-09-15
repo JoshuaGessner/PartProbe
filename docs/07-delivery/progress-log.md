@@ -1,12 +1,27 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-09-13
+> **Last updated:** 2026-09-14
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-09-14 — Success-bound workspace focus and current-page semantics
+
+- Tightened the Estimate, Settings, and Model & stock navigation without changing desktop contract v12. Each active destination now exposes `aria-current="page"` instead of toggle-button state, and each workspace has one programmatically focusable heading with the existing high-contrast focus token.
+- Added one bounded post-render focus handoff. Ordinary Estimate/Settings transitions focus the new heading immediately after the state change; the asynchronous Model & stock transition focuses only after the native host accepts the requested visible/hidden mode. Failed, blocked, or same-destination transitions retain the initiating focus. A successful Settings save returns through the same governed transition path instead of bypassing focus behavior.
+- Preserved the existing skip link, document-order keyboard path, semantic camera buttons, text-equivalent description lists, native geometry boundary, calculation behavior, settings persistence, and twelve-command manifest. No CAD path, bytes, display geometry, renderer handle, estimate authority, or new dependency crosses the WebView.
+- The offline release WebAssembly build and strict WASM Clippy pass. The full workspace passes 313 all-target tests with one ignored GPU smoke plus documentation tests and strict workspace Clippy; the `viewer-spike` host passes 56 ordinary tests with five configured smokes ignored, the renderer passes twelve ordinary tests with one GPU smoke ignored, all 74 Python tooling tests and 151-file planning validation pass, and diff hygiene is clean.
+- Rebuilt the 203 MiB unsigned arm64 package with its reverified 72-artifact OCCT runtime. GUI SHA-256 is `f60470ff14aede2bc0c033bc1cf4ed467cd04da4aacf0575b786e24387638666`; worker SHA-256 remains `d27e4d7c0520d91abd76585d9f2eb4417663f06184f781714f74f79e8d8ec939`. Both package-contained real-STEP smokes and configured display-scene retention pass. The live macOS accessibility bridge proves exact Settings, Model & stock, and Estimate heading focus for pointer and keyboard transitions, the visible keyboard focus ring, and the next Tab to Choose model. VoiceOver/Narrator/Orca comprehension remains required before screen-reader acceptance.
+
+## 2026-09-14 — Bounded graphics recovery and text-only viewer fallback
+
+- Added an explicit renderer lifecycle boundary without changing desktop contract v12. The native surface now requests one compatible platform fallback adapter after the preferred adapter fails, registers a device-loss callback, and gives `Lost` or `Outdated` exactly one surface reconfigure/reacquire attempt. Timeout and occlusion remain transient skips; validation, repeated loss/outdating, and observed device loss fail closed with content-minimized categories.
+- Changed the internal Tauri composition so a graphics initialization failure no longer prevents PartProbe from starting. Startup or unrecovered runtime graphics failure drops all GPU-owned geometry, expands the same Model & stock child WebView to the full existing window, returns no display-scene reference, and preserves accepted analysis/estimate state plus the path-free model/proposal description lists.
+- Tightened the fallback's accessible behavior: the visualization notice is a polite atomic live region, the camera fieldset has an explicit help description, unavailable camera actions disable, and the visible state says **Text-only review** instead of implying a blank viewport is still active. The contract command/event set, geometry/calculation behavior, proposal placement, persistence schema, and authority boundaries are unchanged.
+- Twelve ordinary renderer tests pass with one native GPU smoke ignored, and fifty-six ordinary `viewer-spike` host tests pass with five configured native/package smokes ignored. The full default workspace passes 313 all-target runtime tests with one ignored GPU smoke plus all documentation tests. Strict workspace, renderer, feature-host, and WASM Clippy; the offline release frontend build; all 74 Python tooling tests; 151-file planning validation; formatting; and diff hygiene pass. Forced physical/driver loss, demonstrated fallback-adapter presentation on each target, in-session full-device recreation, VoiceOver/Narrator/Orca acceptance, and Windows/Linux package behavior remain open.
 
 ## 2026-09-13 — Self-starting Mac demo, streamlined estimate flow, and visible proposed stock
 

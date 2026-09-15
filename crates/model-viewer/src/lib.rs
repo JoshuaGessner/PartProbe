@@ -4,7 +4,15 @@
 //! additionally supply an already-validated, source-bound native display derivative. This crate
 //! never accepts CAD bytes, source paths, estimate authority, or WebView geometry.
 
-use std::{fmt, path::Path, sync::mpsc};
+use std::{
+    fmt,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+};
 
 use partprobe_geometry_import::ValidatedGeometryDisplayScene;
 use wgpu::util::DeviceExt;
@@ -149,6 +157,25 @@ impl fmt::Display for ViewerError {
 
 impl std::error::Error for ViewerError {}
 
+impl ViewerError {
+    /// Whether the current GPU renderer must be discarded and recreated.
+    ///
+    /// Input/viewport validation failures can be corrected without dropping the device. Surface
+    /// and device failures cannot safely retain GPU-backed review geometry.
+    #[must_use]
+    pub const fn requires_renderer_recreation(&self) -> bool {
+        matches!(
+            self,
+            Self::SurfaceCreation(_)
+                | Self::SurfaceUnsupported
+                | Self::SurfaceUnavailable(_)
+                | Self::AdapterUnavailable
+                | Self::DeviceUnavailable(_)
+                | Self::GpuPoll(_)
+        )
+    }
+}
+
 /// Render the bounded VIS-1 model-and-stock scene through the platform-native wgpu backend.
 pub fn render_synthetic_model_and_stock(
     width: u32,
@@ -163,7 +190,48 @@ pub fn render_synthetic_model_and_stock(
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SurfaceFrameStatus {
     Presented,
+    /// The surface was reconfigured once after loss/outdating, then presented successfully.
+    RecoveredAndPresented,
     Skipped,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SurfaceAcquisitionFailure {
+    Timeout,
+    Occluded,
+    Outdated,
+    Lost,
+    Validation,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SurfaceRecoveryAction {
+    Skip,
+    ReconfigureAndRetry,
+    Fail(&'static str),
+}
+
+const fn surface_recovery_action(
+    failure: SurfaceAcquisitionFailure,
+    already_reconfigured: bool,
+) -> SurfaceRecoveryAction {
+    match failure {
+        SurfaceAcquisitionFailure::Timeout | SurfaceAcquisitionFailure::Occluded => {
+            SurfaceRecoveryAction::Skip
+        }
+        SurfaceAcquisitionFailure::Outdated | SurfaceAcquisitionFailure::Lost
+            if !already_reconfigured =>
+        {
+            SurfaceRecoveryAction::ReconfigureAndRetry
+        }
+        SurfaceAcquisitionFailure::Outdated => {
+            SurfaceRecoveryAction::Fail("surface-outdated-after-reconfigure")
+        }
+        SurfaceAcquisitionFailure::Lost => {
+            SurfaceRecoveryAction::Fail("surface-lost-after-reconfigure")
+        }
+        SurfaceAcquisitionFailure::Validation => SurfaceRecoveryAction::Fail("surface-validation"),
+    }
 }
 
 /// Physical-pixel region of the native surface reserved for the 3D scene.
@@ -248,6 +316,7 @@ pub struct NativeSurfaceRenderer {
     stock_vertex_count: u32,
     edge_vertex_count: u32,
     backend: String,
+    device_lost: Arc<AtomicBool>,
 }
 
 impl NativeSurfaceRenderer {
@@ -281,15 +350,26 @@ impl NativeSurfaceRenderer {
         let surface = instance
             .create_surface(window)
             .map_err(|error| ViewerError::SurfaceCreation(error.to_string()))?;
-        let adapter = instance
+        let preferred_adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
                 compatible_surface: Some(&surface),
                 ..Default::default()
             })
-            .await
-            .map_err(|_| ViewerError::AdapterUnavailable)?;
+            .await;
+        let adapter = match preferred_adapter {
+            Ok(adapter) => adapter,
+            Err(_) => instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::LowPower,
+                    force_fallback_adapter: true,
+                    compatible_surface: Some(&surface),
+                    ..Default::default()
+                })
+                .await
+                .map_err(|_| ViewerError::AdapterUnavailable)?,
+        };
         let backend = format!("{:?}", adapter.get_info().backend);
         let supported_surface_edge = adapter.limits().max_texture_dimension_2d;
         if width > supported_surface_edge || height > supported_surface_edge {
@@ -306,6 +386,11 @@ impl NativeSurfaceRenderer {
             })
             .await
             .map_err(|error| ViewerError::DeviceUnavailable(error.to_string()))?;
+        let device_lost = Arc::new(AtomicBool::new(false));
+        let device_lost_callback = Arc::clone(&device_lost);
+        device.set_device_lost_callback(move |_, _| {
+            device_lost_callback.store(true, Ordering::Release);
+        });
         let config = surface
             .get_default_config(&adapter, width, height)
             .ok_or(ViewerError::SurfaceUnsupported)?;
@@ -392,6 +477,7 @@ impl NativeSurfaceRenderer {
             stock_vertex_count: scene.stock_vertex_count,
             edge_vertex_count: scene.edge_vertex_count,
             backend,
+            device_lost,
         })
     }
 
@@ -548,23 +634,29 @@ impl NativeSurfaceRenderer {
 
     /// Draw one frame. Occlusion and presentation timeouts are deliberate non-errors.
     pub fn render(&mut self) -> Result<SurfaceFrameStatus, ViewerError> {
-        let (frame, reconfigure_after_present) = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
-            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
-                return Ok(SurfaceFrameStatus::Skipped);
-            }
-            wgpu::CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&self.device, &self.config);
-                return Ok(SurfaceFrameStatus::Skipped);
-            }
-            wgpu::CurrentSurfaceTexture::Lost => {
-                return Err(ViewerError::SurfaceUnavailable("surface-lost".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Validation => {
-                return Err(ViewerError::SurfaceUnavailable(
-                    "surface-validation".to_owned(),
-                ));
+        if self.device_lost.load(Ordering::Acquire) {
+            return Err(ViewerError::DeviceUnavailable("device-lost".to_owned()));
+        }
+        let mut recovered = false;
+        let (frame, reconfigure_after_present) = loop {
+            let failure = match self.surface.get_current_texture() {
+                wgpu::CurrentSurfaceTexture::Success(frame) => break (frame, false),
+                wgpu::CurrentSurfaceTexture::Suboptimal(frame) => break (frame, true),
+                wgpu::CurrentSurfaceTexture::Timeout => SurfaceAcquisitionFailure::Timeout,
+                wgpu::CurrentSurfaceTexture::Occluded => SurfaceAcquisitionFailure::Occluded,
+                wgpu::CurrentSurfaceTexture::Outdated => SurfaceAcquisitionFailure::Outdated,
+                wgpu::CurrentSurfaceTexture::Lost => SurfaceAcquisitionFailure::Lost,
+                wgpu::CurrentSurfaceTexture::Validation => SurfaceAcquisitionFailure::Validation,
+            };
+            match surface_recovery_action(failure, recovered) {
+                SurfaceRecoveryAction::Skip => return Ok(SurfaceFrameStatus::Skipped),
+                SurfaceRecoveryAction::ReconfigureAndRetry => {
+                    self.surface.configure(&self.device, &self.config);
+                    recovered = true;
+                }
+                SurfaceRecoveryAction::Fail(reason) => {
+                    return Err(ViewerError::SurfaceUnavailable(reason.to_owned()));
+                }
             }
         };
         let color_view = frame
@@ -632,7 +724,14 @@ impl NativeSurfaceRenderer {
         if reconfigure_after_present {
             self.surface.configure(&self.device, &self.config);
         }
-        Ok(SurfaceFrameStatus::Presented)
+        if self.device_lost.load(Ordering::Acquire) {
+            return Err(ViewerError::DeviceUnavailable("device-lost".to_owned()));
+        }
+        Ok(if recovered {
+            SurfaceFrameStatus::RecoveredAndPresented
+        } else {
+            SurfaceFrameStatus::Presented
+        })
     }
 }
 
@@ -1537,6 +1636,55 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn surface_loss_gets_one_bounded_reconfigure_attempt() {
+        assert_eq!(
+            surface_recovery_action(SurfaceAcquisitionFailure::Lost, false),
+            SurfaceRecoveryAction::ReconfigureAndRetry
+        );
+        assert_eq!(
+            surface_recovery_action(SurfaceAcquisitionFailure::Lost, true),
+            SurfaceRecoveryAction::Fail("surface-lost-after-reconfigure")
+        );
+        assert_eq!(
+            surface_recovery_action(SurfaceAcquisitionFailure::Outdated, false),
+            SurfaceRecoveryAction::ReconfigureAndRetry
+        );
+        assert_eq!(
+            surface_recovery_action(SurfaceAcquisitionFailure::Outdated, true),
+            SurfaceRecoveryAction::Fail("surface-outdated-after-reconfigure")
+        );
+    }
+
+    #[test]
+    fn transient_surface_states_skip_and_validation_fails_closed() {
+        assert_eq!(
+            surface_recovery_action(SurfaceAcquisitionFailure::Timeout, false),
+            SurfaceRecoveryAction::Skip
+        );
+        assert_eq!(
+            surface_recovery_action(SurfaceAcquisitionFailure::Occluded, true),
+            SurfaceRecoveryAction::Skip
+        );
+        assert_eq!(
+            surface_recovery_action(SurfaceAcquisitionFailure::Validation, false),
+            SurfaceRecoveryAction::Fail("surface-validation")
+        );
+    }
+
+    #[test]
+    fn only_gpu_lifecycle_errors_require_renderer_recreation() {
+        assert!(
+            ViewerError::SurfaceUnavailable("surface-lost".to_owned())
+                .requires_renderer_recreation()
+        );
+        assert!(
+            ViewerError::DeviceUnavailable("device-lost".to_owned()).requires_renderer_recreation()
+        );
+        assert!(!ViewerError::InvalidModelScene.requires_renderer_recreation());
+        assert!(!ViewerError::InvalidSurfaceViewport.requires_renderer_recreation());
+    }
 
     #[test]
     fn bounded_scene_has_expected_layers_and_primitive_counts() {

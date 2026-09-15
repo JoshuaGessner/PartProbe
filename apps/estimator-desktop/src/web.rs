@@ -30,10 +30,22 @@ use crate::{
 export async function invokePartProbe(command, args) {
   return await window.__TAURI__.core.invoke(command, args ?? {});
 }
+
+export function focusPartProbeWorkspace(headingId) {
+  window.requestAnimationFrame(() => {
+    const heading = document.getElementById(headingId);
+    if (heading instanceof HTMLElement) {
+      heading.focus();
+    }
+  });
+}
 "#)]
 extern "C" {
     #[wasm_bindgen(catch, js_name = invokePartProbe)]
     async fn invoke_partprobe(command: &str, args: JsValue) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(js_name = focusPartProbeWorkspace)]
+    fn focus_partprobe_workspace(heading_id: &str);
 }
 
 #[derive(serde::Serialize)]
@@ -141,6 +153,14 @@ impl WorkspaceView {
             Self::Estimate => "Estimate workspace",
             Self::Settings => "Shop settings",
             Self::ModelAndStock => "Model & stock",
+        }
+    }
+
+    const fn heading_id(self) -> &'static str {
+        match self {
+            Self::Estimate => "model-heading",
+            Self::Settings => "settings-heading",
+            Self::ModelAndStock => "model-viewer-heading",
         }
     }
 }
@@ -855,6 +875,7 @@ fn App() -> impl IntoView {
             current == WorkspaceView::ModelAndStock || target == WorkspaceView::ModelAndStock;
         if !viewer_transition {
             set_active_view.set(target);
+            focus_partprobe_workspace(target.heading_id());
             return;
         }
         if target == WorkspaceView::ModelAndStock && !viewer_state.get_untracked().is_available() {
@@ -877,6 +898,7 @@ fn App() -> impl IntoView {
                     match serde_wasm_bindgen::from_value::<ModelViewerWorkspaceResult>(value) {
                         Ok(result) if result.mode == requested_mode => {
                             set_active_view.set(target);
+                            focus_partprobe_workspace(target.heading_id());
                             if target == WorkspaceView::ModelAndStock {
                                 set_viewer_state.set(ModelViewerPanelState::Active(result));
                             } else {
@@ -985,7 +1007,7 @@ fn App() -> impl IntoView {
                         // it so a successful save cannot immediately look incomplete.
                         form.update(|current| current.apply_settings(&settings, false));
                         set_settings_state.set(SettingsPanelState::Available(settings));
-                        set_active_view.set(WorkspaceView::Estimate);
+                        switch_workspace.run(WorkspaceView::Estimate);
                     }
                     Ok(ShopSettingsState::NotConfigured) | Err(_) => {
                         set_settings_state.set(SettingsPanelState::Failed {
@@ -1137,7 +1159,9 @@ fn App() -> impl IntoView {
                         } else {
                             "navigation-action"
                         }
-                        aria-pressed=move || active_view.get() == WorkspaceView::Estimate
+                        aria-current=move || {
+                            (active_view.get() == WorkspaceView::Estimate).then_some("page")
+                        }
                         disabled=move || viewer_state.get().is_switching()
                         on:click=move |_| switch_workspace.run(WorkspaceView::Estimate)
                     >
@@ -1150,7 +1174,9 @@ fn App() -> impl IntoView {
                         } else {
                             "navigation-action"
                         }
-                        aria-pressed=move || active_view.get() == WorkspaceView::Settings
+                        aria-current=move || {
+                            (active_view.get() == WorkspaceView::Settings).then_some("page")
+                        }
                         disabled=move || viewer_state.get().is_switching()
                         on:click=move |_| switch_workspace.run(WorkspaceView::Settings)
                     >
@@ -1164,7 +1190,9 @@ fn App() -> impl IntoView {
                             } else {
                                 "navigation-action"
                             }
-                            aria-pressed=move || active_view.get() == WorkspaceView::ModelAndStock
+                            aria-current=move || {
+                                (active_view.get() == WorkspaceView::ModelAndStock).then_some("page")
+                            }
                             disabled=move || viewer_state.get().is_switching()
                             on:click=move |_| switch_workspace.run(WorkspaceView::ModelAndStock)
                         >
@@ -1197,7 +1225,7 @@ fn App() -> impl IntoView {
                     <SettingsWorkspace
                         form
                         settings_state
-                        set_active_view
+                        switch_workspace
                         save_settings
                         load_settings
                         install_huntsville_profile
@@ -1210,7 +1238,9 @@ fn App() -> impl IntoView {
                     <div class="panel-heading">
                         <div>
                             <p class="section-index">"MODEL"</p>
-                            <h2 id="model-heading">"Upload model"</h2>
+                            <h2 id="model-heading" class="workspace-focus-target" tabindex="-1">
+                                "Upload model"
+                            </h2>
                         </div>
                         <span class="status-chip">"STEP estimating · STL/3MF analysis only"</span>
                     </div>
@@ -1281,7 +1311,7 @@ fn App() -> impl IntoView {
                     set_estimate_state
                     settings_state
                     form
-                    set_active_view
+                    switch_workspace
                 />
             </main>
         </Show>
@@ -1496,11 +1526,9 @@ fn ModelViewerWorkspace(
         ModelViewerPanelState::Active(_) => match analysis_state.get() {
             AnalysisPanelState::NotStarted => "Waiting for analysis",
             AnalysisPanelState::Running | AnalysisPanelState::Cancelling => "Preparing display",
-            _ => "Display unavailable",
+            _ => "Text-only review",
         },
-        ModelViewerPanelState::Failed(_) | ModelViewerPanelState::Unavailable => {
-            "Display unavailable"
-        }
+        ModelViewerPanelState::Failed(_) | ModelViewerPanelState::Unavailable => "Text-only review",
         ModelViewerPanelState::Loading
         | ModelViewerPanelState::Ready
         | ModelViewerPanelState::Switching => "Changing state",
@@ -1521,7 +1549,7 @@ fn ModelViewerWorkspace(
         }
         ModelViewerPanelState::Active(_)
         | ModelViewerPanelState::Failed(_)
-        | ModelViewerPanelState::Unavailable => "No model displayed".to_owned(),
+        | ModelViewerPanelState::Unavailable => "Text-only; no model displayed".to_owned(),
         ModelViewerPanelState::Loading
         | ModelViewerPanelState::Ready
         | ModelViewerPanelState::Switching => "Changing state".to_owned(),
@@ -1544,17 +1572,28 @@ fn ModelViewerWorkspace(
                 <div class="panel-heading">
                     <div>
                         <p class="section-index">"VISUAL REVIEW"</p>
-                        <h2 id="model-viewer-heading">"Model & stock review"</h2>
+                        <h2
+                            id="model-viewer-heading"
+                            class="workspace-focus-target"
+                            tabindex="-1"
+                        >
+                            "Model & stock review"
+                        </h2>
                     </div>
                     <span class=viewer_badge_class>{viewer_badge}</span>
                 </div>
 
-                <div class="viewer-preview-notice" role="status">
+                <div
+                    class="viewer-preview-notice"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                >
                     <p class="blocked-title">"Native visualization status"</p>
                     <p>{viewer_notice}</p>
                 </div>
 
-                <fieldset class="viewer-view-controls">
+                <fieldset class="viewer-view-controls" aria-describedby="viewer-control-help">
                     <legend>"View orientation"</legend>
                     <div class="viewer-view-grid">
                         <ViewerViewButton
@@ -1578,7 +1617,7 @@ fn ModelViewerWorkspace(
                             set_model_view
                         />
                     </div>
-                    <p class="viewer-control-help">
+                    <p id="viewer-control-help" class="viewer-control-help">
                         "Tab to a view and press Space or Return. Every view automatically fits the complete displayed model."
                     </p>
                 </fieldset>
@@ -1974,7 +2013,7 @@ fn EstimateWorkspace(
     set_estimate_state: WriteSignal<DraftEstimatePanelState>,
     settings_state: ReadSignal<SettingsPanelState>,
     form: RwSignal<DeveloperEstimateForm>,
-    set_active_view: WriteSignal<WorkspaceView>,
+    switch_workspace: Callback<WorkspaceView>,
 ) -> impl IntoView {
     Effect::new(move |_| {
         let _ = analysis_state.get();
@@ -1989,7 +2028,7 @@ fn EstimateWorkspace(
     let prepare_proposal = Callback::new(move |()| {
         if !settings_state.get_untracked().has_saved_draft() {
             set_proposal_state.set(ProposalPanelState::NotRequested);
-            set_active_view.set(WorkspaceView::Settings);
+            switch_workspace.run(WorkspaceView::Settings);
             return;
         }
         let Some((selection_id, analysis_id)) = (match analysis_state.get_untracked() {
@@ -2190,7 +2229,7 @@ fn EstimateWorkspace(
                                     {
                                         form.update(DeveloperEstimateForm::confirm_saved_settings_for_session);
                                     } else {
-                                        set_active_view.set(WorkspaceView::Settings);
+                                        switch_workspace.run(WorkspaceView::Settings);
                                     }
                                 }
                             >
@@ -2352,7 +2391,7 @@ fn EstimateWorkspace(
 fn SettingsWorkspace(
     form: RwSignal<DeveloperEstimateForm>,
     settings_state: ReadSignal<SettingsPanelState>,
-    set_active_view: WriteSignal<WorkspaceView>,
+    switch_workspace: Callback<WorkspaceView>,
     save_settings: Callback<()>,
     load_settings: Callback<()>,
     install_huntsville_profile: Callback<()>,
@@ -2365,7 +2404,9 @@ fn SettingsWorkspace(
                 <div class="panel-heading">
                     <div>
                         <p class="section-index">"SETTINGS"</p>
-                        <h2 id="settings-heading">"Shop rates and resources"</h2>
+                        <h2 id="settings-heading" class="workspace-focus-target" tabindex="-1">
+                            "Shop rates and resources"
+                        </h2>
                     </div>
                     <span class=move || if form.with(DeveloperEstimateForm::session_settings_ready) {
                         if settings_state.get().has_saved_draft() {
@@ -2661,7 +2702,7 @@ fn SettingsWorkspace(
                     <button
                         type="button"
                         class="primary-action"
-                        on:click=move |_| set_active_view.set(WorkspaceView::Estimate)
+                        on:click=move |_| switch_workspace.run(WorkspaceView::Estimate)
                     >
                         "Back to estimate"
                     </button>

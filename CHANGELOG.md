@@ -1,7 +1,7 @@
 # Changelog
 
 > **Status:** In Review
-> **Last updated:** 2026-09-13
+> **Last updated:** 2026-09-14
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** None
@@ -14,6 +14,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 
 ### Added
 
+- A bounded native-viewer recovery and accessibility fallback: the surface requests one platform fallback adapter after preferred-adapter failure, observes device loss, retries a lost/outdated surface exactly once, and otherwise keeps Model & stock usable as full-width text-only review with path-free live status and preserved analysis/proposal facts. This does not add a desktop command, geometry payload, calculation rule, persistence schema, or claim of software rendering/platform acceptance.
 - A self-starting internal macOS `viewer-spike` package with a manifest-verified embedded OCCT runtime and host-owned private per-process worker workspace. The same-window renderer retains source normals for ambient/key/fill/rim lighting and displays the exact matching proposal blank as translucent amber stock with explicit edges under `proposed-stock-display-placement-v1`. The current 203 MiB unsigned arm64 package directly completes the governed cube flow through USD 236.75 and visible source/stock review without environment variables or a viewer process flag.
 - Desktop contract v12 adds one exact path-free `set_model_viewer_view` command for Isometric, Front, Top, and Right camera requests, keeping all twelve shared commands synchronized across the contract manifest, generated permission, capability, Tauri handler, and host regressions. The same-window developer viewer now exposes semantic keyboard-operable view buttons, reports the actual native view, and presents a fuller text equivalent for model representation, units, dimensions, warnings, categorical confidence, analysis reference, and proposal facts. Missing analysis or stock data remains explicitly unavailable. Live Apple-Silicon testing used the real OCCT 10 mm STEP cube and confirmed mouse Front, keyboard Top, source-bound Isometric rendering, and path-free evidence without adding geometry or estimate authority to the WebView.
 - VIS-2 `geometry-display-scene-v1`: a tested native-only manifest and deterministic artifact frame; worker request/response schema v2 with exact optional display request/reference fields that preserve schema-v1 analysis behavior; fixed dual output names claimed under one supervisor quota; and application retention of only source/analysis-bound nonserializable arrays plus sanitized diagnostics. Additive OCCT display ABI v1 tessellates the same authorized immutable STEP bytes under the requested profile after measurement succeeds, preserves transformed/reversed face geometry, enforces explicit native ceilings/ownership, and emits one bound `exact-brep-root-0` artifact. The internal viewer activates that protocol, binds replacement to matching retained selection/analysis identity, and sends only the validated scene to bounded indexed GPU buffers. New selection/failure clears stale geometry; a matching proposal may add only its exact blank dimensions through native `proposed-stock-display-placement-v1`; and the desktop contract remains geometry-free. Fresh Apple-Silicon cube/prism, cancellation, hard-limit, real-supervisor/application, renderer-conversion, configured desktop-retention, package, and live source/stock Metal evidence passes. Representative performance and Linux/Windows display evidence remain open.
@@ -23,6 +24,7 @@ All notable project changes are recorded here. This project follows Keep a Chang
 
 ### Changed
 
+- Workspace navigation now exposes the active Estimate, Settings, or Model & stock destination with page-current semantics and moves focus to the new workspace heading only after a successful transition. Each heading is programmatically focusable with a visible focus treatment, including automatic return to Estimate after a successful Settings save. This tightens the keyboard/screen-reader path without changing desktop contract v12, native viewer state, calculation behavior, or persistence.
 - Streamlined internal estimate testing without weakening native gates: first run installs/confirms/saves the documented Huntsville profile in one explicit action, later launches use the saved revision with one session confirmation, eligible STEP analysis prepares its proposal automatically, analysis/proposal reviews are combined, and zero additional test pieces remain an explicit affirmative input. Successful save no longer looks unsaved; empty storage and unavailable storage retain distinct diagnostics.
 - Cleaned the Estimate and Settings language for live testing, moved technical evidence behind disclosures, removed unfinished roadmap/empty-catalog UI, and reduced intake dead space without weakening review or diagnostic boundaries.
 

@@ -116,6 +116,11 @@ h2 {
   font-weight: 600;
 }
 
+.workspace-focus-target:focus-visible {
+  outline: 3px solid var(--action-focus);
+  outline-offset: 4px;
+}
+
 .eyebrow,
 .section-index {
   margin-bottom: 4px;
