@@ -8,6 +8,11 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-09-15 — Windows host-workspace lint repair
+
+- Committed/pushed the verified candidate engine as `a85ba1a`; Rust CI run `34964981239` started automatically. The completed preceding run `34962065488` passed macOS and Linux but failed the Windows desktop-host lint stage: `DirBuilder` was mutable only because the Unix-only owner-mode configuration mutated it.
+- Scoped that mutable binding to the Unix configuration block, preserving mode `0700` there and the unchanged Windows directory creation/empty-root cleanup path. Strict local desktop-host lint passes; hosted Windows confirmation remains pending. No dependency, permission, calculation, geometry, or workspace containment policy changed. Follow-up CI will run from the repair push without live waiting.
+
 ## 2026-09-15 — Immutable developer stock-candidate engine
 
 - Continued development after pushing `14efdbd` and the targeted CI repair `cadd603`. Added the distinct `partprobe-developer-stock-candidate` v1.0.0/schema-v1 pure engine for final X/Y/Z blank edits. Values preserve the complete original proposal and settings/envelope snapshots, candidate identity/revision/predecessor, original/previous/new dimensions, actor/time/reason, and explicit review-only allowance overrides. Successors reject changed analysis/settings or reused child IDs with changed evidence.
