@@ -135,6 +135,8 @@ These rules are mandatory for every person or agent changing this repository.
 
 ## Documentation protocol
 
+VIS-4's `partprobe-developer-stock-candidate` v1.0.0 engine constructs nonserializable, immutable session-only final-dimension revisions from an exactly replayed original developer proposal and complete settings/envelope basis. Enforce per-axis enclosure, corresponding-axis machine fit, checked shared stock/material/cutting arithmetic, unchanged fixed times, original/previous/new values, actor/time/reason, terminal stale-basis rejection, and categorical review-required allowance overrides. This pure engine supplies neither latest-session concurrency, authorization/audit, review/adoption, editor activation, nor renderer authority; those require later application/contract evidence. Never relabel edited inputs as the unchanged proposal v1 or mutate its baseline.
+
 The native renderer must check its terminal device-loss observer before every GPU-touching scene, stock, camera, viewport, and resize operation, including otherwise skipped/no-op operations. Keep driver messages content-minimized, and distinguish headless API-induced device destruction from physical driver failure or a live packaged-host fallback. Never reset a lost observer in place or claim full-device recreation from observer tests.
 
 - Use stable IDs defined in `docs/INDEX.md`.

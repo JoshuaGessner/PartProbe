@@ -12,6 +12,8 @@ use partprobe_geometry_core::Sha256Digest;
 use partprobe_geometry_import::ProvisionalExactStepAnalysis;
 use rust_decimal::Decimal;
 
+pub mod stock_candidate;
+
 /// First additive exact-STEP envelope evidence contract used only by the proposal spike.
 pub const EXACT_STEP_ENVELOPE_EVIDENCE_SCHEMA_VERSION: u16 =
     partprobe_geometry_core::EXACT_STEP_ENVELOPE_DERIVATIVE_SCHEMA_VERSION;
@@ -729,6 +731,79 @@ pub fn propose_developer_estimate_inputs(
         add_allowance(model.y(), allowance.y_allowance_mm())?,
         add_allowance(model.z(), allowance.z_allowance_mm())?,
     );
+    let derived = derive_blank_inputs(envelope, library, blank)?;
+
+    Ok(DeveloperEstimateInputProposal {
+        evidence_schema_version: EXACT_STEP_ENVELOPE_EVIDENCE_SCHEMA_VERSION,
+        rule_id: DEVELOPER_ESTIMATE_INPUT_PROPOSAL_RULE_ID,
+        rule_version: DEVELOPER_ESTIMATE_INPUT_PROPOSAL_RULE_VERSION,
+        source_hash: envelope.source_hash().clone(),
+        analysis_output_hash: envelope.analysis_output_hash().clone(),
+        library_id: library.id().clone(),
+        library_version: library.version(),
+        material_id: material.id().clone(),
+        material_version: material.version(),
+        material_offer_id: offer.id().clone(),
+        material_offer_version: offer.version(),
+        stock_allowance_id: allowance.id().clone(),
+        stock_allowance_version: allowance.version(),
+        machine_id: machine.id().clone(),
+        machine_version: machine.version(),
+        runtime_id: runtime.id().clone(),
+        runtime_version: runtime.version(),
+        model_extents_mm: model,
+        part_volume_mm3: envelope.part_volume_mm3(),
+        total_allowance_mm: [
+            allowance.x_allowance_mm(),
+            allowance.y_allowance_mm(),
+            allowance.z_allowance_mm(),
+        ],
+        blank_dimensions_mm: blank,
+        blank_volume_mm3: derived.blank_volume,
+        removed_volume_mm3: derived.removed_volume,
+        material_density_kg_per_m3: material.density_kg_per_m3(),
+        blank_mass_kg: derived.blank_mass,
+        material_price_per_kg: offer.price_per_kg().clone(),
+        unit_stock_material_cost: derived.unit_material_cost,
+        removal_rate_mm3_per_minute: runtime.removal_rate_mm3_per_minute(),
+        coarse_times: CoarseTimeProposal {
+            setup: runtime.setup_minutes(),
+            programming: runtime.programming_minutes(),
+            cutting: derived.cutting,
+            load_unload: runtime.load_unload_minutes(),
+            quality: runtime.inspection_minutes(),
+        },
+        readiness: DeveloperEstimateProposalReadiness::NeedsReview,
+        reason_codes: [
+            DeveloperEstimateProposalReasonCode::SessionOnlyDeveloperEvidence,
+            DeveloperEstimateProposalReasonCode::DraftShopResourceLibrary,
+            DeveloperEstimateProposalReasonCode::AxisAlignedOrientationOnly,
+            DeveloperEstimateProposalReasonCode::StandardSizeNotResolved,
+            DeveloperEstimateProposalReasonCode::AvailabilityNotResolved,
+            DeveloperEstimateProposalReasonCode::CoarseRuntimeNotCam,
+            DeveloperEstimateProposalReasonCode::HumanReviewAndAdoptionRequired,
+        ],
+    })
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BlankDerivedInputs {
+    blank_volume: VolumeCubicMillimeters,
+    removed_volume: VolumeCubicMillimeters,
+    blank_mass: MassKilograms,
+    unit_material_cost: Money,
+    cutting: RuntimeMinutes,
+}
+
+fn derive_blank_inputs(
+    envelope: &ExactStepEnvelopeEvidence,
+    library: &ShopResourceLibrary,
+    blank: AxisAlignedEnvelopeMillimeters,
+) -> Result<BlankDerivedInputs, StockProposalError> {
+    let machine = library.machine();
+    let material = library.material();
+    let offer = library.material_offer();
+    let runtime = library.runtime();
     if blank.x().value() > machine.envelope_x_mm().value()
         || blank.y().value() > machine.envelope_y_mm().value()
         || blank.z().value() > machine.envelope_z_mm().value()
@@ -773,60 +848,16 @@ pub fn propose_developer_estimate_inputs(
         "developer proposal cutting minutes",
     )?;
 
-    Ok(DeveloperEstimateInputProposal {
-        evidence_schema_version: EXACT_STEP_ENVELOPE_EVIDENCE_SCHEMA_VERSION,
-        rule_id: DEVELOPER_ESTIMATE_INPUT_PROPOSAL_RULE_ID,
-        rule_version: DEVELOPER_ESTIMATE_INPUT_PROPOSAL_RULE_VERSION,
-        source_hash: envelope.source_hash().clone(),
-        analysis_output_hash: envelope.analysis_output_hash().clone(),
-        library_id: library.id().clone(),
-        library_version: library.version(),
-        material_id: material.id().clone(),
-        material_version: material.version(),
-        material_offer_id: offer.id().clone(),
-        material_offer_version: offer.version(),
-        stock_allowance_id: allowance.id().clone(),
-        stock_allowance_version: allowance.version(),
-        machine_id: machine.id().clone(),
-        machine_version: machine.version(),
-        runtime_id: runtime.id().clone(),
-        runtime_version: runtime.version(),
-        model_extents_mm: model,
-        part_volume_mm3: envelope.part_volume_mm3(),
-        total_allowance_mm: [
-            allowance.x_allowance_mm(),
-            allowance.y_allowance_mm(),
-            allowance.z_allowance_mm(),
-        ],
-        blank_dimensions_mm: blank,
-        blank_volume_mm3: VolumeCubicMillimeters::new(blank_volume)
+    Ok(BlankDerivedInputs {
+        blank_volume: VolumeCubicMillimeters::new(blank_volume)
             .map_err(|_| StockProposalError::ArithmeticOverflow)?,
-        removed_volume_mm3: VolumeCubicMillimeters::new(removed_volume)
+        removed_volume: VolumeCubicMillimeters::new(removed_volume)
             .map_err(|_| StockProposalError::ArithmeticOverflow)?,
-        material_density_kg_per_m3: material.density_kg_per_m3(),
-        blank_mass_kg: MassKilograms::new(blank_mass)
+        blank_mass: MassKilograms::new(blank_mass)
             .map_err(|_| StockProposalError::ArithmeticOverflow)?,
-        material_price_per_kg: offer.price_per_kg().clone(),
-        unit_stock_material_cost,
-        removal_rate_mm3_per_minute: runtime.removal_rate_mm3_per_minute(),
-        coarse_times: CoarseTimeProposal {
-            setup: runtime.setup_minutes(),
-            programming: runtime.programming_minutes(),
-            cutting: RuntimeMinutes::new(cutting_minutes)
-                .map_err(|_| StockProposalError::ArithmeticOverflow)?,
-            load_unload: runtime.load_unload_minutes(),
-            quality: runtime.inspection_minutes(),
-        },
-        readiness: DeveloperEstimateProposalReadiness::NeedsReview,
-        reason_codes: [
-            DeveloperEstimateProposalReasonCode::SessionOnlyDeveloperEvidence,
-            DeveloperEstimateProposalReasonCode::DraftShopResourceLibrary,
-            DeveloperEstimateProposalReasonCode::AxisAlignedOrientationOnly,
-            DeveloperEstimateProposalReasonCode::StandardSizeNotResolved,
-            DeveloperEstimateProposalReasonCode::AvailabilityNotResolved,
-            DeveloperEstimateProposalReasonCode::CoarseRuntimeNotCam,
-            DeveloperEstimateProposalReasonCode::HumanReviewAndAdoptionRequired,
-        ],
+        unit_material_cost: unit_stock_material_cost,
+        cutting: RuntimeMinutes::new(cutting_minutes)
+            .map_err(|_| StockProposalError::ArithmeticOverflow)?,
     })
 }
 

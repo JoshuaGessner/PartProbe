@@ -1,7 +1,7 @@
 # Worked Estimate Examples
 
 > **Status:** Draft
-> **Last updated:** 2026-09-10
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-F-002–REQ-F-010; CALC-001–CALC-020; TEST-002, TEST-005
 > **Related ADRs:** ADR-0002–ADR-0008
 > **Open questions:** OQ-009–OQ-20, OQ-027
@@ -13,6 +13,8 @@ These synthetic examples force domain coverage; they are **not approved shop sta
 The first USE-3 analytic stock-proposal spike uses the same Reviewed-or-Approved rectangular allowance profile with total X/Y/Z additions of 3/3/2 mm. A 10×10×10 mm exact cube with 1,000 mm³ part volume produces a 13×13×12 mm blank, 2,028 mm³ blank volume, and 1,028 mm³ removed volume. The independent 12×8×5 mm exact prism with 480 mm³ part volume produces a 15×11×7 mm blank, 1,155 mm³ blank volume, and 675 mm³ removed volume. Both remain `NeedsReview` because only source-axis orientation is considered and neither standard size nor availability is resolved. ABI-v4 native adapter and supervised-worker tests now reproduce both AABBs within 0.000001 mm from the governed STEP bytes, proving model sensitivity through the real worker. No material cost or estimate is adopted.
 
 The separate internal live-test proposal uses a named synthetic Draft library: 2,700 kg/m³ aluminum density, USD 8.50/kg material, 3/3/2 mm total allowance, 16,000 mm³/min coarse removal, 60 minutes setup, 45 minutes programming, 3 minutes load/unload per item, and 15 minutes lot quality inspection. For the prism this produces 0.0031185 kg blank mass, USD 0.026507250 unrounded stock material per item, and 0.0421875 cutting minutes per item. An explicit quantity-three adoption produces USD 0.079521750 purchased material. The adoption sets non-cutting/in-cycle inspection, cut/cert/freight, tooling/fixture/outside processing, administration/overhead, and risk/rework to zero only after the user accepts those named omissions. This is executable synthetic developer evidence, not a shop benchmark, complete manufacturing estimate, CAM result, or quote.
+
+The additive `partprobe-developer-stock-candidate` v1.0.0 rule uses that same prism and synthetic library without changing the original proposal. An explicit edit from 15×11×7 mm to 20×12×8 mm creates candidate revision one: 1,920 mm³ blank, 1,440 mm³ removal, 0.005184 kg blank mass, USD 0.044064 unrounded material per item, and 0.09 cutting minutes. Total allowances are now 8/4/3 mm. A successor to 18×10×7 mm retains both the original basis and the prior 20×12×8 dimensions: 1,260 mm³ blank, 780 mm³ removal, 0.003402 kg, USD 0.028917 per item, and 0.04875 cutting minutes. Fixed setup/programming/handling/quality times do not change. Returning to 15×11×7 mm creates another review-only revision, not an approval. A cube explicitly edited to its exact 10×10×10 mm bounds has zero allowance/removal/cutting under this coarse rule but remains `NeedsReview`; this is not proof of machining feasibility. These are pure session candidate tests, not desktop editing or adoption evidence.
 
 | # | Scenario and imported facts | Detected/model facts | Stock, process, setups, tools, feed/speed source |
 |---|---|---|---|

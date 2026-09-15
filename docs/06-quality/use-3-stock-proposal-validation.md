@@ -1,7 +1,7 @@
 # USE-3 Stock Proposal Validation
 
 > **Status:** In Review
-> **Last updated:** 2026-09-13
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-F-005, GEO-008, GEO-011, CALC-002–CALC-007, TEST-027
 > **Related ADRs:** ADR-0002, ADR-0004
 > **Open questions:** Shop-approved allowances, standard-size catalogs, orientation policy, availability source
@@ -46,6 +46,14 @@ The fresh 203 MiB unsigned arm64 package passes package-contained real-STEP prop
 
 The earlier contract-v10 checkpoint closed at 277 runtime tests and a 181 MiB package. It remains historical evidence for the initial proposal/adoption boundary and has been superseded for current GUI/package status by the contract-v12 package and direct-launch rehearsal above.
 
-## Version and migration decision
+## VIS-4 candidate engine evidence (2026-09-15)
+
+The additive `partprobe-developer-stock-candidate` rule/evidence v1.0.0/schema v1 is implemented in `crates/setup-planner/src/stock_candidate.rs`. Fourteen public synthetic tests cover exact prism edits and successor values, original/settings/actor/time/reason preservation, unchanged fixed times and original proposal, categorical review limitations, return to original dimensions without approval, an explicit cube zero-allowance case, per-axis enclosure despite large aggregate volume, corresponding-axis machine fit, normalized-decimal no-op rejection, changed source/output/dimensions/part volume, changed settings revision or child bytes under reused IDs, full original proposal replay, missing library, positive dimensions, bounded reasons, unrepresentable magnitude, and nonterminating division. No new CAD fixture is required: analytic facts reuse FIX-STEP-001/003 geometry and the documented synthetic library, not customer data.
+
+The stock/material/cutting helper is shared with the unchanged developer proposal v1. All seven existing proposal/adoption application golden tests pass, and the current-code configured real-worker proposal/adoption smoke passes against the last macOS package's verified embedded runtime. This is headless candidate calculation and retained existing-workflow evidence, not a newly built package, enabled editor, authorization, durable audit, optimistic latest-revision enforcement, reviewed adoption, renderer integration, standard-size/availability resolution, CAM, or production acceptance.
+
+Commands: `cargo test -p partprobe-setup-planner --test stock_candidate --locked`; `cargo test -p partprobe-application --test developer_estimate_proposal --locked`. These new nonserializable session values migrate no database, geometry output, historical estimate, original proposal/adoption version, or contract-v12 command. A later application/desktop activation must bind exact current sessions and explicitly review/adopt the precise candidate revision.
+
+## Existing proposal migration decision
 
 These are new, non-persisted internal proposal/evidence/adoption contracts. No historical estimates, quotes, settings rows, geometry snapshots, or customer records are migrated or reinterpreted. `geometry-snapshot-v1` remains byte-for-byte unchanged and remains accepted as an explicit envelope-unavailable legacy result. Adapter ABI v4 replaces v3 by adding the three bounds values; mixed worker/adapter binaries fail their ABI/size checks and must be rebuilt together. The new worker output reference is additive, so legacy stored exact outputs remain explicitly envelope-unavailable rather than being upgraded. Contract v10 adds path-free fields/one command without migrating persistence. The developer proposal/adoption rules are both v1.0.0 and apply only to newly requested session calculations; prior manual results are not recalculated. Current ABI-v4 evidence is Apple-Silicon only; Linux, Windows, and release evidence must be refreshed before broader claims. Any derivative/container field, source-binding rule, bounds algorithm/tolerance, body eligibility, formula, allowance semantics, orientation, excluded-input set, result field, confidence, or diagnostic change requires a new version and an explicit migration/replay decision.

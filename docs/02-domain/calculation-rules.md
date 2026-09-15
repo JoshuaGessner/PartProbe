@@ -1,7 +1,7 @@
 # Calculation Rules
 
 > **Status:** In Review
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-F-006–REQ-F-010, REQ-F-040–REQ-F-065, REQ-NF-003, REQ-NF-015–REQ-NF-021; TEST-001–TEST-006, TEST-040–TEST-099
 > **Related ADRs:** ADR-0007, ADR-0009–ADR-0014
 > **Open questions:** OQ-012–OQ-018
@@ -55,5 +55,7 @@ Reusable rates and pricing inputs follow [the rate-library contract](rate-librar
 Do not round intermediate physical values for calculation. Currency nodes retain exact representable decimal values; round using a versioned policy only at named supplier-charge, line-item, quote-total, or presentation boundaries. Store the unrounded value, rounded value, currency, scale or increment, strategy, boundary, and policy version. Negative-zero display is forbidden.
 
 ## Overrides and versioning
+
+VIS-4 adds the distinct `partprobe-developer-stock-candidate` v1.0.0 rule for newly requested session-only blank overrides. Its exact enclosure, checked stock/material/cutting arithmetic, unchanged fixed times, immutable revision/basis requirements, and no-adoption boundary are canonical in [Stock selection](stock-selection-model.md#vis-4-developer-stock-candidate-rule-v1). Original proposal/adoption v1 and historical estimates remain unchanged; the implementation extracts their existing stock-dependent arithmetic into a shared private helper without changing formulas or diagnostics. The existing exact-product gate can report an excessive magnitude as rounding-required before multiplication; candidates preserve that diagnostic rather than silently introducing a different arithmetic policy.
 
 An override is a new node referencing the original, actor, timestamp, reason, and authorization. Rule changes increment a calculation-rules version; published estimates retain the old version. Migration may rehydrate old results but never silently recalculate an approved estimate.
