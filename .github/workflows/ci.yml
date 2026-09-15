@@ -50,6 +50,9 @@ jobs:
       - name: Fetch locked dependencies
         run: cargo fetch --locked
 
+      - name: Check viewer Windows binding identity
+        run: python scripts/check_viewer_windows_bindings.py
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 

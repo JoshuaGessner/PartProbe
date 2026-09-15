@@ -1,7 +1,7 @@
 # Dependency Record
 
 > **Status:** In Review  
-> **Last updated:** 2026-09-13
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-NF-003, REQ-NF-010; TEST-001, TEST-020  
 > **Related ADRs:** ADR-0001, ADR-0006, ADR-0007
 > **Open questions:** Organization-wide license approval and automated advisory/SBOM tooling  
@@ -61,6 +61,8 @@ USE-2 adds exact `rusqlite 0.40.2` with only `backup` and `bundled` features for
 Reported package licenses are MIT, MIT OR Apache-2.0, Apache-2.0 OR MIT, `memchr`'s Unlicense OR MIT, and `unicode-ident`'s combined MIT/Apache-2.0 and Unicode-3.0 expression. The Cargo 1.94 lockfile also records packages reachable through disabled optional features; the active graph above—not every lockfile entry—is the TASK-001 build surface.
 
 ## Security, build, and runtime review
+
+- Windows CI run `34961244661` exposed `wgpu-hal 30.0.1` exchanging D3D12 types from `windows 0.62.2` with `gpu-allocator 0.28.0` resolved to `windows 0.61.3`. These are distinct Rust types even though both versions satisfy separate dependency constraints. The reviewed lock repair binds the allocator to the already-locked `windows 0.62.2`, permitted by its upstream `>=0.53, <=0.62` range ([allocator manifest](https://docs.rs/crate/gpu-allocator/0.28.0/source/Cargo.toml.orig)). It adds no package/version/checksum/license or backend change; other Tauri dependencies retain 0.61.3. `scripts/check_viewer_windows_bindings.py` checks actual locked, offline Cargo metadata for exact package identity before lint on every CI target, with six deterministic failure/ambiguity regressions. Maintain this guard with renderer/allocator upgrades; matching metadata is dependency evidence, not Windows compilation or GPU/package acceptance.
 
 - Project crates retain `unsafe_code = "forbid"` except `platform`, which sets `unsafe_code = "deny"` and permits unsafe only on individually attributed OS-boundary functions. Checkpoint 18 extends the existing Unix pre-exec exception with async-signal-safe resource/process-group syscalls and adds an attributed group-kill boundary; Windows adds attributed Job creation/configuration, suspended assignment/resume, and tree termination around the existing exact-launch functions. Four additional resource-inheritance probes remain test-only. This does not prove that dependencies contain no unsafe code; automated unsafe/advisory review remains a release gate.
 - The headless default graph is Rust-only apart from the separately feature-gated OCCT bridge and showed no native linker dependency. GUI-3's feature-gated desktop graph deliberately links platform GUI/WebView libraries and executes Tauri/Leptos/WASM procedural and build tooling; platform system-package provenance and runtime versions therefore require three-OS package evidence.

@@ -8,6 +8,12 @@
 > **Dependencies:** None
 > **Supersedes:** None
 
+## 2026-09-15 — Windows D3D12 binding identity repair
+
+- Committed/pushed the viewer lifecycle checkpoint as `14efdbd`. Its Rust CI run `34961244661` failed Windows lint compilation in upstream `wgpu-hal`, exchanging D3D12 interfaces with `gpu-allocator` from incompatible Windows-binding crate versions (0.62.2 versus 0.61.3).
+- Changed only the allocator's lockfile dependency edge to the already-locked 0.62.2 package, within its declared supported range. No renderer/allocator version, checksum, feature, backend, package, or dependency license changed; Tauri's separate 0.61.3 dependencies remain intact.
+- Added an offline locked Cargo-metadata preflight before lint in CI, with six synthetic regressions for mismatched, absent, ambiguous, and different-source binding identities. The real Windows target metadata now resolves both D3D12 participants to exactly the same 0.62.2 package. All 80 Python tests, planning validation, formatting, and diff hygiene pass. This is a causal dependency repair, not yet hosted Windows compilation or GPU/package acceptance; the follow-up push will start a fresh run without live waiting.
+
 ## 2026-09-15 — Terminal device-loss guards across viewer operations
 
 - Found and closed a renderer lifecycle gap: redraw observed device loss, but scene/stock/camera/viewport/resize operations could first mutate renderer state or create/configure resources on an already-lost device. All entry points now check the same terminal observer, including zero-sized resize and no-op stock clearing; redraw also checks acquisition/retry, encoding, submission, and post-presentation boundaries. Driver diagnostic text is discarded.
