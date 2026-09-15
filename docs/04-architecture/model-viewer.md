@@ -3,7 +3,7 @@
 ## Metadata
 
 - **Status:** In Review
-- **Last updated:** 2026-09-14
+- **Last updated:** 2026-09-15
 - **Related requirement IDs:** REQ-F-022–REQ-F-024, REQ-F-049–REQ-F-055, REQ-NF-011, REQ-NF-013, UX-021–UX-027, UX-035–UX-037, SEC-004
 - **Related architecture decision IDs:** ADR-0003, ADR-0005
 - **Open questions:** Acceptance of Tauri's feature-gated child-WebView composition; forced device-loss/platform fallback evidence; accessibility evidence for selection
@@ -42,6 +42,8 @@ The current model/stock workspace keeps Estimate primary and opens through the *
 Initial editing remains numeric rather than drag-only. Each future edit creates an immutable session stock-candidate revision with original/new values, source analysis and settings/library pins, recomputed blank/removal/mass/material/runtime evidence, actor/time/reason, review state, and unresolved facts. The implemented display-only v1 placement does not create an editable candidate: it centers the exact proposal dimensions on renderer-owned source bounds and visibly records the equal-per-side assumption. Re-analysis or a saved Settings change removes the displayed stock; future estimate adoption of edited stock must reference the exact reviewed candidate revision.
 
 ## Robustness, performance, and accessibility
+
+The device-loss observer is terminal for the lifetime of its renderer. Scene replacement/clearing, proposal-stock changes, camera changes, viewport updates, and resize all check the same observer before changing renderer state or creating/configuring GPU resources; redraw also checks before acquisition/retry, encoding, submission, and post-presentation configuration. A known loss takes precedence even over a zero-sized resize or otherwise no-op stock clear so the host can discard the renderer immediately. Driver messages are not retained or exposed. These checks observe asynchronously reported loss; they are not an atomic guarantee against a driver failing during a GPU call. An explicit headless Metal test destroys a real `wgpu::Device` and verifies the production observer and terminal diagnostic. API-induced destruction does not establish physical driver reset, surface presentation, or the live host's limited-mode transition. Full device recreation remains an open product/platform decision.
 
 Use progressive loading: coarse mesh first, requested quality only after interaction settles, cancellation on snapshot change, GPU-resource budgets, and deterministic camera framing from analysis bounds. The current slice tries one platform fallback adapter, retries a lost/outdated surface once, and then uses a visible full-width text-only limited mode while preserving accepted work. It does not silently omit warnings or claim software rasterization. Forced device-loss injection, in-session full-device recreation, HiDPI, resize, long labels, huge assemblies, and cross-platform color/selection contrast still require platform evidence.
 

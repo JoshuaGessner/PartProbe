@@ -1,7 +1,7 @@
 # Nonfunctional Requirements
 
 > **Status:** In Review
-> **Last updated:** 2026-08-09
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-NF-001–REQ-NF-022; SEC-001–SEC-014; UX-001–UX-012, UX-021–UX-045
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-021–OQ-029
@@ -22,7 +22,7 @@
 | REQ-NF-010 | Dependencies shall have documented purpose, maintenance condition, license, provenance, and security review. | Dependency gate; GUI-3 exact direct dependencies and reversal/security notes are recorded, while automated advisory/SBOM/legal approval remain open | Draft |
 | REQ-NF-011 | Geometry and model-rendering results shall be reproducible within documented numeric/tessellation tolerances and representation limits. | TEST-024–TEST-030 | Draft |
 | REQ-NF-012 | Import/analysis shall enforce configurable file-size, entity/triangle, memory, CPU/wall-time, recursion, and output limits. | TEST-023, TEST-030, TEST-011; Checkpoint 18 supplies partial CPU/file/Linux+Windows-memory evidence | Draft |
-| REQ-NF-013 | The viewport shall meet measured interaction, memory, correctness, and HiDPI budgets on the supported GPU/backend matrix. | TEST-012, TEST-028 | Draft |
+| REQ-NF-013 | The viewport shall meet measured interaction, memory, correctness, and HiDPI budgets on the supported GPU/backend matrix. | TEST-012, TEST-028; [VIS-1](../06-quality/vis-1-renderer-validation.md) provides partial Metal rendering and terminal device-loss observer evidence, not complete performance/HiDPI/platform acceptance | Draft |
 | REQ-NF-014 | Native dependencies and application packages shall build, install, launch, update/rollback, and uninstall under a documented support/signing policy on every supported OS. | TEST-008, TEST-029 | Draft |
 | REQ-NF-015 | Advanced scoring, capacity, uncertainty, comparison, and learning outputs shall be replayable from immutable inputs, policies, versions, and seeds where applicable. | TEST-044, TEST-050, TEST-055, TEST-060, TEST-078 | Draft |
 | REQ-NF-016 | Probabilistic outputs shall maintain valid range/percentile ordering, prohibit negative time/cost where physically impossible, and avoid probability language unsupported by the chosen method. | TEST-051–TEST-055 | Draft |

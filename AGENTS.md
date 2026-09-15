@@ -1,7 +1,7 @@
 # PartProbe Agent Instructions
 
 > **Status:** In Review  
-> **Last updated:** 2026-09-14
+> **Last updated:** 2026-09-15
 > **Related requirements:** All  
 > **Related ADRs:** ADR-0001–ADR-0014  
 > **Open questions:** None  
@@ -134,6 +134,8 @@ These rules are mandatory for every person or agent changing this repository.
 122. Treat Estimate, Settings, and Model & stock as page-like workspace destinations. Expose the active destination with `aria-current="page"`, and after a successful user-initiated transition move focus to one programmatically focusable, visibly focused destination heading. Do not move focus before an asynchronous native transition succeeds, on a failed/blocked transition, or for unrelated background state updates; preserve the existing keyboard order and skip link.
 
 ## Documentation protocol
+
+The native renderer must check its terminal device-loss observer before every GPU-touching scene, stock, camera, viewport, and resize operation, including otherwise skipped/no-op operations. Keep driver messages content-minimized, and distinguish headless API-induced device destruction from physical driver failure or a live packaged-host fallback. Never reset a lost observer in place or claim full-device recreation from observer tests.
 
 - Use stable IDs defined in `docs/INDEX.md`.
 - Put canonical rules in one document and link to them elsewhere.

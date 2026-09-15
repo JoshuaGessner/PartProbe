@@ -1,12 +1,19 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-09-14
+> **Last updated:** 2026-09-15
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-09-15 — Terminal device-loss guards across viewer operations
+
+- Found and closed a renderer lifecycle gap: redraw observed device loss, but scene/stock/camera/viewport/resize operations could first mutate renderer state or create/configure resources on an already-lost device. All entry points now check the same terminal observer, including zero-sized resize and no-op stock clearing; redraw also checks acquisition/retry, encoding, submission, and post-presentation boundaries. Driver diagnostic text is discarded.
+- Added a deterministic terminal/sanitized guard regression and an opt-in headless native GPU test that destroys a real device through `wgpu::Device::destroy()`. Both explicit GPU smokes pass on Metal, covering callback delivery plus the existing four-view/resize render. This is not physical driver-reset evidence, a no-adapter launch, or a live host limited-mode transition; asynchronous checks cannot guarantee health throughout the next driver call.
+- Current workspace passes 313 all-target tests with two ignored GPU smokes and documentation tests; strict workspace and `viewer-spike` host Clippy pass. The renderer passes thirteen ordinary tests with two native smokes ignored by default; the host passes 56 ordinary tests with five configured smokes ignored. All 74 Python tooling tests, fixture hashing, 151-file planning validation, formatting, and diff hygiene pass. Desktop contract v12, geometry/calculation behavior, display placement, persistence schemas, dependencies, and authority boundaries are unchanged.
+- Updated renderer architecture, validation evidence, development guidance, and current state/plan. No package was rebuilt for this lifecycle-only slice; the documented 2026-09-14 unsigned macOS package remains the last packaged checkpoint. Full device recreation, live platform fallback, screen-reader comprehension, immutable stock candidates, and cross-platform package evidence remain open.
 
 ## 2026-09-14 — Success-bound workspace focus and current-page semantics
 

@@ -386,11 +386,8 @@ impl NativeSurfaceRenderer {
             })
             .await
             .map_err(|error| ViewerError::DeviceUnavailable(error.to_string()))?;
-        let device_lost = Arc::new(AtomicBool::new(false));
-        let device_lost_callback = Arc::clone(&device_lost);
-        device.set_device_lost_callback(move |_, _| {
-            device_lost_callback.store(true, Ordering::Release);
-        });
+        let device_lost = observe_device_loss(&device);
+        ensure_device_available(&device_lost)?;
         let config = surface
             .get_default_config(&adapter, width, height)
             .ok_or(ViewerError::SurfaceUnsupported)?;
@@ -454,6 +451,7 @@ impl NativeSurfaceRenderer {
             viewport.width,
             viewport.height,
         )?;
+        ensure_device_available(&device_lost)?;
 
         Ok(Self {
             surface,
@@ -501,6 +499,7 @@ impl NativeSurfaceRenderer {
         &mut self,
         scene: ValidatedGeometryDisplayScene,
     ) -> Result<SurfaceFrameStatus, ViewerError> {
+        ensure_device_available(&self.device_lost)?;
         let native_scene = NativeScene::SourceBound {
             scene: Box::new(scene),
             proposed_stock: None,
@@ -525,6 +524,7 @@ impl NativeSurfaceRenderer {
         &mut self,
         stock: ProposedStockDimensions,
     ) -> Result<SurfaceFrameStatus, ViewerError> {
+        ensure_device_available(&self.device_lost)?;
         let NativeScene::SourceBound {
             scene,
             proposed_stock,
@@ -540,6 +540,7 @@ impl NativeSurfaceRenderer {
 
     /// Hide any displayed proposal stock while retaining the current source model.
     pub fn clear_proposed_stock(&mut self) -> Result<SurfaceFrameStatus, ViewerError> {
+        ensure_device_available(&self.device_lost)?;
         let NativeScene::SourceBound { proposed_stock, .. } = &mut self.scene else {
             return Ok(SurfaceFrameStatus::Skipped);
         };
@@ -550,6 +551,7 @@ impl NativeSurfaceRenderer {
 
     /// Remove any prior source scene while selection or analysis state changes.
     pub fn clear_source_scene(&mut self) -> Result<SurfaceFrameStatus, ViewerError> {
+        ensure_device_available(&self.device_lost)?;
         let native_scene = NativeScene::Empty;
         let buffers = create_scene_vertex_buffers(
             &self.device,
@@ -575,6 +577,7 @@ impl NativeSurfaceRenderer {
         height: u32,
         viewport: SurfaceViewport,
     ) -> Result<SurfaceFrameStatus, ViewerError> {
+        ensure_device_available(&self.device_lost)?;
         if width == 0 || height == 0 {
             return Ok(SurfaceFrameStatus::Skipped);
         }
@@ -596,6 +599,7 @@ impl NativeSurfaceRenderer {
         &mut self,
         viewport: SurfaceViewport,
     ) -> Result<SurfaceFrameStatus, ViewerError> {
+        ensure_device_available(&self.device_lost)?;
         validate_surface_viewport(self.config.width, self.config.height, viewport)?;
         self.viewport = viewport;
         self.rebuild_scene()?;
@@ -604,12 +608,14 @@ impl NativeSurfaceRenderer {
 
     /// Change to one of the governed standard views and redraw.
     pub fn set_view(&mut self, view: StandardView) -> Result<SurfaceFrameStatus, ViewerError> {
+        ensure_device_available(&self.device_lost)?;
         self.view = view;
         self.rebuild_scene()?;
         self.render()
     }
 
     fn rebuild_scene(&mut self) -> Result<(), ViewerError> {
+        ensure_device_available(&self.device_lost)?;
         let scene = create_scene_vertex_buffers(
             &self.device,
             &self.scene,
@@ -634,11 +640,10 @@ impl NativeSurfaceRenderer {
 
     /// Draw one frame. Occlusion and presentation timeouts are deliberate non-errors.
     pub fn render(&mut self) -> Result<SurfaceFrameStatus, ViewerError> {
-        if self.device_lost.load(Ordering::Acquire) {
-            return Err(ViewerError::DeviceUnavailable("device-lost".to_owned()));
-        }
+        ensure_device_available(&self.device_lost)?;
         let mut recovered = false;
         let (frame, reconfigure_after_present) = loop {
+            ensure_device_available(&self.device_lost)?;
             let failure = match self.surface.get_current_texture() {
                 wgpu::CurrentSurfaceTexture::Success(frame) => break (frame, false),
                 wgpu::CurrentSurfaceTexture::Suboptimal(frame) => break (frame, true),
@@ -648,9 +653,11 @@ impl NativeSurfaceRenderer {
                 wgpu::CurrentSurfaceTexture::Lost => SurfaceAcquisitionFailure::Lost,
                 wgpu::CurrentSurfaceTexture::Validation => SurfaceAcquisitionFailure::Validation,
             };
+            ensure_device_available(&self.device_lost)?;
             match surface_recovery_action(failure, recovered) {
                 SurfaceRecoveryAction::Skip => return Ok(SurfaceFrameStatus::Skipped),
                 SurfaceRecoveryAction::ReconfigureAndRetry => {
+                    ensure_device_available(&self.device_lost)?;
                     self.surface.configure(&self.device, &self.config);
                     recovered = true;
                 }
@@ -659,6 +666,7 @@ impl NativeSurfaceRenderer {
                 }
             }
         };
+        ensure_device_available(&self.device_lost)?;
         let color_view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -719,19 +727,37 @@ impl NativeSurfaceRenderer {
             pass.set_vertex_buffer(0, self.edge_buffer.slice(..));
             pass.draw(0..self.edge_vertex_count, 0..1);
         }
+        ensure_device_available(&self.device_lost)?;
         self.queue.submit([encoder.finish()]);
         self.queue.present(frame);
+        ensure_device_available(&self.device_lost)?;
         if reconfigure_after_present {
             self.surface.configure(&self.device, &self.config);
         }
-        if self.device_lost.load(Ordering::Acquire) {
-            return Err(ViewerError::DeviceUnavailable("device-lost".to_owned()));
-        }
+        ensure_device_available(&self.device_lost)?;
         Ok(if recovered {
             SurfaceFrameStatus::RecoveredAndPresented
         } else {
             SurfaceFrameStatus::Presented
         })
+    }
+}
+
+fn observe_device_loss(device: &wgpu::Device) -> Arc<AtomicBool> {
+    let lost = Arc::new(AtomicBool::new(false));
+    let callback_state = Arc::clone(&lost);
+    device.set_device_lost_callback(move |_, _| {
+        // Never retain or publish a driver's potentially identifying diagnostic message.
+        callback_state.store(true, Ordering::Release);
+    });
+    lost
+}
+
+fn ensure_device_available(lost: &AtomicBool) -> Result<(), ViewerError> {
+    if lost.load(Ordering::Acquire) {
+        Err(ViewerError::DeviceUnavailable("device-lost".to_owned()))
+    } else {
+        Ok(())
     }
 }
 
@@ -1687,6 +1713,21 @@ mod tests {
     }
 
     #[test]
+    fn observed_device_loss_is_terminal_and_content_minimized() {
+        let lost = AtomicBool::new(false);
+        assert!(ensure_device_available(&lost).is_ok());
+        lost.store(true, Ordering::Release);
+        for _ in 0..3 {
+            let error = ensure_device_available(&lost).expect_err("loss must stay terminal");
+            assert!(matches!(
+                &error,
+                ViewerError::DeviceUnavailable(reason) if reason == "device-lost"
+            ));
+            assert!(error.requires_renderer_recreation());
+        }
+    }
+
+    #[test]
     fn bounded_scene_has_expected_layers_and_primitive_counts() {
         let scene = build_scene(StandardView::Isometric, 1.5);
         assert_eq!(vertex_count(&scene.model), 36);
@@ -1973,5 +2014,41 @@ mod tests {
             .expect("resized native render should succeed");
         assert_eq!(resized.rgba8.len(), 640 * 360 * 4);
         assert_eq!((resized.report.width, resized.report.height), (640, 360));
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter; API-induced loss is not driver/host fallback evidence"]
+    fn native_device_destruction_triggers_terminal_loss_guard() {
+        pollster::block_on(async {
+            let instance = wgpu::Instance::default();
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions::default())
+                .await
+                .expect("explicit native smoke requires an adapter");
+            let (device, _queue) = adapter
+                .request_device(&wgpu::DeviceDescriptor::default())
+                .await
+                .expect("explicit native smoke requires a device");
+            let lost = observe_device_loss(&device);
+            assert!(ensure_device_available(&lost).is_ok());
+            device.destroy();
+            // The actual wgpu callback may be delivered by polling on some backends.
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !lost.load(Ordering::Acquire) && std::time::Instant::now() < deadline {
+                let _ = device.poll(wgpu::PollType::Poll);
+                std::thread::yield_now();
+            }
+            let error = ensure_device_available(&lost)
+                .expect_err("device destruction must deliver the actual loss callback");
+            assert!(matches!(
+                &error,
+                ViewerError::DeviceUnavailable(reason) if reason == "device-lost"
+            ));
+            assert!(error.requires_renderer_recreation());
+            println!(
+                "API-induced device loss observed on {:?}",
+                adapter.get_info().backend
+            );
+        });
     }
 }

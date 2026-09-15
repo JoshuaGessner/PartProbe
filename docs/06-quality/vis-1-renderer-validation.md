@@ -1,7 +1,7 @@
 # VIS-1 native renderer validation
 
 > **Status:** In Progress
-> **Last updated:** 2026-09-14
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-F-022–REQ-F-024, REQ-NF-011, REQ-NF-013; UX-021–UX-027
 > **Related ADRs:** ADR-0003, ADR-0005
 > **Open questions:** Acceptance or replacement of Tauri's feature-gated child-WebView API; complete screen-reader/accessibility lifecycle; forced device-loss/platform fallback evidence; Windows/Linux package behavior
@@ -22,9 +22,9 @@ The current VIS-2 integration extends that exact internal configuration. It requ
 
 | Check | Current result | What it proves |
 |---|---|---|
-| Ordinary crate tests | 12 passed; native GPU smoke ignored by default | Primitive counts, finite/bounded clip coordinates in four views, projected-extents source fitting across four views and multiple aspect ratios, index preservation, source normals retained for GPU lighting, no stock before a proposal, centered/enclosing proposed stock, invalid-stock rejection, distinct offscreen/surface limits, viewport containment, one bounded lost/outdated recovery attempt, transient skip classification, fatal GPU lifecycle classification, and rejection before GPU initialization |
+| Ordinary crate tests | 13 passed; two native GPU smokes ignored by default | Primitive counts, finite/bounded clip coordinates in four views, projected-extents source fitting across four views and multiple aspect ratios, index preservation, source normals retained for GPU lighting, no stock before a proposal, centered/enclosing proposed stock, invalid-stock rejection, distinct offscreen/surface limits, viewport containment, one bounded lost/outdated recovery attempt, transient skip classification, fatal GPU lifecycle classification, terminal content-minimized device-loss guarding, and rejection before GPU initialization |
 | Strict crate Clippy | Passed with `-D warnings` | New library, tests, and example satisfy the current lint policy |
-| Explicit host GPU smoke | Passed on Apple Silicon through Metal after the lighting change | Four standard views produce distinct non-background RGBA frames; a 640×360 resize also renders with exact output dimensions |
+| Explicit host GPU smoke | Passed on Apple Silicon through Metal on 2026-09-15 | Four standard views produce distinct non-background RGBA frames; a 640×360 resize also renders with exact output dimensions; actual API-induced device destruction invokes the production loss observer and returns the terminal sanitized diagnostic |
 | Reproducible example | 960×640 PPM generated and converted locally to PNG for inspection | Lit cyan faces have materially distinct tones; translucent amber stock, bright edges, and the dark background remain clearly separated |
 | Developer Tauri host tests | 56 passed; five configured native/package smokes remain ignored | The feature-gated adapter preserves exact contract-v12 parity, maps all four wire views to native camera views, requests the exact display profile, binds source and proposed stock to the retained selection/analysis, clears stale stock, keeps startup/runtime limited-mode notices path-free and selection-bound, and proves build-profile activation plus private host-workspace lifecycle |
 | No-GPU/device-loss fallback logic | Passed deterministic renderer and host tests; live forced loss still open | A preferred-adapter miss requests one platform fallback adapter; device loss is observed; lost/outdated surfaces get one bounded retry; unrecovered GPU state discards renderer geometry and retains a full-width text-only model/proposal review without altering accepted analysis or estimate state |
@@ -42,6 +42,7 @@ Commands:
 cargo test -p partprobe-model-viewer --locked
 cargo clippy -p partprobe-model-viewer --all-targets --locked -- -D warnings
 cargo test -p partprobe-model-viewer native_renderer_covers_standard_views_and_resizing --locked -- --ignored --nocapture
+cargo test -p partprobe-model-viewer native_device_destruction_triggers_terminal_loss_guard --locked -- --ignored --nocapture
 cargo run -p partprobe-model-viewer --example render_vis1 --locked -- target/vis-1-model-stock.ppm
 cargo test -p partprobe-estimator-desktop --features viewer-spike --lib --locked
 cargo clippy -p partprobe-estimator-desktop --features viewer-spike --all-targets --locked -- -D warnings
@@ -51,6 +52,8 @@ cargo run -p partprobe-estimator-desktop --features viewer-spike
 The reproducible local image is `target/vis-1-model-stock.png`; `target/` remains untracked build evidence rather than a shipped or governed geometry fixture.
 
 ## Evidence not established
+
+The 2026-09-15 lifecycle hardening checks the production terminal observer before all scene/stock/camera/viewport/resize entry points, including nominal no-ops, and at redraw GPU boundaries. The ordinary guard test proves terminal sanitized classification; the ignored headless GPU test proves delivery through a real Metal device-loss callback after `Device::destroy()`. Neither forces a native surface or the packaged host into limited mode. Physical/driver loss, a no-adapter launch, and the live text-only transition remain pending. Asynchronous loss checks cannot guarantee a device will remain healthy during the next GPU call.
 
 This checkpoint proves one internal-build-gated same-window native surface on Retina Apple Silicon, path-free contract-v12 workspace/standard-view control, semantic keyboard-operable standard views, a path-free text equivalent, page-current navigation semantics, a live macOS accessibility-bridge destination-heading focus handoff, accessible navigation labels, return navigation, live resize, validated indexed source conversion, fragment-lit normals, proposal-stock buffer construction, configured desktop retention, deterministic surface/device failure classification, one bounded surface recovery attempt, and a text-only host fallback that preserves accepted work. It does not yet prove a VoiceOver/Narrator/Orca announcement and comprehension sequence, representative-model performance, stable-API acceptance, complete screen-reader equivalence, broad HiDPI/continuous-resize behavior, forced physical/driver device-loss recovery, successful software-adapter presentation on each target, in-session full-device recreation, selection/picking, editable/standard-size stock, signed production packaging, or Windows/Linux execution. The synthetic scene remains isolated GPU evidence only.
 
