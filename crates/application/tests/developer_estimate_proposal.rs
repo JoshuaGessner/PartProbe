@@ -2,6 +2,11 @@ use partprobe_application::{
     AnalyzedGeometryEvidence, DeveloperEstimateProposalAdoptionError,
     DeveloperEstimateProposalApplication, DeveloperEstimateProposalReview, DraftQuantityInputs,
 };
+use partprobe_application::{
+    AssetReadSubject, DeveloperStockCandidateSessionError, DraftEstimateApplication,
+    DraftEstimateSession, GeometryAnalysisFailure, GeometryAnalysisPort, LocalAssetReadService,
+    MAX_DEVELOPER_STOCK_CANDIDATE_REVISIONS, StockCandidateRevisionExpectation,
+};
 use partprobe_domain::{
     ActorId, CoarseRuntimeProfile, CurrencyCode, DensityKilogramsPerCubicMeter, EffectiveDate,
     LibraryRecordState, MachineEnvelopeMillimeters, MachineProfile, MachineProfileId,
@@ -20,11 +25,969 @@ use partprobe_geometry_import::{
     PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE, ProvisionalExactStepAnalysis, SnapshotReference,
 };
 use partprobe_setup_planner::{
+    AxisAlignedEnvelopeMillimeters,
+    stock_candidate::{StockCandidateEdit, StockCandidateError},
+};
+use partprobe_setup_planner::{
     DEVELOPER_ESTIMATE_INPUT_PROPOSAL_RULE_ID, DEVELOPER_ESTIMATE_INPUT_PROPOSAL_RULE_VERSION,
     DeveloperEstimateProposalReadiness, DeveloperEstimateProposalReasonCode,
     EXACT_STEP_ENVELOPE_EVIDENCE_SCHEMA_VERSION,
 };
 use rust_decimal::Decimal;
+use std::{
+    path::Path,
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+};
+
+static SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug)]
+struct CandidateTestAnalyzer(AnalyzedGeometryEvidence);
+
+impl GeometryAnalysisPort for CandidateTestAnalyzer {
+    fn analyze(
+        &self,
+        _request: &partprobe_geometry_import::GeometryWorkerRequest,
+        _grant: partprobe_geometry_import::AssetReadGrant,
+        _cancellation: &AtomicBool,
+    ) -> Result<AnalyzedGeometryEvidence, GeometryAnalysisFailure> {
+        Ok(self.0.clone())
+    }
+}
+
+#[derive(Debug)]
+struct CandidateTestPolicy;
+
+impl partprobe_security::AuthorizationPolicy for CandidateTestPolicy {
+    fn evaluate(
+        &self,
+        _context: &partprobe_security::AuthorizationContext,
+    ) -> partprobe_security::AuthorizationDecision {
+        partprobe_security::AuthorizationDecision::allow(
+            partprobe_security::SecurityPolicyRef::new(
+                partprobe_security::SecurityPolicyId::new("synthetic-candidate-test").unwrap(),
+                partprobe_security::SecurityPolicyVersion::new(1).unwrap(),
+            ),
+            partprobe_security::AuthorizationReasonCode::new("TEST_ONLY").unwrap(),
+        )
+    }
+}
+
+#[derive(Debug)]
+struct CandidateTestAudit;
+
+impl partprobe_security::AuthorizationAuditSink for CandidateTestAudit {
+    fn append(
+        &self,
+        _event: partprobe_security::AuthorizationAuditEvent,
+    ) -> Result<(), partprobe_security::AuditAppendError> {
+        Ok(())
+    }
+}
+
+fn candidate_session(geometry: AnalyzedGeometryEvidence) -> DraftEstimateSession {
+    let sequence = SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let directory = std::env::temp_dir().join(format!(
+        "partprobe-stock-candidate-{}-{sequence}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).unwrap();
+    std::fs::write(
+        directory.join("synthetic.step"),
+        b"public synthetic test input",
+    )
+    .unwrap();
+    let root = partprobe_geometry_import::LocalAssetRoot::open(
+        partprobe_domain::AssetRootId::new("candidate-test-root").unwrap(),
+        &directory,
+    )
+    .unwrap();
+    let application = DraftEstimateApplication::new(
+        LocalAssetReadService::new(CandidateTestPolicy, CandidateTestAudit),
+        CandidateTestAnalyzer(geometry),
+    );
+    let subject = AssetReadSubject::new(
+        ActorId::new("test-estimator").unwrap(),
+        partprobe_domain::ProjectId::new("test-project").unwrap(),
+        partprobe_domain::RecordId::new("test-model").unwrap(),
+        partprobe_domain::RecordVersionId::new("test-revision").unwrap(),
+        partprobe_domain::DataClassificationId::new("public-synthetic").unwrap(),
+        partprobe_domain::RecordStateId::new("draft").unwrap(),
+        partprobe_security::AuditCorrelationId::new("candidate-test-audit").unwrap(),
+        RecordedAt::new("2026-09-15T12:00:00Z").unwrap(),
+    );
+    let request = partprobe_geometry_import::GeometryWorkerRequest::new(
+        partprobe_domain::SchemaVersion::new(1).unwrap(),
+        partprobe_geometry_import::GeometryJobId::new("test-job").unwrap(),
+        partprobe_geometry_import::CorrelationId::new("test-correlation").unwrap(),
+        partprobe_geometry_import::AssetCapability::new("test-capability").unwrap(),
+        digest(SOURCE_HASH),
+        vec![partprobe_geometry_core::GeometryStage::BasicProperties],
+        partprobe_geometry_core::AnalysisProfile {
+            id: partprobe_geometry_core::AnalysisProfileId::new("test-profile").unwrap(),
+            version: partprobe_domain::RuleVersion::new(1, 0, 0),
+        },
+        partprobe_geometry_import::ResourceQuotas::new(1_000_000, 1_000_000, 10_000, 5_000)
+            .unwrap(),
+    )
+    .unwrap();
+    let session = application
+        .start_session(
+            subject,
+            &root,
+            &request,
+            Path::new("synthetic.step"),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+    drop(root);
+    std::fs::remove_file(directory.join("synthetic.step")).unwrap();
+    std::fs::remove_dir(&directory).unwrap();
+    session
+}
+
+fn prism_session() -> DraftEstimateSession {
+    candidate_session(exact_geometry(
+        ["12", "8", "5"],
+        "392",
+        "480",
+        ["6", "4", "2.5"],
+    ))
+}
+
+fn candidate_id() -> partprobe_domain::RecordId {
+    partprobe_domain::RecordId::new("test-stock").unwrap()
+}
+
+fn expected_candidate(revision: u32) -> StockCandidateRevisionExpectation {
+    StockCandidateRevisionExpectation {
+        candidate_id: candidate_id(),
+        revision,
+    }
+}
+
+fn candidate_edit(x: &str) -> StockCandidateEdit {
+    StockCandidateEdit::new(
+        AxisAlignedEnvelopeMillimeters::new(
+            partprobe_setup_planner::CanonicalMillimeterLength::new(decimal(x)).unwrap(),
+            partprobe_setup_planner::CanonicalMillimeterLength::new(decimal("12")).unwrap(),
+            partprobe_setup_planner::CanonicalMillimeterLength::new(decimal("8")).unwrap(),
+        ),
+        ActorId::new("test-estimator").unwrap(),
+        RecordedAt::new("2026-09-15T12:00:00Z").unwrap(),
+        "review saw blank dimensions",
+    )
+    .unwrap()
+}
+
+fn candidate_review() -> DeveloperEstimateProposalReview {
+    DeveloperEstimateProposalReview {
+        proposal_values_reviewed: true,
+        coarse_limitations_accepted: true,
+        actor: ActorId::new("test-reviewer").unwrap(),
+        recorded_at: RecordedAt::new("2026-09-15T13:00:00Z").unwrap(),
+        reason: "reviewed edited blank and coarse exclusions".to_owned(),
+    }
+}
+
+#[test]
+fn session_retains_original_and_reviewed_predecessor_without_inheriting_review() {
+    let mut session = prism_session();
+    let settings = settings(Some(valid_library()));
+    let original_geometry = session.geometry().clone();
+    session
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    let first = session.stock_candidate_revisions()[0].candidate().clone();
+    assert_eq!(first.blank_volume_mm3().value(), decimal("1920"));
+    session
+        .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+        .unwrap();
+    let reviewed_first = session.stock_candidate_revisions()[0].clone();
+    assert_eq!(
+        reviewed_first.session_rule_id(),
+        "partprobe-developer-stock-candidate-session"
+    );
+    assert_eq!(reviewed_first.session_rule_version(), (1, 0, 0));
+    session
+        .revise_stock_candidate(&expected_candidate(1), &settings, candidate_edit("18"))
+        .unwrap();
+    assert_eq!(session.stock_candidate_revisions().len(), 2);
+    assert_eq!(session.stock_candidate_revisions()[0], reviewed_first);
+    let second = &session.stock_candidate_revisions()[1];
+    assert_eq!(second.candidate().revision(), 2);
+    assert_eq!(
+        second.candidate().previous_dimensions_mm(),
+        first.edit().dimensions_mm()
+    );
+    assert_eq!(
+        second.candidate().original_proposal(),
+        first.original_proposal()
+    );
+    assert!(second.review().is_none());
+    assert_eq!(
+        second.candidate().readiness(),
+        DeveloperEstimateProposalReadiness::NeedsReview
+    );
+    assert_eq!(session.geometry(), &original_geometry);
+    assert!(matches!(session.evaluate(), ValueState::Unavailable { .. }));
+}
+
+#[test]
+fn session_rejects_stale_or_wrong_identity_edits_reviews_and_reinitialization() {
+    let mut session = prism_session();
+    let settings = settings(Some(valid_library()));
+    session
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    session
+        .revise_stock_candidate(&expected_candidate(1), &settings, candidate_edit("18"))
+        .unwrap();
+    let before = session.clone();
+    for expectation in [
+        expected_candidate(1),
+        expected_candidate(3),
+        StockCandidateRevisionExpectation {
+            candidate_id: partprobe_domain::RecordId::new("other-stock").unwrap(),
+            revision: 2,
+        },
+    ] {
+        assert_eq!(
+            session
+                .revise_stock_candidate(&expectation, &settings, candidate_edit("22"))
+                .unwrap_err(),
+            DeveloperStockCandidateSessionError::StaleRevision
+        );
+        assert_eq!(
+            session
+                .review_stock_candidate(&expectation, &settings, candidate_review())
+                .unwrap_err(),
+            DeveloperStockCandidateSessionError::StaleRevision
+        );
+        assert_eq!(session, before);
+    }
+    assert_eq!(
+        session
+            .create_stock_candidate(candidate_id(), &settings, candidate_edit("22"))
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::AlreadyStarted
+    );
+    assert_eq!(session, before);
+}
+
+#[test]
+fn changed_settings_bytes_even_under_reused_versions_reject_edits_and_reviews() {
+    let mut session = prism_session();
+    let settings = settings(Some(valid_library()));
+    session
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    let changed = ShopSettingsDraft::new_with_resources(
+        settings.profile_id().clone(),
+        settings.revision(),
+        settings.currency().clone(),
+        None,
+        None,
+        Some(library(
+            LibraryRecordState::Draft,
+            StockForm::Rectangular,
+            ProcessClass::Milling,
+            ["400", "500", "500"],
+        )),
+        ActorId::new("test-editor").unwrap(),
+        RecordedAt::new("2026-09-10T13:00:00Z").unwrap(),
+        "persisted developer-demo resource draft",
+    )
+    .unwrap();
+    let before = session.clone();
+    assert_eq!(
+        session
+            .revise_stock_candidate(&expected_candidate(1), &changed, candidate_edit("22"))
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::StaleSettings
+    );
+    assert_eq!(
+        session
+            .review_stock_candidate(&expected_candidate(1), &changed, candidate_review())
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::StaleSettings
+    );
+    assert_eq!(session, before);
+}
+
+#[test]
+fn invalid_candidate_review_preserves_state_and_review_is_append_once() {
+    let mut session = prism_session();
+    let settings = settings(Some(valid_library()));
+    session
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    let before = session.clone();
+    let mut bad = candidate_review();
+    bad.proposal_values_reviewed = false;
+    assert_eq!(
+        session
+            .review_stock_candidate(&expected_candidate(1), &settings, bad)
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::NotReviewed
+    );
+    let mut bad = candidate_review();
+    bad.coarse_limitations_accepted = false;
+    assert_eq!(
+        session
+            .review_stock_candidate(&expected_candidate(1), &settings, bad)
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::LimitationsNotAccepted
+    );
+    for reason in [" ".to_owned(), "x".repeat(1025), "bad\0reason".to_owned()] {
+        let mut bad = candidate_review();
+        bad.reason = reason;
+        assert_eq!(
+            session
+                .review_stock_candidate(&expected_candidate(1), &settings, bad)
+                .unwrap_err(),
+            DeveloperStockCandidateSessionError::InvalidReviewReason
+        );
+    }
+    assert_eq!(session, before);
+    let review = candidate_review();
+    session
+        .review_stock_candidate(&expected_candidate(1), &settings, review.clone())
+        .unwrap();
+    assert_eq!(
+        session.stock_candidate_revisions()[0].review(),
+        Some(&review)
+    );
+    let reviewed = session.clone();
+    assert_eq!(
+        session
+            .review_stock_candidate(&expected_candidate(1), &settings, review)
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::AlreadyReviewed
+    );
+    assert_eq!(session, reviewed);
+}
+
+#[test]
+fn candidate_history_limit_rejects_new_edits_without_dropping_evidence() {
+    let mut session = prism_session();
+    let settings = settings(Some(valid_library()));
+    session
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    for revision in 1..MAX_DEVELOPER_STOCK_CANDIDATE_REVISIONS as u32 {
+        session
+            .revise_stock_candidate(
+                &expected_candidate(revision),
+                &settings,
+                candidate_edit(if revision % 2 == 1 { "18" } else { "20" }),
+            )
+            .unwrap();
+    }
+    let before = session.clone();
+    assert_eq!(
+        session
+            .revise_stock_candidate(&expected_candidate(32), &settings, candidate_edit("22"))
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::HistoryLimit
+    );
+    assert_eq!(session, before);
+    session
+        .review_stock_candidate(&expected_candidate(32), &settings, candidate_review())
+        .unwrap();
+    assert_eq!(
+        session.stock_candidate_revisions().len(),
+        MAX_DEVELOPER_STOCK_CANDIDATE_REVISIONS
+    );
+}
+
+#[test]
+fn missing_resources_legacy_analysis_and_uninitialized_review_remain_unavailable() {
+    for (mut session, settings) in [
+        (prism_session(), settings(None)),
+        (
+            candidate_session(legacy_geometry()),
+            settings(Some(valid_library())),
+        ),
+    ] {
+        let before = session.clone();
+        assert_eq!(
+            session
+                .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+                .unwrap_err(),
+            DeveloperStockCandidateSessionError::Unavailable
+        );
+        assert_eq!(
+            session
+                .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+                .unwrap_err(),
+            DeveloperStockCandidateSessionError::Unavailable
+        );
+        assert_eq!(session, before);
+    }
+}
+
+#[test]
+fn failed_candidate_calculation_preserves_latest_revision_and_existing_review() {
+    let mut session = prism_session();
+    let settings = settings(Some(valid_library()));
+    session
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    session
+        .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+        .unwrap();
+    let before = session.clone();
+    assert_eq!(
+        session
+            .revise_stock_candidate(&expected_candidate(1), &settings, candidate_edit("20"))
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::Candidate(StockCandidateError::NoStockChange)
+    );
+    assert_eq!(
+        session
+            .revise_stock_candidate(&expected_candidate(1), &settings, candidate_edit("11"))
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::Candidate(
+            StockCandidateError::BlankDoesNotEncloseModel
+        )
+    );
+    assert_eq!(session, before);
+}
+
+#[test]
+fn edited_and_reviewed_stock_does_not_replace_the_accepted_deterministic_baseline() {
+    let mut session = prism_session();
+    let settings = settings(Some(valid_library()));
+    let ValueState::Available { value: proposal } =
+        DeveloperEstimateProposalApplication.propose(session.geometry(), &settings)
+    else {
+        panic!("valid original proposal")
+    };
+    let adopted = DeveloperEstimateProposalApplication
+        .adopt(
+            proposal,
+            DraftQuantityInputs {
+                deliver: partprobe_domain::ItemQuantity::new(2),
+                planned_spares: partprobe_domain::ItemQuantity::new(1),
+                destructive_samples: partprobe_domain::ItemQuantity::new(0),
+            },
+            candidate_review(),
+        )
+        .unwrap();
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../estimation-engine/tests/fixtures/task_002/golden_estimates.json"
+    ))
+    .unwrap();
+    let card: partprobe_domain::RateCard =
+        serde_json::from_value(fixture["rate_card"].clone()).unwrap();
+    let policy = serde_json::from_value(fixture["pricing_policy"].clone()).unwrap();
+    session.set_geometry_review(partprobe_application::DraftGeometryReview::new(true, true));
+    session.set_inputs(adopted.inputs);
+    session.set_rate_context(
+        partprobe_application::DraftRateContext::new(
+            card,
+            EffectiveDate::new("2026-07-29").unwrap(),
+            vec![partprobe_domain::RateScope::organization()],
+        )
+        .unwrap(),
+    );
+    session.set_pricing_policy(policy);
+    let baseline = session.evaluate();
+    assert!(matches!(baseline, ValueState::Available { .. }));
+    session
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    session
+        .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+        .unwrap();
+    assert_eq!(session.evaluate(), baseline);
+    session
+        .revise_stock_candidate(&expected_candidate(1), &settings, candidate_edit("18"))
+        .unwrap();
+    assert_eq!(session.evaluate(), baseline);
+}
+
+#[test]
+fn new_analysis_session_does_not_inherit_candidate_history_or_review() {
+    let settings = settings(Some(valid_library()));
+    let mut previous = prism_session();
+    previous
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    previous
+        .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+        .unwrap();
+    let before = previous.clone();
+    let mut current = candidate_session(exact_geometry(
+        ["10", "10", "10"],
+        "600",
+        "1000",
+        ["5", "5", "5"],
+    ));
+    assert!(current.stock_candidate_revisions().is_empty());
+    assert_eq!(
+        current
+            .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::Unavailable
+    );
+    assert_eq!(
+        current
+            .revise_stock_candidate(&expected_candidate(1), &settings, candidate_edit("22"))
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::Unavailable
+    );
+    assert_eq!(previous, before);
+}
+
+fn adoption_decision() -> partprobe_application::StockCandidateAdoptionDecision {
+    partprobe_application::StockCandidateAdoptionDecision {
+        actor: ActorId::new("test-adopter").unwrap(),
+        recorded_at: RecordedAt::new("2026-09-15T14:00:00Z").unwrap(),
+        reason: "use this exact reviewed stock revision for the coarse test estimate".to_owned(),
+    }
+}
+
+fn quantity_three() -> DraftQuantityInputs {
+    DraftQuantityInputs {
+        deliver: partprobe_domain::ItemQuantity::new(2),
+        planned_spares: partprobe_domain::ItemQuantity::new(1),
+        destructive_samples: partprobe_domain::ItemQuantity::new(0),
+    }
+}
+
+fn candidate_rate_and_policy() -> (
+    partprobe_application::DraftRateContext,
+    partprobe_domain::PricingPolicy,
+) {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../estimation-engine/tests/fixtures/task_002/golden_estimates.json"
+    ))
+    .unwrap();
+    (
+        partprobe_application::DraftRateContext::new(
+            serde_json::from_value(fixture["rate_card"].clone()).unwrap(),
+            EffectiveDate::new("2026-07-29").unwrap(),
+            vec![partprobe_domain::RateScope::organization()],
+        )
+        .unwrap(),
+        serde_json::from_value(fixture["pricing_policy"].clone()).unwrap(),
+    )
+}
+
+fn configure_candidate_context(session: &mut DraftEstimateSession) {
+    let (rates, policy) = candidate_rate_and_policy();
+    session.set_geometry_review(partprobe_application::DraftGeometryReview::new(true, true));
+    session.set_rate_context(rates);
+    session.set_pricing_policy(policy);
+}
+
+fn reviewed_stock_session(settings: &ShopSettingsDraft) -> DraftEstimateSession {
+    let mut session = prism_session();
+    session
+        .create_stock_candidate(candidate_id(), settings, candidate_edit("20"))
+        .unwrap();
+    session
+        .review_stock_candidate(&expected_candidate(1), settings, candidate_review())
+        .unwrap();
+    session
+}
+
+#[test]
+fn exact_reviewed_stock_adoption_maps_quantity_and_pins_distinct_evidence() {
+    let settings = settings(Some(valid_library()));
+    let session = reviewed_stock_session(&settings);
+    let before = session.clone();
+    let decision = adoption_decision();
+    let adoption = session
+        .adopt_stock_candidate(
+            &expected_candidate(1),
+            &settings,
+            quantity_three(),
+            decision.clone(),
+        )
+        .unwrap();
+    assert_eq!(session, before);
+    assert_eq!(
+        adoption.rule_id(),
+        "partprobe-developer-stock-candidate-adoption"
+    );
+    assert_eq!(adoption.rule_version(), (1, 0, 0));
+    assert_eq!(adoption.decision(), &decision);
+    assert_ne!(
+        adoption.decision().actor,
+        adoption.revision().review().unwrap().actor
+    );
+    assert_eq!(adoption.revision(), &session.stock_candidate_revisions()[0]);
+    let inputs = adoption.inputs();
+    assert_eq!(inputs.stock.stock_volume.value(), decimal("1920"));
+    assert_eq!(inputs.stock.density.value(), decimal("0.0000027"));
+    assert_eq!(inputs.material.purchased.amount(), decimal("0.132192"));
+    assert_eq!(inputs.quantities, quantity_three());
+    assert_eq!(inputs.times.cutting_hours_per_item, decimal("0.0015"));
+    assert_eq!(inputs.times.setup_hours, Decimal::ONE);
+    assert_eq!(inputs.times.programming_hours, decimal("0.75"));
+    assert_eq!(inputs.times.load_unload_hours_per_item, decimal("0.05"));
+    assert_eq!(inputs.times.quality_inspection_hours, decimal("0.25"));
+    assert_eq!(inputs.times.non_cutting_hours_per_item, Decimal::ZERO);
+    assert_eq!(inputs.operation.fixture.amount(), Decimal::ZERO);
+    assert_eq!(inputs.base.overhead.amount(), Decimal::ZERO);
+    assert_eq!(adoption.excluded_inputs().len(), 6);
+    assert!(adoption.excluded_inputs().contains(&"risk_and_rework"));
+    assert_eq!(
+        adoption.revision().candidate().readiness(),
+        DeveloperEstimateProposalReadiness::NeedsReview
+    );
+}
+
+#[test]
+fn adoption_requires_recorded_review_valid_reason_and_bounded_quantity_arithmetic() {
+    let settings = settings(Some(valid_library()));
+    let mut session = prism_session();
+    session
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    assert_eq!(
+        session
+            .adopt_stock_candidate(
+                &expected_candidate(1),
+                &settings,
+                quantity_three(),
+                adoption_decision()
+            )
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::NotReviewed
+    );
+    session
+        .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+        .unwrap();
+    let before = session.clone();
+    for reason in [" ".to_owned(), "x".repeat(1025), "bad\0reason".to_owned()] {
+        let mut decision = adoption_decision();
+        decision.reason = reason;
+        assert_eq!(
+            session
+                .adopt_stock_candidate(
+                    &expected_candidate(1),
+                    &settings,
+                    quantity_three(),
+                    decision
+                )
+                .unwrap_err(),
+            DeveloperStockCandidateSessionError::InvalidAdoptionReason
+        );
+    }
+    let overflow = DraftQuantityInputs {
+        deliver: partprobe_domain::ItemQuantity::new(u64::MAX),
+        planned_spares: partprobe_domain::ItemQuantity::new(1),
+        destructive_samples: partprobe_domain::ItemQuantity::new(0),
+    };
+    assert_eq!(
+        session
+            .adopt_stock_candidate(
+                &expected_candidate(1),
+                &settings,
+                overflow,
+                adoption_decision()
+            )
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::AdoptionArithmeticFailure
+    );
+    assert_eq!(session, before);
+}
+
+#[test]
+fn candidate_evaluation_preserves_baseline_and_uses_exact_stock_sensitive_inputs() {
+    let settings = settings(Some(valid_library()));
+    let mut session = reviewed_stock_session(&settings);
+    let ValueState::Available { value: original } =
+        DeveloperEstimateProposalApplication.propose(session.geometry(), &settings)
+    else {
+        panic!("original proposal")
+    };
+    session.set_inputs(
+        DeveloperEstimateProposalApplication
+            .adopt(original, quantity_three(), candidate_review())
+            .unwrap()
+            .inputs,
+    );
+    configure_candidate_context(&mut session);
+    let before = session.clone();
+    let baseline = session.evaluate();
+    let adoption = session
+        .adopt_stock_candidate(
+            &expected_candidate(1),
+            &settings,
+            quantity_three(),
+            adoption_decision(),
+        )
+        .unwrap();
+    let ValueState::Available { value: layer } =
+        session.evaluate_stock_candidate(&settings, &adoption)
+    else {
+        panic!("reviewed candidate with complete context must evaluate")
+    };
+    assert_eq!(layer.baseline(), &baseline);
+    assert_eq!(layer.adoption(), &adoption);
+    assert_eq!(layer.result().stock_mass.value(), decimal("0.005184"));
+    assert_eq!(layer.result().material_cost.amount(), decimal("0.132192"));
+    assert_eq!(layer.result().trace.inputs, *adoption.inputs());
+    let ValueState::Available {
+        value: original_result,
+    } = &baseline
+    else {
+        panic!("original baseline")
+    };
+    assert!(
+        layer.result().total_internal_cost.amount() > original_result.total_internal_cost.amount()
+    );
+    assert_eq!(
+        layer.result().net_part_volume,
+        original_result.net_part_volume
+    );
+    assert_eq!(layer.result().setup_cost, original_result.setup_cost);
+    assert_eq!(
+        layer.result().programming_cost,
+        original_result.programming_cost
+    );
+    assert_eq!(
+        layer.result().trace.pricing_policy,
+        original_result.trace.pricing_policy
+    );
+    assert_eq!(layer.rate_context(), &candidate_rate_and_policy().0);
+    assert_eq!(session, before);
+    assert_eq!(session.evaluate(), baseline);
+}
+
+#[test]
+fn old_stock_adoption_is_retained_but_cannot_evaluate_after_revision_or_settings_change() {
+    let settings = settings(Some(valid_library()));
+    let mut session = reviewed_stock_session(&settings);
+    configure_candidate_context(&mut session);
+    let adoption = session
+        .adopt_stock_candidate(
+            &expected_candidate(1),
+            &settings,
+            quantity_three(),
+            adoption_decision(),
+        )
+        .unwrap();
+    let old = adoption.clone();
+    session
+        .revise_stock_candidate(&expected_candidate(1), &settings, candidate_edit("18"))
+        .unwrap();
+    assert_eq!(
+        session
+            .adopt_stock_candidate(
+                &expected_candidate(1),
+                &settings,
+                quantity_three(),
+                adoption_decision()
+            )
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::StaleRevision
+    );
+    assert!(matches!(
+        session.evaluate_stock_candidate(&settings, &adoption),
+        ValueState::Blocked { .. }
+    ));
+    assert_eq!(
+        session
+            .adopt_stock_candidate(
+                &expected_candidate(2),
+                &settings,
+                quantity_three(),
+                adoption_decision()
+            )
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::NotReviewed
+    );
+    session
+        .review_stock_candidate(&expected_candidate(2), &settings, candidate_review())
+        .unwrap();
+    let current = session
+        .adopt_stock_candidate(
+            &expected_candidate(2),
+            &settings,
+            quantity_three(),
+            adoption_decision(),
+        )
+        .unwrap();
+    let changed_settings = self::settings(None);
+    assert_eq!(
+        session
+            .adopt_stock_candidate(
+                &expected_candidate(2),
+                &changed_settings,
+                quantity_three(),
+                adoption_decision()
+            )
+            .unwrap_err(),
+        DeveloperStockCandidateSessionError::StaleSettings
+    );
+    assert!(matches!(
+        session.evaluate_stock_candidate(&changed_settings, &current),
+        ValueState::Blocked { .. }
+    ));
+    assert_eq!(adoption, old);
+    assert!(matches!(
+        session.evaluate_stock_candidate(&settings, &current),
+        ValueState::Available { .. }
+    ));
+}
+
+#[test]
+fn candidate_from_another_analysis_with_reused_identity_is_not_a_current_adoption() {
+    let settings = settings(Some(valid_library()));
+    let session = reviewed_stock_session(&settings);
+    let adoption = session
+        .adopt_stock_candidate(
+            &expected_candidate(1),
+            &settings,
+            quantity_three(),
+            adoption_decision(),
+        )
+        .unwrap();
+    let mut other = candidate_session(exact_geometry(
+        ["12", "7", "5"],
+        "358",
+        "420",
+        ["6", "3.5", "2.5"],
+    ));
+    other
+        .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+        .unwrap();
+    other
+        .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+        .unwrap();
+    configure_candidate_context(&mut other);
+    let before = other.clone();
+    assert!(matches!(
+        other.evaluate_stock_candidate(&settings, &adoption),
+        ValueState::Blocked { .. }
+    ));
+    assert_eq!(other, before);
+}
+
+#[test]
+fn candidate_evaluation_requires_units_warnings_rates_and_policy_without_defaulting_baseline() {
+    let settings = settings(Some(valid_library()));
+    let mut session = reviewed_stock_session(&settings);
+    let adoption = session
+        .adopt_stock_candidate(
+            &expected_candidate(1),
+            &settings,
+            quantity_three(),
+            adoption_decision(),
+        )
+        .unwrap();
+    assert!(matches!(
+        session.evaluate_stock_candidate(&settings, &adoption),
+        ValueState::Unavailable { .. }
+    ));
+    let (rates, policy) = candidate_rate_and_policy();
+    session.set_rate_context(rates.clone());
+    session.set_pricing_policy(policy.clone());
+    for (units, warnings) in [(false, true), (true, false)] {
+        session.set_geometry_review(partprobe_application::DraftGeometryReview::new(
+            units, warnings,
+        ));
+        assert!(matches!(
+            session.evaluate_stock_candidate(&settings, &adoption),
+            ValueState::Unavailable { .. }
+        ));
+    }
+    session.set_geometry_review(partprobe_application::DraftGeometryReview::new(true, true));
+    let mut missing_rates = reviewed_stock_session(&settings);
+    missing_rates.set_geometry_review(partprobe_application::DraftGeometryReview::new(true, true));
+    missing_rates.set_pricing_policy(policy);
+    assert!(matches!(
+        missing_rates.evaluate_stock_candidate(&settings, &adoption),
+        ValueState::Unavailable { .. }
+    ));
+    let mut missing_policy = reviewed_stock_session(&settings);
+    missing_policy.set_geometry_review(partprobe_application::DraftGeometryReview::new(true, true));
+    missing_policy.set_rate_context(rates.clone());
+    assert!(matches!(
+        missing_policy.evaluate_stock_candidate(&settings, &adoption),
+        ValueState::Unavailable { .. }
+    ));
+    let ValueState::Available { value: layer } =
+        session.evaluate_stock_candidate(&settings, &adoption)
+    else {
+        panic!("complete candidate context")
+    };
+    assert!(matches!(layer.baseline(), ValueState::Unavailable { .. }));
+    let empty = partprobe_domain::RateCard::empty(
+        rates.rate_card.id().clone(),
+        rates.rate_card.version(),
+        rates.rate_card.currency().clone(),
+    );
+    session.set_rate_context(
+        partprobe_application::DraftRateContext::new(
+            empty,
+            rates.effective_on,
+            rates.ordered_scopes,
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        session.evaluate_stock_candidate(&settings, &adoption),
+        ValueState::Unavailable { .. }
+    ));
+}
+
+#[test]
+fn conflicting_rates_block_candidate_evaluation_and_do_not_mutate_retained_adoption() {
+    let settings = settings(Some(valid_library()));
+    let mut session = reviewed_stock_session(&settings);
+    configure_candidate_context(&mut session);
+    let adoption = session
+        .adopt_stock_candidate(
+            &expected_candidate(1),
+            &settings,
+            quantity_three(),
+            adoption_decision(),
+        )
+        .unwrap();
+    let retained = session.evaluate_stock_candidate(&settings, &adoption);
+    assert!(matches!(retained, ValueState::Available { .. }));
+    let original_layer = retained.clone();
+    let (rates, _) = candidate_rate_and_policy();
+    let setup = rates
+        .rate_card
+        .entries()
+        .iter()
+        .find(|entry| entry.id().as_str() == "setup-labor")
+        .unwrap();
+    let mut duplicate = serde_json::to_value(setup).unwrap();
+    duplicate["id"] = serde_json::Value::String("conflicting-setup-rate".to_owned());
+    let mut entries = rates.rate_card.entries().to_vec();
+    entries.push(serde_json::from_value(duplicate).unwrap());
+    let conflicting = partprobe_domain::RateCard::new(
+        rates.rate_card.id().clone(),
+        rates.rate_card.version(),
+        rates.rate_card.currency().clone(),
+        entries,
+    )
+    .unwrap();
+    session.set_rate_context(
+        partprobe_application::DraftRateContext::new(
+            conflicting,
+            rates.effective_on,
+            rates.ordered_scopes,
+        )
+        .unwrap(),
+    );
+    let before = session.clone();
+    assert!(matches!(
+        session.evaluate_stock_candidate(&settings, &adoption),
+        ValueState::Blocked { .. }
+    ));
+    assert_eq!(session, before);
+    assert_eq!(retained, original_layer);
+}
 
 const SOURCE_HASH: &str = "1111111111111111111111111111111111111111111111111111111111111111";
 const OUTPUT_HASH: &str = "2222222222222222222222222222222222222222222222222222222222222222";

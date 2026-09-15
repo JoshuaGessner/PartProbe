@@ -152,67 +152,83 @@ impl DeveloperEstimateProposalApplication {
         if review.reason.trim().is_empty() || review.reason.len() > 1_024 {
             return Err(DeveloperEstimateProposalAdoptionError::InvalidReviewReason);
         }
-        let make = make_quantity(
-            quantities.deliver,
-            quantities.planned_spares,
-            quantities.destructive_samples,
-        )
-        .map_err(|_| DeveloperEstimateProposalAdoptionError::ArithmeticFailure)?;
-        let purchased = proposal
-            .unit_stock_material_cost()
-            .checked_mul(Decimal::from(make.value()))
-            .map_err(|_| DeveloperEstimateProposalAdoptionError::ArithmeticFailure)?;
-        let density = DensityKilogramsPerCubicMillimeter::new(
-            proposal.material_density_kg_per_m3().value() / Decimal::from(1_000_000_000_u64),
-        )
-        .map_err(|_| DeveloperEstimateProposalAdoptionError::ArithmeticFailure)?;
-        let currency = proposal.unit_stock_material_cost().currency().clone();
-        let zero = || Money::new(Decimal::ZERO, currency.clone());
-        let times = proposal.coarse_times();
-        let inputs = DraftEstimateInputs {
-            stock: DraftStockInputs {
-                stock_volume: proposal.blank_volume_mm3(),
-                density,
-            },
+        let inputs = coarse_developer_inputs(
+            proposal.blank_volume_mm3(),
+            proposal.material_density_kg_per_m3(),
+            proposal.unit_stock_material_cost(),
+            proposal.coarse_times(),
             quantities,
-            times: DraftTimeInputs {
-                setup_hours: minutes_to_hours(times.setup().value()),
-                programming_hours: minutes_to_hours(times.programming().value()),
-                cutting_hours_per_item: minutes_to_hours(times.cutting().value()),
-                non_cutting_hours_per_item: Decimal::ZERO,
-                load_unload_hours_per_item: minutes_to_hours(times.load_unload().value()),
-                in_cycle_inspection_hours_per_item: Decimal::ZERO,
-                quality_inspection_hours: minutes_to_hours(times.quality().value()),
-            },
-            material: DraftMaterialCostInputs {
-                purchased,
-                cut: zero(),
-                certificate: zero(),
-                inbound_freight: zero(),
-                approved_remnant_credit: zero(),
-            },
-            operation: DraftOperationCostInputs {
-                prove_out: zero(),
-                tooling: zero(),
-                consumables: zero(),
-                fixture: zero(),
-                outside: zero(),
-                freight: zero(),
-            },
-            base: DraftBaseCostInputs {
-                nonrecurring_engineering: zero(),
-                administration: zero(),
-                overhead: zero(),
-                accepted_risk_impacts: vec![zero()],
-                expected_rework: zero(),
-            },
-        };
+        )?;
         Ok(AdoptedDeveloperEstimateInputs {
             proposal,
             inputs,
             review,
         })
     }
+}
+
+/// Shared unchanged v1 coarse mapping; caller must first record exclusion review.
+pub(crate) fn coarse_developer_inputs(
+    stock_volume: partprobe_domain::VolumeCubicMillimeters,
+    material_density: partprobe_domain::DensityKilogramsPerCubicMeter,
+    unit_material_cost: &Money,
+    times: partprobe_setup_planner::CoarseTimeProposal,
+    quantities: DraftQuantityInputs,
+) -> Result<DraftEstimateInputs, DeveloperEstimateProposalAdoptionError> {
+    let make = make_quantity(
+        quantities.deliver,
+        quantities.planned_spares,
+        quantities.destructive_samples,
+    )
+    .map_err(|_| DeveloperEstimateProposalAdoptionError::ArithmeticFailure)?;
+    let purchased = unit_material_cost
+        .checked_mul(Decimal::from(make.value()))
+        .map_err(|_| DeveloperEstimateProposalAdoptionError::ArithmeticFailure)?;
+    let density = DensityKilogramsPerCubicMillimeter::new(
+        material_density.value() / Decimal::from(1_000_000_000_u64),
+    )
+    .map_err(|_| DeveloperEstimateProposalAdoptionError::ArithmeticFailure)?;
+    let currency = unit_material_cost.currency().clone();
+    let zero = || Money::new(Decimal::ZERO, currency.clone());
+    let inputs = DraftEstimateInputs {
+        stock: DraftStockInputs {
+            stock_volume,
+            density,
+        },
+        quantities,
+        times: DraftTimeInputs {
+            setup_hours: minutes_to_hours(times.setup().value()),
+            programming_hours: minutes_to_hours(times.programming().value()),
+            cutting_hours_per_item: minutes_to_hours(times.cutting().value()),
+            non_cutting_hours_per_item: Decimal::ZERO,
+            load_unload_hours_per_item: minutes_to_hours(times.load_unload().value()),
+            in_cycle_inspection_hours_per_item: Decimal::ZERO,
+            quality_inspection_hours: minutes_to_hours(times.quality().value()),
+        },
+        material: DraftMaterialCostInputs {
+            purchased,
+            cut: zero(),
+            certificate: zero(),
+            inbound_freight: zero(),
+            approved_remnant_credit: zero(),
+        },
+        operation: DraftOperationCostInputs {
+            prove_out: zero(),
+            tooling: zero(),
+            consumables: zero(),
+            fixture: zero(),
+            outside: zero(),
+            freight: zero(),
+        },
+        base: DraftBaseCostInputs {
+            nonrecurring_engineering: zero(),
+            administration: zero(),
+            overhead: zero(),
+            accepted_risk_impacts: vec![zero()],
+            expected_rework: zero(),
+        },
+    };
+    Ok(inputs)
 }
 
 fn minutes_to_hours(minutes: Decimal) -> Decimal {

@@ -2,6 +2,7 @@
 
 mod draft_estimate;
 pub mod shop_settings;
+mod stock_candidate;
 mod stock_proposal;
 
 pub use draft_estimate::{
@@ -23,6 +24,14 @@ pub use shop_settings::{
     ShopResourceCatalogDraftContents, ShopResourceCatalogDraftError, ShopResourceCatalogOperation,
     ShopSettingsApplication, ShopSettingsDraftRepository, ShopSettingsLoadState,
     ShopSettingsStoreError,
+};
+pub use stock_candidate::{
+    AdoptedDeveloperStockCandidateInputs, DEVELOPER_STOCK_CANDIDATE_ADOPTION_RULE_ID,
+    DEVELOPER_STOCK_CANDIDATE_ADOPTION_RULE_VERSION, DEVELOPER_STOCK_CANDIDATE_SESSION_RULE_ID,
+    DEVELOPER_STOCK_CANDIDATE_SESSION_RULE_VERSION, DeveloperStockCandidateEstimate,
+    DeveloperStockCandidateRevision, DeveloperStockCandidateSessionError,
+    MAX_DEVELOPER_STOCK_CANDIDATE_REVISIONS, StockCandidateAdoptionDecision,
+    StockCandidateRevisionExpectation,
 };
 pub use stock_proposal::{
     AdoptedDeveloperEstimateInputs, DEVELOPER_ESTIMATE_PROPOSAL_ADOPTION_RULE_ID,

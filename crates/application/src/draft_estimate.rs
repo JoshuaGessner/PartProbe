@@ -511,6 +511,7 @@ pub struct DraftEstimateSession {
     inputs: Option<DraftEstimateInputs>,
     rate_context: Option<DraftRateContext>,
     pricing_policy: Option<PricingPolicy>,
+    pub(crate) stock_candidates: crate::stock_candidate::DeveloperStockCandidateHistory,
 }
 
 impl DraftEstimateSession {
@@ -521,6 +522,7 @@ impl DraftEstimateSession {
             inputs: None,
             rate_context: None,
             pricing_policy: None,
+            stock_candidates: crate::stock_candidate::DeveloperStockCandidateHistory::default(),
         }
     }
 
@@ -548,6 +550,10 @@ impl DraftEstimateSession {
     /// Replaces the pinned pricing policy for subsequent evaluation.
     pub fn set_pricing_policy(&mut self, policy: PricingPolicy) {
         self.pricing_policy = Some(policy);
+    }
+
+    pub(crate) fn pinned_rate_context(&self) -> Option<&DraftRateContext> {
+        self.rate_context.as_ref()
     }
 
     /// Recalculates solely through deterministic domain and estimation-engine rules.
