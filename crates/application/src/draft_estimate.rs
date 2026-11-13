@@ -23,7 +23,7 @@ use partprobe_geometry_import::{
     ValidatedGeometryDisplayScene, WorkerAssetFallbackReason, WorkerAssetTransport,
     decode_controlled_display_scene_artifact, decode_controlled_geometry_result,
 };
-use partprobe_security::{AuthorizationAuditSink, AuthorizationPolicy};
+use partprobe_security::{AuditCorrelationId, AuthorizationAuditSink, AuthorizationPolicy};
 use rust_decimal::Decimal;
 
 use crate::{AssetReadServiceError, AssetReadSubject, LocalAssetReadService};
@@ -536,6 +536,35 @@ impl DraftEstimateSession {
 
     pub(crate) const fn source_subject(&self) -> &AssetReadSubject {
         &self.source_subject
+    }
+
+    /// Returns the retained intake actor so a trusted host can bind edit/review/adoption
+    /// evidence to the same visibly labeled session identity. It is not production identity.
+    #[must_use]
+    pub const fn source_actor(&self) -> &partprobe_domain::ActorId {
+        &self.source_subject.actor_id
+    }
+
+    /// Clones the retained intake subject for one reconciled host stock-workflow attempt.
+    /// The caller must supply one fresh correlation ID and explicit attempt time; the original
+    /// intake correlation is never replayed, and every other subject fact stays exact.
+    #[must_use]
+    pub fn stock_workflow_subject(
+        &self,
+        correlation_id: AuditCorrelationId,
+        recorded_at: partprobe_domain::RecordedAt,
+    ) -> AssetReadSubject {
+        let source = &self.source_subject;
+        AssetReadSubject::new(
+            source.actor_id.clone(),
+            source.project_id.clone(),
+            source.record_id.clone(),
+            source.record_version_id.clone(),
+            source.classification_id.clone(),
+            source.record_state_id.clone(),
+            correlation_id,
+            recorded_at,
+        )
     }
 
     /// Replaces the session-only geometry review state.

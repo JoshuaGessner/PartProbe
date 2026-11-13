@@ -1,21 +1,25 @@
 use leptos::prelude::*;
 use partprobe_desktop_contract::{
-    AnalysisCancellationAcknowledgement, AnalyzeModelSourceRequest, COMMAND_ANALYZE_MODEL_SOURCE,
-    COMMAND_CANCEL_MODEL_ANALYSIS, COMMAND_DESKTOP_CONTRACT, COMMAND_EVALUATE_DRAFT_ESTIMATE,
-    COMMAND_LOAD_SHOP_SETTINGS, COMMAND_PREPARE_DRAFT_ESTIMATE_PROPOSAL,
-    COMMAND_SAVE_SHOP_SETTINGS, COMMAND_SELECT_MODEL_SOURCE, COMMAND_SET_MODEL_VIEWER_VIEW,
-    COMMAND_SET_MODEL_VIEWER_WORKSPACE, CancelModelAnalysisRequest, DesktopContract,
-    DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateEvaluation,
-    DraftEstimateEvaluationState, DraftEstimateInputFields, DraftEstimateProposalAdoptionInput,
-    DraftEstimateProposalEvaluation, DraftEstimateProposalSummary, EvaluateDraftEstimateRequest,
-    GeometryConfidenceLevel, GeometryReviewInput, HostCommandError, MeshMeasurementBasis,
-    MeshSelfIntersectionState, MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection,
-    ModelViewerAvailability, ModelViewerStandardView, ModelViewerWorkspaceMode,
-    ModelViewerWorkspaceResult, PrepareDraftEstimateProposalRequest, ProvisionalGeometryFacts,
-    SaveShopSettingsRequest, SelectedModelSource, SetModelViewerViewRequest,
-    SetModelViewerWorkspaceRequest, ShopResourceCatalogSnapshot, ShopResourceInputFields,
-    ShopResourceRecordState, ShopResourceSelectionState, ShopSettingsSnapshot, ShopSettingsState,
-    StlEncoding, UnitResolution,
+    AdoptStockCandidateEstimateRequest, AnalysisCancellationAcknowledgement,
+    AnalyzeModelSourceRequest, COMMAND_ADOPT_STOCK_CANDIDATE_ESTIMATE,
+    COMMAND_ANALYZE_MODEL_SOURCE, COMMAND_CANCEL_MODEL_ANALYSIS, COMMAND_DESKTOP_CONTRACT,
+    COMMAND_EVALUATE_DRAFT_ESTIMATE, COMMAND_LOAD_SHOP_SETTINGS,
+    COMMAND_PREPARE_DRAFT_ESTIMATE_PROPOSAL, COMMAND_PROPOSE_STOCK_CANDIDATE,
+    COMMAND_REVIEW_STOCK_CANDIDATE, COMMAND_SAVE_SHOP_SETTINGS, COMMAND_SELECT_MODEL_SOURCE,
+    COMMAND_SET_MODEL_VIEWER_VIEW, COMMAND_SET_MODEL_VIEWER_WORKSPACE, CancelModelAnalysisRequest,
+    DesktopContract, DeveloperPricingInputFields, DeveloperRateInputFields,
+    DraftEstimateEvaluation, DraftEstimateEvaluationState, DraftEstimateInputFields,
+    DraftEstimateProposalAdoptionInput, DraftEstimateProposalEvaluation,
+    DraftEstimateProposalSummary, EvaluateDraftEstimateRequest, GeometryConfidenceLevel,
+    GeometryReviewInput, HostCommandError, MeshMeasurementBasis, MeshSelfIntersectionState,
+    MeshTopologyIdentity, ModelAnalysisResult, ModelSourceSelection, ModelViewerAvailability,
+    ModelViewerStandardView, ModelViewerWorkspaceMode, ModelViewerWorkspaceResult,
+    PrepareDraftEstimateProposalRequest, ProposeStockCandidateRequest, ProvisionalGeometryFacts,
+    ReviewStockCandidateRequest, SaveShopSettingsRequest, SelectedModelSource,
+    SetModelViewerViewRequest, SetModelViewerWorkspaceRequest, ShopResourceCatalogSnapshot,
+    ShopResourceInputFields, ShopResourceRecordState, ShopResourceSelectionState,
+    ShopSettingsSnapshot, ShopSettingsState, StlEncoding, StockCandidateEstimateEvaluation,
+    StockCandidateRevisionRef, StockCandidateSnapshot, UnitResolution,
 };
 use wasm_bindgen::prelude::*;
 
@@ -83,6 +87,21 @@ struct SetModelViewerViewArgs {
     request: SetModelViewerViewRequest,
 }
 
+#[derive(serde::Serialize)]
+struct ProposeStockCandidateArgs {
+    request: ProposeStockCandidateRequest,
+}
+
+#[derive(serde::Serialize)]
+struct ReviewStockCandidateArgs {
+    request: ReviewStockCandidateRequest,
+}
+
+#[derive(serde::Serialize)]
+struct AdoptStockCandidateEstimateArgs {
+    request: AdoptStockCandidateEstimateRequest,
+}
+
 #[derive(Clone, Debug, Default)]
 enum SettingsPanelState {
     #[default]
@@ -115,6 +134,112 @@ impl ProposalPanelState {
                     DraftEstimateProposalEvaluation::Available { .. }
                 )
         )
+    }
+}
+
+/// Session-only developer stock-candidate editor state. A failure keeps the last retained
+/// snapshot so the exact expected revision stays visible instead of collapsing to empty.
+#[derive(Clone, Debug, Default)]
+enum StockCandidatePanelState {
+    #[default]
+    NotStarted,
+    Working,
+    Candidate(Box<StockCandidateSnapshot>),
+    Failed {
+        error: HostCommandError,
+        candidate: Option<Box<StockCandidateSnapshot>>,
+    },
+}
+
+impl StockCandidatePanelState {
+    fn candidate(&self) -> Option<&StockCandidateSnapshot> {
+        match self {
+            Self::Candidate(candidate) => Some(candidate),
+            Self::Failed {
+                candidate: Some(candidate),
+                ..
+            } => Some(candidate),
+            Self::NotStarted
+            | Self::Working
+            | Self::Failed {
+                candidate: None, ..
+            } => None,
+        }
+    }
+
+    fn is_working(&self) -> bool {
+        matches!(self, Self::Working)
+    }
+
+    fn error(&self) -> Option<&HostCommandError> {
+        match self {
+            Self::Failed { error, .. } => Some(error),
+            Self::NotStarted | Self::Working | Self::Candidate(_) => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+enum CandidateEstimatePanelState {
+    #[default]
+    NotRequested,
+    Working,
+    Evaluated(Box<StockCandidateEstimateEvaluation>),
+    Failed(HostCommandError),
+}
+
+#[derive(Clone, Debug)]
+struct StockCandidateForm {
+    final_x_mm: String,
+    final_y_mm: String,
+    final_z_mm: String,
+    edit_reason: String,
+    values_reviewed: bool,
+    limitations_accepted: bool,
+    review_reason: String,
+    deliver_quantity: String,
+    planned_spares: String,
+    destructive_samples: String,
+    adoption_reason: String,
+}
+
+impl StockCandidateForm {
+    fn new() -> Self {
+        Self {
+            final_x_mm: String::new(),
+            final_y_mm: String::new(),
+            final_z_mm: String::new(),
+            edit_reason: String::new(),
+            values_reviewed: false,
+            limitations_accepted: false,
+            review_reason: String::new(),
+            deliver_quantity: "1".to_owned(),
+            planned_spares: "0".to_owned(),
+            destructive_samples: "0".to_owned(),
+            adoption_reason: String::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        *self = Self::new();
+    }
+
+    fn propose_ready(&self) -> bool {
+        !self.final_x_mm.trim().is_empty()
+            && !self.final_y_mm.trim().is_empty()
+            && !self.final_z_mm.trim().is_empty()
+            && !self.edit_reason.trim().is_empty()
+    }
+
+    fn review_ready(&self) -> bool {
+        self.values_reviewed && self.limitations_accepted && !self.review_reason.trim().is_empty()
+    }
+
+    fn adopt_ready(&self) -> bool {
+        !self.deliver_quantity.trim().is_empty()
+            && !self.planned_spares.trim().is_empty()
+            && !self.destructive_samples.trim().is_empty()
+            && !self.adoption_reason.trim().is_empty()
     }
 }
 
@@ -842,6 +967,10 @@ fn App() -> impl IntoView {
     let (viewer_state, set_viewer_state) = signal(ModelViewerPanelState::Loading);
     let (settings_state, set_settings_state) = signal(SettingsPanelState::Loading);
     let form = RwSignal::new(DeveloperEstimateForm::new());
+    let (stock_state, set_stock_state) = signal(StockCandidatePanelState::NotStarted);
+    let (candidate_estimate_state, set_candidate_estimate_state) =
+        signal(CandidateEstimatePanelState::NotRequested);
+    let stock_form = RwSignal::new(StockCandidateForm::new());
 
     leptos::task::spawn_local(async move {
         match invoke_partprobe(COMMAND_DESKTOP_CONTRACT, JsValue::UNDEFINED).await {
@@ -1044,6 +1173,9 @@ fn App() -> impl IntoView {
     Effect::new(move |_| {
         let _ = settings_state.get();
         set_proposal_state.set(ProposalPanelState::NotRequested);
+        set_stock_state.set(StockCandidatePanelState::NotStarted);
+        set_candidate_estimate_state.set(CandidateEstimatePanelState::NotRequested);
+        stock_form.update(StockCandidateForm::clear);
     });
 
     let select_model = move |_| {
@@ -1060,6 +1192,9 @@ fn App() -> impl IntoView {
                     set_analysis_state.set(AnalysisPanelState::NotStarted);
                     set_proposal_state.set(ProposalPanelState::NotRequested);
                     set_estimate_state.set(DraftEstimatePanelState::NotReady);
+                    set_stock_state.set(StockCandidatePanelState::NotStarted);
+                    set_candidate_estimate_state.set(CandidateEstimatePanelState::NotRequested);
+                    stock_form.update(StockCandidateForm::clear);
                 }
                 Some(ModelSourceSelection::Cancelled) => {}
                 None => set_model_state.set(ModelPanelState::Failed),
@@ -1078,6 +1213,9 @@ fn App() -> impl IntoView {
         };
         set_estimate_state.set(DraftEstimatePanelState::NotReady);
         set_proposal_state.set(ProposalPanelState::NotRequested);
+        set_stock_state.set(StockCandidatePanelState::NotStarted);
+        set_candidate_estimate_state.set(CandidateEstimatePanelState::NotRequested);
+        stock_form.update(StockCandidateForm::clear);
         set_analysis_state.set(AnalysisPanelState::Running);
         leptos::task::spawn_local(async move {
             let request = AnalyzeModelSourceRequest { selection_id };
@@ -1142,6 +1280,203 @@ fn App() -> impl IntoView {
             }
         });
     };
+
+    let current_analysis_identity = move || -> Option<(String, String)> {
+        let selection_id = model_state
+            .get_untracked()
+            .selected_source()
+            .map(|source| source.selection_id.clone())?;
+        let AnalysisPanelState::Available(result) = analysis_state.get_untracked() else {
+            return None;
+        };
+        Some((selection_id, result.analysis_id.clone()))
+    };
+
+    let propose_stock = Callback::new(move |()| {
+        let Some((selection_id, analysis_id)) = current_analysis_identity() else {
+            return;
+        };
+        let current = stock_state.get_untracked();
+        if current.is_working() || !stock_form.with_untracked(StockCandidateForm::propose_ready) {
+            return;
+        }
+        let expected = current
+            .candidate()
+            .map(|candidate| StockCandidateRevisionRef {
+                candidate_id: candidate.candidate_id.clone(),
+                revision: candidate.revision,
+            });
+        let retained = current.candidate().cloned().map(Box::new);
+        let (final_x_mm, final_y_mm, final_z_mm, reason) = stock_form.with_untracked(|form| {
+            (
+                form.final_x_mm.trim().to_owned(),
+                form.final_y_mm.trim().to_owned(),
+                form.final_z_mm.trim().to_owned(),
+                form.edit_reason.trim().to_owned(),
+            )
+        });
+        set_candidate_estimate_state.set(CandidateEstimatePanelState::NotRequested);
+        set_stock_state.set(StockCandidatePanelState::Working);
+        leptos::task::spawn_local(async move {
+            let request = ProposeStockCandidateRequest {
+                selection_id,
+                analysis_id,
+                expected,
+                final_dimensions_mm: [final_x_mm, final_y_mm, final_z_mm],
+                reason,
+            };
+            let args = serde_wasm_bindgen::to_value(&ProposeStockCandidateArgs { request })
+                .unwrap_or(JsValue::UNDEFINED);
+            match invoke_partprobe(COMMAND_PROPOSE_STOCK_CANDIDATE, args).await {
+                Ok(value) => {
+                    match serde_wasm_bindgen::from_value::<StockCandidateSnapshot>(value) {
+                        Ok(snapshot) => {
+                            set_stock_state
+                                .set(StockCandidatePanelState::Candidate(Box::new(snapshot)));
+                        }
+                        Err(_) => set_stock_state.set(StockCandidatePanelState::Failed {
+                            error: HostCommandError::host_state_unavailable("VIS4-STOCK-RESULT"),
+                            candidate: retained,
+                        }),
+                    }
+                }
+                Err(error) => {
+                    let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                        .unwrap_or_else(|_| {
+                            HostCommandError::host_state_unavailable("VIS4-STOCK-INVOKE")
+                        });
+                    set_stock_state.set(StockCandidatePanelState::Failed {
+                        error,
+                        candidate: retained,
+                    });
+                }
+            }
+        });
+    });
+
+    let review_stock = Callback::new(move |()| {
+        let Some((selection_id, analysis_id)) = current_analysis_identity() else {
+            return;
+        };
+        let current = stock_state.get_untracked();
+        let Some(candidate) = current.candidate().cloned() else {
+            return;
+        };
+        if current.is_working() || !stock_form.with_untracked(StockCandidateForm::review_ready) {
+            return;
+        }
+        let retained = Some(Box::new(candidate.clone()));
+        let (values_reviewed, limitations_accepted, reason) = stock_form.with_untracked(|form| {
+            (
+                form.values_reviewed,
+                form.limitations_accepted,
+                form.review_reason.trim().to_owned(),
+            )
+        });
+        set_stock_state.set(StockCandidatePanelState::Working);
+        leptos::task::spawn_local(async move {
+            let request = ReviewStockCandidateRequest {
+                selection_id,
+                analysis_id,
+                expected: StockCandidateRevisionRef {
+                    candidate_id: candidate.candidate_id.clone(),
+                    revision: candidate.revision,
+                },
+                proposal_values_reviewed: values_reviewed,
+                coarse_limitations_accepted: limitations_accepted,
+                reason,
+            };
+            let args = serde_wasm_bindgen::to_value(&ReviewStockCandidateArgs { request })
+                .unwrap_or(JsValue::UNDEFINED);
+            match invoke_partprobe(COMMAND_REVIEW_STOCK_CANDIDATE, args).await {
+                Ok(value) => {
+                    match serde_wasm_bindgen::from_value::<StockCandidateSnapshot>(value) {
+                        Ok(snapshot) => {
+                            set_stock_state
+                                .set(StockCandidatePanelState::Candidate(Box::new(snapshot)));
+                        }
+                        Err(_) => set_stock_state.set(StockCandidatePanelState::Failed {
+                            error: HostCommandError::host_state_unavailable("VIS4-STOCK-RESULT"),
+                            candidate: retained,
+                        }),
+                    }
+                }
+                Err(error) => {
+                    let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                        .unwrap_or_else(|_| {
+                            HostCommandError::host_state_unavailable("VIS4-STOCK-INVOKE")
+                        });
+                    set_stock_state.set(StockCandidatePanelState::Failed {
+                        error,
+                        candidate: retained,
+                    });
+                }
+            }
+        });
+    });
+
+    let adopt_stock = Callback::new(move |()| {
+        let Some((selection_id, analysis_id)) = current_analysis_identity() else {
+            return;
+        };
+        let current = stock_state.get_untracked();
+        let Some(candidate) = current.candidate().cloned() else {
+            return;
+        };
+        if current.is_working()
+            || !candidate.reviewed
+            || !stock_form.with_untracked(StockCandidateForm::adopt_ready)
+        {
+            return;
+        }
+        let (deliver_quantity, planned_spares, destructive_samples, reason) = stock_form
+            .with_untracked(|form| {
+                (
+                    form.deliver_quantity.trim().to_owned(),
+                    form.planned_spares.trim().to_owned(),
+                    form.destructive_samples.trim().to_owned(),
+                    form.adoption_reason.trim().to_owned(),
+                )
+            });
+        set_candidate_estimate_state.set(CandidateEstimatePanelState::Working);
+        leptos::task::spawn_local(async move {
+            let request = AdoptStockCandidateEstimateRequest {
+                selection_id,
+                analysis_id,
+                expected: StockCandidateRevisionRef {
+                    candidate_id: candidate.candidate_id.clone(),
+                    revision: candidate.revision,
+                },
+                deliver_quantity,
+                planned_spares,
+                destructive_samples,
+                reason,
+            };
+            let args = serde_wasm_bindgen::to_value(&AdoptStockCandidateEstimateArgs { request })
+                .unwrap_or(JsValue::UNDEFINED);
+            match invoke_partprobe(COMMAND_ADOPT_STOCK_CANDIDATE_ESTIMATE, args).await {
+                Ok(value) => {
+                    match serde_wasm_bindgen::from_value::<StockCandidateEstimateEvaluation>(value)
+                    {
+                        Ok(evaluation) => set_candidate_estimate_state
+                            .set(CandidateEstimatePanelState::Evaluated(Box::new(evaluation))),
+                        Err(_) => {
+                            set_candidate_estimate_state.set(CandidateEstimatePanelState::Failed(
+                                HostCommandError::host_state_unavailable("VIS4-STOCK-RESULT"),
+                            ))
+                        }
+                    }
+                }
+                Err(error) => {
+                    let error = serde_wasm_bindgen::from_value::<HostCommandError>(error)
+                        .unwrap_or_else(|_| {
+                            HostCommandError::host_state_unavailable("VIS4-STOCK-INVOKE")
+                        });
+                    set_candidate_estimate_state.set(CandidateEstimatePanelState::Failed(error));
+                }
+            }
+        });
+    });
 
     view! {
         <a class="skip-link" href="#workspace">"Skip to workspace"</a>
@@ -1219,6 +1554,12 @@ fn App() -> impl IntoView {
                             proposal_state
                             viewer_state
                             set_model_view
+                            stock_state
+                            candidate_estimate_state
+                            stock_form
+                            propose_stock
+                            review_stock
+                            adopt_stock
                         />
                     }
                 >
@@ -1480,6 +1821,12 @@ fn ModelViewerWorkspace(
     proposal_state: ReadSignal<ProposalPanelState>,
     viewer_state: ReadSignal<ModelViewerPanelState>,
     set_model_view: Callback<ModelViewerStandardView>,
+    stock_state: ReadSignal<StockCandidatePanelState>,
+    candidate_estimate_state: ReadSignal<CandidateEstimatePanelState>,
+    stock_form: RwSignal<StockCandidateForm>,
+    propose_stock: Callback<()>,
+    review_stock: Callback<()>,
+    adopt_stock: Callback<()>,
 ) -> impl IntoView {
     let source = move || {
         model_state.get().selected_source().map_or_else(
@@ -1652,6 +1999,17 @@ fn ModelViewerWorkspace(
                     </dl>
                 </section>
 
+                <StockCandidateEditor
+                    analysis_state
+                    proposal_state
+                    stock_state
+                    candidate_estimate_state
+                    stock_form
+                    propose_stock
+                    review_stock
+                    adopt_stock
+                />
+
                 <p class="evidence-note">
                     "The viewport stays inside this PartProbe window. Model and proposed stock are display-only review layers, not measurement, standard-size availability, workholding, purchasing, or CAM authority."
                 </p>
@@ -1660,6 +2018,316 @@ fn ModelViewerWorkspace(
                 </p>
             </section>
         </main>
+    }
+}
+
+#[component]
+fn StockCandidateEditor(
+    analysis_state: ReadSignal<AnalysisPanelState>,
+    proposal_state: ReadSignal<ProposalPanelState>,
+    stock_state: ReadSignal<StockCandidatePanelState>,
+    candidate_estimate_state: ReadSignal<CandidateEstimatePanelState>,
+    stock_form: RwSignal<StockCandidateForm>,
+    propose_stock: Callback<()>,
+    review_stock: Callback<()>,
+    adopt_stock: Callback<()>,
+) -> impl IntoView {
+    let inputs_ready = move || {
+        matches!(analysis_state.get(), AnalysisPanelState::Available(_))
+            && proposal_state.get().is_available()
+    };
+    let propose_disabled = move || {
+        !inputs_ready()
+            || stock_state.get().is_working()
+            || !stock_form.with(StockCandidateForm::propose_ready)
+    };
+    let review_disabled = move || {
+        let state = stock_state.get();
+        !inputs_ready()
+            || state.is_working()
+            || state.candidate().is_none_or(|candidate| candidate.reviewed)
+            || !stock_form.with(StockCandidateForm::review_ready)
+    };
+    let adopt_disabled = move || {
+        let state = stock_state.get();
+        !inputs_ready()
+            || state.is_working()
+            || !state
+                .candidate()
+                .is_some_and(|candidate| candidate.reviewed)
+            || !stock_form.with(StockCandidateForm::adopt_ready)
+            || matches!(
+                candidate_estimate_state.get(),
+                CandidateEstimatePanelState::Working
+            )
+    };
+    let candidate_text = move |extract: fn(&StockCandidateSnapshot) -> String| {
+        stock_state
+            .get()
+            .candidate()
+            .map_or_else(|| "Not available".to_owned(), extract)
+    };
+    let identity = move || {
+        candidate_text(|candidate| {
+            format!(
+                "{} · revision {}",
+                candidate.candidate_id, candidate.revision
+            )
+        })
+    };
+    let dimensions = move || {
+        candidate_text(|candidate| format!("{} mm", candidate.blank_dimensions_mm.join(" × ")))
+    };
+    let original = move || {
+        candidate_text(|candidate| {
+            format!("{} mm", candidate.original_blank_dimensions_mm.join(" × "))
+        })
+    };
+    let derived = move || {
+        candidate_text(|candidate| {
+            format!(
+                "{} mm³ blank · {} kg · {} {} material · {} h cutting per item",
+                candidate.blank_volume_mm3,
+                candidate.blank_mass_kg,
+                candidate.unit_stock_material_cost,
+                candidate.currency,
+                candidate.cutting_hours_per_item
+            )
+        })
+    };
+    let review_state = move || {
+        candidate_text(|candidate| {
+            if candidate.reviewed {
+                "Reviewed · adoption available".to_owned()
+            } else {
+                "Review required before adoption".to_owned()
+            }
+        })
+    };
+    let basis = move || {
+        candidate_text(|candidate| {
+            format!(
+                "settings r{} · {} v{} · {} v{}",
+                candidate.settings_revision,
+                candidate.session_rule_id,
+                candidate.session_rule_version,
+                candidate.workflow_rule_id,
+                candidate.workflow_rule_version
+            )
+        })
+    };
+    let limitations = move || candidate_text(|candidate| candidate.reason_codes.join(", "));
+    let stock_error = move || {
+        stock_state
+            .get()
+            .error()
+            .map(|error| format!("{} Diagnostic: {}", error.message, error.diagnostic_id))
+    };
+    let estimate_summary = move || match candidate_estimate_state.get() {
+        CandidateEstimatePanelState::NotRequested => {
+            "Not requested. Adoption evaluates the reviewed candidate as a distinct result."
+                .to_owned()
+        }
+        CandidateEstimatePanelState::Working => "Evaluating the reviewed candidate.".to_owned(),
+        CandidateEstimatePanelState::Failed(error) => {
+            format!("{} Diagnostic: {}", error.message, error.diagnostic_id)
+        }
+        CandidateEstimatePanelState::Evaluated(evaluation) => match evaluation.as_ref() {
+            StockCandidateEstimateEvaluation::Available { estimate } => {
+                let baseline = match (
+                    estimate.baseline_state,
+                    estimate.baseline_rounded_selling_price.as_deref(),
+                ) {
+                    (DraftEstimateEvaluationState::Available, Some(price)) => {
+                        format!("baseline {} {} preserved", price, estimate.result.currency)
+                    }
+                    (DraftEstimateEvaluationState::Available, None) => {
+                        "baseline preserved".to_owned()
+                    }
+                    (DraftEstimateEvaluationState::Unavailable, _) => {
+                        "baseline unavailable".to_owned()
+                    }
+                    (DraftEstimateEvaluationState::Blocked, _) => "baseline blocked".to_owned(),
+                };
+                format!(
+                    "Candidate {} revision {}: {} {} rounded price · {} {} internal cost · {} · excludes {}",
+                    estimate.candidate.candidate_id,
+                    estimate.candidate.revision,
+                    estimate.result.rounded_selling_price,
+                    estimate.result.currency,
+                    estimate.result.total_internal_cost,
+                    estimate.result.currency,
+                    baseline,
+                    estimate.excluded_inputs.join(", ")
+                )
+            }
+            StockCandidateEstimateEvaluation::Unavailable { reason }
+            | StockCandidateEstimateEvaluation::Blocked { reason } => reason.clone(),
+        },
+    };
+
+    view! {
+        <section class="viewer-text-equivalent" aria-labelledby="stock-candidate-heading">
+            <h3 id="stock-candidate-heading">"Stock candidate editor (developer session)"</h3>
+            <p class="evidence-note">
+                "Edited final dimensions create review-only session candidates under the visibly labeled developer session. Candidates are not saved records, standard-size resolution, availability, purchasing, or estimate authority; the original proposal and the baseline estimate are preserved, and every decision is recorded in the local durable audit."
+            </p>
+            <div class="form-grid">
+                <StockCandidateInput
+                    form=stock_form
+                    label="Final X (mm)"
+                    read=|form| &form.final_x_mm
+                    write=|form, value| form.final_x_mm = value
+                />
+                <StockCandidateInput
+                    form=stock_form
+                    label="Final Y (mm)"
+                    read=|form| &form.final_y_mm
+                    write=|form, value| form.final_y_mm = value
+                />
+                <StockCandidateInput
+                    form=stock_form
+                    label="Final Z (mm)"
+                    read=|form| &form.final_z_mm
+                    write=|form, value| form.final_z_mm = value
+                />
+                <StockCandidateInput
+                    form=stock_form
+                    label="Edit reason"
+                    read=|form| &form.edit_reason
+                    write=|form, value| form.edit_reason = value
+                />
+            </div>
+            <button
+                type="button"
+                class="secondary-action"
+                disabled=propose_disabled
+                on:click=move |_| propose_stock.run(())
+            >
+                {move || if stock_state.get().candidate().is_some() {
+                    "Propose revised candidate"
+                } else {
+                    "Propose stock candidate"
+                }}
+            </button>
+
+            <dl class="viewer-summary">
+                <div><dt>"Candidate"</dt><dd>{identity}</dd></div>
+                <div><dt>"Final dimensions"</dt><dd>{dimensions}</dd></div>
+                <div><dt>"Original proposal blank"</dt><dd>{original}</dd></div>
+                <div><dt>"Derived values"</dt><dd>{derived}</dd></div>
+                <div><dt>"Review state"</dt><dd>{review_state}</dd></div>
+                <div><dt>"Candidate basis"</dt><dd>{basis}</dd></div>
+                <div><dt>"Limitations"</dt><dd>{limitations}</dd></div>
+            </dl>
+
+            <StockCandidateCheckbox
+                form=stock_form
+                label="I reviewed the candidate values against the model and proposal evidence"
+                read=|form| form.values_reviewed
+                write=|form, value| form.values_reviewed = value
+            />
+            <StockCandidateCheckbox
+                form=stock_form
+                label="I accept the named coarse limitations and exclusions"
+                read=|form| form.limitations_accepted
+                write=|form, value| form.limitations_accepted = value
+            />
+            <StockCandidateInput
+                form=stock_form
+                label="Review reason"
+                read=|form| &form.review_reason
+                write=|form, value| form.review_reason = value
+            />
+            <button
+                type="button"
+                class="secondary-action"
+                disabled=review_disabled
+                on:click=move |_| review_stock.run(())
+            >
+                "Record candidate review"
+            </button>
+
+            <div class="form-grid">
+                <StockCandidateInput
+                    form=stock_form
+                    label="Deliver quantity"
+                    read=|form| &form.deliver_quantity
+                    write=|form, value| form.deliver_quantity = value
+                />
+                <StockCandidateInput
+                    form=stock_form
+                    label="Planned spares"
+                    read=|form| &form.planned_spares
+                    write=|form, value| form.planned_spares = value
+                />
+                <StockCandidateInput
+                    form=stock_form
+                    label="Destructive samples"
+                    read=|form| &form.destructive_samples
+                    write=|form, value| form.destructive_samples = value
+                />
+                <StockCandidateInput
+                    form=stock_form
+                    label="Adoption reason"
+                    read=|form| &form.adoption_reason
+                    write=|form, value| form.adoption_reason = value
+                />
+            </div>
+            <button
+                type="button"
+                class="secondary-action"
+                disabled=adopt_disabled
+                on:click=move |_| adopt_stock.run(())
+            >
+                "Adopt candidate and evaluate"
+            </button>
+
+            <Show when=move || stock_error().is_some()>
+                <p class="blocked-title" role="status" aria-live="polite">{move || stock_error().unwrap_or_default()}</p>
+            </Show>
+
+            <h4>"Candidate estimate (distinct from baseline)"</h4>
+            <p role="status" aria-live="polite">{estimate_summary}</p>
+        </section>
+    }
+}
+
+#[component]
+fn StockCandidateInput(
+    form: RwSignal<StockCandidateForm>,
+    label: &'static str,
+    read: fn(&StockCandidateForm) -> &String,
+    write: fn(&mut StockCandidateForm, String),
+) -> impl IntoView {
+    view! {
+        <label class="form-field">
+            <span>{label}</span>
+            <input
+                type="text"
+                prop:value=move || form.with(|form| read(form).clone())
+                on:input=move |event| write(&mut form.write(), event_target_value(&event))
+            />
+        </label>
+    }
+}
+
+#[component]
+fn StockCandidateCheckbox(
+    form: RwSignal<StockCandidateForm>,
+    label: &'static str,
+    read: fn(&StockCandidateForm) -> bool,
+    write: fn(&mut StockCandidateForm, bool),
+) -> impl IntoView {
+    view! {
+        <label class="review-check">
+            <input
+                type="checkbox"
+                prop:checked=move || form.with(read)
+                on:change=move |event| write(&mut form.write(), event_target_checked(&event))
+            />
+            <span>{label}</span>
+        </label>
     }
 }
 

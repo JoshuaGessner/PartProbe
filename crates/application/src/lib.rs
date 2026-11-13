@@ -13,8 +13,13 @@ pub use draft_estimate::{
     DraftOperationCostInputs, DraftQuantityInputs, DraftRateContext, DraftResolvedRates,
     DraftStockInputs, DraftTimeInputs, GeometryAnalysisFailure, GeometryAnalysisPort,
 };
+pub use partprobe_setup_planner::stock_candidate::{
+    STOCK_CANDIDATE_RULE_ID, STOCK_CANDIDATE_RULE_VERSION, StockCandidateEdit,
+    StockCandidateReasonCode,
+};
 pub use partprobe_setup_planner::{
-    DeveloperEstimateInputProposal, DeveloperEstimateProposalReasonCode,
+    AxisAlignedEnvelopeMillimeters, CanonicalMillimeterLength, DeveloperEstimateInputProposal,
+    DeveloperEstimateProposalReasonCode,
 };
 pub use shop_settings::{
     ActivateShopResourceSelectionRequest, DenyAllShopResourceCatalogAuthorizationPolicy,

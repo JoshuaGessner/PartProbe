@@ -30,6 +30,8 @@ const SOURCE_VIEWER_NOTICE: &str = "Selected exact B-rep model, tessellated for 
 #[cfg(feature = "viewer-spike")]
 const SOURCE_WITH_STOCK_VIEWER_NOTICE: &str = "Selected exact B-rep model with review-only proposed rectangular stock. Stock is source-axis aligned and centered under proposed-stock-display-placement-v1; standard size and availability remain unresolved.";
 #[cfg(feature = "viewer-spike")]
+const SOURCE_WITH_CANDIDATE_VIEWER_NOTICE: &str = "Selected exact B-rep model with the latest review-only edited stock candidate. Candidate stock is source-axis aligned and centered under developer-stock-candidate-display-placement-v1; the original proposal placement rule is unchanged, and standard size and availability remain unresolved.";
+#[cfg(feature = "viewer-spike")]
 const UNAVAILABLE_VIEWER_NOTICE: &str = "Selected-model display is unavailable; accepted analysis and estimate evidence remain usable. Proposed stock cannot be shown without the matching source display.";
 #[cfg(feature = "viewer-spike")]
 const STARTUP_LIMITED_VIEWER_NOTICE: &str = "3D display could not start with the available graphics configuration. PartProbe is using text-only model and proposed-stock review; analysis and estimate evidence remain usable.";
@@ -73,6 +75,15 @@ enum ViewerLimitedModeCause {
     GraphicsFailure,
 }
 
+/// Which review-only translucent blank the native stock layer currently shows.
+#[cfg(feature = "viewer-spike")]
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ViewerStockLayer {
+    None,
+    Proposal,
+    Candidate,
+}
+
 #[cfg(feature = "viewer-spike")]
 enum ViewerSceneStatus {
     Synthetic,
@@ -82,7 +93,7 @@ enum ViewerSceneStatus {
     SourceBound {
         selection_id: String,
         analysis_id: String,
-        proposed_stock_visible: bool,
+        stock_layer: ViewerStockLayer,
     },
     Unavailable {
         selection_id: String,
@@ -127,16 +138,16 @@ impl ViewerSceneStatus {
             Self::Pending { .. } => (None, PENDING_VIEWER_NOTICE),
             Self::SourceBound {
                 analysis_id,
-                proposed_stock_visible,
+                stock_layer,
                 ..
             } => {
                 let _ = analysis_id;
                 (
                     Some(GEOMETRY_DISPLAY_SCENE_REFERENCE.to_owned()),
-                    if *proposed_stock_visible {
-                        SOURCE_WITH_STOCK_VIEWER_NOTICE
-                    } else {
-                        SOURCE_VIEWER_NOTICE
+                    match stock_layer {
+                        ViewerStockLayer::Proposal => SOURCE_WITH_STOCK_VIEWER_NOTICE,
+                        ViewerStockLayer::Candidate => SOURCE_WITH_CANDIDATE_VIEWER_NOTICE,
+                        ViewerStockLayer::None => SOURCE_VIEWER_NOTICE,
                     },
                 )
             }
@@ -332,7 +343,7 @@ impl DesktopModelViewerState {
                 runtime.scene_status = ViewerSceneStatus::SourceBound {
                     selection_id: selection_id.to_owned(),
                     analysis_id: analysis_id.to_owned(),
-                    proposed_stock_visible: false,
+                    stock_layer: ViewerStockLayer::None,
                 };
             } else if runtime.renderer.is_some() {
                 runtime.scene_status = ViewerSceneStatus::Unavailable {
@@ -351,6 +362,40 @@ impl DesktopModelViewerState {
         selection_id: &str,
         analysis_id: &str,
         dimensions_mm: [f32; 3],
+    ) {
+        self.accept_stock_layer(
+            selection_id,
+            analysis_id,
+            dimensions_mm,
+            #[cfg(feature = "viewer-spike")]
+            ViewerStockLayer::Proposal,
+        );
+    }
+
+    /// Shows the latest edited candidate blank through the same bounded GPU stock layer under
+    /// the distinct `developer-stock-candidate-display-placement-v1` identity. The original
+    /// proposal placement rule and analysis output are unchanged.
+    pub(super) fn accept_candidate_stock(
+        &self,
+        selection_id: &str,
+        analysis_id: &str,
+        dimensions_mm: [f32; 3],
+    ) {
+        self.accept_stock_layer(
+            selection_id,
+            analysis_id,
+            dimensions_mm,
+            #[cfg(feature = "viewer-spike")]
+            ViewerStockLayer::Candidate,
+        );
+    }
+
+    fn accept_stock_layer(
+        &self,
+        selection_id: &str,
+        analysis_id: &str,
+        dimensions_mm: [f32; 3],
+        #[cfg(feature = "viewer-spike")] layer: ViewerStockLayer,
     ) {
         #[cfg(feature = "viewer-spike")]
         if let Ok(mut runtime) = self.inner.lock() {
@@ -381,12 +426,10 @@ impl DesktopModelViewerState {
             }
             let accepted = matches!(render_result, Some(Ok(_)));
             if accepted
-                && let ViewerSceneStatus::SourceBound {
-                    proposed_stock_visible,
-                    ..
-                } = &mut runtime.scene_status
+                && let ViewerSceneStatus::SourceBound { stock_layer, .. } =
+                    &mut runtime.scene_status
             {
-                *proposed_stock_visible = true;
+                *stock_layer = layer;
             }
         }
         #[cfg(not(feature = "viewer-spike"))]
@@ -405,12 +448,8 @@ impl DesktopModelViewerState {
                 enter_limited_mode(&mut runtime, ViewerLimitedModeCause::GraphicsFailure);
                 return;
             }
-            if let ViewerSceneStatus::SourceBound {
-                proposed_stock_visible,
-                ..
-            } = &mut runtime.scene_status
-            {
-                *proposed_stock_visible = false;
+            if let ViewerSceneStatus::SourceBound { stock_layer, .. } = &mut runtime.scene_status {
+                *stock_layer = ViewerStockLayer::None;
             }
         }
     }
@@ -736,7 +775,7 @@ mod tests {
         let status = ViewerSceneStatus::SourceBound {
             selection_id: "selection-1".to_owned(),
             analysis_id: "analysis-1".to_owned(),
-            proposed_stock_visible: false,
+            stock_layer: ViewerStockLayer::None,
         };
 
         let (reference, notice) = status.visible_summary();
@@ -757,7 +796,7 @@ mod tests {
         let source = ViewerSceneStatus::SourceBound {
             selection_id: "selection-2".to_owned(),
             analysis_id: "analysis-2".to_owned(),
-            proposed_stock_visible: false,
+            stock_layer: ViewerStockLayer::None,
         };
 
         assert!(pending.selection_matches("selection-2"));
@@ -772,13 +811,33 @@ mod tests {
         let status = ViewerSceneStatus::SourceBound {
             selection_id: "selection-1".to_owned(),
             analysis_id: "analysis-1".to_owned(),
-            proposed_stock_visible: true,
+            stock_layer: ViewerStockLayer::Proposal,
         };
 
         let (_, notice) = status.visible_summary();
 
         assert!(notice.contains("review-only proposed rectangular stock"));
         assert!(notice.contains("centered"));
+        assert!(notice.contains("availability remain unresolved"));
+        assert!(!notice.contains('/'));
+        assert!(!notice.contains('\\'));
+    }
+
+    #[cfg(feature = "viewer-spike")]
+    #[test]
+    fn candidate_stock_summary_is_separately_versioned_and_review_only() {
+        let status = ViewerSceneStatus::SourceBound {
+            selection_id: "selection-1".to_owned(),
+            analysis_id: "analysis-1".to_owned(),
+            stock_layer: ViewerStockLayer::Candidate,
+        };
+
+        let (reference, notice) = status.visible_summary();
+
+        assert_eq!(reference.as_deref(), Some(GEOMETRY_DISPLAY_SCENE_REFERENCE));
+        assert!(notice.contains("review-only edited stock candidate"));
+        assert!(notice.contains("developer-stock-candidate-display-placement-v1"));
+        assert!(notice.contains("original proposal placement rule is unchanged"));
         assert!(notice.contains("availability remain unresolved"));
         assert!(!notice.contains('/'));
         assert!(!notice.contains('\\'));

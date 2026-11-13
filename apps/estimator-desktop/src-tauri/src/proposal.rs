@@ -89,20 +89,22 @@ fn summary(
         reason_codes: proposal
             .reason_codes()
             .iter()
-            .map(|reason| reason_code(*reason).to_owned())
+            .map(|reason| proposal_reason_code(*reason).to_owned())
             .collect(),
     }
 }
 
-fn minutes_to_hours(minutes: Decimal) -> String {
+pub(crate) fn minutes_to_hours(minutes: Decimal) -> String {
     decimal_text(minutes / Decimal::from(60_u32))
 }
 
-fn decimal_text(value: Decimal) -> String {
+pub(crate) fn decimal_text(value: Decimal) -> String {
     value.normalize().to_string()
 }
 
-const fn reason_code(reason: DeveloperEstimateProposalReasonCode) -> &'static str {
+pub(crate) const fn proposal_reason_code(
+    reason: DeveloperEstimateProposalReasonCode,
+) -> &'static str {
     match reason {
         DeveloperEstimateProposalReasonCode::SessionOnlyDeveloperEvidence => {
             "session_only_developer_evidence"

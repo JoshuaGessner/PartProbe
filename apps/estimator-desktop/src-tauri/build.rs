@@ -13,6 +13,9 @@ fn main() {
         "save_shop_resource_catalog_draft",
         "set_model_viewer_workspace",
         "set_model_viewer_view",
+        "propose_stock_candidate",
+        "review_stock_candidate",
+        "adopt_stock_candidate_estimate",
     ];
 
     tauri_build::try_build(

@@ -19,9 +19,11 @@ mod analysis;
 mod estimate;
 mod proposal;
 mod settings;
+mod stock;
 
 use analysis::DesktopAnalysisAdapter;
 pub use settings::{DesktopCatalogAuthorizationPolicy, DesktopSettingsState};
+pub use stock::DesktopStockWorkflowState;
 
 #[derive(Debug)]
 pub struct DesktopSessionState {
@@ -287,6 +289,75 @@ impl DesktopSessionState {
         ))
     }
 
+    pub fn propose_stock_candidate(
+        &self,
+        workflow: &DesktopStockWorkflowState,
+        request: &partprobe_desktop_contract::ProposeStockCandidateRequest,
+        settings: &ShopSettingsDraft,
+    ) -> Result<partprobe_desktop_contract::StockCandidateSnapshot, HostCommandError> {
+        self.with_current_stock_session(&request.selection_id, &request.analysis_id, |session| {
+            workflow.propose(session, settings, request)
+        })
+    }
+
+    pub fn review_stock_candidate(
+        &self,
+        workflow: &DesktopStockWorkflowState,
+        request: &partprobe_desktop_contract::ReviewStockCandidateRequest,
+        settings: &ShopSettingsDraft,
+    ) -> Result<partprobe_desktop_contract::StockCandidateSnapshot, HostCommandError> {
+        self.with_current_stock_session(&request.selection_id, &request.analysis_id, |session| {
+            workflow.review(session, settings, request)
+        })
+    }
+
+    pub fn adopt_stock_candidate_estimate(
+        &self,
+        workflow: &DesktopStockWorkflowState,
+        request: &partprobe_desktop_contract::AdoptStockCandidateEstimateRequest,
+        settings: &ShopSettingsDraft,
+    ) -> Result<partprobe_desktop_contract::StockCandidateEstimateEvaluation, HostCommandError>
+    {
+        self.with_current_stock_session(&request.selection_id, &request.analysis_id, |session| {
+            workflow.adopt(session, settings, request)
+        })
+    }
+
+    /// Binds one stock operation to the exact current selection and retained analysis session.
+    /// The selection guard stays held so replacement cannot race onto a superseded session.
+    fn with_current_stock_session<T>(
+        &self,
+        selection_id: &str,
+        analysis_id: &str,
+        operation: impl FnOnce(
+            &mut partprobe_application::DraftEstimateSession,
+        ) -> Result<T, HostCommandError>,
+    ) -> Result<T, HostCommandError> {
+        let current_selection = self
+            .selected_source
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("VIS4-STOCK-SELECTION"))?;
+        if current_selection
+            .as_ref()
+            .is_none_or(|selected| selected.selection_id != selection_id)
+        {
+            return Err(HostCommandError::stale_selection(
+                "VIS4-STOCK-STALE-SELECTION",
+            ));
+        }
+        let mut retained = self
+            .analysis_session
+            .lock()
+            .map_err(|_| HostCommandError::host_state_unavailable("VIS4-STOCK-SESSION"))?;
+        let retained = retained
+            .as_mut()
+            .filter(|retained| {
+                retained.selection_id == selection_id && retained.analysis_id == analysis_id
+            })
+            .ok_or_else(|| HostCommandError::stale_selection("VIS4-STOCK-STALE-ANALYSIS"))?;
+        operation(&mut retained.session)
+    }
+
     #[cfg(feature = "desktop-host")]
     pub(crate) fn retained_display_scene(
         &self,
@@ -364,15 +435,25 @@ pub use runtime::run;
 mod tests {
     use std::{collections::BTreeSet, path::Path};
 
-    use partprobe_desktop_contract::{
-        APPLICATION_COMMANDS, APPLICATION_EVENTS, ModelSourceSelection,
+    use partprobe_application::{
+        AnalyzedGeometryEvidence, GeometryAnalysisFailure, GeometryAnalysisPort,
     };
     #[cfg(feature = "desktop-host")]
+    use partprobe_desktop_contract::DraftEstimateProposalAdoptionInput;
     use partprobe_desktop_contract::{
-        DeveloperPricingInputFields, DeveloperRateInputFields, DraftEstimateProposalAdoptionInput,
-        SaveShopSettingsRequest, ShopResourceInputFields,
+        APPLICATION_COMMANDS, APPLICATION_EVENTS, AdoptStockCandidateEstimateRequest,
+        DeveloperPricingInputFields, DeveloperRateInputFields, HostErrorCode, ModelSourceSelection,
+        ProposeStockCandidateRequest, ReviewStockCandidateRequest, SaveShopSettingsRequest,
+        ShopResourceInputFields, StockCandidateEstimateEvaluation, StockCandidateRevisionRef,
     };
-    #[cfg(feature = "desktop-host")]
+    use partprobe_geometry_core::{
+        ExactStepEnvelopeDerivative, ProvisionalGeometryDecimal, StageStatus,
+    };
+    use partprobe_geometry_import::{
+        AssetReadGrant, ControlledGeometryResult, GeometryWorkerRequest,
+        PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE, ProvisionalExactStepAnalysis,
+        ProvisionalGeometrySnapshot, Sha256Digest, SnapshotReference,
+    };
     use partprobe_test_support::TestDirectory;
     use serde_json::Value;
 
@@ -383,6 +464,7 @@ mod tests {
     const CONFIG: &str = include_str!("../tauri.conf.json");
     const RUNTIME: &str = include_str!("runtime.rs");
     const SETTINGS_ADAPTER: &str = include_str!("settings.rs");
+    const STOCK_ADAPTER: &str = include_str!("stock.rs");
     const VIEWER_ADAPTER: &str = include_str!("viewer.rs");
     const WEBVIEW: &str = include_str!("../../src/web.rs");
 
@@ -534,6 +616,9 @@ mod tests {
                 "allow-select-model-source",
                 "allow-set-model-viewer-view",
                 "allow-set-model-viewer-workspace",
+                "allow-propose-stock-candidate",
+                "allow-review-stock-candidate",
+                "allow-adopt-stock-candidate-estimate",
                 "core:event:allow-listen",
                 "core:event:allow-unlisten",
             ])
@@ -659,7 +744,296 @@ mod tests {
         assert!(WEBVIEW.contains("trusted operator identity is not configured"));
         assert!(!SETTINGS_ADAPTER.contains("std::env"));
         assert!(!SETTINGS_ADAPTER.contains("PARTPROBE_CATALOG"));
-        assert_eq!(APPLICATION_COMMANDS.len(), 12);
+        assert_eq!(APPLICATION_COMMANDS.len(), 15);
+    }
+
+    #[test]
+    fn stock_candidate_commands_compose_policy_durable_audit_and_fresh_correlations() {
+        assert!(STOCK_ADAPTER.contains("SqliteDeveloperStockAuthorizationAudit"));
+        assert!(STOCK_ADAPTER.contains("DeveloperSessionStockPolicy"));
+        assert!(STOCK_ADAPTER.contains("desktop-stock-attempt-"));
+        assert!(STOCK_ADAPTER.contains("stock_workflow_subject"));
+        assert!(!STOCK_ADAPTER.contains("std::env"));
+        assert!(!STOCK_ADAPTER.contains("source_path"));
+        assert!(RUNTIME.contains("async fn propose_stock_candidate"));
+        assert!(RUNTIME.contains("async fn review_stock_candidate"));
+        assert!(RUNTIME.contains("async fn adopt_stock_candidate_estimate"));
+        assert!(RUNTIME.contains("accept_candidate_stock"));
+        assert!(RUNTIME.contains("DesktopStockWorkflowState::open"));
+        assert!(RUNTIME.contains("DesktopStockWorkflowState::unavailable"));
+        assert!(WEBVIEW.contains("COMMAND_PROPOSE_STOCK_CANDIDATE"));
+        assert!(WEBVIEW.contains("COMMAND_REVIEW_STOCK_CANDIDATE"));
+        assert!(WEBVIEW.contains("COMMAND_ADOPT_STOCK_CANDIDATE_ESTIMATE"));
+        assert!(WEBVIEW.contains("Final X (mm)"));
+        assert!(WEBVIEW.contains("Final Y (mm)"));
+        assert!(WEBVIEW.contains("Final Z (mm)"));
+        assert!(WEBVIEW.contains("Candidate estimate"));
+        assert!(WEBVIEW.contains("developer session"));
+    }
+
+    #[derive(Debug, Default)]
+    struct StaticEnvelopeAnalyzer;
+
+    impl GeometryAnalysisPort for StaticEnvelopeAnalyzer {
+        fn analyze(
+            &self,
+            request: &GeometryWorkerRequest,
+            grant: AssetReadGrant,
+            _cancellation: &AtomicBool,
+        ) -> Result<AnalyzedGeometryEvidence, GeometryAnalysisFailure> {
+            assert_eq!(grant.asset_capability(), request.asset_capability());
+            let decimal = |value: &str| {
+                ProvisionalGeometryDecimal::new(value).expect("fixture decimal must be valid")
+            };
+            let snapshot = ProvisionalGeometrySnapshot::new(
+                request.expected_source_hash().clone(),
+                "8.0.0",
+                3,
+                1,
+                1,
+                decimal("392"),
+                decimal("480"),
+                [decimal("6"), decimal("4"), decimal("2.5")],
+            )
+            .expect("fixture snapshot must be valid");
+            let envelope = ExactStepEnvelopeDerivative::new(
+                request.expected_source_hash().clone(),
+                [decimal("12"), decimal("8"), decimal("5")],
+            )
+            .expect("fixture envelope must be valid");
+            let analysis = ProvisionalExactStepAnalysis::new(snapshot, envelope)
+                .expect("fixture analysis must be source-bound");
+            AnalyzedGeometryEvidence::new(
+                StageStatus::Succeeded,
+                Vec::new(),
+                SnapshotReference::new(PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE)
+                    .expect("snapshot reference must be valid"),
+                Sha256Digest::new("b".repeat(64)).expect("output hash must be valid"),
+                512,
+                ControlledGeometryResult::ExactBrepWithEnvelope(Box::new(analysis)),
+                None,
+                None,
+            )
+            .map_err(|_| GeometryAnalysisFailure::ControlledOutputInvalid)
+        }
+    }
+
+    fn stock_fixture_session() -> (partprobe_application::DraftEstimateSession, String) {
+        let adapter = DesktopAnalysisAdapter::new(StaticEnvelopeAnalyzer);
+        let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/models/rectangular_prism_12x8x5.step");
+        let (session, result) = adapter
+            .analyze(
+                "selection-1",
+                ModelSourceFormat::Step,
+                &source,
+                1,
+                &AtomicBool::new(false),
+            )
+            .expect("static envelope fixture must analyze");
+        (session, result.analysis_id)
+    }
+
+    fn propose_request(
+        analysis_id: &str,
+        expected: Option<StockCandidateRevisionRef>,
+        x_mm: &str,
+    ) -> ProposeStockCandidateRequest {
+        ProposeStockCandidateRequest {
+            selection_id: "selection-1".to_owned(),
+            analysis_id: analysis_id.to_owned(),
+            expected,
+            final_dimensions_mm: [x_mm.to_owned(), "12".to_owned(), "8".to_owned()],
+            reason: "match saw-cut blank on the shelf".to_owned(),
+        }
+    }
+
+    #[test]
+    fn stock_workflow_binds_session_records_durable_decisions_and_rejects_stale_evidence() {
+        let directory = TestDirectory::create("desktop-stock-workflow").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let settings_state = DesktopSettingsState::open(&database).unwrap();
+        let settings_request = live_test_settings_request();
+        settings_state.save(&settings_request).unwrap();
+        let settings = settings_state.current_settings_draft().unwrap();
+        let (mut session, analysis_id) = stock_fixture_session();
+        let mut baseline_request =
+            crate::estimate::complete_test_request("selection-1", &analysis_id);
+        baseline_request.rates = settings_request.rates.clone();
+        baseline_request.pricing = settings_request.pricing.clone();
+        let baseline_evaluation =
+            crate::estimate::evaluate_draft_estimate(&mut session, &baseline_request, None)
+                .unwrap();
+        let baseline_price = baseline_evaluation
+            .result
+            .expect("complete baseline inputs must evaluate")
+            .rounded_selling_price;
+
+        // Without a verified durable audit store the workflow stays visibly unavailable.
+        let unavailable = DesktopStockWorkflowState::unavailable()
+            .propose(
+                &mut session,
+                &settings,
+                &propose_request(&analysis_id, None, "20"),
+            )
+            .unwrap_err();
+        assert_eq!(unavailable.code, HostErrorCode::StockCandidateUnavailable);
+        assert!(session.stock_candidate_revisions().is_empty());
+
+        let workflow = DesktopStockWorkflowState::open(&database).unwrap();
+        let created = workflow
+            .propose(
+                &mut session,
+                &settings,
+                &propose_request(&analysis_id, None, "20"),
+            )
+            .unwrap();
+        assert_eq!(created.candidate_id, "stock-candidate-1");
+        assert_eq!(created.revision, 1);
+        assert_eq!(created.blank_dimensions_mm, ["20", "12", "8"]);
+        assert_eq!(created.original_blank_dimensions_mm, ["15", "11", "7"]);
+        assert!(!created.reviewed);
+        assert_eq!(
+            created.workflow_rule_id,
+            "partprobe-developer-stock-workflow"
+        );
+        assert!(
+            created
+                .reason_codes
+                .contains(&"user_edited_blank_dimensions".to_owned())
+        );
+        let serialized = serde_json::to_string(&created).unwrap();
+        assert!(!serialized.contains("fixtures/models"));
+        assert!(!serialized.contains(std::path::MAIN_SEPARATOR));
+
+        // A second create and a wrong expected revision are stale, not silent replacements.
+        let already_started = workflow
+            .propose(
+                &mut session,
+                &settings,
+                &propose_request(&analysis_id, None, "21"),
+            )
+            .unwrap_err();
+        assert_eq!(already_started.code, HostErrorCode::StaleStockCandidate);
+        let wrong_revision = workflow
+            .review(
+                &mut session,
+                &settings,
+                &ReviewStockCandidateRequest {
+                    selection_id: "selection-1".to_owned(),
+                    analysis_id: analysis_id.clone(),
+                    expected: StockCandidateRevisionRef {
+                        candidate_id: "stock-candidate-1".to_owned(),
+                        revision: 7,
+                    },
+                    proposal_values_reviewed: true,
+                    coarse_limitations_accepted: true,
+                    reason: "reviewed edited blank and coarse exclusions".to_owned(),
+                },
+            )
+            .unwrap_err();
+        assert_eq!(wrong_revision.code, HostErrorCode::StaleStockCandidate);
+
+        let expected = StockCandidateRevisionRef {
+            candidate_id: "stock-candidate-1".to_owned(),
+            revision: 1,
+        };
+        let reviewed = workflow
+            .review(
+                &mut session,
+                &settings,
+                &ReviewStockCandidateRequest {
+                    selection_id: "selection-1".to_owned(),
+                    analysis_id: analysis_id.clone(),
+                    expected: expected.clone(),
+                    proposal_values_reviewed: true,
+                    coarse_limitations_accepted: true,
+                    reason: "reviewed edited blank and coarse exclusions".to_owned(),
+                },
+            )
+            .unwrap();
+        assert!(reviewed.reviewed);
+
+        let baseline = session.evaluate();
+        let adoption = workflow
+            .adopt(
+                &mut session,
+                &settings,
+                &AdoptStockCandidateEstimateRequest {
+                    selection_id: "selection-1".to_owned(),
+                    analysis_id: analysis_id.clone(),
+                    expected: expected.clone(),
+                    deliver_quantity: "1".to_owned(),
+                    planned_spares: "0".to_owned(),
+                    destructive_samples: "0".to_owned(),
+                    reason: "use the reviewed candidate as a distinct alternative".to_owned(),
+                },
+            )
+            .unwrap();
+        let StockCandidateEstimateEvaluation::Available { estimate } = adoption else {
+            panic!("reviewed candidate adoption must evaluate");
+        };
+        assert_eq!(
+            estimate.baseline_state,
+            partprobe_desktop_contract::DraftEstimateEvaluationState::Available
+        );
+        assert_eq!(
+            estimate.baseline_rounded_selling_price.as_deref(),
+            Some(baseline_price.as_str())
+        );
+        assert!(estimate.candidate.reviewed);
+        assert_ne!(estimate.result.rounded_selling_price, baseline_price);
+        assert!(
+            estimate
+                .excluded_inputs
+                .contains(&"tooling_fixture_and_outside_processing".to_owned())
+        );
+        // The baseline deterministic estimate is preserved, not replaced, by adoption.
+        assert_eq!(session.evaluate(), baseline);
+
+        // A saved Settings change makes the retained candidate basis visibly stale.
+        let mut changed = live_test_settings_request();
+        changed.expected_revision = Some(1);
+        changed.change_reason = "revise synthetic markup for staleness evidence".to_owned();
+        changed.pricing.pricing_policy_version = "2".to_owned();
+        changed.pricing.markup_rate = "0.30".to_owned();
+        settings_state.save(&changed).unwrap();
+        let current = settings_state.current_settings_draft().unwrap();
+        let stale = workflow
+            .propose(
+                &mut session,
+                &current,
+                &propose_request(&analysis_id, Some(expected), "22"),
+            )
+            .unwrap_err();
+        assert_eq!(stale.code, HostErrorCode::StaleStockCandidate);
+
+        drop(settings_state);
+        drop(workflow);
+        directory.cleanup().unwrap();
+    }
+
+    #[test]
+    fn stock_commands_require_the_exact_current_selection_and_analysis() {
+        let state = DesktopSessionState::default();
+        let directory = TestDirectory::create("desktop-stock-stale").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let settings_state = DesktopSettingsState::open(&database).unwrap();
+        settings_state.save(&live_test_settings_request()).unwrap();
+        let settings = settings_state.current_settings_draft().unwrap();
+        let workflow = DesktopStockWorkflowState::unavailable();
+
+        let stale = state
+            .propose_stock_candidate(
+                &workflow,
+                &propose_request("analysis-1", None, "20"),
+                &settings,
+            )
+            .unwrap_err();
+        assert_eq!(stale.code, HostErrorCode::StaleSelection);
+
+        drop(settings_state);
+        directory.cleanup().unwrap();
     }
 
     fn quoted_values_in_rust_slice(source: &str, anchor: &str) -> BTreeSet<String> {
@@ -1186,7 +1560,6 @@ mod tests {
         directory.cleanup().unwrap();
     }
 
-    #[cfg(feature = "desktop-host")]
     fn live_test_settings_request() -> SaveShopSettingsRequest {
         SaveShopSettingsRequest {
             expected_revision: None,

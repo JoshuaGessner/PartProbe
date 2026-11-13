@@ -1,12 +1,21 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-09-15
+> **Last updated:** 2026-11-13
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-11-13 — Contract v13 desktop stock-candidate composition
+
+- Committed/pushed the verified durable-decision workflow/store checkpoint as `4916142`; Rust CI run `43352799319` passed on macOS, Linux, and Windows, providing hosted three-OS evidence for that checkpoint before this increment.
+- Advanced the shared desktop contract from v12 to v13 and the exact command surface from twelve to fifteen. `propose_stock_candidate` (create, or revise against the exact latest revision), `review_stock_candidate`, and `adopt_stock_candidate_estimate` carry only path-free requests, review-evidence candidate snapshots, and a distinct candidate-estimate summary beside the preserved baseline state/price. Four new content-minimized host error codes distinguish workflow unavailability, recorded denial, stale candidate/settings evidence, and invalid candidate input. The build manifest, generated exact permissions, main capability, Tauri handler, and host regression parity remain synchronized.
+- Composed `DesktopStockWorkflowState` in the native host: `DeveloperStockApplication` runs over the durable `SqliteDeveloperStockAuthorizationAudit` on the Settings database and the new deny-otherwise `partprobe-desktop-developer-stock-session` v1 policy, which allows only the visibly labeled local developer-session subject retained from analysis intake. Every attempt binds the exact current selection/analysis session under the existing lock ordering, reloads the saved Settings draft off the UI task, uses trusted host time, and consumes one fresh correlation ID through the new narrow `DraftEstimateSession::stock_workflow_subject`/`source_actor` seam; a missing or unverified store leaves all three commands visibly unavailable. The application crate also re-exports the setup-planner candidate types so the host adds no new dependency edge.
+- Added the labeled **Final X (mm)**/**Final Y (mm)**/**Final Z (mm)** stock-candidate editor to Model & stock with edit/review/adoption reasons, affirmative review checkboxes, quantities, failure display with diagnostics, and a candidate-estimate line visibly distinct from the baseline; all candidate state clears on new selection, re-analysis, or any Settings change. The native viewer shows the latest candidate blank under the distinct `developer-stock-candidate-display-placement-v1` identity through the same bounded GPU stock layer; proposal placement v1, analysis output, and geometry boundaries are unchanged, and no path, CAD, or buffer crosses the WebView.
+- Current validation passes 362 workspace all-target tests (two GPU smokes ignored), documentation tests, strict workspace lint, 60 ordinary `viewer-spike` host tests with six configured smokes ignored, strict desktop-host/viewer-spike/WASM lint, all 80 Python tests, unchanged fixture hashes, formatting, and 151-file planning validation. New tests cover fifteen-command parity, path-free snapshots, visible store unavailability, create/revise/review/adopt through a static exact-envelope analyzer with baseline preservation, wrong-revision and settings-revision staleness, stale-selection rejection, and the candidate placement notice. No package was rebuilt; the configured smokes remain pinned to the 2026-09-14 package runtime.
+- Updated canonical stock model, permissions matrix, security model, desktop platform, USE-3 validation, plan/state/index, and agent guidance. No formula, geometry interpretation, persisted schema, dependency, historical record, or production formula changed; authenticated identity/roles, protected audit, packaged candidate-editor evidence, and standard size/availability remain open. Next: fresh package rehearsal with the candidate editor, live fallback/screen-reader evidence, then governed catalog adoption.
 
 ## 2026-09-15 — Durable reference-only stock decisions
 

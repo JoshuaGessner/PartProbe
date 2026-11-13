@@ -17,6 +17,9 @@
     "allow-save-shop-resource-catalog-draft",
     "allow-set-model-viewer-workspace",
     "allow-set-model-viewer-view",
+    "allow-propose-stock-candidate",
+    "allow-review-stock-candidate",
+    "allow-adopt-stock-candidate-estimate",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

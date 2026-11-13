@@ -50,9 +50,9 @@ use partprobe_security::{
 };
 
 pub(crate) const DEVELOPER_ACTOR_ID: &str = "local-developer-session";
-const DEVELOPER_PROJECT_ID: &str = "gui-4-developer-slice";
-const DEVELOPER_CLASSIFICATION_ID: &str = "local-test-data";
-const DEVELOPER_RECORD_STATE_ID: &str = "ephemeral-draft";
+pub(crate) const DEVELOPER_PROJECT_ID: &str = "gui-4-developer-slice";
+pub(crate) const DEVELOPER_CLASSIFICATION_ID: &str = "local-test-data";
+pub(crate) const DEVELOPER_RECORD_STATE_ID: &str = "ephemeral-draft";
 const MAX_INPUT_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ANALYSIS_OUTPUT_BYTES: u64 = 1024 * 1024;
 const MAX_OUTPUT_BYTES: u64 = MAX_ANALYSIS_OUTPUT_BYTES + MAX_DISPLAY_SCENE_ARTIFACT_BYTES;

@@ -1,7 +1,7 @@
 # USE-3 Stock Proposal Validation
 
 > **Status:** In Review
-> **Last updated:** 2026-09-15
+> **Last updated:** 2026-11-13
 > **Related requirements:** REQ-F-005, GEO-008, GEO-011, CALC-002–CALC-007, TEST-027
 > **Related ADRs:** ADR-0002, ADR-0004
 > **Open questions:** Shop-approved allowances, standard-size catalogs, orientation policy, availability source
@@ -87,6 +87,14 @@ Eight synthetic storage tests cover all four operations under allow/deny with ex
 The new opt-in `packaged_worker_stock_workflow_uses_durable_decisions_without_replacing_baseline` smoke passes against the last package's verified runtime. It analyzes the governed prism through the real authorized supervisor/retained application session, persists a denied create without mutation, rejects its reuse for an allow after reopen, creates/reviews/adopts under an explicit test-only policy with fresh correlations, returns a distinct available candidate result with the exact original baseline, and rejects identical adoption retry after another store reopen. This invokes the headless wrapper directly, **not** new GUI commands or an interactive native editor. It is local Apple-Silicon configured-worker/store composition only, not production identity/roles, a reviewed shipped allow policy, protected audit, saved candidate replay, renderer/editor/package or three-OS acceptance.
 
 Command: `cargo test -p partprobe-estimator-desktop --features viewer-spike packaged_worker_stock_workflow_uses_durable_decisions_without_replacing_baseline --locked -- --ignored --nocapture`, with explicit verified package resources and worker workspace per the native runbook. It remains ignored in ordinary CI. Record v1 pins the stored workflow version; schema v5 migrates no calculation/geometry/historical estimate and older binaries visibly reject it. The [canonical persistence section](../04-architecture/persistence.md#vis-4-stock-decision-event-persistence-v1) owns forward/rollback and non-replayed retry semantics.
+
+## VIS-4 desktop stock-candidate composition evidence (2026-11-13)
+
+Desktop contract v13 registers `propose_stock_candidate`, `review_stock_candidate`, and `adopt_stock_candidate_estimate` with exact generated permissions, main-capability entries, build-manifest parity, and handler registration, proven by the updated host regression tests. The native `DesktopStockWorkflowState` composes `DeveloperStockApplication` with the durable schema-v5 store and the `partprobe-desktop-developer-stock-session` v1 policy; every attempt binds the exact current selection/analysis session, the retained developer-session subject, trusted host time, and one fresh correlation ID. A contract test proves the three requests and the candidate error codes stay path-free; a host test proves snapshot serialization carries no fixture path or separator.
+
+Two new host functional tests run a static exact-envelope analyzer through the real analysis adapter, a saved synthetic Settings draft, and the durable store in a temporary database. They prove: visible unavailability without a configured store and with no session mutation; create with exact snapshot evidence (candidate `stock-candidate-1` revision 1, edited 20×12×8 mm against the original 15×11×7 mm blank, `user_edited_blank_dimensions` reason code); stale rejection of a second create and of a wrong expected revision; review gating; adoption returning a distinct available candidate estimate whose baseline state and rounded price match the preserved deterministic baseline, with the six named exclusions and an unchanged post-adoption session evaluation; and visible staleness after a saved Settings revision change. A separate test proves stock commands reject a stale selection before any settings or workflow access. The viewer tests pin the distinct `developer-stock-candidate-display-placement-v1` notice beside the unchanged proposal placement notice.
+
+The Model & stock workspace adds the labeled **Final X (mm)** / **Final Y (mm)** / **Final Z (mm)** editor, edit/review/adoption reasons, affirmative review checkboxes, quantities, and a candidate-estimate line visibly distinct from the baseline; all stock-candidate state clears on new selection, re-analysis, or any Settings change. This is local Apple-Silicon developer-session evidence with synthetic analyzers plus the existing configured smokes; authenticated production identity/roles, protected audit, a refreshed package, standard size/availability, and three-OS acceptance are not claimed.
 
 ## Existing proposal migration decision (unchanged)
 

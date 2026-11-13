@@ -152,7 +152,7 @@ fn proposed_estimate_inputs(
     Ok((adopted.inputs, trace, Some(adoption_summary)))
 }
 
-fn input_trace(inputs: &DraftEstimateInputs) -> DraftEstimateInputFields {
+pub(crate) fn input_trace(inputs: &DraftEstimateInputs) -> DraftEstimateInputFields {
     DraftEstimateInputFields {
         stock_volume_mm3: decimal_text(inputs.stock.stock_volume.value()),
         density_kg_per_mm3: decimal_text(inputs.stock.density.value()),
@@ -414,7 +414,7 @@ pub(crate) fn pricing_policy(
     .map_err(|_| invalid_input("GUI4-ESTIMATE-PRICING-POLICY"))
 }
 
-fn result_summary(
+pub(crate) fn result_summary(
     result: partprobe_application::DraftEstimateResult,
     input_trace: DraftEstimateInputFields,
     proposal_adoption: Option<DraftEstimateProposalAdoptionSummary>,

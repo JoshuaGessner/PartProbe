@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const DESKTOP_CONTRACT_VERSION: u16 = 12;
+pub const DESKTOP_CONTRACT_VERSION: u16 = 13;
 pub const COMMAND_DESKTOP_CONTRACT: &str = "desktop_contract";
 pub const COMMAND_SELECT_MODEL_SOURCE: &str = "select_model_source";
 pub const COMMAND_ANALYZE_MODEL_SOURCE: &str = "analyze_model_source";
@@ -15,8 +15,11 @@ pub const COMMAND_ACTIVATE_SHOP_RESOURCE_SELECTION: &str = "activate_shop_resour
 pub const COMMAND_SAVE_SHOP_RESOURCE_CATALOG_DRAFT: &str = "save_shop_resource_catalog_draft";
 pub const COMMAND_SET_MODEL_VIEWER_WORKSPACE: &str = "set_model_viewer_workspace";
 pub const COMMAND_SET_MODEL_VIEWER_VIEW: &str = "set_model_viewer_view";
+pub const COMMAND_PROPOSE_STOCK_CANDIDATE: &str = "propose_stock_candidate";
+pub const COMMAND_REVIEW_STOCK_CANDIDATE: &str = "review_stock_candidate";
+pub const COMMAND_ADOPT_STOCK_CANDIDATE_ESTIMATE: &str = "adopt_stock_candidate_estimate";
 pub const EVENT_MODEL_SOURCE_SELECTED: &str = "partprobe:model-source-selected";
-pub const APPLICATION_COMMANDS: [&str; 12] = [
+pub const APPLICATION_COMMANDS: [&str; 15] = [
     COMMAND_DESKTOP_CONTRACT,
     COMMAND_SELECT_MODEL_SOURCE,
     COMMAND_ANALYZE_MODEL_SOURCE,
@@ -29,6 +32,9 @@ pub const APPLICATION_COMMANDS: [&str; 12] = [
     COMMAND_SAVE_SHOP_RESOURCE_CATALOG_DRAFT,
     COMMAND_SET_MODEL_VIEWER_WORKSPACE,
     COMMAND_SET_MODEL_VIEWER_VIEW,
+    COMMAND_PROPOSE_STOCK_CANDIDATE,
+    COMMAND_REVIEW_STOCK_CANDIDATE,
+    COMMAND_ADOPT_STOCK_CANDIDATE_ESTIMATE,
 ];
 pub const APPLICATION_EVENTS: [&str; 1] = [EVENT_MODEL_SOURCE_SELECTED];
 
@@ -295,6 +301,115 @@ pub struct DraftEstimateProposalSummary {
     pub rule_id: String,
     pub rule_version: String,
     pub reason_codes: Vec<String>,
+}
+
+/// Path-free reference to the exact latest retained developer stock-candidate revision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct StockCandidateRevisionRef {
+    pub candidate_id: String,
+    pub revision: u32,
+}
+
+/// Path-free request for one session-only developer stock-candidate create or revise.
+/// `expected: None` starts the first candidate; `Some` must name the exact latest revision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ProposeStockCandidateRequest {
+    pub selection_id: String,
+    pub analysis_id: String,
+    pub expected: Option<StockCandidateRevisionRef>,
+    pub final_dimensions_mm: [String; 3],
+    pub reason: String,
+}
+
+/// Path-free affirmative review of the exact latest retained candidate revision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReviewStockCandidateRequest {
+    pub selection_id: String,
+    pub analysis_id: String,
+    pub expected: StockCandidateRevisionRef,
+    pub proposal_values_reviewed: bool,
+    pub coarse_limitations_accepted: bool,
+    pub reason: String,
+}
+
+/// Path-free explicit adoption of one reviewed candidate revision into a distinct coarse
+/// candidate estimate. The baseline deterministic estimate is never replaced.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AdoptStockCandidateEstimateRequest {
+    pub selection_id: String,
+    pub analysis_id: String,
+    pub expected: StockCandidateRevisionRef,
+    pub deliver_quantity: String,
+    pub planned_spares: String,
+    pub destructive_samples: String,
+    pub reason: String,
+}
+
+/// Review-only session evidence for one retained immutable candidate revision. It is not a
+/// saved record, standard-size resolution, availability, purchasing, or estimate authority.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct StockCandidateSnapshot {
+    pub selection_id: String,
+    pub analysis_id: String,
+    pub candidate_id: String,
+    pub revision: u32,
+    pub previous_revision: Option<u32>,
+    pub settings_revision: u32,
+    pub original_blank_dimensions_mm: [String; 3],
+    pub previous_blank_dimensions_mm: [String; 3],
+    pub blank_dimensions_mm: [String; 3],
+    pub total_allowance_mm: [String; 3],
+    pub blank_volume_mm3: String,
+    pub removed_volume_mm3: String,
+    pub blank_mass_kg: String,
+    pub unit_stock_material_cost: String,
+    pub currency: String,
+    pub cutting_hours_per_item: String,
+    pub reviewed: bool,
+    pub session_rule_id: String,
+    pub session_rule_version: String,
+    pub candidate_rule_id: String,
+    pub candidate_rule_version: String,
+    pub workflow_rule_id: String,
+    pub workflow_rule_version: String,
+    pub reason_codes: Vec<String>,
+}
+
+/// Path-free state returned by the native candidate adoption/evaluation workflow.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum StockCandidateEstimateEvaluation {
+    Available {
+        estimate: Box<StockCandidateEstimateSummary>,
+    },
+    Unavailable {
+        reason: String,
+    },
+    Blocked {
+        reason: String,
+    },
+}
+
+/// A distinct coarse candidate estimate beside the preserved baseline. The baseline state and
+/// price are echoed so the trace stays visibly separate from the candidate result.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct StockCandidateEstimateSummary {
+    pub selection_id: String,
+    pub analysis_id: String,
+    pub candidate: StockCandidateSnapshot,
+    pub adoption_rule_id: String,
+    pub adoption_rule_version: String,
+    pub adoption_reason: String,
+    pub excluded_inputs: Vec<String>,
+    pub baseline_state: DraftEstimateEvaluationState,
+    pub baseline_rounded_selling_price: Option<String>,
+    pub result: Box<DraftEstimateResultSummary>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1098,6 +1213,42 @@ impl HostCommandError {
             diagnostic_id: diagnostic_id.into(),
         }
     }
+
+    #[must_use]
+    pub fn stock_workflow_unavailable(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::StockCandidateUnavailable,
+            message: "Stock candidate editing is unavailable because the durable decision audit or workflow is not configured.".to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn stock_authorization_denied(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::StockCandidateDenied,
+            message: "The configured policy denied this stock candidate operation. The decision was recorded.".to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn stale_stock_candidate(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::StaleStockCandidate,
+            message: "The named candidate revision or its settings basis is no longer current. Refresh the candidate evidence before retrying.".to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn invalid_stock_candidate_input(diagnostic_id: impl Into<String>) -> Self {
+        Self {
+            code: HostErrorCode::InvalidStockCandidateInput,
+            message: "The stock candidate request was rejected by the session rules. Review the dimensions, review flags, quantities, and reason.".to_owned(),
+            diagnostic_id: diagnostic_id.into(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1116,6 +1267,10 @@ pub enum HostErrorCode {
     InvalidSettingsInput,
     SettingsConflict,
     SettingsVersionConflict,
+    StockCandidateUnavailable,
+    StockCandidateDenied,
+    StaleStockCandidate,
+    InvalidStockCandidateInput,
 }
 
 #[cfg(test)]
@@ -1127,7 +1282,7 @@ mod tests {
         let contract = DesktopContract::current();
 
         assert_eq!(contract.contract_version, DESKTOP_CONTRACT_VERSION);
-        assert_eq!(contract.contract_version, 12);
+        assert_eq!(contract.contract_version, 13);
         assert_eq!(contract.commands, APPLICATION_COMMANDS);
         assert_eq!(contract.events, APPLICATION_EVENTS);
         assert_eq!(
@@ -1178,6 +1333,54 @@ mod tests {
         assert!(!serialized.contains("\\"));
         assert!(!serialized.contains("vertex"));
         assert!(!serialized.contains("index"));
+    }
+
+    #[test]
+    fn stock_candidate_contract_is_path_free_and_review_gated() {
+        let propose = ProposeStockCandidateRequest {
+            selection_id: "selection-1".to_owned(),
+            analysis_id: "analysis-1".to_owned(),
+            expected: None,
+            final_dimensions_mm: ["20".to_owned(), "12".to_owned(), "8".to_owned()],
+            reason: "match saw-cut blank on the shelf".to_owned(),
+        };
+        let review = ReviewStockCandidateRequest {
+            selection_id: "selection-1".to_owned(),
+            analysis_id: "analysis-1".to_owned(),
+            expected: StockCandidateRevisionRef {
+                candidate_id: "stock-candidate-1".to_owned(),
+                revision: 1,
+            },
+            proposal_values_reviewed: true,
+            coarse_limitations_accepted: true,
+            reason: "reviewed edited blank and coarse exclusions".to_owned(),
+        };
+        let adopt = AdoptStockCandidateEstimateRequest {
+            selection_id: "selection-1".to_owned(),
+            analysis_id: "analysis-1".to_owned(),
+            expected: StockCandidateRevisionRef {
+                candidate_id: "stock-candidate-1".to_owned(),
+                revision: 1,
+            },
+            deliver_quantity: "1".to_owned(),
+            planned_spares: "0".to_owned(),
+            destructive_samples: "0".to_owned(),
+            reason: "use the reviewed candidate as a distinct alternative".to_owned(),
+        };
+        let serialized = serde_json::to_string(&(propose, review, adopt)).unwrap();
+        assert!(!serialized.contains('/'));
+        assert!(!serialized.contains('\\'));
+        assert!(!serialized.contains("path"));
+        assert!(!serialized.contains("vertex"));
+
+        let denied = HostCommandError::stock_authorization_denied("VIS4-STOCK-DENIED");
+        assert_eq!(denied.code, HostErrorCode::StockCandidateDenied);
+        let stale = HostCommandError::stale_stock_candidate("VIS4-STOCK-STALE");
+        assert_eq!(stale.code, HostErrorCode::StaleStockCandidate);
+        let unavailable = HostCommandError::stock_workflow_unavailable("VIS4-STOCK-UNAVAILABLE");
+        assert_eq!(unavailable.code, HostErrorCode::StockCandidateUnavailable);
+        let invalid = HostCommandError::invalid_stock_candidate_input("VIS4-STOCK-INVALID");
+        assert_eq!(invalid.code, HostErrorCode::InvalidStockCandidateInput);
     }
 
     #[test]

@@ -1,21 +1,23 @@
 use std::path::PathBuf;
 
 use partprobe_desktop_contract::{
-    ActivateShopResourceSelectionRequest, AnalysisCancellationAcknowledgement,
-    AnalyzeModelSourceRequest, CancelModelAnalysisRequest, DesktopContract,
-    DraftEstimateEvaluation, DraftEstimateProposalEvaluation, EVENT_MODEL_SOURCE_SELECTED,
-    EvaluateDraftEstimateRequest, HostCommandError, ModelAnalysisResult, ModelSourceSelectedEvent,
-    ModelSourceSelection, ModelViewerWorkspaceResult, PrepareDraftEstimateProposalRequest,
-    SaveShopResourceCatalogDraftRequest, SaveShopSettingsRequest, SetModelViewerViewRequest,
-    SetModelViewerWorkspaceRequest, ShopResourceCatalogActivationResult,
-    ShopResourceCatalogDraftSaveResult, ShopSettingsState,
+    ActivateShopResourceSelectionRequest, AdoptStockCandidateEstimateRequest,
+    AnalysisCancellationAcknowledgement, AnalyzeModelSourceRequest, CancelModelAnalysisRequest,
+    DesktopContract, DraftEstimateEvaluation, DraftEstimateProposalEvaluation,
+    EVENT_MODEL_SOURCE_SELECTED, EvaluateDraftEstimateRequest, HostCommandError,
+    ModelAnalysisResult, ModelSourceSelectedEvent, ModelSourceSelection,
+    ModelViewerWorkspaceResult, PrepareDraftEstimateProposalRequest, ProposeStockCandidateRequest,
+    ReviewStockCandidateRequest, SaveShopResourceCatalogDraftRequest, SaveShopSettingsRequest,
+    SetModelViewerViewRequest, SetModelViewerWorkspaceRequest, ShopResourceCatalogActivationResult,
+    ShopResourceCatalogDraftSaveResult, ShopSettingsState, StockCandidateEstimateEvaluation,
+    StockCandidateSnapshot,
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
 use crate::analysis::DesktopAnalysisConfiguration;
 use crate::viewer::DesktopModelViewerState;
-use crate::{DesktopSessionState, DesktopSettingsState};
+use crate::{DesktopSessionState, DesktopSettingsState, DesktopStockWorkflowState};
 
 const MODEL_SOURCE_DIALOG_TITLE: &str = "Select model file";
 
@@ -227,6 +229,72 @@ async fn save_shop_resource_catalog_draft(
     .map_err(|_| HostCommandError::settings_unavailable("USE2-CATALOG-DRAFT-TASK"))?
 }
 
+#[tauri::command]
+async fn propose_stock_candidate(
+    app: tauri::AppHandle,
+    request: ProposeStockCandidateRequest,
+) -> Result<StockCandidateSnapshot, HostCommandError> {
+    let task_app = app.clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || {
+        let settings = task_app
+            .state::<DesktopSettingsState>()
+            .current_settings_draft()?;
+        task_app
+            .state::<DesktopSessionState>()
+            .propose_stock_candidate(
+                &task_app.state::<DesktopStockWorkflowState>(),
+                &request,
+                &settings,
+            )
+    })
+    .await
+    .map_err(|_| HostCommandError::host_state_unavailable("VIS4-STOCK-TASK"))??;
+    if let Some(dimensions_mm) = proposal_blank_dimensions(&snapshot.blank_dimensions_mm) {
+        app.state::<DesktopModelViewerState>()
+            .accept_candidate_stock(&snapshot.selection_id, &snapshot.analysis_id, dimensions_mm);
+    }
+    Ok(snapshot)
+}
+
+#[tauri::command]
+async fn review_stock_candidate(
+    app: tauri::AppHandle,
+    request: ReviewStockCandidateRequest,
+) -> Result<StockCandidateSnapshot, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = app
+            .state::<DesktopSettingsState>()
+            .current_settings_draft()?;
+        app.state::<DesktopSessionState>().review_stock_candidate(
+            &app.state::<DesktopStockWorkflowState>(),
+            &request,
+            &settings,
+        )
+    })
+    .await
+    .map_err(|_| HostCommandError::host_state_unavailable("VIS4-STOCK-TASK"))?
+}
+
+#[tauri::command]
+async fn adopt_stock_candidate_estimate(
+    app: tauri::AppHandle,
+    request: AdoptStockCandidateEstimateRequest,
+) -> Result<StockCandidateEstimateEvaluation, HostCommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = app
+            .state::<DesktopSettingsState>()
+            .current_settings_draft()?;
+        app.state::<DesktopSessionState>()
+            .adopt_stock_candidate_estimate(
+                &app.state::<DesktopStockWorkflowState>(),
+                &request,
+                &settings,
+            )
+    })
+    .await
+    .map_err(|_| HostCommandError::host_state_unavailable("VIS4-STOCK-TASK"))?
+}
+
 fn desktop_path(selected: FilePath) -> Result<PathBuf, HostCommandError> {
     match selected {
         FilePath::Path(path) => Ok(path),
@@ -262,18 +330,25 @@ pub fn run() {
             if !app.manage(session_state) {
                 return Err("desktop session state is already managed".into());
             }
-            let settings_state = app
-                .path()
-                .app_data_dir()
-                .map_err(|_| ())
-                .and_then(|directory| {
-                    std::fs::create_dir_all(&directory).map_err(|_| ())?;
-                    DesktopSettingsState::open(&directory.join("shop-settings.sqlite3"))
-                        .map_err(|_| ())
-                })
-                .unwrap_or_else(|_| DesktopSettingsState::unavailable());
+            let settings_database = app.path().app_data_dir().ok().and_then(|directory| {
+                std::fs::create_dir_all(&directory).ok()?;
+                Some(directory.join("shop-settings.sqlite3"))
+            });
+            let settings_state = settings_database
+                .as_deref()
+                .and_then(|database| DesktopSettingsState::open(database).ok())
+                .unwrap_or_else(DesktopSettingsState::unavailable);
             if !app.manage(settings_state) {
                 return Err("desktop settings state is already managed".into());
+            }
+            // The durable stock-decision audit shares the Settings database; without it the
+            // stock candidate commands stay visibly unavailable instead of using a memory sink.
+            let stock_state = settings_database
+                .as_deref()
+                .and_then(|database| DesktopStockWorkflowState::open(database).ok())
+                .unwrap_or_else(DesktopStockWorkflowState::unavailable);
+            if !app.manage(stock_state) {
+                return Err("desktop stock workflow state is already managed".into());
             }
             let window = app
                 .get_webview_window("main")
@@ -297,7 +372,10 @@ pub fn run() {
             activate_shop_resource_selection,
             save_shop_resource_catalog_draft,
             set_model_viewer_workspace,
-            set_model_viewer_view
+            set_model_viewer_view,
+            propose_stock_candidate,
+            review_stock_candidate,
+            adopt_stock_candidate_estimate
         ])
         .run(tauri::generate_context!())
         .expect("PartProbe desktop host failed");
