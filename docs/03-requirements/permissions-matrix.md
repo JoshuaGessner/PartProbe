@@ -1,7 +1,7 @@
 # Permissions Matrix
 
 > **Status:** Draft  
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-09-15
 > **Related requirement IDs:** REQ-F-020, REQ-F-032–REQ-F-034, SEC-003, SEC-005, SEC-007, SEC-008  
 > **Related architecture decision IDs:** ADR-0006  
 > **Open questions:** Identity provider, MFA policy, customer/external roles, export approver, and classification authority  
@@ -48,5 +48,7 @@ Authorization is deny-by-default and evaluated as `role permission ∩ project m
 ## Current implementation boundary
 
 The application asset-read service evaluates actor, project, record/version, classification, record state, operation, and the identity bound to the open asset root. It records the exact policy ID/version, allow/deny outcome, stable reason code, correlation ID, and trusted application timestamp before any relative file resolution. Missing deployment policy uses an explicit versioned deny-all implementation, and an unavailable audit sink fails closed. The baseline roles above remain unconfigured product guidance: no role name or organization-specific permission is hard-coded, and no requirement in this matrix is Complete.
+
+The headless VIS-4 stock workflow now applies a separate explicit policy and required decision audit to create/revise/review/adopt operations, binding their native subjects to retained intake project/model revision/classification/state. Reference-only candidate/settings/source/output context carries no CAD, dimensions, rates, prices, or free-text reasons. Denial/audit failure changes no original session state. Its audit adapter must reject every reused correlation, including exact retries. The supplied policy denies all; synthetic allow tests do not implement the baseline roles, authenticate identity, provide durable stock audit, or enable desktop editing. See [canonical policy](../02-domain/stock-selection-model.md#vis-4-developer-stock-workflow-policy-v1).
 
 References: [security model](../04-architecture/security-model.md), [defense-data research](../01-research/defense-data-handling.md).

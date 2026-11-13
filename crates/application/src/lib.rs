@@ -3,6 +3,7 @@
 mod draft_estimate;
 pub mod shop_settings;
 mod stock_candidate;
+mod stock_candidate_workflow;
 mod stock_proposal;
 
 pub use draft_estimate::{
@@ -32,6 +33,13 @@ pub use stock_candidate::{
     DeveloperStockCandidateRevision, DeveloperStockCandidateSessionError,
     MAX_DEVELOPER_STOCK_CANDIDATE_REVISIONS, StockCandidateAdoptionDecision,
     StockCandidateRevisionExpectation,
+};
+pub use stock_candidate_workflow::{
+    DEVELOPER_STOCK_WORKFLOW_RULE_ID, DEVELOPER_STOCK_WORKFLOW_RULE_VERSION,
+    DenyAllDeveloperStockAuthorizationPolicy, DeveloperStockApplication,
+    DeveloperStockAuthorizationAuditSink, DeveloperStockAuthorizationContext,
+    DeveloperStockAuthorizationEvent, DeveloperStockAuthorizationPolicy, DeveloperStockOperation,
+    DeveloperStockOutcome, DeveloperStockRequest, DeveloperStockWorkflowError,
 };
 pub use stock_proposal::{
     AdoptedDeveloperEstimateInputs, DEVELOPER_ESTIMATE_PROPOSAL_ADOPTION_RULE_ID,

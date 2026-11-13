@@ -507,6 +507,7 @@ pub struct DraftEstimateResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DraftEstimateSession {
     geometry: AnalyzedGeometryEvidence,
+    source_subject: AssetReadSubject,
     geometry_review: Option<DraftGeometryReview>,
     inputs: Option<DraftEstimateInputs>,
     rate_context: Option<DraftRateContext>,
@@ -515,9 +516,10 @@ pub struct DraftEstimateSession {
 }
 
 impl DraftEstimateSession {
-    fn new(geometry: AnalyzedGeometryEvidence) -> Self {
+    fn new(geometry: AnalyzedGeometryEvidence, source_subject: AssetReadSubject) -> Self {
         Self {
             geometry,
+            source_subject,
             geometry_review: None,
             inputs: None,
             rate_context: None,
@@ -530,6 +532,10 @@ impl DraftEstimateSession {
     #[must_use]
     pub const fn geometry(&self) -> &AnalyzedGeometryEvidence {
         &self.geometry
+    }
+
+    pub(crate) const fn source_subject(&self) -> &AssetReadSubject {
+        &self.source_subject
     }
 
     /// Replaces the session-only geometry review state.
@@ -628,6 +634,7 @@ where
         relative_path: &Path,
         cancellation: &AtomicBool,
     ) -> Result<DraftEstimateSession, DraftEstimateApplicationError> {
+        let session_subject = subject.clone();
         let grant = self
             .asset_reads
             .authorize_and_open(
@@ -641,7 +648,7 @@ where
             .geometry_analysis
             .analyze(request, grant, cancellation)
             .map_err(DraftEstimateApplicationError::GeometryAnalysis)?;
-        Ok(DraftEstimateSession::new(geometry))
+        Ok(DraftEstimateSession::new(geometry, session_subject))
     }
 
     /// Authorizes and audits a selected source before deriving the request's source fingerprint.
@@ -656,6 +663,7 @@ where
         relative_path: &Path,
         cancellation: &AtomicBool,
     ) -> Result<DraftEstimateSession, DraftEstimateApplicationError> {
+        let session_subject = subject.clone();
         let mut grant = self
             .asset_reads
             .authorize_and_open(
@@ -675,7 +683,7 @@ where
             .geometry_analysis
             .analyze(&request, grant, cancellation)
             .map_err(DraftEstimateApplicationError::GeometryAnalysis)?;
-        Ok(DraftEstimateSession::new(geometry))
+        Ok(DraftEstimateSession::new(geometry, session_subject))
     }
 
     /// Returns the governed asset-read service for audit verification and adapter composition.

@@ -3233,6 +3233,7 @@ dependencies = [
  "partprobe-native-runtime",
  "partprobe-persistence-sqlite",
  "partprobe-security",
+ "partprobe-setup-planner",
  "partprobe-test-support",
  "rust_decimal",
  "serde_json",

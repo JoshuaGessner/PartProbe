@@ -7,6 +7,12 @@ use partprobe_application::{
     DraftEstimateSession, GeometryAnalysisFailure, GeometryAnalysisPort, LocalAssetReadService,
     MAX_DEVELOPER_STOCK_CANDIDATE_REVISIONS, StockCandidateRevisionExpectation,
 };
+use partprobe_application::{
+    DenyAllDeveloperStockAuthorizationPolicy, DeveloperStockApplication,
+    DeveloperStockAuthorizationAuditSink, DeveloperStockAuthorizationContext,
+    DeveloperStockAuthorizationEvent, DeveloperStockAuthorizationPolicy, DeveloperStockOperation,
+    DeveloperStockOutcome, DeveloperStockRequest, DeveloperStockWorkflowError,
+};
 use partprobe_domain::{
     ActorId, CoarseRuntimeProfile, CurrencyCode, DensityKilogramsPerCubicMeter, EffectiveDate,
     LibraryRecordState, MachineEnvelopeMillimeters, MachineProfile, MachineProfileId,
@@ -23,6 +29,10 @@ use partprobe_geometry_core::{
 use partprobe_geometry_import::{
     ControlledGeometryResult, PROVISIONAL_EXACT_STEP_ANALYSIS_REFERENCE,
     PROVISIONAL_GEOMETRY_SNAPSHOT_REFERENCE, ProvisionalExactStepAnalysis, SnapshotReference,
+};
+use partprobe_security::{
+    AuditAppendError, AuditCorrelationId, AuthorizationDecision, AuthorizationOutcome,
+    AuthorizationReasonCode, SecurityPolicyId, SecurityPolicyRef, SecurityPolicyVersion,
 };
 use partprobe_setup_planner::{
     AxisAlignedEnvelopeMillimeters,
@@ -987,6 +997,416 @@ fn conflicting_rates_block_candidate_evaluation_and_do_not_mutate_retained_adopt
     ));
     assert_eq!(session, before);
     assert_eq!(retained, original_layer);
+}
+
+#[derive(Debug, Default)]
+struct StockWorkflowAudit {
+    events: std::cell::RefCell<Vec<DeveloperStockAuthorizationEvent>>,
+    fail: bool,
+}
+
+impl DeveloperStockAuthorizationAuditSink for StockWorkflowAudit {
+    fn append(&self, event: DeveloperStockAuthorizationEvent) -> Result<(), AuditAppendError> {
+        let mut events = self.events.borrow_mut();
+        if self.fail
+            || events
+                .iter()
+                .any(|prior| prior.context().correlation_id() == event.context().correlation_id())
+        {
+            return Err(AuditAppendError);
+        }
+        events.push(event);
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+struct StockWorkflowAllow(std::cell::RefCell<Vec<DeveloperStockAuthorizationContext>>);
+
+fn stock_policy_ref() -> SecurityPolicyRef {
+    SecurityPolicyRef::new(
+        SecurityPolicyId::new("synthetic-stock-workflow").unwrap(),
+        SecurityPolicyVersion::new(1).unwrap(),
+    )
+}
+
+impl DeveloperStockAuthorizationPolicy for StockWorkflowAllow {
+    fn evaluate(&self, context: &DeveloperStockAuthorizationContext) -> AuthorizationDecision {
+        self.0.borrow_mut().push(context.clone());
+        AuthorizationDecision::allow(
+            stock_policy_ref(),
+            AuthorizationReasonCode::new("TEST_ONLY").unwrap(),
+        )
+    }
+}
+
+fn stock_subject(actor: &str, hour: &str, correlation: &str, revision: &str) -> AssetReadSubject {
+    stock_subject_facts(
+        actor,
+        hour,
+        correlation,
+        [
+            "test-project",
+            "test-model",
+            revision,
+            "public-synthetic",
+            "draft",
+        ],
+    )
+}
+
+fn stock_subject_facts(
+    actor: &str,
+    hour: &str,
+    correlation: &str,
+    facts: [&str; 5],
+) -> AssetReadSubject {
+    AssetReadSubject::new(
+        ActorId::new(actor).unwrap(),
+        partprobe_domain::ProjectId::new(facts[0]).unwrap(),
+        partprobe_domain::RecordId::new(facts[1]).unwrap(),
+        partprobe_domain::RecordVersionId::new(facts[2]).unwrap(),
+        partprobe_domain::DataClassificationId::new(facts[3]).unwrap(),
+        partprobe_domain::RecordStateId::new(facts[4]).unwrap(),
+        AuditCorrelationId::new(correlation).unwrap(),
+        RecordedAt::new(format!("2026-09-15T{hour}:00:00Z")).unwrap(),
+    )
+}
+
+fn stock_workflow_case(
+    operation: DeveloperStockOperation,
+) -> (
+    DraftEstimateSession,
+    DeveloperStockRequest,
+    AssetReadSubject,
+) {
+    let settings = settings(Some(valid_library()));
+    let mut session = prism_session();
+    if operation != DeveloperStockOperation::Create {
+        session
+            .create_stock_candidate(candidate_id(), &settings, candidate_edit("20"))
+            .unwrap();
+    }
+    let (request, actor, hour) = match operation {
+        DeveloperStockOperation::Create => (
+            DeveloperStockRequest::Create {
+                candidate_id: candidate_id(),
+                edit: candidate_edit("20"),
+            },
+            "test-estimator",
+            "12",
+        ),
+        DeveloperStockOperation::Revise => (
+            DeveloperStockRequest::Revise {
+                expected: expected_candidate(1),
+                edit: candidate_edit("22"),
+            },
+            "test-estimator",
+            "12",
+        ),
+        DeveloperStockOperation::Review => (
+            DeveloperStockRequest::Review {
+                expected: expected_candidate(1),
+                review: candidate_review(),
+            },
+            "test-reviewer",
+            "13",
+        ),
+        DeveloperStockOperation::AdoptAndEvaluate => {
+            session
+                .review_stock_candidate(&expected_candidate(1), &settings, candidate_review())
+                .unwrap();
+            (
+                DeveloperStockRequest::AdoptAndEvaluate {
+                    expected: expected_candidate(1),
+                    quantities: quantity_three(),
+                    decision: adoption_decision(),
+                },
+                "test-adopter",
+                "14",
+            )
+        }
+    };
+    (
+        session,
+        request,
+        stock_subject(actor, hour, "stock-attempt", "test-revision"),
+    )
+}
+
+const STOCK_OPERATIONS: [DeveloperStockOperation; 4] = [
+    DeveloperStockOperation::Create,
+    DeveloperStockOperation::Revise,
+    DeveloperStockOperation::Review,
+    DeveloperStockOperation::AdoptAndEvaluate,
+];
+
+#[test]
+fn stock_workflow_allows_exact_operations_and_records_reference_only_contexts() {
+    let settings = settings(Some(valid_library()));
+    for operation in STOCK_OPERATIONS {
+        let (mut session, request, subject) = stock_workflow_case(operation);
+        configure_candidate_context(&mut session);
+        let before = session.clone();
+        let app = DeveloperStockApplication::new(
+            StockWorkflowAllow::default(),
+            StockWorkflowAudit::default(),
+        );
+        let outcome = app
+            .execute(&mut session, &settings, subject, request)
+            .unwrap();
+        let events = app.audit().events.borrow();
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        let context = event.context();
+        assert_eq!(context.operation(), operation);
+        assert_eq!(context.project_id().as_str(), "test-project");
+        assert_eq!(context.record_id().as_str(), "test-model");
+        assert_eq!(context.record_version_id().as_str(), "test-revision");
+        assert_eq!(context.classification_id().as_str(), "public-synthetic");
+        assert_eq!(context.record_state_id().as_str(), "draft");
+        assert_eq!(context.profile_id(), settings.profile_id());
+        assert_eq!(context.settings_revision(), settings.revision());
+        assert_eq!(context.candidate_id(), &candidate_id());
+        assert_eq!(
+            context.expected_revision(),
+            (operation != DeveloperStockOperation::Create).then_some(1)
+        );
+        assert_eq!(
+            context.resulting_revision(),
+            if operation == DeveloperStockOperation::Revise {
+                2
+            } else {
+                1
+            }
+        );
+        assert_eq!(context.source_hash(), &digest(SOURCE_HASH));
+        assert_eq!(context.analysis_output_hash(), &digest(OUTPUT_HASH));
+        assert_eq!(context.rule_version(), (1, 0, 0));
+        assert_eq!(event.decision().outcome(), AuthorizationOutcome::Allowed);
+        assert_eq!(event.decision().policy(), &stock_policy_ref());
+        let debug = format!("{event:?}");
+        for private_text in [
+            "review saw blank dimensions",
+            "reviewed edited blank",
+            "8.50",
+            "synthetic.step",
+        ] {
+            assert!(!debug.contains(private_text));
+        }
+        if operation == DeveloperStockOperation::AdoptAndEvaluate {
+            let DeveloperStockOutcome::Estimate(result) = outcome else {
+                panic!("expected estimate layer")
+            };
+            let ValueState::Available { value } = *result else {
+                panic!("expected reviewed coarse result")
+            };
+            assert!(matches!(value.baseline(), ValueState::Unavailable { .. }));
+            assert_eq!(session, before);
+        } else {
+            let DeveloperStockOutcome::Revision(revision) = outcome else {
+                panic!("expected retained revision")
+            };
+            assert_eq!(
+                session.stock_candidate_revisions().last(),
+                Some(revision.as_ref())
+            );
+            assert_ne!(session, before);
+        }
+    }
+}
+
+#[test]
+fn stock_workflow_deny_all_audits_each_operation_without_changing_session() {
+    let settings = settings(Some(valid_library()));
+    for operation in STOCK_OPERATIONS {
+        let (mut session, request, subject) = stock_workflow_case(operation);
+        let before = session.clone();
+        let reason = AuthorizationReasonCode::new("NOT_CONFIGURED").unwrap();
+        let app = DeveloperStockApplication::new(
+            DenyAllDeveloperStockAuthorizationPolicy::new(stock_policy_ref(), reason.clone()),
+            StockWorkflowAudit::default(),
+        );
+        assert_eq!(
+            app.execute(&mut session, &settings, subject, request),
+            Err(DeveloperStockWorkflowError::Denied(reason))
+        );
+        assert_eq!(session, before);
+        let events = app.audit().events.borrow();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].decision().outcome(), AuthorizationOutcome::Denied);
+    }
+}
+
+#[test]
+fn stock_workflow_audit_failure_is_atomic_for_every_allowed_and_denied_operation() {
+    let settings = settings(Some(valid_library()));
+    for operation in STOCK_OPERATIONS {
+        let (session, request, subject) = stock_workflow_case(operation);
+        for denied in [false, true] {
+            let mut attempt = session.clone();
+            let audit = StockWorkflowAudit {
+                fail: true,
+                ..StockWorkflowAudit::default()
+            };
+            let result = if denied {
+                DeveloperStockApplication::new(
+                    DenyAllDeveloperStockAuthorizationPolicy::new(
+                        stock_policy_ref(),
+                        AuthorizationReasonCode::new("DENIED").unwrap(),
+                    ),
+                    audit,
+                )
+                .execute(&mut attempt, &settings, subject.clone(), request.clone())
+            } else {
+                DeveloperStockApplication::new(StockWorkflowAllow::default(), audit).execute(
+                    &mut attempt,
+                    &settings,
+                    subject.clone(),
+                    request.clone(),
+                )
+            };
+            assert_eq!(result, Err(DeveloperStockWorkflowError::AuditUnavailable));
+            assert_eq!(attempt, session);
+        }
+    }
+}
+
+#[test]
+fn stock_workflow_rejects_subject_or_actor_time_mismatch_before_policy_and_audit() {
+    let settings = settings(Some(valid_library()));
+    let mut subjects = vec![
+        stock_subject("test-estimator", "12", "wrong-model", "another-revision"),
+        stock_subject("another-actor", "12", "wrong-actor", "test-revision"),
+        stock_subject("test-estimator", "13", "wrong-time", "test-revision"),
+    ];
+    for index in 0..5 {
+        let mut facts = [
+            "test-project",
+            "test-model",
+            "test-revision",
+            "public-synthetic",
+            "draft",
+        ];
+        facts[index] = "mismatched-fact";
+        subjects.push(stock_subject_facts(
+            "test-estimator",
+            "12",
+            "wrong-subject",
+            facts,
+        ));
+    }
+    for subject in subjects {
+        let (mut session, request, _) = stock_workflow_case(DeveloperStockOperation::Create);
+        let before = session.clone();
+        let policy = StockWorkflowAllow::default();
+        let app = DeveloperStockApplication::new(&policy, StockWorkflowAudit::default());
+        assert_eq!(
+            app.execute(&mut session, &settings, subject, request),
+            Err(DeveloperStockWorkflowError::SubjectMismatch)
+        );
+        assert_eq!(session, before);
+        assert!(policy.0.borrow().is_empty());
+        assert!(app.audit().events.borrow().is_empty());
+    }
+}
+
+impl DeveloperStockAuthorizationPolicy for &StockWorkflowAllow {
+    fn evaluate(&self, context: &DeveloperStockAuthorizationContext) -> AuthorizationDecision {
+        (*self).evaluate(context)
+    }
+}
+
+#[test]
+fn stock_workflow_stale_revision_and_settings_never_reach_policy_or_audit() {
+    let settings = settings(Some(valid_library()));
+    let (session, _, subject) = stock_workflow_case(DeveloperStockOperation::Revise);
+    for (basis, expected, edit) in [
+        (
+            settings.clone(),
+            expected_candidate(2),
+            candidate_edit("22"),
+        ),
+        (
+            self::settings(None),
+            expected_candidate(1),
+            candidate_edit("22"),
+        ),
+        (
+            settings.clone(),
+            expected_candidate(1),
+            candidate_edit("20"),
+        ),
+    ] {
+        let mut attempt = session.clone();
+        let policy = StockWorkflowAllow::default();
+        let app = DeveloperStockApplication::new(&policy, StockWorkflowAudit::default());
+        assert!(matches!(
+            app.execute(
+                &mut attempt,
+                &basis,
+                subject.clone(),
+                DeveloperStockRequest::Revise { expected, edit }
+            ),
+            Err(DeveloperStockWorkflowError::Session(_))
+        ));
+        assert_eq!(attempt, session);
+        assert!(policy.0.borrow().is_empty());
+        assert!(app.audit().events.borrow().is_empty());
+    }
+}
+
+#[test]
+fn stock_workflow_reused_correlation_cannot_authorize_a_changed_payload() {
+    let settings = settings(Some(valid_library()));
+    let (mut session, request, subject) = stock_workflow_case(DeveloperStockOperation::Create);
+    let app = DeveloperStockApplication::new(
+        StockWorkflowAllow::default(),
+        StockWorkflowAudit::default(),
+    );
+    app.execute(&mut session, &settings, subject.clone(), request)
+        .unwrap();
+    let before = session.clone();
+    assert_eq!(
+        app.execute(
+            &mut session,
+            &settings,
+            subject,
+            DeveloperStockRequest::Revise {
+                expected: expected_candidate(1),
+                edit: candidate_edit("22")
+            }
+        ),
+        Err(DeveloperStockWorkflowError::AuditUnavailable)
+    );
+    assert_eq!(session, before);
+    assert_eq!(app.audit().events.borrow().len(), 1);
+}
+
+#[test]
+fn stock_workflow_exact_adoption_retry_requires_fresh_correlation() {
+    let settings = settings(Some(valid_library()));
+    let (mut session, request, subject) =
+        stock_workflow_case(DeveloperStockOperation::AdoptAndEvaluate);
+    let app = DeveloperStockApplication::new(
+        StockWorkflowAllow::default(),
+        StockWorkflowAudit::default(),
+    );
+    let before = session.clone();
+    let DeveloperStockOutcome::Estimate(result) = app
+        .execute(&mut session, &settings, subject.clone(), request.clone())
+        .unwrap()
+    else {
+        panic!("expected estimate state")
+    };
+    // Allowed/audited does not supply missing geometry review, rates, or pricing.
+    assert!(matches!(*result, ValueState::Unavailable { .. }));
+    assert_eq!(
+        app.execute(&mut session, &settings, subject, request),
+        Err(DeveloperStockWorkflowError::AuditUnavailable)
+    );
+    assert_eq!(session, before);
+    assert_eq!(app.audit().events.borrow().len(), 1);
 }
 
 const SOURCE_HASH: &str = "1111111111111111111111111111111111111111111111111111111111111111";

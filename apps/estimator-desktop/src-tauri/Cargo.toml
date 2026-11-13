@@ -30,6 +30,7 @@ tauri-build = { workspace = true, optional = true }
 
 [dev-dependencies]
 partprobe-test-support.workspace = true
+partprobe-setup-planner.workspace = true
 
 [[bin]]
 name = "partprobe-estimator-desktop"

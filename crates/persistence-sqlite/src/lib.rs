@@ -1,5 +1,8 @@
 //! SQLite adapter for durable, immutable shop-settings drafts.
 
+mod stock_audit;
+pub use stock_audit::SqliteDeveloperStockAuthorizationAudit;
+
 use std::fmt::Write as _;
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
@@ -23,8 +26,8 @@ use partprobe_security::{
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 use sha2::{Digest, Sha256};
 
-const CURRENT_SCHEMA_VERSION: u32 = 4;
-const MIGRATIONS: [(u32, &str, &str); 4] = [
+const CURRENT_SCHEMA_VERSION: u32 = 5;
+const MIGRATIONS: [(u32, &str, &str); 5] = [
     (
         1,
         "0001_shop_settings",
@@ -44,6 +47,11 @@ const MIGRATIONS: [(u32, &str, &str); 4] = [
         4,
         "0004_catalog_authorization_audit",
         include_str!("../migrations/0004_catalog_authorization_audit.sql"),
+    ),
+    (
+        5,
+        "0005_stock_authorization_audit",
+        include_str!("../migrations/0005_stock_authorization_audit.sql"),
     ),
 ];
 
@@ -412,6 +420,7 @@ fn open_connection(path: &Path) -> Result<Connection, ShopSettingsStoreError> {
     migrate(&connection)?;
     verify_integrity(&connection)?;
     verify_catalog_authorization_events(&connection)?;
+    stock_audit::verify_events(&connection)?;
     Ok(connection)
 }
 
@@ -2183,7 +2192,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("count authorization events");
-        assert_eq!(version, 4);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
         assert_eq!((resources, resource_records), (0, 0));
         assert_eq!(catalogs, 0);
         assert_eq!(authorization_events, 0);
@@ -2277,7 +2286,7 @@ mod tests {
             .connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("read schema version");
-        assert_eq!(version, 4);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
         assert_eq!(
             repository.current(&profile()).expect("load prior settings"),
             Some(prior)
@@ -2348,7 +2357,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("count authorization events");
-        assert_eq!(version, 4);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
         assert_eq!(authorization_events, 0);
         drop(repository);
         directory.cleanup().expect("cleanup test directory");

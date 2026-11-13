@@ -1,7 +1,7 @@
 # USE-2 Persistence Foundation Validation
 
 > **Status:** In Review
-> **Last updated:** 2026-09-10
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-F-015, REQ-F-016, REQ-F-032; REQ-NF-007, REQ-NF-009, REQ-NF-020; DATA-005, DATA-006, DATA-008, DATA-011, DATA-017; TEST-007, TEST-014
 > **Related ADRs:** ADR-0006, ADR-0007
 > **Open questions:** Authenticated identity/roles and a reviewed shipped allow configuration, protected-storage policy, later aggregate migrations, and three-OS evidence
@@ -9,6 +9,8 @@
 > **Supersedes:** None
 
 ## Evidence boundary
+
+The subsequent VIS-4 schema-v5 increment adds a separate durable reference-only stock-decision audit adapter. Eight new storage tests and one opt-in real-worker/headless-workflow smoke pass, including schemas 1–4 forward migration without seeds, prior Settings replay, backup, every-correlation collision rejection, required Settings references, trigger/semantic/hash/canonical/projection failures, and unchanged deterministic baseline. Current repository coverage is 26 tests; the eighteen schema-v1–v4 tests below remain passing historical slices. Existing catalog exact-payload idempotency is unchanged; stock decisions intentionally reject even exact retries. See [canonical persistence and compatibility](../04-architecture/persistence.md#vis-4-stock-decision-event-persistence-v1) and [VIS-4 validation](use-3-stock-proposal-validation.md#vis-4-durable-stock-decision-evidence-2026-09-15). This enables no GUI editor/command or production identity/authority.
 
 This checkpoint establishes and advances the durable USE-2 foundation. `ShopSettingsDraft` validates profile identity, positive revision, currency-compatible optional rate/pricing/resource snapshots, mutually exclusive starter-library/catalog contexts, and actor/time/reason evidence without creating numeric defaults. `ShopSettingsApplication` preserves explicit `NotConfigured` first-run state and is the desktop entry; `ShopSettingsDraftRepository` keeps persistence behind it at the application boundary. The SQLite adapter implements immutable snapshots and revisions, an append-preserving change event, one mutable optimistic-concurrency pointer, schema/hash validation on read, and historical revision lookup.
 

@@ -973,6 +973,220 @@ mod tests {
     }
 
     #[cfg(feature = "desktop-host")]
+    #[test]
+    #[ignore = "requires an extracted packaged native runtime and worker workspace"]
+    fn packaged_worker_stock_workflow_uses_durable_decisions_without_replacing_baseline() {
+        use partprobe_application::{
+            AssetReadSubject, DenyAllDeveloperStockAuthorizationPolicy,
+            DeveloperEstimateProposalReview, DeveloperStockApplication,
+            DeveloperStockAuthorizationContext, DeveloperStockAuthorizationPolicy,
+            DeveloperStockOutcome, DeveloperStockRequest, DeveloperStockWorkflowError,
+            DraftQuantityInputs, StockCandidateAdoptionDecision, StockCandidateRevisionExpectation,
+        };
+        use partprobe_domain::{
+            ActorId, DataClassificationId, ItemQuantity, ProjectId, RecordId, RecordStateId,
+            RecordVersionId, RecordedAt, ValueState,
+        };
+        use partprobe_persistence_sqlite::SqliteDeveloperStockAuthorizationAudit;
+        use partprobe_security::{
+            AuditCorrelationId, AuthorizationDecision, AuthorizationReasonCode, SecurityPolicyId,
+            SecurityPolicyRef, SecurityPolicyVersion,
+        };
+        use partprobe_setup_planner::{
+            AxisAlignedEnvelopeMillimeters, CanonicalMillimeterLength,
+            stock_candidate::StockCandidateEdit,
+        };
+
+        fn policy_ref() -> SecurityPolicyRef {
+            SecurityPolicyRef::new(
+                SecurityPolicyId::new("synthetic-stock-smoke").unwrap(),
+                SecurityPolicyVersion::new(1).unwrap(),
+            )
+        }
+        struct TestOnlyAllow;
+        impl DeveloperStockAuthorizationPolicy for TestOnlyAllow {
+            fn evaluate(&self, c: &DeveloperStockAuthorizationContext) -> AuthorizationDecision {
+                let reason = AuthorizationReasonCode::new("TEST_ONLY").unwrap();
+                if c.actor_id().as_str() == "synthetic-stock-reviewer"
+                    && c.project_id().as_str() == "gui-4-developer-slice"
+                    && c.record_id().as_str() == "desktop-model-1"
+                    && c.record_version_id().as_str() == "desktop-revision-1"
+                    && c.classification_id().as_str() == "local-test-data"
+                {
+                    AuthorizationDecision::allow(policy_ref(), reason)
+                } else {
+                    AuthorizationDecision::deny(policy_ref(), reason)
+                }
+            }
+        }
+        fn subject(correlation: &str) -> AssetReadSubject {
+            AssetReadSubject::new(
+                ActorId::new("synthetic-stock-reviewer").unwrap(),
+                ProjectId::new("gui-4-developer-slice").unwrap(),
+                RecordId::new("desktop-model-1").unwrap(),
+                RecordVersionId::new("desktop-revision-1").unwrap(),
+                DataClassificationId::new("local-test-data").unwrap(),
+                RecordStateId::new("ephemeral-draft").unwrap(),
+                AuditCorrelationId::new(correlation).unwrap(),
+                RecordedAt::new("2026-09-15T12:00:00Z").unwrap(),
+            )
+        }
+
+        let resource_directory = std::env::var_os("PARTPROBE_DESKTOP_RESOURCE_DIRECTORY")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .expect("stock smoke requires explicit package resources");
+        let adapter =
+            crate::analysis::DesktopAnalysisConfiguration::from_deployment_resource_directory(
+                &resource_directory,
+            )
+            .and_then(crate::analysis::DesktopAnalysisConfiguration::build_adapter)
+            .expect("package runtime and worker workspace must verify");
+        let directory = TestDirectory::create("desktop-stock-audit-smoke").unwrap();
+        let database = directory.path().join("settings.sqlite3");
+        let settings_state = DesktopSettingsState::open(&database).unwrap();
+        let settings_request = live_test_settings_request();
+        settings_state.save(&settings_request).unwrap();
+        let settings = settings_state.current_settings_draft().unwrap();
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/models/rectangular_prism_12x8x5.step")
+            .canonicalize()
+            .unwrap();
+        let (mut session, analysis) = adapter
+            .analyze(
+                "stock-smoke-selection",
+                ModelSourceFormat::Step,
+                &fixture,
+                1,
+                &AtomicBool::new(false),
+            )
+            .unwrap();
+        let mut baseline_request =
+            crate::estimate::complete_test_request("stock-smoke-selection", &analysis.analysis_id);
+        baseline_request.rates = settings_request.rates;
+        baseline_request.pricing = settings_request.pricing;
+        crate::estimate::evaluate_draft_estimate(&mut session, &baseline_request, None).unwrap();
+        let baseline = session.evaluate();
+        assert!(matches!(baseline, ValueState::Available { .. }));
+        let create = DeveloperStockRequest::Create {
+            candidate_id: RecordId::new("synthetic-stock").unwrap(),
+            edit: StockCandidateEdit::new(
+                AxisAlignedEnvelopeMillimeters::new(
+                    CanonicalMillimeterLength::new("20".parse().unwrap()).unwrap(),
+                    CanonicalMillimeterLength::new("12".parse().unwrap()).unwrap(),
+                    CanonicalMillimeterLength::new("8".parse().unwrap()).unwrap(),
+                ),
+                ActorId::new("synthetic-stock-reviewer").unwrap(),
+                RecordedAt::new("2026-09-15T12:00:00Z").unwrap(),
+                "synthetic stock smoke edit",
+            )
+            .unwrap(),
+        };
+        let before = session.clone();
+        let denied = DeveloperStockApplication::new(
+            DenyAllDeveloperStockAuthorizationPolicy::new(
+                policy_ref(),
+                AuthorizationReasonCode::new("NOT_CONFIGURED").unwrap(),
+            ),
+            SqliteDeveloperStockAuthorizationAudit::open(&database).unwrap(),
+        );
+        assert!(matches!(
+            denied.execute(
+                &mut session,
+                &settings,
+                subject("denied-attempt"),
+                create.clone()
+            ),
+            Err(DeveloperStockWorkflowError::Denied(_))
+        ));
+        assert_eq!(session, before);
+        drop(denied);
+        let app = DeveloperStockApplication::new(
+            TestOnlyAllow,
+            SqliteDeveloperStockAuthorizationAudit::open(&database).unwrap(),
+        );
+        // A stored denial survives reopen and cannot be reused for an allow decision.
+        assert_eq!(
+            app.execute(
+                &mut session,
+                &settings,
+                subject("denied-attempt"),
+                create.clone()
+            ),
+            Err(DeveloperStockWorkflowError::AuditUnavailable)
+        );
+        assert_eq!(session, before);
+        app.execute(&mut session, &settings, subject("created-attempt"), create)
+            .unwrap();
+        let expected = StockCandidateRevisionExpectation {
+            candidate_id: RecordId::new("synthetic-stock").unwrap(),
+            revision: 1,
+        };
+        app.execute(
+            &mut session,
+            &settings,
+            subject("review-attempt"),
+            DeveloperStockRequest::Review {
+                expected: expected.clone(),
+                review: DeveloperEstimateProposalReview {
+                    proposal_values_reviewed: true,
+                    coarse_limitations_accepted: true,
+                    actor: ActorId::new("synthetic-stock-reviewer").unwrap(),
+                    recorded_at: RecordedAt::new("2026-09-15T12:00:00Z").unwrap(),
+                    reason: "reviewed synthetic edit and exclusions".to_owned(),
+                },
+            },
+        )
+        .unwrap();
+        let adopt = DeveloperStockRequest::AdoptAndEvaluate {
+            expected,
+            quantities: DraftQuantityInputs {
+                deliver: ItemQuantity::new(1),
+                planned_spares: ItemQuantity::new(0),
+                destructive_samples: ItemQuantity::new(0),
+            },
+            decision: StockCandidateAdoptionDecision {
+                actor: ActorId::new("synthetic-stock-reviewer").unwrap(),
+                recorded_at: RecordedAt::new("2026-09-15T12:00:00Z").unwrap(),
+                reason: "use the reviewed synthetic candidate as a distinct alternative".to_owned(),
+            },
+        };
+        let before_adoption = session.clone();
+        let DeveloperStockOutcome::Estimate(result) = app
+            .execute(
+                &mut session,
+                &settings,
+                subject("adopt-attempt"),
+                adopt.clone(),
+            )
+            .unwrap()
+        else {
+            panic!("expected candidate state")
+        };
+        let ValueState::Available { value } = *result else {
+            panic!("expected candidate estimate")
+        };
+        assert_eq!(value.baseline(), &baseline);
+        assert_eq!(session, before_adoption);
+        assert_eq!(session.evaluate(), baseline);
+        drop(app);
+        let reopened = DeveloperStockApplication::new(
+            TestOnlyAllow,
+            SqliteDeveloperStockAuthorizationAudit::open(&database).unwrap(),
+        );
+        assert_eq!(
+            reopened.execute(&mut session, &settings, subject("adopt-attempt"), adopt),
+            Err(DeveloperStockWorkflowError::AuditUnavailable)
+        );
+        assert_eq!(session, before_adoption);
+        drop(reopened);
+        drop(session);
+        drop(settings_state);
+        drop(adapter);
+        directory.cleanup().unwrap();
+    }
+
+    #[cfg(feature = "desktop-host")]
     fn live_test_settings_request() -> SaveShopSettingsRequest {
         SaveShopSettingsRequest {
             expected_revision: None,

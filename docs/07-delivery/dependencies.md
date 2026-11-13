@@ -1,7 +1,7 @@
 # Dependency Policy and Candidates
 
 > **Status:** In Review  
-> **Last updated:** 2026-09-11
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-NF-001, REQ-NF-005, REQ-NF-010  
 > **Related ADRs:** ADR-0001–ADR-0007  
 > **Open questions:** Final versions, license compatibility, vendor terms  
@@ -23,3 +23,5 @@ TASK-001 added three exact, reversible Rust dependencies after the documented sp
 | UUID, hashing, time crates | Identity/integrity/time | Algorithm/features, OS entropy, parsing/serde surface |
 
 Before addition, record exact version/source, purpose, alternatives, direct/transitive license, maintenance/release condition, unsafe/native/build scripts, network behavior, advisories, update owner, and removal cost. Generate lockfile/SBOM/license evidence at release gates.
+
+VIS-4 schema v5 reuses the adapter's existing exact SQLite, JSON, and SHA-256 graph; it adds no external dependency or native/network surface. The desktop host adds only the existing local `partprobe-setup-planner` crate as a **dev dependency** for the opt-in configured-worker stock workflow smoke. Its public typed candidate-edit builder avoids duplicating the engine or introducing a test-only application bypass. Alternatives were persistence-only synthetic records (retained as unit coverage) or duplicating/building a second edit contract (rejected). This local source uses the workspace license posture and existing reviewed dependency graph, introduces no new third-party license/build script, and must stay in API/version lockstep with application candidate rules. Workspace maintainers own updates; remove the dev edge when the smoke moves to another integration harness. It enables neither production host formulas nor frontend authority and does not approve redistribution or release use.

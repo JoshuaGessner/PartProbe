@@ -1,7 +1,7 @@
 # Persistence Architecture
 
 > **Status:** In Review  
-> **Last updated:** 2026-09-10
+> **Last updated:** 2026-09-15
 > **Related requirements:** REQ-F-001, REQ-F-010–REQ-F-012; REQ-NF-002, REQ-NF-007, REQ-NF-009  
 > **Related ADRs:** ADR-0006  
 > **Open questions:** OQ-021, OQ-022  
@@ -22,6 +22,18 @@ Standalone uses one local SQLite database plus content-addressed local document 
 Team/LAN mode uses a service and central database/object store behind the same application ports. It must not place the standalone SQLite file on a shared network filesystem.
 
 ## Current implementation boundary
+
+### VIS-4 stock-decision event persistence v1
+
+Schema v5 adds `developer_stock_authorization_events` and `SqliteDeveloperStockAuthorizationAudit`, a separate connection to the host-owned Settings database implementing the stock-workflow audit port. The immutable `developer-stock-authorization-event-v1` payload pins workflow v1.0.0, actor/time/correlation, project/model revision/classification/state, operation, profile/settings revision, candidate expected/resulting revision, source/output hashes, and policy ID/version/outcome/reason code. It stores no CAD, path, dimensions, quantities, rates, prices, or free-text edit/review/adoption reasons. Normalized correlation/profile/settings/operation/outcome/schema/hash columns are cross-checked against canonical bounded JSON. The Settings revision is a required foreign key; candidate/model references are session lineage, not foreign keys to nonexistent saved model/candidate records.
+
+Each append validates exact fields, typed identities, hashes, positive versions, v1 revision transitions and the 32-revision ceiling, then obtains an immediate SQLite transaction, rechecks prior events and exact no-update/no-delete trigger definitions, verifies the Settings reference, inserts, and commits with the existing WAL/full-synchronous/busy policy. **Every** reused correlation fails, including identical requests and stored denials; no UPSERT/idempotent allow replay exists. An uncertain commit requires native reconciliation and a fresh correlation. Decision persistence is not an operation-success receipt and is not transactional with the session-only stock mutation/calculation.
+
+All repository/audit opens verify these events, including canonical JSON, hash, normalized projections, semantic validity, trigger definitions, and Settings references. Corruption or unavailable append fails closed. Existing consistent database backup includes the table. Schemas 1–4 migrate forward without event, numeric, library, or resource seeds and without rewriting old settings/catalog/audit payloads. Existing catalog-event exact-payload idempotency remains unchanged. Older binaries reject schema v5 rather than downgrade it; restoring a compatible pre-upgrade backup is the rollback path, not deleting migration rows or silently discarding events. Event-v1 reading is pinned to workflow v1.0.0, not automatically retargeted to a later active rule; a new rule/record boundary requires explicit migration and replay compatibility decisions. No estimate recalculation or CAD migration occurs.
+
+This is local developer durable-decision evidence only. It is not authenticated identity, externally protected/tamper-evident audit, a saved candidate/estimate, retention/disposition/export policy, enabled native stock commands/editor, or production authorization. The configured smoke composes a real supervised STEP session with explicit test-only policy and the store outside the registered GUI command path; ordinary startup grants no stock authority. See [VIS-4 evidence](../06-quality/use-3-stock-proposal-validation.md#vis-4-durable-stock-decision-evidence-2026-09-15).
+
+### Prior settings/catalog slices
 
 TASK-003 implements only the persistence-neutral controlled-derivative port and application handoff. The in-memory write contract independently verifies immutable bytes and retains lineage, classification, exact access/retention policy references, authorization correlation, actor/time, schema/media type, integrity state, and an opaque adapter locator. It is not a durable schema and does not prove atomicity, fsync behavior, encryption, integrity-on-open, backup/restore, concurrency, or retention/disposition enforcement.
 

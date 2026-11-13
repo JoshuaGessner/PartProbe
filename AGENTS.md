@@ -143,6 +143,12 @@ The separate `partprobe-developer-stock-candidate-adoption` v1.0.0 rule creates 
 
 The native renderer must check its terminal device-loss observer before every GPU-touching scene, stock, camera, viewport, and resize operation, including otherwise skipped/no-op operations. Keep driver messages content-minimized, and distinguish headless API-induced device destruction from physical driver failure or a live packaged-host fallback. Never reset a lost observer in place or claim full-device recreation from observer tests.
 
+VIS-4 desktop stock operations must compose through `DeveloperStockApplication` workflow policy v1.0.0, never invoke the headless session primitives as an authorization bypass. Bind the native subject to retained intake project/model revision/classification/state and operation actor/time; validate privately, evaluate explicit policy, and append its reference-only allow/deny decision before commit/evaluation. Keep dimensions, quantities, prices, rates, free text, paths, and CAD out of decision events. The audit adapter must reject every reused correlation ID, including exact retries; reconcile uncertain attempts and provide fresh IDs, never replay an allow. Matching subject facts and synthetic policy/audit tests do not establish authentication, durable audit, native selection-token expectations, or production approval.
+
+### Stock-decision persistence
+
+VIS-4 schema v5 persists only `developer-stock-authorization-event-v1` references behind `SqliteDeveloperStockAuthorizationAudit`. Keep record-v1 reading pinned to workflow v1.0.0 independently of later active service versions; validate exact bounded fields, identities, hashes, transitions, normalized columns, Settings references and exact no-update/no-delete triggers on open and before append. Reject every correlation collision, including exact retries, without changing prior evidence. Do not weaken existing catalog idempotency or migrations, persist private stock/model/price content in decisions, downgrade schema v5, infer saved stock/estimate authority, or describe local hashes/triggers as externally protected audit. Native command/editor/identity composition remains a separate gate.
+
 - Use stable IDs defined in `docs/INDEX.md`.
 - Put canonical rules in one document and link to them elsewhere.
 - Add the standard metadata block to important documents.
