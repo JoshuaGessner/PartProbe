@@ -25,9 +25,9 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     AnalysisPanelState, DraftEstimatePanelState, GeometryReviewConfirmation, ModelPanelState,
-    analysis_supports_draft_estimate, length_unit_label, model_view_label,
-    provisional_analysis_failure_accessible_label, provisional_geometry_accessible_label,
-    selected_source_accessible_label, source_format_label,
+    SettingsFieldBaseline, analysis_supports_draft_estimate, apply_automatic_record_versions,
+    length_unit_label, model_view_label, provisional_analysis_failure_accessible_label,
+    provisional_geometry_accessible_label, selected_source_accessible_label, source_format_label,
 };
 
 #[wasm_bindgen(inline_js = r#"
@@ -374,6 +374,7 @@ struct DeveloperEstimateForm {
     rounding_decimal_places: String,
     settings_changed_by: String,
     settings_change_reason: String,
+    settings_baseline: Option<Box<SettingsFieldBaseline>>,
     resources: DeveloperResourceForm,
 }
 
@@ -425,14 +426,27 @@ struct DeveloperResourceForm {
 impl DeveloperResourceForm {
     fn new() -> Self {
         Self {
+            library_id: "shop-test-resources".to_owned(),
             library_version: "1".to_owned(),
+            material_id: "shop-material".to_owned(),
             material_version: "1".to_owned(),
+            material_source: "manual-settings-entry".to_owned(),
+            offer_id: "shop-material-offer".to_owned(),
             offer_version: "1".to_owned(),
+            supplier: "Manual entry".to_owned(),
+            offer_source: "manual-settings-entry".to_owned(),
+            stock_profile_id: "shop-stock-allowance".to_owned(),
             stock_profile_version: "1".to_owned(),
             stock_form: "rectangular".to_owned(),
+            stock_source: "manual-settings-entry".to_owned(),
+            machine_id: "shop-machine".to_owned(),
             machine_version: "1".to_owned(),
+            machine_name: "Primary machine".to_owned(),
             process_class: "milling".to_owned(),
+            machine_source: "manual-settings-entry".to_owned(),
+            runtime_profile_id: "shop-runtime".to_owned(),
             runtime_profile_version: "1".to_owned(),
+            runtime_source: "manual-settings-entry".to_owned(),
             ..Self::default()
         }
     }
@@ -603,9 +617,26 @@ impl DeveloperEstimateForm {
             pricing_policy_id: "developer-session-pricing".to_owned(),
             pricing_policy_version: "1".to_owned(),
             rounding_decimal_places: "2".to_owned(),
+            settings_changed_by: "local-test-operator".to_owned(),
+            settings_change_reason: "Updated shop settings in the Settings workspace".to_owned(),
             resources: DeveloperResourceForm::new(),
             ..Self::default()
         }
+    }
+
+    /// One explicit review action covering the displayed rate, pricing, and resource values.
+    fn set_all_settings_reviewed(&mut self, reviewed: bool) {
+        self.rates_confirmed = reviewed;
+        self.pricing_confirmed = reviewed;
+        if self.resources.enabled {
+            self.resources.confirmed_for_draft = reviewed;
+        }
+    }
+
+    fn all_settings_reviewed(&self) -> bool {
+        self.rates_confirmed
+            && self.pricing_confirmed
+            && (!self.resources.enabled || self.resources.confirmed_for_draft)
     }
 
     /// Loads the versioned Huntsville aerospace testing baseline into the unsaved form.
@@ -818,14 +849,18 @@ impl DeveloperEstimateForm {
     }
 
     fn settings_request(&self, expected_revision: Option<u32>) -> SaveShopSettingsRequest {
-        SaveShopSettingsRequest {
+        let mut request = SaveShopSettingsRequest {
             expected_revision,
             changed_by: self.settings_changed_by.clone(),
             change_reason: self.settings_change_reason.clone(),
             rates: self.rates(),
             pricing: self.pricing(),
             resources: self.resources.fields(),
+        };
+        if let Some(baseline) = self.settings_baseline.as_deref() {
+            apply_automatic_record_versions(&mut request, baseline);
         }
+        request
     }
 
     fn apply_settings(
@@ -885,7 +920,17 @@ impl DeveloperEstimateForm {
         if !reset_session_confirmation && self.resources.enabled {
             self.resources.confirmed_for_draft = true;
         }
-        self.settings_change_reason.clear();
+        if self.settings_changed_by.trim().is_empty() {
+            self.settings_changed_by = "local-test-operator".to_owned();
+        }
+        self.settings_change_reason = "Updated shop settings in the Settings workspace".to_owned();
+        // Retain the loaded values so a later save can advance changed record versions
+        // automatically instead of asking the user to manage version numbers.
+        self.settings_baseline = Some(Box::new(SettingsFieldBaseline {
+            rates: self.rates(),
+            pricing: self.pricing(),
+            resources: self.resources.fields(),
+        }));
     }
 
     fn request(&self, selection_id: String, analysis_id: String) -> EvaluateDraftEstimateRequest {
@@ -3178,38 +3223,48 @@ fn SettingsWorkspace(
                         <div class="section-heading">
                             <p class="section-index">"CALCULATION BASIS"</p>
                             <h3 id="rate-settings-heading">"Rates and selling-price policy"</h3>
-                            <p>"Review the shop rates and pricing rule used by the deterministic estimate."</p>
+                            <p>"Enter the shop numbers used by the deterministic estimate. Identifiers, versions, sources, and the change record are managed automatically; open an Advanced section only to override them."</p>
                         </div>
                         <div class="settings-grid">
                             <fieldset>
                                 <legend>"Rate card"</legend>
                                 <p class="fieldset-note">"Enter the five hourly rates used by the current estimate."</p>
                                 <div class="form-grid">
-                                    <ExactInput form label="Rate-card ID" unit="ID" read=|f| &f.rate_card_id write=|f, v| f.rate_card_id = v />
-                                    <ExactInput form label="Rate-card version" unit="version" read=|f| &f.rate_card_version write=|f, v| f.rate_card_version = v />
-                                    <ExactInput form label="Effective on" unit="YYYY-MM-DD" read=|f| &f.effective_on write=|f, v| f.effective_on = v />
-                                    <ExactInput form label="Currency" unit="ISO code" read=|f| &f.currency write=|f, v| f.currency = v />
                                     <ExactInput form label="Setup labor" unit="/hr" read=|f| &f.setup_labor_per_hour write=|f, v| f.setup_labor_per_hour = v />
                                     <ExactInput form label="Programming" unit="/hr" read=|f| &f.programming_per_hour write=|f, v| f.programming_per_hour = v />
                                     <ExactInput form label="Run labor" unit="/hr" read=|f| &f.run_labor_per_hour write=|f, v| f.run_labor_per_hour = v />
                                     <ExactInput form label="Machine" unit="/hr" read=|f| &f.machine_per_hour write=|f, v| f.machine_per_hour = v />
                                     <ExactInput form label="Quality inspection" unit="/hr" read=|f| &f.quality_inspection_per_hour write=|f, v| f.quality_inspection_per_hour = v />
+                                    <ExactInput form label="Effective on" unit="YYYY-MM-DD" read=|f| &f.effective_on write=|f, v| f.effective_on = v />
                                 </div>
-                                <ReviewCheckbox form label="I reviewed these rates for this test." read=|f| f.rates_confirmed write=|f, v| f.rates_confirmed = v />
+                                <details class="manual-inputs">
+                                    <summary>"Advanced: rate-card identity"</summary>
+                                    <p class="fieldset-note">"The version advances automatically when a rate value changes."</p>
+                                    <div class="form-grid">
+                                        <ExactInput form label="Rate-card ID" unit="ID" read=|f| &f.rate_card_id write=|f, v| f.rate_card_id = v />
+                                        <ExactInput form label="Rate-card version" unit="version" read=|f| &f.rate_card_version write=|f, v| f.rate_card_version = v />
+                                        <ExactInput form label="Currency" unit="ISO code" read=|f| &f.currency write=|f, v| f.currency = v />
+                                    </div>
+                                </details>
                             </fieldset>
 
                             <fieldset>
                                 <legend>"Pricing policy"</legend>
                                 <p class="fieldset-note">"Markup rate is a decimal fraction of total internal cost: 0.25 adds 25%. The optional floor and minimum order raise the governed price before rounding."</p>
                                 <div class="form-grid">
-                                    <ExactInput form label="Pricing-policy ID" unit="ID" read=|f| &f.pricing_policy_id write=|f, v| f.pricing_policy_id = v />
-                                    <ExactInput form label="Policy version" unit="version" read=|f| &f.pricing_policy_version write=|f, v| f.pricing_policy_version = v />
                                     <ExactInput form label="Markup rate" unit="decimal" read=|f| &f.markup_rate write=|f, v| f.markup_rate = v />
                                     <OptionalInput form label="Price floor" unit="currency" read=|f| &f.optional_price_floor write=|f, v| f.optional_price_floor = v />
                                     <OptionalInput form label="Minimum order" unit="currency" read=|f| &f.optional_minimum_order write=|f, v| f.optional_minimum_order = v />
-                                    <ExactInput form label="Rounding places" unit="decimals" read=|f| &f.rounding_decimal_places write=|f, v| f.rounding_decimal_places = v />
                                 </div>
-                                <ReviewCheckbox form label="I reviewed this pricing policy for this test." read=|f| f.pricing_confirmed write=|f, v| f.pricing_confirmed = v />
+                                <details class="manual-inputs">
+                                    <summary>"Advanced: pricing-policy identity"</summary>
+                                    <p class="fieldset-note">"The version advances automatically when a pricing value changes."</p>
+                                    <div class="form-grid">
+                                        <ExactInput form label="Pricing-policy ID" unit="ID" read=|f| &f.pricing_policy_id write=|f, v| f.pricing_policy_id = v />
+                                        <ExactInput form label="Policy version" unit="version" read=|f| &f.pricing_policy_version write=|f, v| f.pricing_policy_version = v />
+                                        <ExactInput form label="Rounding places" unit="decimals" read=|f| &f.rounding_decimal_places write=|f, v| f.rounding_decimal_places = v />
+                                    </div>
+                                </details>
                             </fieldset>
                         </div>
                     </section>
@@ -3255,68 +3310,89 @@ fn SettingsWorkspace(
                             <legend>"Material and commercial offer"</legend>
                             <p class="fieldset-note">"Material identity and density remain separate from the time-bounded supplier price."</p>
                             <div class="form-grid">
-                                <ExactInput form label="Resource-library ID" unit="ID" read=|f| &f.resources.library_id write=|f, v| f.resources.library_id = v />
-                                <ExactInput form label="Library version" unit="version" read=|f| &f.resources.library_version write=|f, v| f.resources.library_version = v />
-                                <ExactInput form label="Material ID" unit="ID" read=|f| &f.resources.material_id write=|f, v| f.resources.material_id = v />
-                                <ExactInput form label="Material version" unit="version" read=|f| &f.resources.material_version write=|f, v| f.resources.material_version = v />
                                 <TextInput form label="Material family" read=|f| &f.resources.material_family write=|f, v| f.resources.material_family = v />
                                 <TextInput form label="Alloy / grade" read=|f| &f.resources.material_grade write=|f, v| f.resources.material_grade = v />
-                                <OptionalInput form label="Specification" unit="optional" read=|f| &f.resources.optional_material_specification write=|f, v| f.resources.optional_material_specification = v />
                                 <OptionalInput form label="Temper / condition" unit="optional" read=|f| &f.resources.optional_material_condition write=|f, v| f.resources.optional_material_condition = v />
                                 <ExactInput form label="Density" unit="kg/m³" read=|f| &f.resources.density_kg_per_m3 write=|f, v| f.resources.density_kg_per_m3 = v />
-                                <TextInput form label="Material source" read=|f| &f.resources.material_source write=|f, v| f.resources.material_source = v />
-                                <ExactInput form label="Offer ID" unit="ID" read=|f| &f.resources.offer_id write=|f, v| f.resources.offer_id = v />
-                                <ExactInput form label="Offer version" unit="version" read=|f| &f.resources.offer_version write=|f, v| f.resources.offer_version = v />
-                                <TextInput form label="Supplier" read=|f| &f.resources.supplier write=|f, v| f.resources.supplier = v />
                                 <ExactInput form label="Material price" unit="USD/kg" read=|f| &f.resources.material_price_per_kg write=|f, v| f.resources.material_price_per_kg = v />
                                 <ExactInput form label="Offer effective on" unit="YYYY-MM-DD" read=|f| &f.resources.offer_effective_on write=|f, v| f.resources.offer_effective_on = v />
-                                <TextInput form label="Offer source" read=|f| &f.resources.offer_source write=|f, v| f.resources.offer_source = v />
                             </div>
+                            <details class="manual-inputs">
+                                <summary>"Advanced: material and offer identity"</summary>
+                                <p class="fieldset-note">"Identifiers and sources default automatically; versions advance when a value changes."</p>
+                                <div class="form-grid">
+                                    <ExactInput form label="Resource-library ID" unit="ID" read=|f| &f.resources.library_id write=|f, v| f.resources.library_id = v />
+                                    <ExactInput form label="Library version" unit="version" read=|f| &f.resources.library_version write=|f, v| f.resources.library_version = v />
+                                    <ExactInput form label="Material ID" unit="ID" read=|f| &f.resources.material_id write=|f, v| f.resources.material_id = v />
+                                    <ExactInput form label="Material version" unit="version" read=|f| &f.resources.material_version write=|f, v| f.resources.material_version = v />
+                                    <OptionalInput form label="Specification" unit="optional" read=|f| &f.resources.optional_material_specification write=|f, v| f.resources.optional_material_specification = v />
+                                    <TextInput form label="Material source" read=|f| &f.resources.material_source write=|f, v| f.resources.material_source = v />
+                                    <ExactInput form label="Offer ID" unit="ID" read=|f| &f.resources.offer_id write=|f, v| f.resources.offer_id = v />
+                                    <ExactInput form label="Offer version" unit="version" read=|f| &f.resources.offer_version write=|f, v| f.resources.offer_version = v />
+                                    <TextInput form label="Supplier" read=|f| &f.resources.supplier write=|f, v| f.resources.supplier = v />
+                                    <TextInput form label="Offer source" read=|f| &f.resources.offer_source write=|f, v| f.resources.offer_source = v />
+                                </div>
+                            </details>
                         </fieldset>
 
                         <fieldset>
                             <legend>"Stock allowance"</legend>
-                            <p class="fieldset-note">"Current governed forms: rectangular, round, or plate. Allowances enlarge each model-envelope axis."</p>
+                            <p class="fieldset-note">"Total material added per axis around the model envelope (6.4 mm total = 3.2 mm per side)."</p>
                             <div class="form-grid">
-                                <ExactInput form label="Stock-profile ID" unit="ID" read=|f| &f.resources.stock_profile_id write=|f, v| f.resources.stock_profile_id = v />
-                                <ExactInput form label="Stock-profile version" unit="version" read=|f| &f.resources.stock_profile_version write=|f, v| f.resources.stock_profile_version = v />
-                                <ExactInput form label="Stock form" unit="name" read=|f| &f.resources.stock_form write=|f, v| f.resources.stock_form = v />
                                 <ExactInput form label="X allowance" unit="mm" read=|f| &f.resources.stock_allowance_x_mm write=|f, v| f.resources.stock_allowance_x_mm = v />
                                 <ExactInput form label="Y allowance" unit="mm" read=|f| &f.resources.stock_allowance_y_mm write=|f, v| f.resources.stock_allowance_y_mm = v />
                                 <ExactInput form label="Z allowance" unit="mm" read=|f| &f.resources.stock_allowance_z_mm write=|f, v| f.resources.stock_allowance_z_mm = v />
-                                <TextInput form label="Stock-policy source" read=|f| &f.resources.stock_source write=|f, v| f.resources.stock_source = v />
                             </div>
+                            <details class="manual-inputs">
+                                <summary>"Advanced: stock-profile identity"</summary>
+                                <p class="fieldset-note">"Current governed forms: rectangular, round, or plate; only rectangular drives proposals today."</p>
+                                <div class="form-grid">
+                                    <ExactInput form label="Stock-profile ID" unit="ID" read=|f| &f.resources.stock_profile_id write=|f, v| f.resources.stock_profile_id = v />
+                                    <ExactInput form label="Stock-profile version" unit="version" read=|f| &f.resources.stock_profile_version write=|f, v| f.resources.stock_profile_version = v />
+                                    <ExactInput form label="Stock form" unit="name" read=|f| &f.resources.stock_form write=|f, v| f.resources.stock_form = v />
+                                    <TextInput form label="Stock-policy source" read=|f| &f.resources.stock_source write=|f, v| f.resources.stock_source = v />
+                                </div>
+                            </details>
                         </fieldset>
 
                         <fieldset>
                             <legend>"Machine capability"</legend>
                             <p class="fieldset-note">"Physical capability remains separate from the machine hourly rate above."</p>
                             <div class="form-grid">
-                                <ExactInput form label="Machine ID" unit="ID" read=|f| &f.resources.machine_id write=|f, v| f.resources.machine_id = v />
-                                <ExactInput form label="Machine version" unit="version" read=|f| &f.resources.machine_version write=|f, v| f.resources.machine_version = v />
                                 <TextInput form label="Machine name" read=|f| &f.resources.machine_name write=|f, v| f.resources.machine_name = v />
-                                <ExactInput form label="Process class" unit="milling / turning / sawing / inspection" read=|f| &f.resources.process_class write=|f, v| f.resources.process_class = v />
                                 <ExactInput form label="Envelope X" unit="mm" read=|f| &f.resources.machine_envelope_x_mm write=|f, v| f.resources.machine_envelope_x_mm = v />
                                 <ExactInput form label="Envelope Y" unit="mm" read=|f| &f.resources.machine_envelope_y_mm write=|f, v| f.resources.machine_envelope_y_mm = v />
                                 <ExactInput form label="Envelope Z" unit="mm" read=|f| &f.resources.machine_envelope_z_mm write=|f, v| f.resources.machine_envelope_z_mm = v />
-                                <TextInput form label="Capability source" read=|f| &f.resources.machine_source write=|f, v| f.resources.machine_source = v />
                             </div>
+                            <details class="manual-inputs">
+                                <summary>"Advanced: machine identity"</summary>
+                                <div class="form-grid">
+                                    <ExactInput form label="Machine ID" unit="ID" read=|f| &f.resources.machine_id write=|f, v| f.resources.machine_id = v />
+                                    <ExactInput form label="Machine version" unit="version" read=|f| &f.resources.machine_version write=|f, v| f.resources.machine_version = v />
+                                    <ExactInput form label="Process class" unit="milling / turning / sawing / inspection" read=|f| &f.resources.process_class write=|f, v| f.resources.process_class = v />
+                                    <TextInput form label="Capability source" read=|f| &f.resources.machine_source write=|f, v| f.resources.machine_source = v />
+                                </div>
+                            </details>
                         </fieldset>
 
                         <fieldset>
                             <legend>"Coarse runtime profile"</legend>
                             <p class="fieldset-note">"This is versioned coarse-volumetric input, not CAM simulation or a machine-cycle guarantee."</p>
                             <div class="form-grid">
-                                <ExactInput form label="Runtime-profile ID" unit="ID" read=|f| &f.resources.runtime_profile_id write=|f, v| f.resources.runtime_profile_id = v />
-                                <ExactInput form label="Runtime-profile version" unit="version" read=|f| &f.resources.runtime_profile_version write=|f, v| f.resources.runtime_profile_version = v />
                                 <ExactInput form label="Removal rate" unit="mm³/min" read=|f| &f.resources.removal_rate_mm3_per_minute write=|f, v| f.resources.removal_rate_mm3_per_minute = v />
                                 <ExactInput form label="Setup" unit="min" read=|f| &f.resources.setup_minutes write=|f, v| f.resources.setup_minutes = v />
                                 <ExactInput form label="Programming" unit="min" read=|f| &f.resources.programming_minutes write=|f, v| f.resources.programming_minutes = v />
                                 <ExactInput form label="Load / unload" unit="min/item" read=|f| &f.resources.load_unload_minutes write=|f, v| f.resources.load_unload_minutes = v />
                                 <ExactInput form label="Inspection" unit="min/lot" read=|f| &f.resources.inspection_minutes write=|f, v| f.resources.inspection_minutes = v />
-                                <TextInput form label="Runtime source" read=|f| &f.resources.runtime_source write=|f, v| f.resources.runtime_source = v />
                             </div>
-                            <ReviewCheckbox form label="I reviewed these material, stock, machine, and runtime values for this test." read=|f| f.resources.confirmed_for_draft write=|f, v| f.resources.confirmed_for_draft = v />
+                            <details class="manual-inputs">
+                                <summary>"Advanced: runtime-profile identity"</summary>
+                                <div class="form-grid">
+                                    <ExactInput form label="Runtime-profile ID" unit="ID" read=|f| &f.resources.runtime_profile_id write=|f, v| f.resources.runtime_profile_id = v />
+                                    <ExactInput form label="Runtime-profile version" unit="version" read=|f| &f.resources.runtime_profile_version write=|f, v| f.resources.runtime_profile_version = v />
+                                    <TextInput form label="Runtime source" read=|f| &f.resources.runtime_source write=|f, v| f.resources.runtime_source = v />
+                                </div>
+                            </details>
                         </fieldset>
                     </div>
                 </Show>
@@ -3324,12 +3400,17 @@ fn SettingsWorkspace(
                 </Show>
 
                 <fieldset>
-                    <legend>"Change record"</legend>
+                    <legend>"Review and save"</legend>
                     <p class="fieldset-note">"Each save appends an immutable revision with an actor, host timestamp, and reason. Saving does not approve a quote or activate production authority."</p>
-                    <div class="form-grid">
-                        <TextInput form label="Changed by" read=|f| &f.settings_changed_by write=|f, v| f.settings_changed_by = v />
-                        <TextInput form label="Reason for change" read=|f| &f.settings_change_reason write=|f, v| f.settings_change_reason = v />
-                    </div>
+                    <ReviewCheckbox form label="I reviewed the rate, pricing, and resource values above for this test." read=DeveloperEstimateForm::all_settings_reviewed write=DeveloperEstimateForm::set_all_settings_reviewed />
+                    <details class="manual-inputs">
+                        <summary>"Advanced: change record"</summary>
+                        <p class="fieldset-note">"These values are recorded automatically; override them only when a different actor or reason should appear in the revision history."</p>
+                        <div class="form-grid">
+                            <TextInput form label="Changed by" read=|f| &f.settings_changed_by write=|f, v| f.settings_changed_by = v />
+                            <TextInput form label="Reason for change" read=|f| &f.settings_change_reason write=|f, v| f.settings_change_reason = v />
+                        </div>
+                    </details>
                 </fieldset>
 
                 <div class="settings-footer">
