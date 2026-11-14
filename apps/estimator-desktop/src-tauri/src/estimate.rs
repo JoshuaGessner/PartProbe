@@ -106,9 +106,18 @@ fn proposed_estimate_inputs(
         return Err(invalid_input("USE3-ADOPTION-PROPOSAL-STALE"));
     }
     let quantities = DraftQuantityInputs {
-        deliver: ItemQuantity::new(whole(&adoption.deliver_quantity)?),
-        planned_spares: ItemQuantity::new(whole(&adoption.planned_spares)?),
-        destructive_samples: ItemQuantity::new(whole(&adoption.destructive_samples)?),
+        deliver: ItemQuantity::new(whole(
+            &adoption.deliver_quantity,
+            "GUI4-ESTIMATE-DELIVER-QUANTITY",
+        )?),
+        planned_spares: ItemQuantity::new(whole(
+            &adoption.planned_spares,
+            "GUI4-ESTIMATE-PLANNED-SPARES",
+        )?),
+        destructive_samples: ItemQuantity::new(whole(
+            &adoption.destructive_samples,
+            "GUI4-ESTIMATE-DESTRUCTIVE-SAMPLES",
+        )?),
     };
     let proposal_rule_id = proposal.rule_id().to_owned();
     let (proposal_major, proposal_minor, proposal_patch) = proposal.rule_version();
@@ -199,48 +208,119 @@ fn estimate_inputs(
         CurrencyCode::new(currency).map_err(|_| invalid_input("GUI4-ESTIMATE-CURRENCY"))?;
     Ok(DraftEstimateInputs {
         stock: DraftStockInputs {
-            stock_volume: VolumeCubicMillimeters::new(decimal(&fields.stock_volume_mm3)?)
-                .map_err(|_| invalid_input("GUI4-ESTIMATE-STOCK-VOLUME"))?,
-            density: DensityKilogramsPerCubicMillimeter::new(decimal(&fields.density_kg_per_mm3)?)
-                .map_err(|_| invalid_input("GUI4-ESTIMATE-DENSITY"))?,
+            stock_volume: VolumeCubicMillimeters::new(decimal(
+                &fields.stock_volume_mm3,
+                "GUI4-ESTIMATE-STOCK-VOLUME",
+            )?)
+            .map_err(|_| invalid_input("GUI4-ESTIMATE-STOCK-VOLUME"))?,
+            density: DensityKilogramsPerCubicMillimeter::new(decimal(
+                &fields.density_kg_per_mm3,
+                "GUI4-ESTIMATE-DENSITY",
+            )?)
+            .map_err(|_| invalid_input("GUI4-ESTIMATE-DENSITY"))?,
         },
         quantities: DraftQuantityInputs {
-            deliver: ItemQuantity::new(whole(&fields.deliver_quantity)?),
-            planned_spares: ItemQuantity::new(whole(&fields.planned_spares)?),
-            destructive_samples: ItemQuantity::new(whole(&fields.destructive_samples)?),
+            deliver: ItemQuantity::new(whole(
+                &fields.deliver_quantity,
+                "GUI4-ESTIMATE-DELIVER-QUANTITY",
+            )?),
+            planned_spares: ItemQuantity::new(whole(
+                &fields.planned_spares,
+                "GUI4-ESTIMATE-PLANNED-SPARES",
+            )?),
+            destructive_samples: ItemQuantity::new(whole(
+                &fields.destructive_samples,
+                "GUI4-ESTIMATE-DESTRUCTIVE-SAMPLES",
+            )?),
         },
         times: DraftTimeInputs {
-            setup_hours: decimal(&fields.setup_hours)?,
-            programming_hours: decimal(&fields.programming_hours)?,
-            cutting_hours_per_item: decimal(&fields.cutting_hours_per_item)?,
-            non_cutting_hours_per_item: decimal(&fields.non_cutting_hours_per_item)?,
-            load_unload_hours_per_item: decimal(&fields.load_unload_hours_per_item)?,
+            setup_hours: decimal(&fields.setup_hours, "GUI4-ESTIMATE-SETUP-HOURS")?,
+            programming_hours: decimal(
+                &fields.programming_hours,
+                "GUI4-ESTIMATE-PROGRAMMING-HOURS",
+            )?,
+            cutting_hours_per_item: decimal(
+                &fields.cutting_hours_per_item,
+                "GUI4-ESTIMATE-CUTTING-HOURS",
+            )?,
+            non_cutting_hours_per_item: decimal(
+                &fields.non_cutting_hours_per_item,
+                "GUI4-ESTIMATE-NON-CUTTING-HOURS",
+            )?,
+            load_unload_hours_per_item: decimal(
+                &fields.load_unload_hours_per_item,
+                "GUI4-ESTIMATE-LOAD-UNLOAD-HOURS",
+            )?,
             in_cycle_inspection_hours_per_item: decimal(
                 &fields.in_cycle_inspection_hours_per_item,
+                "GUI4-ESTIMATE-IN-CYCLE-INSPECTION-HOURS",
             )?,
-            quality_inspection_hours: decimal(&fields.quality_inspection_hours)?,
+            quality_inspection_hours: decimal(
+                &fields.quality_inspection_hours,
+                "GUI4-ESTIMATE-QUALITY-INSPECTION-HOURS",
+            )?,
         },
         material: DraftMaterialCostInputs {
-            purchased: money(&fields.purchased_material, &currency)?,
-            cut: money(&fields.cut_charge, &currency)?,
-            certificate: money(&fields.material_certificate, &currency)?,
-            inbound_freight: money(&fields.inbound_freight, &currency)?,
-            approved_remnant_credit: money(&fields.approved_remnant_credit, &currency)?,
+            purchased: money(
+                &fields.purchased_material,
+                &currency,
+                "GUI4-ESTIMATE-PURCHASED-MATERIAL",
+            )?,
+            cut: money(&fields.cut_charge, &currency, "GUI4-ESTIMATE-CUT-CHARGE")?,
+            certificate: money(
+                &fields.material_certificate,
+                &currency,
+                "GUI4-ESTIMATE-MATERIAL-CERTIFICATE",
+            )?,
+            inbound_freight: money(
+                &fields.inbound_freight,
+                &currency,
+                "GUI4-ESTIMATE-INBOUND-FREIGHT",
+            )?,
+            approved_remnant_credit: money(
+                &fields.approved_remnant_credit,
+                &currency,
+                "GUI4-ESTIMATE-REMNANT-CREDIT",
+            )?,
         },
         operation: DraftOperationCostInputs {
-            prove_out: money(&fields.prove_out, &currency)?,
-            tooling: money(&fields.tooling, &currency)?,
-            consumables: money(&fields.consumables, &currency)?,
-            fixture: money(&fields.fixture, &currency)?,
-            outside: money(&fields.outside_processing, &currency)?,
-            freight: money(&fields.operation_freight, &currency)?,
+            prove_out: money(&fields.prove_out, &currency, "GUI4-ESTIMATE-PROVE-OUT")?,
+            tooling: money(&fields.tooling, &currency, "GUI4-ESTIMATE-TOOLING")?,
+            consumables: money(&fields.consumables, &currency, "GUI4-ESTIMATE-CONSUMABLES")?,
+            fixture: money(&fields.fixture, &currency, "GUI4-ESTIMATE-FIXTURE")?,
+            outside: money(
+                &fields.outside_processing,
+                &currency,
+                "GUI4-ESTIMATE-OUTSIDE-PROCESSING",
+            )?,
+            freight: money(
+                &fields.operation_freight,
+                &currency,
+                "GUI4-ESTIMATE-OPERATION-FREIGHT",
+            )?,
         },
         base: DraftBaseCostInputs {
-            nonrecurring_engineering: money(&fields.nonrecurring_engineering, &currency)?,
-            administration: money(&fields.administration, &currency)?,
-            overhead: money(&fields.overhead, &currency)?,
-            accepted_risk_impacts: vec![money(&fields.accepted_risk_impact, &currency)?],
-            expected_rework: money(&fields.expected_rework, &currency)?,
+            nonrecurring_engineering: money(
+                &fields.nonrecurring_engineering,
+                &currency,
+                "GUI4-ESTIMATE-NONRECURRING-ENGINEERING",
+            )?,
+            administration: money(
+                &fields.administration,
+                &currency,
+                "GUI4-ESTIMATE-ADMINISTRATION",
+            )?,
+            overhead: money(&fields.overhead, &currency, "GUI4-ESTIMATE-OVERHEAD")?,
+            accepted_risk_impacts: vec![money(
+                &fields.accepted_risk_impact,
+                &currency,
+                "GUI4-ESTIMATE-RISK-IMPACT",
+            )?],
+            expected_rework: money(
+                &fields.expected_rework,
+                &currency,
+                "GUI4-ESTIMATE-EXPECTED-REWORK",
+            )?,
         },
     })
 }
@@ -284,30 +364,40 @@ pub(crate) fn rate_card(
             "setup-labor",
             CostCategory::SetupLabor,
             &fields.setup_labor_per_hour,
+            "GUI4-ESTIMATE-SETUP-LABOR-RATE",
         ),
         (
             "programming",
             CostCategory::Programming,
             &fields.programming_per_hour,
+            "GUI4-ESTIMATE-PROGRAMMING-RATE",
         ),
         (
             "run-labor",
             CostCategory::RunLabor,
             &fields.run_labor_per_hour,
+            "GUI4-ESTIMATE-RUN-LABOR-RATE",
         ),
-        ("machine", CostCategory::Machine, &fields.machine_per_hour),
+        (
+            "machine",
+            CostCategory::Machine,
+            &fields.machine_per_hour,
+            "GUI4-ESTIMATE-MACHINE-RATE",
+        ),
         (
             "quality-inspection",
             CostCategory::QualityInspection,
             &fields.quality_inspection_per_hour,
+            "GUI4-ESTIMATE-QUALITY-INSPECTION-RATE",
         ),
     ]
     .into_iter()
-    .map(|(id, category, amount)| {
+    .map(|(id, category, amount, diagnostic)| {
         rate_entry(
             id,
             category,
             amount,
+            diagnostic,
             &currency,
             version,
             &effective_on,
@@ -335,6 +425,7 @@ fn rate_entry(
     id: &str,
     category: CostCategory,
     amount: &str,
+    amount_diagnostic: &'static str,
     currency: &CurrencyCode,
     version: RateVersion,
     effective_from: &EffectiveDate,
@@ -364,7 +455,7 @@ fn rate_entry(
         RateComposition::Component,
         RateScope::organization(),
         actor,
-        money(amount, currency)?,
+        money(amount, currency, amount_diagnostic)?,
         RateBasis::PerHour,
         effective_from.clone(),
         None,
@@ -405,10 +496,18 @@ pub(crate) fn pricing_policy(
         version,
         currency.clone(),
         PricingMethod::Markup {
-            rate: decimal(&fields.markup_rate)?,
+            rate: decimal(&fields.markup_rate, "GUI4-ESTIMATE-MARKUP-RATE")?,
         },
-        optional_money(&fields.optional_price_floor, &currency)?,
-        optional_money(&fields.optional_minimum_order, &currency)?,
+        optional_money(
+            &fields.optional_price_floor,
+            &currency,
+            "GUI4-ESTIMATE-PRICE-FLOOR",
+        )?,
+        optional_money(
+            &fields.optional_minimum_order,
+            &currency,
+            "GUI4-ESTIMATE-MINIMUM-ORDER",
+        )?,
         rounding,
     )
     .map_err(|_| invalid_input("GUI4-ESTIMATE-PRICING-POLICY"))
@@ -534,17 +633,20 @@ fn blocked_evaluation(
     }
 }
 
-fn decimal(value: &str) -> Result<Decimal, HostCommandError> {
+/// Parses one exact decimal field. The diagnostic names the exact field so a user with many
+/// manual inputs can find the rejected value instead of guessing from a generic code.
+fn decimal(value: &str, diagnostic: &'static str) -> Result<Decimal, HostCommandError> {
     if value.trim().is_empty() {
-        return Err(invalid_input("GUI4-ESTIMATE-DECIMAL-MISSING"));
+        return Err(invalid_input(diagnostic));
     }
-    Decimal::from_str(value).map_err(|_| invalid_input("GUI4-ESTIMATE-DECIMAL"))
+    Decimal::from_str(value.trim()).map_err(|_| invalid_input(diagnostic))
 }
 
-fn whole(value: &str) -> Result<u64, HostCommandError> {
+fn whole(value: &str, diagnostic: &'static str) -> Result<u64, HostCommandError> {
     value
+        .trim()
         .parse::<u64>()
-        .map_err(|_| invalid_input("GUI4-ESTIMATE-WHOLE-NUMBER"))
+        .map_err(|_| invalid_input(diagnostic))
 }
 
 fn version(value: &str) -> Result<u32, HostCommandError> {
@@ -553,15 +655,23 @@ fn version(value: &str) -> Result<u32, HostCommandError> {
         .map_err(|_| invalid_input("GUI4-ESTIMATE-VERSION"))
 }
 
-fn money(value: &str, currency: &CurrencyCode) -> Result<Money, HostCommandError> {
-    Ok(Money::new(decimal(value)?, currency.clone()))
+fn money(
+    value: &str,
+    currency: &CurrencyCode,
+    diagnostic: &'static str,
+) -> Result<Money, HostCommandError> {
+    Ok(Money::new(decimal(value, diagnostic)?, currency.clone()))
 }
 
-fn optional_money(value: &str, currency: &CurrencyCode) -> Result<Option<Money>, HostCommandError> {
+fn optional_money(
+    value: &str,
+    currency: &CurrencyCode,
+    diagnostic: &'static str,
+) -> Result<Option<Money>, HostCommandError> {
     if value.trim().is_empty() {
         Ok(None)
     } else {
-        money(value, currency).map(Some)
+        money(value, currency, diagnostic).map(Some)
     }
 }
 

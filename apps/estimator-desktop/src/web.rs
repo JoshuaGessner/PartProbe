@@ -2172,6 +2172,11 @@ fn StockCandidateEditor(
             <p class="evidence-note">
                 "Edited final dimensions create review-only session candidates under the visibly labeled developer session. Candidates are not saved records, standard-size resolution, availability, purchasing, or estimate authority; the original proposal and the baseline estimate are preserved, and every decision is recorded in the local durable audit."
             </p>
+            <Show when=move || !inputs_ready()>
+                <p class="fieldset-note" role="status">
+                    "Candidate editing opens after a STEP analysis and its automatic stock proposal are available on the Estimate workspace."
+                </p>
+            </Show>
             <div class="form-grid">
                 <StockCandidateInput
                     form=stock_form
@@ -2926,7 +2931,7 @@ fn EstimateWorkspace(
                                 {move || if proposal_state.get().is_available() {
                                     "Quantity remains explicit. Reviewed stock, material, and coarse runtime values will come from the proposal above."
                                 } else {
-                                    "Quantity and material cannot be taken safely from geometry alone. Without a prepared proposal, complete the manual path below."
+                                    "Quantity and material cannot be taken safely from geometry alone. Without a prepared proposal, complete the manual path below. Material density is entered in kg/mm³: divide kg/m³ by 1,000,000,000 (6061 aluminum 2700 kg/m³ → 0.0000027 kg/mm³)."
                                 }}
                             </p>
                             <div class="form-grid">
@@ -3195,6 +3200,7 @@ fn SettingsWorkspace(
 
                             <fieldset>
                                 <legend>"Pricing policy"</legend>
+                                <p class="fieldset-note">"Markup rate is a decimal fraction of total internal cost: 0.25 adds 25%. The optional floor and minimum order raise the governed price before rounding."</p>
                                 <div class="form-grid">
                                     <ExactInput form label="Pricing-policy ID" unit="ID" read=|f| &f.pricing_policy_id write=|f, v| f.pricing_policy_id = v />
                                     <ExactInput form label="Policy version" unit="version" read=|f| &f.pricing_policy_version write=|f, v| f.pricing_policy_version = v />
@@ -3898,6 +3904,7 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
                 let currency = result.currency.clone();
                 let rules = result.calculation_rule_ids.join(", ");
                 let proposal_adoption = result.proposal_adoption.clone();
+                let removed_volume_warnings = result.removed_volume_warnings.clone();
                 let result_kind = if proposal_adoption.is_some() {
                     "TEST ESTIMATE · NOT A QUOTE"
                 } else {
@@ -3914,12 +3921,36 @@ fn EstimateResult(state: ReadSignal<DraftEstimatePanelState>) -> impl IntoView {
                         </div>
                         <dl class="cost-trace">
                             <div><dt>"Material"</dt><dd>{currency.clone()}" "{result.material_cost}</dd></div>
-                            <div><dt>"Operation"</dt><dd>{currency.clone()}" "{result.operation_cost}</dd></div>
+                            <div><dt>"Setup (lot)"</dt><dd>{currency.clone()}" "{result.setup_cost}</dd></div>
+                            <div><dt>"Programming (lot)"</dt><dd>{currency.clone()}" "{result.programming_cost}</dd></div>
+                            <div><dt>"Run"</dt><dd>{currency.clone()}" "{result.run_cost}</dd></div>
+                            <div><dt>"Quality inspection"</dt><dd>{currency.clone()}" "{result.quality_inspection_cost}</dd></div>
+                            <div><dt>"Operation total"</dt><dd>{currency.clone()}" "{result.operation_cost}</dd></div>
                             <div><dt>"Base internal"</dt><dd>{currency.clone()}" "{result.base_internal_cost}</dd></div>
                             <div><dt>"Risk reserve"</dt><dd>{currency.clone()}" "{result.risk_reserve}</dd></div>
                             <div><dt>"Total internal"</dt><dd>{currency.clone()}" "{result.total_internal_cost}</dd></div>
                             <div><dt>"Formula price"</dt><dd>{currency.clone()}" "{result.formula_price}</dd></div>
                         </dl>
+                        <dl class="cost-trace">
+                            <div><dt>"Make quantity"</dt><dd>{result.make_quantity}" items"</dd></div>
+                            <div><dt>"Cycle time"</dt><dd>{result.cycle_hours_per_item}" h/item"</dd></div>
+                            <div><dt>"Part mass"</dt><dd>{result.part_mass_kg}" kg"</dd></div>
+                            <div><dt>"Stock mass"</dt><dd>{result.stock_mass_kg}" kg"</dd></div>
+                            <div><dt>"Removed volume"</dt><dd>{result.removed_volume_mm3}" mm³"</dd></div>
+                        </dl>
+                        <Show when={
+                            let has_warnings = !removed_volume_warnings.is_empty();
+                            move || has_warnings
+                        }>
+                            <div class="blocked-state" role="status">
+                                <p class="blocked-title">"Geometry review notes"</p>
+                                <ul>
+                                    {removed_volume_warnings.clone().into_iter().map(|warning| view! {
+                                        <li>{warning}</li>
+                                    }).collect_view()}
+                                </ul>
+                            </div>
+                        </Show>
                         <details>
                             <summary>"Calculation and rate trace"</summary>
                             <p>"Rules: " {rules}</p>

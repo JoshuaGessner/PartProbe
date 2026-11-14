@@ -1,12 +1,19 @@
 # Progress Log
 
 > **Status:** In Review
-> **Last updated:** 2026-11-13
+> **Last updated:** 2026-11-14
 > **Related requirements:** All
 > **Related ADRs:** ADR-0001–ADR-0014
 > **Open questions:** OQ-001–OQ-050
 > **Dependencies:** None
 > **Supersedes:** None
+
+## 2026-11-14 — Estimate math audit and rate-entry usability
+
+- Audited the complete deterministic chain against CALC-001–CALC-018: the engine rules use exact checked decimal arithmetic with category and double-charge guards, and `calculate` maps inputs through part/stock mass, clamped removed volume with warnings, make quantity, material cost, setup/programming/run/quality rate extension, operation/base/risk/total, and markup/floor/minimum/half-even rounding exactly as documented. Hand-recomputed the pinned cases — manual EX-01 (operations 260 + material 100 + NRE/administration/overhead 125 = 485, +35 risk, ×1.35 = USD 702.00), the Huntsville-rate baseline (953 × 1.25 = USD 1,191.25), and the prism proposal (1,155 mm³ blank, 0.0031185 kg, USD 0.02650725 stock material, 0.0009375 cutting h/item) — all match the engine, golden tests, and worked examples. The installed Huntsville profile values exactly match their research document. No formula, rule version, accepted boundary, or schema changed, and no placeholder features remain in the primary flow.
+- Made every estimate parse failure name its exact field: the host's decimal/whole/money parsing now carries field-specific content-minimized diagnostics (for example `GUI4-ESTIMATE-SETUP-HOURS`, `GUI4-ESTIMATE-MACHINE-RATE`, `GUI4-ESTIMATE-MARKUP-RATE`) across all 28 manual estimate inputs, the five hourly rate amounts, the pricing floor/minimum, and the adoption quantities, retiring the generic `GUI4-ESTIMATE-DECIMAL`/`WHOLE-NUMBER` codes; values are trimmed before parsing. Messages remain content-free and no calculation behavior changed.
+- Expanded the estimate result trace from the existing DTO: setup, programming, run, and quality-inspection rows beside the operation total, plus make quantity, cycle hours per item, part/stock mass, removed volume, and any removed-volume review warnings in a visible geometry-notes block. Added a kg/mm³ conversion hint to the manual density fallback, a markup/floor/minimum explanation note to the pricing fieldset, and an explicit readiness note to the stock-candidate editor so its actions never disable silently.
+- Validation passes 362 workspace all-target tests (two GPU smokes ignored), documentation tests, strict workspace/viewer-spike/WASM lint, all 80 Python tests, formatting, and 151-file planning validation. Rebuilt the frontend and the embedded-runtime `viewer-spike` package with these refinements: the bundle runtime re-verified and the packaged retained-session, proposal/adoption, and durable stock-workflow smokes pass. New GUI executable SHA-256 is `4bbfdb4e15ec2efc2510f8a4bfab8a6688b861c9ddee5ce902ea5b2d57fa2b38`; the embedded worker is unchanged at `28c6633d929bae6600d5ad7852ab868f6b8fc116ad631b575075ca563dc08d85`. The live direct-launch human rehearsal remains the open gate.
 
 ## 2026-11-13 — Contract v13 desktop stock-candidate composition
 
